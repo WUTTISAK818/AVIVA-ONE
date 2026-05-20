@@ -8,6 +8,7 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
 import { supabase } from "@/lib/supabase";
+import { logAction } from "@/lib/audit";
 import { cashflowData, financeSummary as mockSummary } from "@/lib/mock-data";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -75,21 +76,23 @@ export default function FinancePage() {
     const amt = Number(form.amount);
 
     if (amt >= 100000) {
-      await supabase.from("approvals").insert({
+      const { data } = await supabase.from("approvals").insert({
         module: "finance",
         reference_type: "transaction",
         amount: amt,
         description: `[${form.category}] ${form.description}`,
         status: "pending",
         requested_by: "Admin",
-      });
+      }).select().single();
+      await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
     } else {
-      await supabase.from("finance_transactions").insert({
+      const { data } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
         transaction_type: form.transaction_type,
         amount: form.transaction_type === "expense" ? -amt : amt,
         description: `[${form.category}] ${form.description}`,
-      });
+      }).select().single();
+      await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
     }
     setSaving(false);
     setShowModal(false);
@@ -113,6 +116,7 @@ export default function FinancePage() {
         description: approval.description,
       });
     }
+    await logAction("finance", approved ? "approve" : "reject", `${approved ? "อนุมัติ" : "ปฏิเสธ"} ฿${approval.amount.toLocaleString()} — ${approval.description}`, id);
     fetchData();
   };
 

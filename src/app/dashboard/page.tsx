@@ -52,6 +52,7 @@ export default function DashboardPage() {
     pendingApprovals: 0, totalReceipts: 0, employeeCount: 0,
     pendingClaims: 0, totalLeads: 0, pendingDocs: 0,
   });
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -62,6 +63,15 @@ export default function DashboardPage() {
   useEffect(() => {
     supabase.from("projects").select("*").eq("id", PROJECT_ID).single()
       .then(({ data }) => { setProject(data); setLoading(false); });
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata) {
+        setCurrentUser({
+          name: user.user_metadata.full_name ?? user.email ?? "ผู้ใช้",
+          role: user.user_metadata.department ?? user.user_metadata.role ?? "ผู้ใช้ระบบ",
+        });
+      }
+    });
 
     Promise.all([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
@@ -98,7 +108,9 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div>
             <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-            <p className="text-xs text-aviva-secondary mt-0.5">{formatDate()}</p>
+            <p className="text-xs text-aviva-secondary mt-0.5">
+              {currentUser ? `${currentUser.name} · ${currentUser.role}` : formatDate()}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10">

@@ -6,6 +6,7 @@ import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
+import { logAction } from "@/lib/audit";
 
 interface Employee {
   id: string;
@@ -91,6 +92,7 @@ export default function HRPage() {
       start_date: form.start_date,
       status: "active",
     });
+    await logAction("hr", "add_employee", `เพิ่มพนักงาน ${form.full_name} ฝ่าย${form.department}`);
     setSaving(false);
     setShowModal(false);
     setForm(emptyForm);

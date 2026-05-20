@@ -12,6 +12,13 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: "AVIVA ONE",
   description: "AI-Powered Luxury Real Estate Executive Operating System",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "AVIVA ONE",
+  },
+  other: { "mobile-web-app-capable": "yes" },
 };
 
 export default function RootLayout({

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Home, DollarSign, Users, Package } from "lucide-react";
+import { Bell, Home, DollarSign, Users, Package, LogOut } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -11,6 +11,7 @@ import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 import { revenueData, aiInsights } from "@/lib/mock-data";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -40,6 +41,12 @@ function formatDate() {
 export default function DashboardPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace("/login");
+  };
 
   useEffect(() => {
     supabase
@@ -70,10 +77,15 @@ export default function DashboardPage() {
             <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
             <p className="text-xs text-aviva-secondary mt-0.5">{formatDate()}</p>
           </div>
-          <button className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
-            <Bell size={18} className="text-aviva-secondary" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-aviva-gold" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
+              <Bell size={18} className="text-aviva-secondary" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-aviva-gold" />
+            </button>
+            <button onClick={handleLogout} className="p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
+              <LogOut size={18} className="text-aviva-secondary" />
+            </button>
+          </div>
         </div>
       </div>
 

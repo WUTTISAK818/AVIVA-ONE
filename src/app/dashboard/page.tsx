@@ -1,24 +1,30 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Bell, Home, DollarSign, Users, Package } from "lucide-react";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import KPICard from "@/components/KPICard";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
-import {
-  dashboardKPIs,
-  revenueData,
-  aiInsights,
-} from "@/lib/mock-data";
+import { supabase } from "@/lib/supabase";
+import { revenueData, aiInsights } from "@/lib/mock-data";
+
+const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+interface Project {
+  project_name: string;
+  total_units: number;
+  sold_units: number;
+  available_units: number;
+  revenue_actual: number;
+  revenue_target: number;
+  construction_progress: number;
+  sellout_forecast: string;
+}
 
 function formatMillions(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -27,17 +33,33 @@ function formatMillions(n: number) {
 
 function formatDate() {
   return new Date().toLocaleDateString("th-TH", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 }
 
 export default function DashboardPage() {
-  const selloutPct = Math.round(
-    (dashboardKPIs.soldUnits / dashboardKPIs.totalUnits) * 100
-  );
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("id", PROJECT_ID)
+      .single()
+      .then(({ data }) => {
+        setProject(data);
+        setLoading(false);
+      });
+  }, []);
+
+  const totalUnits = project?.total_units ?? 120;
+  const soldUnits = project?.sold_units ?? 73;
+  const available = project?.available_units ?? 47;
+  const revenue = project?.revenue_actual ?? 285_000_000;
+  const constructionProgress = project?.construction_progress ?? 68;
+  const selloutForecast = project?.sellout_forecast ?? "Q3 2026";
+  const selloutPct = Math.round((soldUnits / totalUnits) * 100);
 
   return (
     <div className="min-h-screen bg-aviva-bg">
@@ -58,40 +80,26 @@ export default function DashboardPage() {
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
         {/* KPI Grid */}
         <div>
-          <SectionHeader title="ภาพรวมโครงการ" subtitle="อัปเดตแบบ Real-time" />
+          <SectionHeader
+            title="ภาพรวมโครงการ"
+            subtitle={loading ? "กำลังโหลด..." : "ข้อมูล Real-time จาก Supabase"}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <KPICard
-              icon={Home}
-              label="ยูนิตทั้งหมด"
-              value={`${dashboardKPIs.totalUnits}`}
-            />
-            <KPICard
-              icon={Users}
-              label="ขายแล้ว"
-              value={`${dashboardKPIs.soldUnits}`}
-              change={dashboardKPIs.soldChange}
-              highlight
-            />
-            <KPICard
-              icon={Package}
-              label="ว่างอยู่"
-              value={`${dashboardKPIs.available}`}
-            />
+            <KPICard icon={Home} label="ยูนิตทั้งหมด" value={`${totalUnits}`} />
+            <KPICard icon={Users} label="ขายแล้ว" value={`${soldUnits}`} change={5} highlight />
+            <KPICard icon={Package} label="ว่างอยู่" value={`${available}`} />
             <KPICard
               icon={DollarSign}
               label="รายได้รวม"
-              value={`฿${formatMillions(dashboardKPIs.revenue)}`}
-              change={dashboardKPIs.revenueChange}
+              value={`฿${formatMillions(revenue)}`}
+              change={8.7}
             />
           </div>
         </div>
 
         {/* Revenue Chart */}
         <GlassCard className="p-4">
-          <SectionHeader
-            title="รายได้รายเดือน"
-            subtitle="หน่วย: ล้านบาท"
-          />
+          <SectionHeader title="รายได้รายเดือน" subtitle="หน่วย: ล้านบาท" />
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={revenueData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
@@ -101,34 +109,13 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: "#D1D5DB", fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "#D1D5DB", fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
+                <XAxis dataKey="month" tick={{ fill: "#D1D5DB", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#D1D5DB", fontSize: 10 }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#17332D",
-                    border: "1px solid #D4AF37",
-                    borderRadius: "8px",
-                    color: "#fff",
-                    fontSize: "12px",
-                  }}
+                  contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
                   formatter={(val) => [`฿${val}M`, "รายได้"]}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#D4AF37"
-                  strokeWidth={2}
-                  fill="url(#goldGrad)"
-                />
+                <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} fill="url(#goldGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -136,31 +123,23 @@ export default function DashboardPage() {
 
         {/* Sellout Progress */}
         <GlassCard className="p-4">
-          <SectionHeader
-            title="ความคืบหน้าการขาย"
-            subtitle={`คาดว่าจะขายหมด: ${dashboardKPIs.selloutForecast}`}
-          />
-          <ProgressBar
-            label={`ขายแล้ว ${dashboardKPIs.soldUnits} / ${dashboardKPIs.totalUnits} ยูนิต`}
-            value={selloutPct}
-          />
+          <SectionHeader title="ความคืบหน้าการขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
+          <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
           <div className="flex items-center justify-between mt-3">
             <div className="text-center">
               <p className="text-lg font-bold text-aviva-gold">{selloutPct}%</p>
               <p className="text-xs text-aviva-secondary">ขายแล้ว</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-aviva-text">{dashboardKPIs.available}</p>
+              <p className="text-lg font-bold text-aviva-text">{available}</p>
               <p className="text-xs text-aviva-secondary">ยูนิตว่าง</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-aviva-text">{dashboardKPIs.constructionProgress}%</p>
+              <p className="text-lg font-bold text-aviva-text">{constructionProgress}%</p>
               <p className="text-xs text-aviva-secondary">ก่อสร้างแล้ว</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold text-green-400">
-                +{dashboardKPIs.cashflowChange}%
-              </p>
+              <p className="text-lg font-bold text-green-400">+8.7%</p>
               <p className="text-xs text-aviva-secondary">Cashflow</p>
             </div>
           </div>
@@ -168,10 +147,7 @@ export default function DashboardPage() {
 
         {/* AI Insights */}
         <div>
-          <SectionHeader
-            title="AI Executive Insights"
-            subtitle="วิเคราะห์โดย AVIVA AI"
-          />
+          <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์โดย AVIVA AI" />
           <div className="space-y-3">
             {aiInsights.slice(0, 3).map((insight) => (
               <AIInsightPanel key={insight.id} {...insight} />

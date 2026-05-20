@@ -3,19 +3,22 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, User } from "lucide-react";
 import clsx from "clsx";
-import {
-  aiChatHistory,
-  suggestedQuestions,
-  mockAIResponses,
-} from "@/lib/mock-data";
+import { suggestedQuestions } from "@/lib/mock-data";
 
 interface Message {
   role: "user" | "assistant";
   message: string;
 }
 
+const initialMessages: Message[] = [
+  {
+    role: "assistant",
+    message: "สวัสดีครับ ผมคือ AVIVA AI Executive Assistant พร้อมวิเคราะห์ข้อมูลโครงการแบบ Real-time จาก Supabase ถามได้เลยครับ",
+  },
+];
+
 export default function AIPage() {
-  const [messages, setMessages] = useState<Message[]>(aiChatHistory);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -24,20 +27,31 @@ export default function AIPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  function sendMessage(text: string) {
+  async function sendMessage(text: string) {
     if (!text.trim() || isThinking) return;
-    const userMsg: Message = { role: "user", message: text };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, { role: "user", message: text }]);
     setInput("");
     setIsThinking(true);
 
-    setTimeout(() => {
-      const response =
-        mockAIResponses[text] ??
-        "ขออภัยครับ ยังไม่มีข้อมูลเพียงพอสำหรับคำถามนี้ กรุณาลองถามคำถามอื่น หรือตรวจสอบข้อมูลในแต่ละโมดูลครับ";
-      setMessages((prev) => [...prev, { role: "assistant", message: response }]);
+    try {
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", message: data.response ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่" },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", message: "เกิดข้อผิดพลาด กรุณาตรวจสอบการเชื่อมต่อและลองใหม่ครับ" },
+      ]);
+    } finally {
       setIsThinking(false);
-    }, 1200);
+    }
   }
 
   return (
@@ -52,7 +66,7 @@ export default function AIPage() {
             <h1 className="text-base font-bold text-aviva-text">AVIVA AI</h1>
             <p className="text-xs text-green-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-              Executive Assistant พร้อมให้บริการ
+              วิเคราะห์จากข้อมูล Supabase Real-time
             </p>
           </div>
         </div>
@@ -61,23 +75,18 @@ export default function AIPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full space-y-4">
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={clsx("flex gap-2.5", msg.role === "user" ? "justify-end" : "justify-start")}
-          >
+          <div key={i} className={clsx("flex gap-2.5", msg.role === "user" ? "justify-end" : "justify-start")}>
             {msg.role === "assistant" && (
               <div className="w-7 h-7 rounded-full bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <Sparkles size={12} className="text-aviva-gold" />
               </div>
             )}
-            <div
-              className={clsx(
-                "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                msg.role === "user"
-                  ? "bg-aviva-gold text-aviva-bg font-medium rounded-tr-sm"
-                  : "bg-aviva-card border border-aviva-gold/10 text-aviva-text rounded-tl-sm"
-              )}
-            >
+            <div className={clsx(
+              "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+              msg.role === "user"
+                ? "bg-aviva-gold text-aviva-bg font-medium rounded-tr-sm"
+                : "bg-aviva-card border border-aviva-gold/10 text-aviva-text rounded-tl-sm"
+            )}>
               {msg.message}
             </div>
             {msg.role === "user" && (
@@ -105,9 +114,9 @@ export default function AIPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Suggested Questions */}
+      {/* Suggested */}
       <div className="px-4 max-w-lg mx-auto w-full">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {suggestedQuestions.map((q) => (
             <button
               key={q}

@@ -73,10 +73,11 @@ export default function DashboardPage() {
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
-    ]).then(([approvals, receipts, employees, claims, leads, docs]) => {
+      supabase.from("approval_logs").select("approval_id", { count: "exact", head: true }).eq("action_taken", "Pending"),
+    ]).then(([approvals, receipts, employees, claims, leads, docs, v2Approvals]) => {
       const receiptTotal = (receipts.data ?? []).reduce((s: number, r: { amount: number }) => s + Number(r.amount), 0);
       setStats({
-        pendingApprovals: approvals.count ?? 0,
+        pendingApprovals: (approvals.count ?? 0) + (v2Approvals.count ?? 0),
         totalReceipts: receiptTotal,
         employeeCount: employees.count ?? 0,
         pendingClaims: claims.count ?? 0,

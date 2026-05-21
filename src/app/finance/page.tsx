@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, TrendingDown, DollarSign, Plus, X, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Plus, X, Clock, ClipboardCheck } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import clsx from "clsx";
+import Link from "next/link";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
@@ -48,6 +49,7 @@ function formatM(n: number) {
 export default function FinancePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [materialPurchasePending, setMaterialPurchasePending] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -55,12 +57,19 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<"txn" | "approval">("txn");
 
   const fetchData = () => {
-    supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID)
-      .order("created_at", { ascending: false }).limit(20)
-      .then(({ data }) => { setTransactions((data as Transaction[]) ?? []); setLoading(false); });
-    supabase.from("approvals").select("*").eq("module", "finance")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setApprovals((data as Approval[]) ?? []));
+    Promise.all([
+      supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID)
+        .order("created_at", { ascending: false }).limit(20),
+      supabase.from("approvals").select("*").eq("module", "finance")
+        .order("created_at", { ascending: false }),
+      supabase.from("approval_logs").select("approval_id", { count: "exact", head: true })
+        .eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending"),
+    ]).then(([txnRes, apprRes, matRes]) => {
+      setTransactions((txnRes.data as Transaction[]) ?? []);
+      setApprovals((apprRes.data as Approval[]) ?? []);
+      setMaterialPurchasePending(matRes.count ?? 0);
+      setLoading(false);
+    });
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -147,6 +156,20 @@ export default function FinancePage() {
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {materialPurchasePending > 0 && (
+          <Link href="/approvals" className="block">
+            <GlassCard className="p-3 border border-orange-500/20 bg-orange-500/5">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={16} className="text-orange-400 flex-shrink-0" />
+                <span className="text-xs text-orange-400 flex-1">
+                  รออนุมัติจัดซื้อวัสดุ <b>{materialPurchasePending}</b> รายการ
+                </span>
+                <span className="text-[10px] text-orange-400/70">แตะเพื่อดู →</span>
+              </div>
+            </GlassCard>
+          </Link>
+        )}
+
         {/* Summary */}
         <div className="grid grid-cols-3 gap-3">
           <GlassCard className="p-3 text-center">

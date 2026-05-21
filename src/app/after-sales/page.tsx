@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wrench, CheckCircle, Clock, AlertCircle, Star, Plus, X } from "lucide-react";
+import { Wrench, CheckCircle, Clock, AlertCircle, Star, Plus, X, Pencil } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -55,6 +55,7 @@ const emptyForm = {
   assigned_to: "พี่ท (วิศวกร)",
   scheduled_date: "",
   status: "pending" as Claim["status"],
+  satisfaction_score: "",
 };
 
 export default function AfterSalesPage() {
@@ -65,6 +66,7 @@ export default function AfterSalesPage() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
@@ -91,18 +93,31 @@ export default function AfterSalesPage() {
   const handleSave = async () => {
     if (!form.customer_name || !form.description) return;
     setSaving(true);
-    await supabase.from("warranty_claims").insert({
-      project_id: PROJECT_ID,
-      customer_name: form.customer_name,
-      issue_type: form.issue_type,
-      description: form.description,
-      assigned_to: form.assigned_to,
-      scheduled_date: form.scheduled_date || null,
-      status: form.status,
-    });
+    if (editingClaim) {
+      await supabase.from("warranty_claims").update({
+        customer_name: form.customer_name,
+        issue_type: form.issue_type,
+        description: form.description,
+        assigned_to: form.assigned_to,
+        scheduled_date: form.scheduled_date || null,
+        status: form.status,
+        satisfaction_score: form.satisfaction_score !== "" ? Number(form.satisfaction_score) : null,
+      }).eq("id", editingClaim.id);
+    } else {
+      await supabase.from("warranty_claims").insert({
+        project_id: PROJECT_ID,
+        customer_name: form.customer_name,
+        issue_type: form.issue_type,
+        description: form.description,
+        assigned_to: form.assigned_to,
+        scheduled_date: form.scheduled_date || null,
+        status: form.status,
+      });
+    }
     setSaving(false);
     setShowModal(false);
     setForm(emptyForm);
+    setEditingClaim(null);
     fetchClaims();
   };
 
@@ -123,7 +138,7 @@ export default function AfterSalesPage() {
                 {loading ? "กำลังโหลด..." : `${claims.length} เคส · Real-time`}
               </p>
             </div>
-            <button onClick={() => setShowModal(true)}
+            <button onClick={() => { setEditingClaim(null); setForm(emptyForm); setShowModal(true); }}
               className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
               <Plus size={14} /> แจ้งซ่อม
             </button>
@@ -169,12 +184,18 @@ export default function AfterSalesPage() {
             {loading
               ? [1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-aviva-card/50 animate-pulse" />)
               : filtered.length === 0
-              ? <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ไม่มีเคสในสถานะนี้</p></GlassCard>
+              ? (
+                <GlassCard className="p-8 text-center">
+                  <Wrench size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
+                  <p className="text-aviva-secondary text-sm">ยังไม่มีการแจ้งซ่อม</p>
+                  <p className="text-aviva-secondary/60 text-xs mt-1">กดปุ่ม + แจ้งซ่อม เพื่อเริ่มต้น</p>
+                </GlassCard>
+              )
               : filtered.map(claim => {
                   const sConf = statusConfig[claim.status];
                   const Icon = sConf.icon;
                   return (
-                    <GlassCard key={claim.id} className={clsx("p-4 border cursor-pointer active:scale-[0.98] transition-transform", sConf.bg)}
+                    <GlassCard key={claim.id} className={clsx("p-4 border transition-transform", sConf.bg)}
                       onClick={() => setSelectedClaim(claim)}>
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 mt-0.5"><Icon size={16} className={sConf.color} /></div>
@@ -201,6 +222,25 @@ export default function AfterSalesPage() {
                               {claim.scheduled_date && (
                                 <span className="text-[10px] text-aviva-secondary">{claim.scheduled_date}</span>
                               )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingClaim(claim);
+                                  setForm({
+                                    customer_name: claim.customer_name,
+                                    issue_type: claim.issue_type,
+                                    description: claim.description,
+                                    assigned_to: claim.assigned_to,
+                                    scheduled_date: claim.scheduled_date ?? "",
+                                    status: claim.status,
+                                    satisfaction_score: claim.satisfaction_score !== null ? String(claim.satisfaction_score) : "",
+                                  });
+                                  setShowModal(true);
+                                }}
+                                className="p-1.5 rounded-xl text-aviva-secondary/60 hover:text-aviva-gold hover:bg-aviva-gold/10 transition-colors flex-shrink-0"
+                              >
+                                <Pencil size={14} />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -212,13 +252,16 @@ export default function AfterSalesPage() {
         </div>
       </div>
 
-      {/* Add Claim Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">แจ้งซ่อม / Warranty</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <h2 className="text-lg font-bold text-aviva-text">
+                {editingClaim ? "แก้ไขการแจ้งซ่อม" : "แจ้งซ่อม / Warranty"}
+              </h2>
+              <button onClick={() => { setShowModal(false); setEditingClaim(null); }}>
+                <X size={20} className="text-aviva-secondary" />
+              </button>
             </div>
             <div className="space-y-3">
               <div>
@@ -251,6 +294,26 @@ export default function AfterSalesPage() {
                   rows={3}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
+              {editingClaim && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                    <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Claim["status"] })}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      <option value="pending">รอดำเนินการ</option>
+                      <option value="in_progress">กำลังดำเนินการ</option>
+                      <option value="resolved">เสร็จสิ้น</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">คะแนนความพึงพอใจ (1-5)</label>
+                    <input type="number" min="1" max="5" value={form.satisfaction_score}
+                      onChange={(e) => setForm({ ...form, satisfaction_score: e.target.value })}
+                      placeholder="1-5"
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">วันที่นัดซ่อม</label>
                 <input type="date" value={form.scheduled_date}
@@ -260,13 +323,12 @@ export default function AfterSalesPage() {
             </div>
             <button onClick={handleSave} disabled={saving || !form.customer_name || !form.description}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : "บันทึกเคส"}
+              {saving ? "กำลังบันทึก..." : editingClaim ? "บันทึกการแก้ไข" : "บันทึก"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Update Status Modal */}
       {selectedClaim && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">

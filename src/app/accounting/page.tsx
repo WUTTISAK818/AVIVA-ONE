@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Receipt, TrendingDown, TrendingUp, FileText } from "lucide-react";
+import { Plus, X, Receipt, TrendingDown, TrendingUp, FileText, Pencil } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -44,6 +44,7 @@ export default function AccountingPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "expense" | "income">("all");
+  const [editingReceipt, setEditingReceipt] = useState<ReceiptRow | null>(null);
 
   const fetchReceipts = () => {
     supabase
@@ -67,19 +68,32 @@ export default function AccountingPage() {
   const handleSave = async () => {
     if (!form.vendor_name || !form.amount) return;
     setSaving(true);
-    await supabase.from("receipts").insert({
-      project_id: PROJECT_ID,
-      receipt_date: form.receipt_date,
-      vendor_name: form.vendor_name,
-      description: form.description,
-      amount: Number(form.amount),
-      category: form.category,
-      receipt_type: form.receipt_type,
-      receipt_number: form.receipt_number || `RC-${Date.now().toString().slice(-6)}`,
-    });
+    if (editingReceipt) {
+      await supabase.from("receipts").update({
+        receipt_date: form.receipt_date,
+        vendor_name: form.vendor_name,
+        description: form.description,
+        amount: Number(form.amount),
+        category: form.category,
+        receipt_type: form.receipt_type,
+        receipt_number: form.receipt_number || editingReceipt.receipt_number,
+      }).eq("id", editingReceipt.id);
+    } else {
+      await supabase.from("receipts").insert({
+        project_id: PROJECT_ID,
+        receipt_date: form.receipt_date,
+        vendor_name: form.vendor_name,
+        description: form.description,
+        amount: Number(form.amount),
+        category: form.category,
+        receipt_type: form.receipt_type,
+        receipt_number: form.receipt_number || `RC-${Date.now().toString().slice(-6)}`,
+      });
+    }
     setSaving(false);
     setShowModal(false);
     setForm(emptyForm);
+    setEditingReceipt(null);
     fetchReceipts();
   };
 
@@ -95,7 +109,7 @@ export default function AccountingPage() {
               </p>
             </div>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => { setEditingReceipt(null); setForm(emptyForm); setShowModal(true); }}
               className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl"
             >
               <Plus size={14} /> บันทึกบิล
@@ -105,7 +119,6 @@ export default function AccountingPage() {
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-        {/* Summary */}
         <div className="grid grid-cols-2 gap-3">
           <GlassCard className="p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -123,7 +136,6 @@ export default function AccountingPage() {
           </GlassCard>
         </div>
 
-        {/* Filter */}
         <div className="flex gap-2">
           {[
             { key: "all", label: "ทั้งหมด" },
@@ -145,7 +157,6 @@ export default function AccountingPage() {
           ))}
         </div>
 
-        {/* Receipt List */}
         <div>
           <SectionHeader title="รายการบิล / ใบเสร็จ" subtitle="กดปุ่ม + เพื่อเพิ่ม" />
           <div className="space-y-2">
@@ -154,7 +165,7 @@ export default function AccountingPage() {
             ) : filtered.length === 0 ? (
               <GlassCard className="p-8 text-center">
                 <Receipt size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
-                <p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p>
+                <p className="text-aviva-secondary text-sm">ยังไม่มีบิล/ใบเสร็จ</p>
                 <p className="text-aviva-secondary/60 text-xs mt-1">กดปุ่ม + บันทึกบิล เพื่อเริ่มต้น</p>
               </GlassCard>
             ) : (
@@ -174,12 +185,32 @@ export default function AccountingPage() {
                       )}
                       <p className="text-[10px] text-aviva-secondary/60 mt-0.5">{r.receipt_date} · {r.receipt_number}</p>
                     </div>
-                    <p className={clsx(
-                      "text-sm font-bold flex-shrink-0",
-                      r.receipt_type === "expense" ? "text-red-400" : "text-green-400"
-                    )}>
-                      {r.receipt_type === "expense" ? "-" : "+"}฿{formatThb(Number(r.amount))}
-                    </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <p className={clsx(
+                        "text-sm font-bold",
+                        r.receipt_type === "expense" ? "text-red-400" : "text-green-400"
+                      )}>
+                        {r.receipt_type === "expense" ? "-" : "+"}฿{formatThb(Number(r.amount))}
+                      </p>
+                      <button
+                        onClick={() => {
+                          setEditingReceipt(r);
+                          setForm({
+                            receipt_number: r.receipt_number,
+                            receipt_date: r.receipt_date,
+                            vendor_name: r.vendor_name,
+                            description: r.description,
+                            amount: String(r.amount),
+                            category: r.category,
+                            receipt_type: r.receipt_type,
+                          });
+                          setShowModal(true);
+                        }}
+                        className="p-1.5 rounded-xl text-aviva-secondary/60 hover:text-aviva-gold hover:bg-aviva-gold/10 transition-colors flex-shrink-0"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
                 </GlassCard>
               ))
@@ -188,19 +219,19 @@ export default function AccountingPage() {
         </div>
       </div>
 
-      {/* Add Receipt Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">บันทึกบิล / ใบเสร็จ</h2>
-              <button onClick={() => setShowModal(false)}>
+              <h2 className="text-lg font-bold text-aviva-text">
+                {editingReceipt ? "แก้ไขบิล / ใบเสร็จ" : "บันทึกบิล / ใบเสร็จ"}
+              </h2>
+              <button onClick={() => { setShowModal(false); setEditingReceipt(null); }}>
                 <X size={20} className="text-aviva-secondary" />
               </button>
             </div>
 
             <div className="space-y-3">
-              {/* Type toggle */}
               <div className="flex gap-2">
                 {[
                   { val: "expense", label: "รายจ่าย", color: "bg-red-500/20 text-red-400 border-red-500/30" },
@@ -222,77 +253,58 @@ export default function AccountingPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">วันที่</label>
-                  <input
-                    type="date"
-                    value={form.receipt_date}
+                  <input type="date" value={form.receipt_date}
                     onChange={(e) => setForm({ ...form, receipt_date: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60"
-                  />
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">เลขที่บิล (ถ้ามี)</label>
-                  <input
-                    type="text"
-                    value={form.receipt_number}
+                  <input type="text" value={form.receipt_number}
                     onChange={(e) => setForm({ ...form, receipt_number: e.target.value })}
                     placeholder="RC-001"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                  />
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
 
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้ขาย / แหล่งที่มา *</label>
-                <input
-                  type="text"
-                  value={form.vendor_name}
+                <input type="text" value={form.vendor_name}
                   onChange={(e) => setForm({ ...form, vendor_name: e.target.value })}
                   placeholder="ร้าน / บริษัท / ชื่อ"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
 
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด</label>
-                <input
-                  type="text"
-                  value={form.description}
+                <input type="text" value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="รายละเอียดสินค้า/บริการ"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท) *</label>
-                  <input
-                    type="number"
-                    value={form.amount}
+                  <input type="number" value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     placeholder="0"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                  />
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
-                  <select
-                    value={form.category}
+                  <select value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60"
-                  >
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
             </div>
 
-            <button
-              onClick={handleSave}
+            <button onClick={handleSave}
               disabled={saving || !form.vendor_name || !form.amount}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50"
-            >
-              {saving ? "กำลังบันทึก..." : "บันทึก"}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : editingReceipt ? "บันทึกการแก้ไข" : "บันทึก"}
             </button>
           </div>
         </div>

@@ -28,7 +28,7 @@ export default function BottomNav() {
 
   const navItems = ALL_TABS.filter((tab) => {
     if (!user) return tab.depts.length === 0;
-    if (user.isManager) return true;
+    if (user.isAdmin || user.isManager) return true;
     if (tab.depts.length === 0) return true;
     return tab.depts.includes(user.department);
   });

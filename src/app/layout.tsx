@@ -21,8 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full bg-aviva-bg text-aviva-text pb-20">
         <UserProvider>
           <AuthProvider>{children}</AuthProvider>
+          <BottomNav />
         </UserProvider>
-        <BottomNav />
       </body>
     </html>
   );

@@ -35,7 +35,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg flex flex-col items-center justify-center px-6">
-      {/* Logo */}
       <div className="flex flex-col items-center gap-3 mb-10">
         <div className="w-16 h-16 rounded-2xl bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center">
           <Sparkles size={28} className="text-aviva-gold" />
@@ -46,7 +45,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4">
         <div className="space-y-3">
           <div className="relative">

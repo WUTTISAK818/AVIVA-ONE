@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Star, Phone, Plus, X } from "lucide-react";
+import { Search, Star, Phone, Plus, X, Pencil } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -59,6 +59,7 @@ export default function CRMPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
 
   const fetchLeads = () => {
     supabase
@@ -84,34 +85,66 @@ export default function CRMPage() {
       (search === "" || l.customer_name.includes(search))
   );
 
+  const openEdit = (lead: Lead, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingLead(lead);
+    setForm({
+      customer_name: lead.customer_name,
+      phone: lead.phone,
+      budget: String(lead.budget),
+      source: lead.source,
+      status: lead.status,
+      notes: lead.notes ?? "",
+    });
+    setShowModal(true);
+  };
+
+  const openAdd = () => {
+    setEditingLead(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
   const handleSave = async () => {
     if (!form.customer_name || !form.phone) return;
     setSaving(true);
-    await supabase.from("leads").insert({
-      customer_name: form.customer_name,
-      phone: form.phone,
-      budget: Number(form.budget) || 0,
-      source: form.source,
-      status: form.status,
-      notes: form.notes,
-      project_id: PROJECT_ID,
-      ai_score: 50,
-    });
+    if (editingLead) {
+      await supabase.from("leads").update({
+        customer_name: form.customer_name,
+        phone: form.phone,
+        budget: Number(form.budget) || 0,
+        source: form.source,
+        status: form.status,
+        notes: form.notes,
+        updated_at: new Date().toISOString(),
+      }).eq("id", editingLead.id);
+    } else {
+      await supabase.from("leads").insert({
+        customer_name: form.customer_name,
+        phone: form.phone,
+        budget: Number(form.budget) || 0,
+        source: form.source,
+        status: form.status,
+        notes: form.notes,
+        project_id: PROJECT_ID,
+        ai_score: 50,
+      });
+    }
     setSaving(false);
     setShowModal(false);
+    setEditingLead(null);
     setForm(emptyForm);
     fetchLeads();
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
-    await supabase.from("leads").update({ status: newStatus }).eq("id", lead.id);
+    await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
     setSelectedLead(null);
     fetchLeads();
   };
 
   return (
     <div className="min-h-screen bg-aviva-bg">
-      {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between">
@@ -122,7 +155,7 @@ export default function CRMPage() {
               </p>
             </div>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={openAdd}
               className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl"
             >
               <Plus size={14} /> เพิ่ม Lead
@@ -142,7 +175,6 @@ export default function CRMPage() {
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-        {/* Summary Stats */}
         <div className="grid grid-cols-4 gap-2">
           {[
             { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text" },
@@ -157,7 +189,6 @@ export default function CRMPage() {
           ))}
         </div>
 
-        {/* Pipeline Tabs */}
         <div>
           <SectionHeader title="Pipeline" subtitle="แตะเพื่อกรอง" />
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -184,7 +215,6 @@ export default function CRMPage() {
           </div>
         </div>
 
-        {/* Lead Cards */}
         <div className="space-y-3">
           {loading ? (
             [1, 2, 3].map((i) => (
@@ -192,7 +222,7 @@ export default function CRMPage() {
             ))
           ) : filtered.length === 0 ? (
             <GlassCard className="p-8 text-center">
-              <p className="text-aviva-secondary text-sm">ไม่พบลูกค้าในขั้นนี้</p>
+              <p className="text-aviva-secondary text-sm">ยังไม่มี Lead ในขั้นนี้</p>
             </GlassCard>
           ) : (
             filtered.map((lead) => (
@@ -224,12 +254,20 @@ export default function CRMPage() {
                       <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>
                     )}
                   </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <Star size={12} className="text-aviva-gold" />
-                    <span className={clsx("text-lg font-bold", scoreColor(lead.ai_score ?? 0))}>
-                      {lead.ai_score ?? "—"}
-                    </span>
-                    <span className="text-[9px] text-aviva-secondary">AI Score</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => openEdit(lead, e)}
+                      className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"
+                    >
+                      <Pencil size={12} className="text-aviva-secondary" />
+                    </button>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Star size={12} className="text-aviva-gold" />
+                      <span className={clsx("text-lg font-bold", scoreColor(lead.ai_score ?? 0))}>
+                        {lead.ai_score ?? "—"}
+                      </span>
+                      <span className="text-[9px] text-aviva-secondary">AI Score</span>
+                    </div>
                   </div>
                 </div>
               </GlassCard>
@@ -238,13 +276,14 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* Add Lead Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">เพิ่ม Lead ใหม่</h2>
-              <button onClick={() => setShowModal(false)}>
+              <h2 className="text-lg font-bold text-aviva-text">
+                {editingLead ? "แก้ไข Lead" : "เพิ่ม Lead ใหม่"}
+              </h2>
+              <button onClick={() => { setShowModal(false); setEditingLead(null); }}>
                 <X size={20} className="text-aviva-secondary" />
               </button>
             </div>
@@ -252,80 +291,62 @@ export default function CRMPage() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
-                <input
-                  type="text"
-                  value={form.customer_name}
+                <input type="text" value={form.customer_name}
                   onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
                   placeholder="ชื่อ-นามสกุล"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร *</label>
-                <input
-                  type="tel"
-                  value={form.phone}
+                <input type="tel" value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   placeholder="0XX-XXX-XXXX"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
-                  <input
-                    type="number"
-                    value={form.budget}
+                  <input type="number" value={form.budget}
                     onChange={(e) => setForm({ ...form, budget: e.target.value })}
                     placeholder="3500000"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
-                  />
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">แหล่งที่มา</label>
-                  <select
-                    value={form.source}
+                  <select value={form.source}
                     onChange={(e) => setForm({ ...form, source: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60"
-                  >
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                <select
-                  value={form.status}
+                <select value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value as LeadStatus })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60"
-                >
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {pipelineStages.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea
-                  value={form.notes}
+                <textarea value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   placeholder="บันทึกเพิ่มเติม..."
                   rows={2}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none"
-                />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
             </div>
 
-            <button
-              onClick={handleSave}
+            <button onClick={handleSave}
               disabled={saving || !form.customer_name || !form.phone}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50"
-            >
-              {saving ? "กำลังบันทึก..." : "บันทึก Lead"}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "บันทึก Lead"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Update Status Modal */}
       {selectedLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
@@ -341,16 +362,14 @@ export default function CRMPage() {
             <p className="text-xs text-aviva-secondary">เปลี่ยนสถานะ:</p>
             <div className="grid grid-cols-2 gap-2">
               {pipelineStages.map((stage) => (
-                <button
-                  key={stage}
+                <button key={stage}
                   onClick={() => handleUpdateStatus(selectedLead, stage)}
                   className={clsx(
                     "py-2.5 px-3 rounded-xl text-xs font-medium border transition-all",
                     selectedLead.status === stage
                       ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
                       : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
-                  )}
-                >
+                  )}>
                   {stage}
                 </button>
               ))}

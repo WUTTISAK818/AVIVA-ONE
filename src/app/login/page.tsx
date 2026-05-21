@@ -35,6 +35,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg flex flex-col items-center justify-center px-6">
+      {/* Logo */}
       <div className="flex flex-col items-center gap-3 mb-10">
         <div className="w-16 h-16 rounded-2xl bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center">
           <Sparkles size={28} className="text-aviva-gold" />
@@ -45,6 +46,7 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {/* Form */}
       <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4">
         <div className="space-y-3">
           <div className="relative">
@@ -93,6 +95,25 @@ export default function LoginPage() {
           {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
         </button>
       </form>
+
+      <div className="mt-8 w-full max-w-sm">
+        <p className="text-[10px] text-aviva-secondary/40 text-center mb-2">Demo Accounts</p>
+        <div className="space-y-1.5">
+          {[
+            { email: "admin@avivaone.com", role: "ผู้บริหาร (CEO)" },
+            { email: "sales@avivaone.com", role: "ฝ่ายขาย" },
+            { email: "engineer@avivaone.com", role: "ฝ่ายก่อสร้าง" },
+          ].map(({ email, role }) => (
+            <button key={email} type="button"
+              onClick={() => { setEmail(email); setPassword("aviva2026"); }}
+              className="w-full flex items-center justify-between bg-aviva-card/50 border border-aviva-gold/5 rounded-xl px-3 py-2 text-left hover:border-aviva-gold/20 transition-colors">
+              <span className="text-[11px] text-aviva-secondary">{role}</span>
+              <span className="text-[10px] text-aviva-secondary/50">{email}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-aviva-secondary/30 text-center mt-2">รหัสผ่าน: aviva2026</p>
+      </div>
     </div>
   );
 }

@@ -25,8 +25,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       full_name: meta.full_name ?? u.email ?? "ผู้ใช้",
       role: meta.role ?? "user",
       department: meta.department ?? "ฝ่ายบริหาร",
-      isAdmin: meta.role === "admin",
-      isManager: meta.role === "admin" || meta.role === "manager",
+      isAdmin: ["admin", "ceo"].includes(meta.role),
+      isManager: ["admin", "ceo", "manager", "director"].includes(meta.role),
     };
   }
 

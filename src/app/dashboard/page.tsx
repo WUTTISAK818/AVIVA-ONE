@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings, X } from "lucide-react";
+import { Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings, X } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -139,12 +140,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
-              <Bell size={18} className="text-aviva-secondary" />
-              {(stats.pendingApprovals + stats.pendingClaims + stats.pendingDocs) > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
-              )}
-            </button>
+            <NotificationBell />
             {ctxUser?.isAdmin && (
               <Link href="/approvals" className="p-2 rounded-full bg-aviva-gold/10 border border-aviva-gold/30">
                 <Settings size={18} className="text-aviva-gold" />

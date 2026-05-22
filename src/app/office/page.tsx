@@ -73,13 +73,14 @@ function FinanceContent() {
   const [period, setPeriod] = useState<Period>("month");
   const [dateStart, setDateStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [finLimit, setFinLimit] = useState(50);
 
-  const fetchData = () => {
+  const fetchData = (limit = finLimit) => {
     let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
     if (dateStart) txnQ = txnQ.gte("created_at", dateStart);
     if (dateEnd) txnQ = txnQ.lte("created_at", dateEnd + "T23:59:59");
     Promise.all([
-      txnQ.order("created_at", { ascending: false }).limit(50),
+      txnQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("approvals").select("*").eq("module", "finance")
         .order("created_at", { ascending: false }),
       supabase.from("approval_logs").select("approval_id", { count: "exact", head: true })
@@ -92,7 +93,7 @@ function FinanceContent() {
     });
   };
 
-  useEffect(() => { fetchData(); }, [dateStart, dateEnd]);
+  useEffect(() => { setFinLimit(50); fetchData(50); }, [dateStart, dateEnd]);
 
   const totalIncome = transactions
     .filter(t => t.transaction_type === "income")
@@ -247,6 +248,12 @@ function FinanceContent() {
               </GlassCard>
             ))
           }
+          {!loading && transactions.length >= finLimit && (
+            <button onClick={() => { const next = finLimit + 50; setFinLimit(next); fetchData(next); }}
+              className="w-full py-2.5 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-bg hover:border-aviva-gold/30 transition-all mt-1">
+              โหลดเพิ่มเติม (แสดง {finLimit} รายการแล้ว)
+            </button>
+          )}
         </div>
       )}
 
@@ -387,19 +394,20 @@ function AccountingContent() {
   const [acctPeriod, setAcctPeriod] = useState<Period>("month");
   const [acctStart, setAcctStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [acctLimit, setAcctLimit] = useState(50);
 
-  const fetchReceipts = () => {
+  const fetchReceipts = (limit = acctLimit) => {
     let q = supabase.from("receipts").select("*").eq("project_id", PROJECT_ID);
     if (acctStart) q = q.gte("receipt_date", acctStart);
     if (acctEnd) q = q.lte("receipt_date", acctEnd);
-    q.order("receipt_date", { ascending: false })
+    q.order("receipt_date", { ascending: false }).limit(limit)
       .then(({ data }) => {
         setReceipts((data as ReceiptRow[]) ?? []);
         setLoading(false);
       });
   };
 
-  useEffect(() => { fetchReceipts(); }, [acctStart, acctEnd]);
+  useEffect(() => { setAcctLimit(50); fetchReceipts(50); }, [acctStart, acctEnd]);
 
   const totalExpense = receipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
   const totalIncome = receipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
@@ -515,6 +523,12 @@ function AccountingContent() {
               </GlassCard>
             ))
           }
+          {!loading && receipts.length >= acctLimit && (
+            <button onClick={() => { const next = acctLimit + 50; setAcctLimit(next); fetchReceipts(next); }}
+              className="w-full py-2.5 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-bg hover:border-aviva-gold/30 transition-all mt-1">
+              โหลดเพิ่มเติม (แสดง {acctLimit} รายการแล้ว)
+            </button>
+          )}
         </div>
       </div>
 

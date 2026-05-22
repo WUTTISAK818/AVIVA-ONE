@@ -213,7 +213,45 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Revenue Chart */}
+        <div>
+          <SectionHeader title="สถานะทุกฝ่าย" subtitle="Real-time จาก Supabase" />
+          <div className="grid grid-cols-3 gap-2">
+            <GlassCard className="p-3 text-center">
+              <ClipboardList size={14} className="text-aviva-gold mx-auto mb-1" />
+              <p className="text-lg font-bold text-aviva-text">{stats.totalLeads}</p>
+              <p className="text-[10px] text-aviva-secondary">Leads ทั้งหมด</p>
+            </GlassCard>
+            <GlassCard className="p-3 text-center">
+              <Receipt size={14} className="text-blue-400 mx-auto mb-1" />
+              <p className="text-lg font-bold text-blue-400">฿{formatMillions(stats.totalReceipts)}</p>
+              <p className="text-[10px] text-aviva-secondary">บิล/ใบเสร็จ</p>
+            </GlassCard>
+            <GlassCard className="p-3 text-center">
+              <UserCheck size={14} className="text-green-400 mx-auto mb-1" />
+              <p className="text-lg font-bold text-green-400">{stats.employeeCount}</p>
+              <p className="text-[10px] text-aviva-secondary">พนักงาน</p>
+            </GlassCard>
+          </div>
+          {(stats.pendingApprovals + stats.pendingClaims + stats.pendingDocs) > 0 && (
+            <GlassCard className="p-3 mt-2 border border-yellow-500/20 bg-yellow-500/5">
+              <div className="flex items-center gap-2">
+                <ShieldAlert size={16} className="text-yellow-400 flex-shrink-0" />
+                <div className="flex-1 flex flex-wrap gap-3">
+                  {stats.pendingApprovals > 0 && (
+                    <span className="text-xs text-yellow-400">รออนุมัติการเงิน: <b>{stats.pendingApprovals}</b></span>
+                  )}
+                  {stats.pendingClaims > 0 && (
+                    <span className="text-xs text-yellow-400">แจ้งซ่อมรอดำเนินการ: <b>{stats.pendingClaims}</b></span>
+                  )}
+                  {stats.pendingDocs > 0 && (
+                    <span className="text-xs text-yellow-400">เอกสารรออนุมัติ: <b>{stats.pendingDocs}</b></span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+          )}
+        </div>
+
         <GlassCard className="p-4">
           <SectionHeader title="รายได้รายเดือน" subtitle="หน่วย: ล้านบาท" />
           <div className="h-40">

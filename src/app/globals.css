@@ -12,8 +12,19 @@
 }
 
 body {
-  background-color: #0D1F1B;
-  color: #FFFFFF;
+  background-color: var(--color-aviva-bg);
+  color: var(--color-aviva-text);
+}
+
+/* Day / light theme overrides */
+.theme-light {
+  --color-aviva-bg: #F2F5F2;
+  --color-aviva-card: #FFFFFF;
+  --color-aviva-nav: #E4EDE4;
+  --color-aviva-text: #1A2E28;
+  --color-aviva-secondary: #4A5568;
+  --color-aviva-gold: #9A7B1A;
+  --color-aviva-gold-soft: #B8940F;
 }
 
 ::-webkit-scrollbar {

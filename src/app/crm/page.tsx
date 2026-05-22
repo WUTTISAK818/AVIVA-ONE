@@ -191,6 +191,91 @@ export default function CRMPage() {
     fetchLeads(dateStart, dateEnd);
   };
 
+  const openEdit = (lead: Lead, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingLead(lead);
+    setForm({
+      customer_name: lead.customer_name,
+      phone: lead.phone,
+      budget: String(lead.budget),
+      source: lead.source,
+      status: lead.status,
+      notes: lead.notes ?? "",
+    });
+    setShowModal(true);
+  };
+
+  const openCall = (lead: Lead, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCrmLogLead(lead);
+    setCrmLogForm({ channel: "Phone", callStatus: "", note: "" });
+  };
+
+  const openChat = (lead: Lead, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const channel = ["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE";
+    setCrmLogLead(lead);
+    setCrmLogForm({ channel, callStatus: "", note: "" });
+  };
+
+  const saveCrmLog = async () => {
+    if (!crmLogLead || !crmLogForm.callStatus) return;
+    setSavingLog(true);
+    await supabase.from("crm_logs").insert({
+      lead_id: crmLogLead.id,
+      contact_channel: crmLogForm.channel,
+      call_status: crmLogForm.callStatus,
+      call_note: crmLogForm.note,
+    });
+    setSavingLog(false);
+    setCrmLogLead(null);
+    setCrmLogForm(emptyCrmLog);
+  };
+
+  const openAdd = () => {
+    setEditingLead(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.customer_name || !form.phone) return;
+    setSaving(true);
+    if (editingLead) {
+      await supabase.from("leads").update({
+        customer_name: form.customer_name,
+        phone: form.phone,
+        budget: Number(form.budget) || 0,
+        source: form.source,
+        status: form.status,
+        notes: form.notes,
+        updated_at: new Date().toISOString(),
+      }).eq("id", editingLead.id);
+    } else {
+      await supabase.from("leads").insert({
+        customer_name: form.customer_name,
+        phone: form.phone,
+        budget: Number(form.budget) || 0,
+        source: form.source,
+        status: form.status,
+        notes: form.notes,
+        project_id: PROJECT_ID,
+        ai_score: 50,
+      });
+    }
+    setSaving(false);
+    setShowModal(false);
+    setEditingLead(null);
+    setForm(emptyForm);
+    fetchLeads();
+  };
+
+  const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
+    await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
+    setSelectedLead(null);
+    fetchLeads();
+  };
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">

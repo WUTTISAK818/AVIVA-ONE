@@ -21,7 +21,7 @@ interface ProjectForm {
 
 export default function SettingsPage() {
   const user = useCurrentUser();
-  const { mode, setMode } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [projectForm, setProjectForm] = useState<ProjectForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -29,24 +29,23 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!user?.isAdmin) return;
     supabase.from("projects").select("*").eq("id", PROJECT_ID).single().then(({ data }) => {
-      if (data) {
-        setProjectForm({
-          project_name: data.project_name ?? "",
-          total_units: String(data.total_units ?? 0),
-          sold_units: String(data.sold_units ?? 0),
-          available_units: String(data.available_units ?? 0),
-          revenue_target: String(data.revenue_target ?? 0),
-          construction_progress: String(data.construction_progress ?? 0),
-          sellout_forecast: data.sellout_forecast ?? "",
-        });
-      }
+      setProjectForm({
+        project_name: data?.project_name ?? "",
+        total_units: String(data?.total_units ?? 0),
+        sold_units: String(data?.sold_units ?? 0),
+        available_units: String(data?.available_units ?? 0),
+        revenue_target: String(data?.revenue_target ?? 0),
+        construction_progress: String(data?.construction_progress ?? 0),
+        sellout_forecast: data?.sellout_forecast ?? "",
+      });
     });
   }, [user]);
 
   async function saveProject() {
     if (!projectForm) return;
     setSaving(true);
-    await supabase.from("projects").update({
+    await supabase.from("projects").upsert({
+      id: PROJECT_ID,
       project_name: projectForm.project_name,
       total_units: Number(projectForm.total_units),
       sold_units: Number(projectForm.sold_units),
@@ -54,7 +53,7 @@ export default function SettingsPage() {
       revenue_target: Number(projectForm.revenue_target),
       construction_progress: Number(projectForm.construction_progress),
       sellout_forecast: projectForm.sellout_forecast,
-    }).eq("id", PROJECT_ID);
+    });
     setSaving(false);
     setSavedOk(true);
     setTimeout(() => setSavedOk(false), 2500);
@@ -106,9 +105,9 @@ export default function SettingsPage() {
             {themeOptions.map(({ val, label, Icon }) => (
               <button
                 key={val}
-                onClick={() => setMode(val)}
+                onClick={() => setTheme(val)}
                 className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
-                  mode === val
+                  theme === val
                     ? "border-aviva-gold bg-aviva-gold/10 text-aviva-gold"
                     : "border-aviva-gold/10 text-aviva-secondary"
                 }`}

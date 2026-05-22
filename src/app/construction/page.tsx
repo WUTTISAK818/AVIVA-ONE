@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -181,6 +181,16 @@ export default function ConstructionPage() {
   };
 
   const printInstallments = () => { window.print(); };
+
+  const uploadTaskPhoto = async (task: InstTask, file: File) => {
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `tasks/${task.id}.${ext}`;
+    const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
+    if (error) return;
+    const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
+    await supabase.from("installment_tasks").update({ photo_url: publicUrl }).eq("id", task.id);
+    setInstTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, photo_url: publicUrl } : t));
+  };
 
   const counts = {
     complete: houses.filter((h) => h.status === "complete").length,
@@ -515,15 +525,26 @@ export default function ConstructionPage() {
                               <p className="text-[11px] text-aviva-secondary/60 text-center py-2">ยังไม่มีรายการงาน</p>
                             ) : (
                               tasks.map((task) => (
-                                <button key={task.id} onClick={() => toggleTask(task)}
-                                  className="w-full flex items-center gap-3 text-left">
-                                  <div className={clsx("w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all",
-                                    task.is_complete ? "bg-green-500 border-green-500" : "border-aviva-secondary/40"
-                                  )}>
-                                    {task.is_complete && <CheckCircle size={10} className="text-white" />}
-                                  </div>
-                                  <span className={clsx("text-xs", task.is_complete ? "text-aviva-secondary line-through" : "text-aviva-text")}>{task.task_name}</span>
-                                </button>
+                                <div key={task.id} className="flex items-center gap-3">
+                                  <button onClick={() => toggleTask(task)} className="flex items-center gap-3 flex-1 text-left">
+                                    <div className={clsx("w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all",
+                                      task.is_complete ? "bg-green-500 border-green-500" : "border-aviva-secondary/40"
+                                    )}>
+                                      {task.is_complete && <CheckCircle size={10} className="text-white" />}
+                                    </div>
+                                    <span className={clsx("text-xs", task.is_complete ? "text-aviva-secondary line-through" : "text-aviva-text")}>{task.task_name}</span>
+                                  </button>
+                                  <label className="cursor-pointer flex-shrink-0">
+                                    <input type="file" accept="image/*" capture="environment" className="hidden"
+                                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskPhoto(task, f); }} />
+                                    {task.photo_url
+                                      ? <img src={task.photo_url} alt="รูป" className="w-8 h-8 rounded-lg object-cover border border-aviva-gold/20" />
+                                      : <div className="w-8 h-8 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center">
+                                          <Camera size={12} className="text-aviva-secondary/50" />
+                                        </div>
+                                    }
+                                  </label>
+                                </div>
                               ))
                             )}
                             {inst.status !== "paid" && (

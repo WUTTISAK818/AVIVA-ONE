@@ -8,6 +8,7 @@ interface KPICardProps {
   change?: number;
   changeLabel?: string;
   highlight?: boolean;
+  onClick?: () => void;
 }
 
 export default function KPICard({
@@ -17,16 +18,17 @@ export default function KPICard({
   change,
   changeLabel,
   highlight,
+  onClick,
 }: KPICardProps) {
   const isPositive = change !== undefined && change >= 0;
 
   return (
     <div
+      onClick={onClick}
       className={clsx(
-        "rounded-2xl p-4 flex flex-col gap-2 border",
-        highlight
-          ? "bg-aviva-gold/10 border-aviva-gold/40"
-          : "bg-aviva-card border-aviva-gold/10"
+        "rounded-2xl p-4 flex flex-col gap-2 border transition-all",
+        highlight ? "bg-aviva-gold/10 border-aviva-gold/40" : "bg-aviva-card border-aviva-gold/10",
+        onClick && "cursor-pointer active:scale-[0.97] hover:border-aviva-gold/30"
       )}
     >
       <div className="flex items-center justify-between">

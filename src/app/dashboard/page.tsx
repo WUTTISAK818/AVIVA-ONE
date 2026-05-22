@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings } from "lucide-react";
+import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -48,6 +48,13 @@ function formatDate() {
   });
 }
 
+const KPI_LABELS: Record<string, string> = {
+  units: "ยูนิตทั้งหมด",
+  sold: "ยูนิตที่ขายแล้ว (Closed Deal)",
+  available: "ยูนิตว่าง",
+  revenue: "รายรับ 20 รายการล่าสุด",
+};
+
 export default function DashboardPage() {
   const ctxUser = useCurrentUser();
   const [project, setProject] = useState<Project | null>(null);
@@ -56,11 +63,34 @@ export default function DashboardPage() {
     pendingApprovals: 0, totalReceipts: 0, employeeCount: 0,
     pendingClaims: 0, totalLeads: 0, pendingDocs: 0,
   });
+  const [kpiModal, setKpiModal] = useState<string | null>(null);
+  const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
+  const [kpiLoading, setKpiLoading] = useState(false);
   const router = useRouter();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
+  };
+
+  const openKpi = async (type: string) => {
+    setKpiModal(type);
+    setKpiLoading(true);
+    setKpiItems([]);
+    if (type === "units") {
+      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("house_number");
+      setKpiItems((data as Record<string, unknown>[]) ?? []);
+    } else if (type === "sold") {
+      const { data } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
+      setKpiItems((data as Record<string, unknown>[]) ?? []);
+    } else if (type === "available") {
+      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("house_number");
+      setKpiItems((data as Record<string, unknown>[]) ?? []);
+    } else if (type === "revenue") {
+      const { data } = await supabase.from("receipts").select("amount,receipt_date,description").eq("project_id", PROJECT_ID).order("receipt_date", { ascending: false }).limit(20);
+      setKpiItems((data as Record<string, unknown>[]) ?? []);
+    }
+    setKpiLoading(false);
   };
 
   useEffect(() => {
@@ -142,12 +172,12 @@ export default function DashboardPage() {
             {/* KPI Grid */}
             <div>
               <SectionHeader title="ภาพรวมโครงการ"
-                subtitle={loading ? "กำลังโหลด..." : "ข้อมูล Real-time จาก Supabase"} />
+                subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
               <div className="grid grid-cols-2 gap-3">
-                <KPICard icon={Home} label="ยูนิตทั้งหมด" value={`${totalUnits}`} />
-                <KPICard icon={Users} label="ขายแล้ว" value={`${soldUnits}`} change={5} highlight />
-                <KPICard icon={Package} label="ว่างอยู่" value={`${available}`} />
-                <KPICard icon={DollarSign} label="รายได้รวม" value={`฿${formatMillions(revenue)}`} change={8.7} />
+                <KPICard icon={Home} label="ยูนิตทั้งหมด" value={`${totalUnits}`} onClick={() => openKpi("units")} />
+                <KPICard icon={Users} label="ขายแล้ว" value={`${soldUnits}`} change={5} highlight onClick={() => openKpi("sold")} />
+                <KPICard icon={Package} label="ว่างอยู่" value={`${available}`} onClick={() => openKpi("available")} />
+                <KPICard icon={DollarSign} label="รายได้รวม" value={`฿${formatMillions(revenue)}`} change={8.7} onClick={() => openKpi("revenue")} />
               </div>
             </div>
 
@@ -174,45 +204,6 @@ export default function DashboardPage() {
         )}
 
         {/* Cross-Module Summary */}
-        <div>
-          <SectionHeader title="สถานะทุกฝ่าย" subtitle="Real-time จาก Supabase" />
-          <div className="grid grid-cols-3 gap-2">
-            <GlassCard className="p-3 text-center">
-              <ClipboardList size={14} className="text-aviva-gold mx-auto mb-1" />
-              <p className="text-lg font-bold text-aviva-text">{stats.totalLeads}</p>
-              <p className="text-[10px] text-aviva-secondary">Leads ทั้งหมด</p>
-            </GlassCard>
-            <GlassCard className="p-3 text-center">
-              <Receipt size={14} className="text-blue-400 mx-auto mb-1" />
-              <p className="text-lg font-bold text-blue-400">฿{formatMillions(stats.totalReceipts)}</p>
-              <p className="text-[10px] text-aviva-secondary">บิล/ใบเสร็จ</p>
-            </GlassCard>
-            <GlassCard className="p-3 text-center">
-              <UserCheck size={14} className="text-green-400 mx-auto mb-1" />
-              <p className="text-lg font-bold text-green-400">{stats.employeeCount}</p>
-              <p className="text-[10px] text-aviva-secondary">พนักงาน</p>
-            </GlassCard>
-          </div>
-          {(stats.pendingApprovals + stats.pendingClaims + stats.pendingDocs) > 0 && (
-            <GlassCard className="p-3 mt-2 border border-yellow-500/20 bg-yellow-500/5">
-              <div className="flex items-center gap-2">
-                <ShieldAlert size={16} className="text-yellow-400 flex-shrink-0" />
-                <div className="flex-1 flex flex-wrap gap-3">
-                  {stats.pendingApprovals > 0 && (
-                    <span className="text-xs text-yellow-400">รออนุมัติการเงิน: <b>{stats.pendingApprovals}</b></span>
-                  )}
-                  {stats.pendingClaims > 0 && (
-                    <span className="text-xs text-yellow-400">แจ้งซ่อมรอดำเนินการ: <b>{stats.pendingClaims}</b></span>
-                  )}
-                  {stats.pendingDocs > 0 && (
-                    <span className="text-xs text-yellow-400">เอกสารรออนุมัติ: <b>{stats.pendingDocs}</b></span>
-                  )}
-                </div>
-              </div>
-            </GlassCard>
-          )}
-        </div>
-
         <div>
           <SectionHeader title="สถานะทุกฝ่าย" subtitle="Real-time จาก Supabase" />
           <div className="grid grid-cols-3 gap-2">
@@ -280,36 +271,24 @@ export default function DashboardPage() {
           <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์โดย AVIVA AI" />
           <div className="space-y-3">
             {stats.pendingApprovals > 0 && (
-              <AIInsightPanel
-                type="warning"
-                priority="high"
+              <AIInsightPanel type="warning" priority="high"
                 title={`มี ${stats.pendingApprovals} รายการรออนุมัติ`}
-                message="กรุณาตรวจสอบและอนุมัติรายการทางการเงินที่ค้างอยู่เพื่อไม่ให้กระทบการดำเนินงาน"
-              />
+                message="กรุณาตรวจสอบและอนุมัติรายการทางการเงินที่ค้างอยู่เพื่อไม่ให้กระทบการดำเนินงาน" />
             )}
             {stats.pendingClaims > 0 && (
-              <AIInsightPanel
-                type="alert"
-                priority="medium"
+              <AIInsightPanel type="alert" priority="medium"
                 title={`มี ${stats.pendingClaims} คลิมหลังการขายรอดำเนินการ`}
-                message="ควรติดตามและดำเนินการภายใน 7 วันเพื่อรักษาความพึงพอใจของลูกค้า"
-              />
+                message="ควรติดตามและดำเนินการภายใน 7 วันเพื่อรักษาความพึงพอใจของลูกค้า" />
             )}
             {stats.totalLeads > 0 && (
-              <AIInsightPanel
-                type="info"
-                priority="low"
+              <AIInsightPanel type="info" priority="low"
                 title={`มี Leads ทั้งหมด ${stats.totalLeads} ราย`}
-                message="ติดตาม Lead อย่างสม่ำเสมอเพื่อเพิ่มอัตราการปิดการขาย"
-              />
+                message="ติดตาม Lead อย่างสม่ำเสมอเพื่อเพิ่มอัตราการปิดการขาย" />
             )}
             {stats.pendingApprovals === 0 && stats.pendingClaims === 0 && stats.totalLeads === 0 && (
-              <AIInsightPanel
-                type="success"
-                priority="low"
+              <AIInsightPanel type="success" priority="low"
                 title="ทุกระบบทำงานปกติ"
-                message="ไม่มีรายการค้างดำเนินการในขณะนี้"
-              />
+                message="ไม่มีรายการค้างดำเนินการในขณะนี้" />
             )}
           </div>
         </div>
@@ -320,6 +299,57 @@ export default function DashboardPage() {
           <CalendarWidget />
         </div>
       </div>
+
+      {/* KPI Detail Modal */}
+      {kpiModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-aviva-text">{KPI_LABELS[kpiModal] ?? kpiModal}</h2>
+              <button onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {kpiLoading ? (
+                [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
+              ) : kpiItems.length === 0 ? (
+                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้อมูล</p>
+              ) : kpiModal === "revenue" ? (
+                kpiItems.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between bg-aviva-bg rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-xs text-aviva-text font-medium">{String(item.description ?? "รับเงิน")}</p>
+                      <p className="text-[10px] text-aviva-secondary">
+                        {item.receipt_date ? new Date(String(item.receipt_date)).toLocaleDateString("th-TH") : "—"}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-aviva-gold">฿{Number(item.amount ?? 0).toLocaleString()}</p>
+                  </div>
+                ))
+              ) : kpiModal === "sold" ? (
+                kpiItems.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between bg-aviva-bg rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-xs text-aviva-text font-medium">{String(item.customer_name ?? "—")}</p>
+                      <p className="text-[10px] text-aviva-secondary">{String(item.phone ?? "")}</p>
+                    </div>
+                    <p className="text-sm font-bold text-green-400">฿{(Number(item.budget ?? 0) / 1_000_000).toFixed(1)}M</p>
+                  </div>
+                ))
+              ) : (
+                kpiItems.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between bg-aviva-bg rounded-xl px-4 py-3">
+                    <p className="text-xs font-bold text-aviva-text">{String(item.house_number ?? "—")}</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-aviva-secondary">{String(item.status ?? "")}</span>
+                      <span className="text-xs font-bold text-aviva-gold">{Number(item.progress ?? 0)}%</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

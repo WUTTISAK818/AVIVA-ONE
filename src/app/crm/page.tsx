@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Search, Star, Phone, Plus, X, Pencil, MessageCircle, PhoneCall, TrendingUp } from "lucide-react";
+import { Search, Star, Phone, Plus, X, Pencil, MessageCircle, PhoneCall, TrendingUp, Download } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { supabase } from "@/lib/supabase";
-import { useCurrentUser } from "@/lib/user-context";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -52,11 +51,6 @@ function getChatLink(lead: Lead): string {
   return `https://line.me/R/oaMessage/@`;
 }
 
-function todayRange() {
-  const d = new Date().toISOString().split("T")[0];
-  return { start: d, end: d };
-}
-
 const emptyForm = {
   customer_name: "",
   phone: "",
@@ -71,7 +65,6 @@ const emptyCrmLog = { channel: "Phone", callStatus: "", note: "" };
 type MainTab = "pipeline" | "team";
 
 export default function CRMPage() {
-  const user = useCurrentUser();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
@@ -83,6 +76,7 @@ export default function CRMPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   });
   const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [leadsLimit, setLeadsLimit] = useState(50);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -92,15 +86,19 @@ export default function CRMPage() {
   const [crmLogForm, setCrmLogForm] = useState(emptyCrmLog);
   const [savingLog, setSavingLog] = useState(false);
 
-  const fetchLeads = (start: string, end: string) => {
+  const fetchLeads = (start: string, end: string, limit = 50) => {
+    setLoading(true);
     let q = supabase.from("leads").select("*").eq("project_id", PROJECT_ID);
     if (start) q = q.gte("created_at_default", start);
     if (end) q = q.lte("created_at_default", end + "T23:59:59");
-    q.order("created_at_default", { ascending: false })
+    q.order("created_at_default", { ascending: false }).limit(limit)
       .then(({ data }) => { setLeads((data as Lead[]) ?? []); setLoading(false); });
   };
 
-  useEffect(() => { fetchLeads(dateStart, dateEnd); }, [dateStart, dateEnd]);
+  useEffect(() => {
+    setLeadsLimit(50);
+    fetchLeads(dateStart, dateEnd, 50);
+  }, [dateStart, dateEnd]);
 
   const handlePeriodChange = (p: Period, start: string, end: string) => {
     setPeriod(p);
@@ -182,98 +180,28 @@ export default function CRMPage() {
     setShowModal(false);
     setEditingLead(null);
     setForm(emptyForm);
-    fetchLeads(dateStart, dateEnd);
+    fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
     await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
     setSelectedLead(null);
-    fetchLeads(dateStart, dateEnd);
+    fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
-  const openEdit = (lead: Lead, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingLead(lead);
-    setForm({
-      customer_name: lead.customer_name,
-      phone: lead.phone,
-      budget: String(lead.budget),
-      source: lead.source,
-      status: lead.status,
-      notes: lead.notes ?? "",
-    });
-    setShowModal(true);
-  };
-
-  const openCall = (lead: Lead, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCrmLogLead(lead);
-    setCrmLogForm({ channel: "Phone", callStatus: "", note: "" });
-  };
-
-  const openChat = (lead: Lead, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const channel = ["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE";
-    setCrmLogLead(lead);
-    setCrmLogForm({ channel, callStatus: "", note: "" });
-  };
-
-  const saveCrmLog = async () => {
-    if (!crmLogLead || !crmLogForm.callStatus) return;
-    setSavingLog(true);
-    await supabase.from("crm_logs").insert({
-      lead_id: crmLogLead.id,
-      contact_channel: crmLogForm.channel,
-      call_status: crmLogForm.callStatus,
-      call_note: crmLogForm.note,
-    });
-    setSavingLog(false);
-    setCrmLogLead(null);
-    setCrmLogForm(emptyCrmLog);
-  };
-
-  const openAdd = () => {
-    setEditingLead(null);
-    setForm(emptyForm);
-    setShowModal(true);
-  };
-
-  const handleSave = async () => {
-    if (!form.customer_name || !form.phone) return;
-    setSaving(true);
-    if (editingLead) {
-      await supabase.from("leads").update({
-        customer_name: form.customer_name,
-        phone: form.phone,
-        budget: Number(form.budget) || 0,
-        source: form.source,
-        status: form.status,
-        notes: form.notes,
-        updated_at: new Date().toISOString(),
-      }).eq("id", editingLead.id);
-    } else {
-      await supabase.from("leads").insert({
-        customer_name: form.customer_name,
-        phone: form.phone,
-        budget: Number(form.budget) || 0,
-        source: form.source,
-        status: form.status,
-        notes: form.notes,
-        project_id: PROJECT_ID,
-        ai_score: 50,
-      });
-    }
-    setSaving(false);
-    setShowModal(false);
-    setEditingLead(null);
-    setForm(emptyForm);
-    fetchLeads();
-  };
-
-  const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
-    await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
-    setSelectedLead(null);
-    fetchLeads();
+  const exportCSV = () => {
+    const headers = ["ชื่อลูกค้า", "เบอร์โทร", "งบประมาณ", "แหล่งที่มา", "สถานะ", "AI Score", "หมายเหตุ"];
+    const rows = leads.map((l) =>
+      [l.customer_name, l.phone, l.budget, l.source, l.status, l.ai_score ?? "", (l.notes ?? "").replace(/,/g, " ")].join(",")
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `crm-leads-${dateStart}-${dateEnd}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -287,9 +215,14 @@ export default function CRMPage() {
                 {loading ? "กำลังโหลด..." : `${leads.length} ราย · ปิดการขาย ${closeRate}%`}
               </p>
             </div>
-            <button onClick={openAdd} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-              <Plus size={14} /> เพิ่ม Lead
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={exportCSV} className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
+                <Download size={13} /> CSV
+              </button>
+              <button onClick={openAdd} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+                <Plus size={14} /> เพิ่ม Lead
+              </button>
+            </div>
           </div>
           <PeriodFilter period={period} onChange={handlePeriodChange} />
         </div>
@@ -403,6 +336,12 @@ export default function CRMPage() {
                     </GlassCard>
                   ))
                 )}
+              {!loading && leads.length >= leadsLimit && (
+                <button onClick={() => { const next = leadsLimit + 50; setLeadsLimit(next); fetchLeads(dateStart, dateEnd, next); }}
+                  className="w-full py-3 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card hover:border-aviva-gold/30 transition-all">
+                  โหลดเพิ่มเติม (แสดง {leadsLimit} รายการแล้ว)
+                </button>
+              )}
             </div>
           </>
         )}

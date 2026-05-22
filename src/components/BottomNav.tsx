@@ -3,9 +3,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Building2,
-  Sparkles, FolderOpen, Briefcase,
-  Home, Settings, MoreHorizontal, X,
+  LayoutGrid, Users, HardHat,
+  Sparkles, Briefcase,
+  Settings, MoreHorizontal, X,
 } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
@@ -13,10 +13,8 @@ import { useCurrentUser } from "@/lib/user-context";
 const OFFICE_DEPTS = ["ฝ่ายการเงิน", "ฝ่ายบัญชี", "ฝ่ายบุคคล", "ฝ่ายการตลาด", "ฝ่ายหลังการขาย"];
 
 const MORE_ITEMS = [
-  { href: "/community", label: "นิติบุคคล", icon: Home,      adminOnly: true  },
-  { href: "/documents", label: "เอกสาร",    icon: FolderOpen, adminOnly: false },
-  { href: "/ai",        label: "AI",         icon: Sparkles,   adminOnly: false },
-  { href: "/settings",  label: "ตั้งค่า",    icon: Settings,   adminOnly: false },
+  { href: "/ai",       label: "AI",    icon: Sparkles, adminOnly: false },
+  { href: "/settings", label: "ตั้งค่า", icon: Settings, adminOnly: false },
 ];
 
 export default function BottomNav() {
@@ -29,10 +27,10 @@ export default function BottomNav() {
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
 
   const mainTabs = [
-    { href: "/dashboard",    label: "หน้าหลัก",  icon: LayoutDashboard, show: true },
-    { href: "/crm",          label: "ขาย",         icon: Users,           show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
-    { href: "/construction", label: "ก่อสร้าง",    icon: Building2,       show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
-    { href: "/office",       label: "ออฟฟิศ",      icon: Briefcase,       show: !user || user.isAdmin || user.isManager || isOfficeUser },
+    { href: "/dashboard",    label: "หน้าหลัก",  icon: LayoutGrid, show: true },
+    { href: "/crm",          label: "ขาย",        icon: Users,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
+    { href: "/construction", label: "ก่อสร้าง",   icon: HardHat,    show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
+    { href: "/office",       label: "ออฟฟิศ",     icon: Briefcase,  show: !user || user.isAdmin || user.isManager || isOfficeUser },
   ].filter(t => t.show);
 
   const moreItems = MORE_ITEMS.filter(t => !t.adminOnly || user?.isAdmin);

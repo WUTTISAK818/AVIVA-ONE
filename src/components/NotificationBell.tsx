@@ -54,8 +54,13 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    const id = setInterval(fetchNotifications, 60_000);
-    return () => clearInterval(id);
+    const channel = supabase
+      .channel("notifications_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {
+        fetchNotifications();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {

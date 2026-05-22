@@ -37,3 +37,12 @@ body {
   background: #D4AF37;
   border-radius: 2px;
 }
+
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  nav, [data-bottom-nav], .sticky, header, button { display: none !important; }
+  [class*="pb-24"] { padding-bottom: 0 !important; }
+  .print-area { display: block !important; }
+  * { color: #000 !important; border-color: #ccc !important; background: transparent !important; box-shadow: none !important; }
+  img { display: block; max-width: 80px; }
+}

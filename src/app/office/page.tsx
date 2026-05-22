@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Clock, ClipboardCheck,
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
-  Sparkles, Wrench, CheckCircle, AlertTriangle, Star,
+  Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
 } from "lucide-react";
 import clsx from "clsx";
 import GlassCard from "@/components/GlassCard";
@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
+import { createNotification } from "@/lib/notify";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales";
 
@@ -104,6 +105,21 @@ function FinanceContent() {
   const netCashflow = totalIncome - totalExpenses;
   const pendingApprovals = approvals.filter(a => a.status === "pending").length;
 
+  const exportCSV = () => {
+    const rows = [["วันที่", "ประเภท", "รายละเอียด", "จำนวนเงิน"]];
+    transactions.forEach(tx => rows.push([
+      new Date(tx.created_at).toLocaleDateString("th-TH"),
+      tx.transaction_type === "income" ? "รายรับ" : "รายจ่าย",
+      tx.description,
+      String(tx.amount),
+    ]));
+    const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.download = `finance_${dateStart}_${dateEnd}.csv`;
+    a.click();
+  };
+
   const handleSave = async () => {
     if (!form.amount || !form.description) return;
     setSaving(true);
@@ -118,6 +134,7 @@ function FinanceContent() {
         requested_by: "Admin",
       }).select().single();
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
+      await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `[${form.category}] ${form.description} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการเงิน" });
     } else {
       const { data } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
@@ -151,6 +168,12 @@ function FinanceContent() {
     }
     await logAction("finance", approved ? "approve" : "reject",
       `${approved ? "อนุมัติ" : "ปฏิเสธ"} ฿${approval.amount.toLocaleString()} — ${approval.description}`, id);
+    await createNotification({
+      type: approved ? "success" : "info",
+      title: approved ? "อนุมัติรายจ่ายแล้ว" : "ปฏิเสธรายจ่าย",
+      message: `${approval.description} ฿${approval.amount.toLocaleString()}`,
+      from_dept: "ฝ่ายการเงิน",
+    });
     fetchData();
   };
 
@@ -200,13 +223,21 @@ function FinanceContent() {
 
       <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
 
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> เพิ่มรายการเงิน
-      </button>
+      {/* Add + Export buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
+        >
+          <Plus size={16} /> เพิ่มรายการเงิน
+        </button>
+        <button
+          onClick={exportCSV}
+          className="flex items-center gap-1.5 border border-aviva-gold/30 text-aviva-gold px-4 py-3 rounded-2xl text-sm font-medium"
+        >
+          <Download size={15} /> CSV
+        </button>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2">
@@ -413,6 +444,24 @@ function AccountingContent() {
   const totalIncome = receipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
   const filtered = filterType === "all" ? receipts : receipts.filter(r => r.receipt_type === filterType);
 
+  const exportCSV = () => {
+    const rows = [["วันที่", "เลขที่", "ประเภท", "ผู้ขาย", "รายละเอียด", "หมวด", "จำนวนเงิน"]];
+    filtered.forEach(r => rows.push([
+      r.receipt_date,
+      r.receipt_number,
+      r.receipt_type === "income" ? "รายรับ" : "รายจ่าย",
+      r.vendor_name,
+      r.description ?? "",
+      r.category,
+      String(r.amount),
+    ]));
+    const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.download = `receipts_${acctStart}_${acctEnd}.csv`;
+    a.click();
+  };
+
   const handleSave = async () => {
     if (!form.vendor_name || !form.amount) return;
     setSaving(true);
@@ -462,13 +511,21 @@ function AccountingContent() {
 
       <PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} />
 
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> บันทึกบิล
-      </button>
+      {/* Add + Export buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
+        >
+          <Plus size={16} /> บันทึกบิล
+        </button>
+        <button
+          onClick={exportCSV}
+          className="flex items-center gap-1.5 border border-aviva-gold/30 text-aviva-gold px-4 py-3 rounded-2xl text-sm font-medium"
+        >
+          <Download size={15} /> CSV
+        </button>
+      </div>
 
       {/* Filter */}
       <div className="flex gap-2">
@@ -1281,6 +1338,12 @@ function AfterSalesContent() {
       assigned_to: form.assigned_to,
       scheduled_date: form.scheduled_date || null,
       status: form.status,
+    });
+    await createNotification({
+      type: "claim",
+      title: "แจ้งซ่อมใหม่",
+      message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description}`,
+      from_dept: "ฝ่ายหลังการขาย",
     });
     setSaving(false);
     setShowModal(false);

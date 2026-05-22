@@ -9,6 +9,7 @@ import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { supabase } from "@/lib/supabase";
+import { createNotification } from "@/lib/notify";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -179,6 +180,14 @@ export default function ConstructionPage() {
     if (newStatus === inst.status) return;
     await supabase.from("contractor_installments").update({ status: newStatus }).eq("id", inst.id);
     setInstallments((prev) => prev.map((i) => i.id === inst.id ? { ...i, status: newStatus } : i));
+    const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
+    const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
+    await createNotification({
+      type: notifType[newStatus] ?? "info",
+      title: `${inst.name} — ${statusLabels[newStatus] ?? newStatus}`,
+      message: instHouse ? `ยูนิต ${instHouse.house_number}` : "",
+      from_dept: "ฝ่ายก่อสร้าง",
+    });
   };
 
   const printInstallments = () => { window.print(); };

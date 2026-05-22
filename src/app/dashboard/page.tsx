@@ -14,7 +14,6 @@ import GlassCard from "@/components/GlassCard";
 import CalendarWidget from "@/components/CalendarWidget";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { revenueData } from "@/lib/mock-data";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -67,6 +66,7 @@ export default function DashboardPage() {
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
+  const [chartData, setChartData] = useState<{ month: string; revenue: number }[]>([]);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -98,16 +98,18 @@ export default function DashboardPage() {
     supabase.from("projects").select("*").eq("id", PROJECT_ID).single()
       .then(({ data }) => { setProject(data); setLoading(false); });
 
+    const year = new Date().getFullYear();
     Promise.all([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
-      supabase.from("receipts").select("amount").eq("project_id", PROJECT_ID),
+      supabase.from("receipts").select("amount,receipt_date,receipt_type").eq("project_id", PROJECT_ID),
       supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("approval_logs").select("approval_id", { count: "exact", head: true }).eq("action_taken", "Pending"),
     ]).then(([approvals, receipts, employees, claims, leads, docs, v2Approvals]) => {
-      const receiptTotal = (receipts.data ?? []).reduce((s: number, r: { amount: number }) => s + Number(r.amount), 0);
+      const allReceipts = (receipts.data ?? []) as { amount: number; receipt_date: string; receipt_type: string }[];
+      const receiptTotal = allReceipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
       setStats({
         pendingApprovals: (approvals.count ?? 0) + (v2Approvals.count ?? 0),
         totalReceipts: receiptTotal,
@@ -116,6 +118,13 @@ export default function DashboardPage() {
         totalLeads: leads.count ?? 0,
         pendingDocs: docs.count ?? 0,
       });
+      const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+      const map: Record<number, number> = {};
+      allReceipts.filter(r => r.receipt_type === "income" && r.receipt_date?.startsWith(String(year))).forEach(r => {
+        const m = new Date(r.receipt_date).getMonth();
+        map[m] = (map[m] ?? 0) + Number(r.amount) / 1_000_000;
+      });
+      setChartData(MONTHS.map((month, i) => ({ month, revenue: +((map[i] ?? 0).toFixed(1)) })));
     });
   }, []);
 
@@ -243,7 +252,7 @@ export default function DashboardPage() {
           <SectionHeader title="รายได้รายเดือน" subtitle="หน่วย: ล้านบาท" />
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                 <defs>
                   <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />

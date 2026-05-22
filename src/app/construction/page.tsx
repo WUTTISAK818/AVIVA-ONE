@@ -130,14 +130,15 @@ export default function ConstructionPage() {
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
   const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [rptLimit, setRptLimit] = useState(50);
 
-  const fetchData = () => {
+  const fetchData = (limit = rptLimit) => {
     let rptQ = supabase.from("construction_reports").select("*");
     if (rptStart) rptQ = rptQ.gte("created_at", rptStart);
     if (rptEnd) rptQ = rptQ.lte("created_at", rptEnd + "T23:59:59");
     Promise.all([
       supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("house_number"),
-      rptQ.order("created_at", { ascending: false }).limit(50),
+      rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
     ]).then(([hRes, rRes, dRes]) => {
       setHouses((hRes.data as House[]) ?? []);
@@ -147,7 +148,7 @@ export default function ConstructionPage() {
     });
   };
 
-  useEffect(() => { fetchData(); }, [rptStart, rptEnd]);
+  useEffect(() => { setRptLimit(50); fetchData(50); }, [rptStart, rptEnd]);
 
   const fetchInstallments = async (house: House) => {
     setInstHouse(house);
@@ -439,6 +440,12 @@ export default function ConstructionPage() {
                   </GlassCard>
                 );
               })
+            )}
+            {!loading && reports.length >= rptLimit && (
+              <button onClick={() => { const next = rptLimit + 50; setRptLimit(next); fetchData(next); }}
+                className="w-full py-2.5 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card hover:border-aviva-gold/30 transition-all">
+                โหลดเพิ่มเติม (แสดง {rptLimit} รายการแล้ว)
+              </button>
             )}
           </div>
         )}

@@ -14,6 +14,7 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 interface Lead {
   id: string;
+  lead_code?: string;
   customer_name: string;
   phone: string;
   budget: number;
@@ -85,6 +86,7 @@ export default function CRMPage() {
   const [crmLogLead, setCrmLogLead] = useState<Lead | null>(null);
   const [crmLogForm, setCrmLogForm] = useState(emptyCrmLog);
   const [savingLog, setSavingLog] = useState(false);
+  const [kpiModal, setKpiModal] = useState<string | null>(null);
 
   const fetchLeads = (start: string, end: string, limit = 50) => {
     setLoading(true);
@@ -229,22 +231,22 @@ export default function CRMPage() {
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-        {/* KPI row */}
         <div className="grid grid-cols-4 gap-2">
           {[
-            { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text" },
-            { label: "Booking", value: stageCounts["Booking"] ?? 0, color: "text-aviva-gold" },
-            { label: "Loan", value: stageCounts["Loan Process"] ?? 0, color: "text-blue-400" },
-            { label: "โอนแล้ว", value: closedCount, color: "text-green-400" },
-          ].map(({ label, value, color }) => (
-            <GlassCard key={label} className="p-3 text-center">
-              <p className={clsx("text-xl font-bold", color)}>{value}</p>
-              <p className="text-[10px] text-aviva-secondary mt-0.5">{label}</p>
-            </GlassCard>
+            { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text", filter: "all" },
+            { label: "Booking", value: stageCounts["Booking"] ?? 0, color: "text-aviva-gold", filter: "Booking" },
+            { label: "Loan", value: stageCounts["Loan Process"] ?? 0, color: "text-blue-400", filter: "Loan Process" },
+            { label: "โอนแล้ว", value: closedCount, color: "text-green-400", filter: "Closed Deal" },
+          ].map(({ label, value, color, filter }) => (
+            <button key={label} onClick={() => setKpiModal(filter)} className="active:scale-[0.96] transition-transform w-full">
+              <GlassCard className="p-3 text-center">
+                <p className={clsx("text-xl font-bold", color)}>{value}</p>
+                <p className="text-[10px] text-aviva-secondary mt-0.5">{label}</p>
+              </GlassCard>
+            </button>
           ))}
         </div>
 
-        {/* AI Insight */}
         {leads.length > 0 && closeRate < 20 && (
           <AIInsightPanel type="warning" priority="medium"
             title={`อัตราปิดการขายต่ำ (${closeRate}%)`}
@@ -256,7 +258,6 @@ export default function CRMPage() {
             message={`ยอดขายรวมประมาณ ฿${(leads.filter(l => l.status === "Closed Deal").reduce((s, l) => s + Number(l.budget), 0) / 1_000_000).toFixed(1)}M ในช่วงที่เลือก`} />
         )}
 
-        {/* Main tabs */}
         <div className="flex gap-2">
           {([["pipeline", "Pipeline"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
@@ -304,7 +305,10 @@ export default function CRMPage() {
                     <GlassCard key={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setSelectedLead(lead)}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {lead.lead_code && (
+                              <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">{lead.lead_code}</span>
+                            )}
                             <h3 className="text-sm font-semibold text-aviva-text">{lead.customer_name}</h3>
                             <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", sourceColor[lead.source] ?? "bg-gray-500/20 text-gray-400")}>{lead.source}</span>
                           </div>
@@ -387,10 +391,9 @@ export default function CRMPage() {
         )}
       </div>
 
-      {/* CRM Log Modal */}
       {crmLogLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
@@ -438,10 +441,9 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* Add/Edit Lead Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไข Lead" : "เพิ่ม Lead ใหม่"}</h2>
               <button onClick={() => { setShowModal(false); setEditingLead(null); }}><X size={20} className="text-aviva-secondary" /></button>
@@ -496,10 +498,46 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* Status Update Modal */}
+      {kpiModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-aviva-text">
+                {kpiModal === "all" ? "ลูกค้าทั้งหมด" :
+                 kpiModal === "Booking" ? "สถานะ Booking" :
+                 kpiModal === "Loan Process" ? "สถานะ Loan Process" : "โอนกรรมสิทธิ์แล้ว"}
+                <span className="ml-1.5 text-xs font-normal text-aviva-secondary">
+                  ({(kpiModal === "all" ? leads : leads.filter(l => l.status === kpiModal)).length} ราย)
+                </span>
+              </h2>
+              <button onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="overflow-y-auto space-y-2 flex-1">
+              {(kpiModal === "all" ? leads : leads.filter(l => l.status === kpiModal)).map(l => (
+                <div key={l.id} className="flex items-center gap-2 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
+                  {l.lead_code && (
+                    <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded border border-aviva-gold/20 flex-shrink-0">
+                      {l.lead_code}
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-aviva-text truncate">{l.customer_name}</p>
+                    <p className="text-[10px] text-aviva-secondary">{l.phone} · {formatBudget(l.budget)}</p>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-aviva-gold/10 text-aviva-gold flex-shrink-0">{l.status}</span>
+                </div>
+              ))}
+              {(kpiModal === "all" ? leads : leads.filter(l => l.status === kpiModal)).length === 0 && (
+                <p className="text-center text-aviva-secondary text-sm py-8">ไม่มีข้อมูล</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>

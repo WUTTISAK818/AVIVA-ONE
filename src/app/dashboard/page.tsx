@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings, X } from "lucide-react";
+import { Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings, X, Sparkles, ChevronRight } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
@@ -143,7 +143,10 @@ export default function DashboardPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div>
-            <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.7</span>
+            </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
             </p>
@@ -163,6 +166,38 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        {/* AI Quick Access */}
+        <Link href="/ai" className="flex items-center gap-3 bg-aviva-card rounded-2xl p-3 border border-aviva-gold/20 hover:border-aviva-gold/40 transition-all active:scale-[0.98]">
+          <div className="w-9 h-9 rounded-xl bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
+            <Sparkles size={16} className="text-aviva-gold" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-aviva-text">AVIVA AI Executive</p>
+            <p className="text-xs text-aviva-secondary">ถามคำถามหรือวิเคราะห์ข้อมูลโครงการ</p>
+          </div>
+          <ChevronRight size={16} className="text-aviva-secondary/50" />
+        </Link>
+
+        {/* Pending Alert Banner */}
+        {(stats.pendingApprovals + stats.pendingClaims + stats.pendingDocs) > 0 && (
+          <GlassCard className="p-3 border border-yellow-500/20 bg-yellow-500/5">
+            <div className="flex items-center gap-2">
+              <ShieldAlert size={16} className="text-yellow-400 flex-shrink-0" />
+              <div className="flex-1 flex flex-wrap gap-3">
+                {stats.pendingApprovals > 0 && (
+                  <span className="text-xs text-yellow-400">รออนุมัติ: <b>{stats.pendingApprovals}</b></span>
+                )}
+                {stats.pendingClaims > 0 && (
+                  <span className="text-xs text-yellow-400">แจ้งซ่อม: <b>{stats.pendingClaims}</b></span>
+                )}
+                {stats.pendingDocs > 0 && (
+                  <span className="text-xs text-yellow-400">เอกสาร: <b>{stats.pendingDocs}</b></span>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+        )}
+
         {noProjectData ? (
           <GlassCard className="p-6 text-center border border-aviva-gold/20">
             <ShieldAlert size={28} className="text-aviva-secondary/40 mx-auto mb-3" />
@@ -228,24 +263,6 @@ export default function DashboardPage() {
               <p className="text-[10px] text-aviva-secondary">พนักงาน</p>
             </GlassCard>
           </div>
-          {(stats.pendingApprovals + stats.pendingClaims + stats.pendingDocs) > 0 && (
-            <GlassCard className="p-3 mt-2 border border-yellow-500/20 bg-yellow-500/5">
-              <div className="flex items-center gap-2">
-                <ShieldAlert size={16} className="text-yellow-400 flex-shrink-0" />
-                <div className="flex-1 flex flex-wrap gap-3">
-                  {stats.pendingApprovals > 0 && (
-                    <span className="text-xs text-yellow-400">รออนุมัติการเงิน: <b>{stats.pendingApprovals}</b></span>
-                  )}
-                  {stats.pendingClaims > 0 && (
-                    <span className="text-xs text-yellow-400">แจ้งซ่อมรอดำเนินการ: <b>{stats.pendingClaims}</b></span>
-                  )}
-                  {stats.pendingDocs > 0 && (
-                    <span className="text-xs text-yellow-400">เอกสารรออนุมัติ: <b>{stats.pendingDocs}</b></span>
-                  )}
-                </div>
-              </div>
-            </GlassCard>
-          )}
         </div>
 
         <GlassCard className="p-4">
@@ -308,7 +325,7 @@ export default function DashboardPage() {
       {/* KPI Detail Modal */}
       {kpiModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] flex flex-col">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] flex flex-col mb-14">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-aviva-text">{KPI_LABELS[kpiModal] ?? kpiModal}</h2>
               <button onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>

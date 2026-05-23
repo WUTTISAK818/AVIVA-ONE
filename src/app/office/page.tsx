@@ -6,6 +6,7 @@ import {
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
+  FolderOpen, Upload, Search, Home,
 } from "lucide-react";
 import clsx from "clsx";
 import GlassCard from "@/components/GlassCard";
@@ -18,7 +19,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 
-type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "payroll";
+type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "payroll" | "community" | "documents";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const today = new Date().toISOString().split("T")[0];
@@ -76,6 +77,7 @@ function FinanceContent() {
   const [dateStart, setDateStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [finLimit, setFinLimit] = useState(50);
+  const [kpiModal, setKpiModal] = useState<"income" | "expense" | "cashflow" | "pending" | null>(null);
 
   const fetchData = (limit = finLimit) => {
     let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
@@ -193,26 +195,34 @@ function FinanceContent() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3">
-        <GlassCard className="p-3 text-center">
-          <TrendingUp size={16} className="text-green-400 mx-auto mb-1" />
-          <p className="text-base font-bold text-green-400">{formatM(totalIncome || 0)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รายรับรวม</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <TrendingDown size={16} className="text-red-400 mx-auto mb-1" />
-          <p className="text-base font-bold text-red-400">{formatM(totalExpenses || 0)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รายจ่ายรวม</p>
-        </GlassCard>
-        <GlassCard gold className="p-3 text-center">
-          <DollarSign size={16} className="text-aviva-gold mx-auto mb-1" />
-          <p className="text-base font-bold text-aviva-gold">{formatM(netCashflow || 0)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">Net Cashflow</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <ClipboardCheck size={16} className="text-yellow-400 mx-auto mb-1" />
-          <p className="text-base font-bold text-yellow-400">{pendingApprovals}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รออนุมัติ</p>
-        </GlassCard>
+        <button onClick={() => setKpiModal("income")} className="active:scale-[0.97] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <TrendingUp size={16} className="text-green-400 mx-auto mb-1" />
+            <p className="text-base font-bold text-green-400">{formatM(totalIncome || 0)}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">รายรับรวม</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModal("expense")} className="active:scale-[0.97] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <TrendingDown size={16} className="text-red-400 mx-auto mb-1" />
+            <p className="text-base font-bold text-red-400">{formatM(totalExpenses || 0)}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">รายจ่ายรวม</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModal("cashflow")} className="active:scale-[0.97] transition-transform w-full text-left">
+          <GlassCard gold className="p-3 text-center">
+            <DollarSign size={16} className="text-aviva-gold mx-auto mb-1" />
+            <p className="text-base font-bold text-aviva-gold">{formatM(netCashflow || 0)}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">Net Cashflow</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModal("pending")} className="active:scale-[0.97] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <ClipboardCheck size={16} className="text-yellow-400 mx-auto mb-1" />
+            <p className="text-base font-bold text-yellow-400">{pendingApprovals}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">รออนุมัติ</p>
+          </GlassCard>
+        </button>
       </div>
 
       <AIInsightPanel
@@ -332,7 +342,7 @@ function FinanceContent() {
       {/* Add Transaction Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เพิ่มรายการเงิน</h2>
               <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -386,6 +396,52 @@ function FinanceContent() {
           </div>
         </div>
       )}
+
+      {/* KPI Detail Modal */}
+      {kpiModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-aviva-text">
+                {kpiModal === "income" ? "รายรับทั้งหมด" :
+                 kpiModal === "expense" ? "รายจ่ายทั้งหมด" :
+                 kpiModal === "cashflow" ? "รายการทั้งหมด" : "รออนุมัติ"}
+              </h2>
+              <button onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="overflow-y-auto space-y-2 flex-1">
+              {kpiModal === "pending" ? (
+                approvals.filter(a => a.status === "pending").map(a => (
+                  <div key={a.id} className="p-3 rounded-xl bg-aviva-bg border border-yellow-500/20">
+                    <p className="text-xs font-semibold text-aviva-text">{a.description}</p>
+                    <p className="text-[10px] text-yellow-400 mt-0.5">{formatM(Number(a.amount))}</p>
+                  </div>
+                ))
+              ) : (
+                transactions
+                  .filter(t => kpiModal === "cashflow" || t.transaction_type === (kpiModal === "income" ? "income" : "expense"))
+                  .map(t => (
+                    <div key={t.id} className="flex items-center gap-3 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-aviva-text truncate">{t.description}</p>
+                        <p className="text-[10px] text-aviva-secondary">{new Date(t.created_at).toLocaleDateString("th-TH")}</p>
+                      </div>
+                      <p className={clsx("text-xs font-bold flex-shrink-0",
+                        t.transaction_type === "income" ? "text-green-400" : "text-red-400"
+                      )}>{formatM(Math.abs(Number(t.amount)))}</p>
+                    </div>
+                  ))
+              )}
+              {(kpiModal === "pending"
+                ? approvals.filter(a => a.status === "pending")
+                : transactions.filter(t => kpiModal === "cashflow" || t.transaction_type === (kpiModal === "income" ? "income" : "expense"))
+              ).length === 0 && (
+                <p className="text-center text-aviva-secondary text-sm py-8">ไม่มีข้อมูล</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -427,6 +483,7 @@ function AccountingContent() {
   const [acctStart, setAcctStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [acctLimit, setAcctLimit] = useState(50);
+  const [kpiModalAcct, setKpiModalAcct] = useState<"all" | "income" | "expense" | null>(null);
 
   const fetchReceipts = (limit = acctLimit) => {
     let q = supabase.from("receipts").select("*").eq("project_id", PROJECT_ID);
@@ -486,21 +543,27 @@ function AccountingContent() {
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
-        <GlassCard className="p-3 text-center">
-          <Receipt size={14} className="text-aviva-gold mx-auto mb-1" />
-          <p className="text-lg font-bold text-aviva-text">{receipts.length}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">ใบเสร็จทั้งหมด</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <TrendingUp size={14} className="text-green-400 mx-auto mb-1" />
-          <p className="text-lg font-bold text-green-400">{formatM(totalIncome)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รายรับทั้งหมด</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <TrendingDown size={14} className="text-red-400 mx-auto mb-1" />
-          <p className="text-lg font-bold text-red-400">{formatM(totalExpense)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รายจ่ายทั้งหมด</p>
-        </GlassCard>
+        <button onClick={() => setKpiModalAcct("all")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <Receipt size={14} className="text-aviva-gold mx-auto mb-1" />
+            <p className="text-lg font-bold text-aviva-text">{receipts.length}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">ใบเสร็จทั้งหมด</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModalAcct("income")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <TrendingUp size={14} className="text-green-400 mx-auto mb-1" />
+            <p className="text-lg font-bold text-green-400">{formatM(totalIncome)}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">รายรับทั้งหมด</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModalAcct("expense")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <TrendingDown size={14} className="text-red-400 mx-auto mb-1" />
+            <p className="text-lg font-bold text-red-400">{formatM(totalExpense)}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">รายจ่ายทั้งหมด</p>
+          </GlassCard>
+        </button>
       </div>
 
       <AIInsightPanel
@@ -593,7 +656,7 @@ function AccountingContent() {
       {/* Add Receipt Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">บันทึกบิล / ใบเสร็จ</h2>
               <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -663,6 +726,40 @@ function AccountingContent() {
           </div>
         </div>
       )}
+
+      {/* KPI Detail Modal */}
+      {kpiModalAcct && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-aviva-text">
+                {kpiModalAcct === "all" ? "ใบเสร็จทั้งหมด" :
+                 kpiModalAcct === "income" ? "รายรับ" : "รายจ่าย"}
+                <span className="ml-1.5 text-xs font-normal text-aviva-secondary">
+                  ({(kpiModalAcct === "all" ? receipts : receipts.filter(r => r.receipt_type === kpiModalAcct)).length} รายการ)
+                </span>
+              </h2>
+              <button onClick={() => setKpiModalAcct(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="overflow-y-auto space-y-2 flex-1">
+              {(kpiModalAcct === "all" ? receipts : receipts.filter(r => r.receipt_type === kpiModalAcct)).map(r => (
+                <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-aviva-text truncate">{r.vendor_name}</p>
+                    <p className="text-[10px] text-aviva-secondary">{r.receipt_date} · {r.category}</p>
+                  </div>
+                  <p className={clsx("text-xs font-bold flex-shrink-0",
+                    r.receipt_type === "income" ? "text-green-400" : "text-red-400"
+                  )}>{formatM(Number(r.amount))}</p>
+                </div>
+              ))}
+              {(kpiModalAcct === "all" ? receipts : receipts.filter(r => r.receipt_type === kpiModalAcct)).length === 0 && (
+                <p className="text-center text-aviva-secondary text-sm py-8">ไม่มีข้อมูล</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -680,6 +777,17 @@ interface Campaign {
   clicks: number;
   conversions: number;
   status: string;
+  executive_name?: string;
+  campaign_link?: string;
+}
+
+interface MarketingBudget {
+  id: string;
+  year: number;
+  month: number;
+  budget_amount: number;
+  executive_name: string;
+  notes: string;
 }
 
 const platformStyle: Record<string, { color: string; bg: string }> = {
@@ -712,14 +820,20 @@ function cpl(campaign: Campaign) {
     : "—";
 }
 
-const emptyCampaignForm = { name: "", platform: "Facebook", budget: "", start_date: "", end_date: "" };
+const emptyCampaignForm = { name: "", platform: "Facebook", budget: "", start_date: "", end_date: "", executive_name: "", campaign_link: "" };
+
+const MONTH_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 
 function MarketingContent() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [budgets, setBudgets] = useState<MarketingBudget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState<"campaigns" | "budget">("campaigns");
   const [filter, setFilter] = useState<"all" | "Facebook" | "TikTok" | "Google">("all");
   const [showModal, setShowModal] = useState(false);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [form, setForm] = useState(emptyCampaignForm);
+  const [budgetForm, setBudgetForm] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1, budget_amount: "", executive_name: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [mktPeriod, setMktPeriod] = useState<Period>("month");
   const [mktStart, setMktStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
@@ -733,7 +847,13 @@ function MarketingContent() {
       .then(({ data }) => { setCampaigns((data as Campaign[]) ?? []); setLoading(false); });
   };
 
-  useEffect(() => { fetchCampaigns(); }, [mktStart, mktEnd]);
+  const fetchBudgets = () => {
+    supabase.from("marketing_budgets").select("*").eq("project_id", PROJECT_ID)
+      .order("year", { ascending: false }).order("month", { ascending: false })
+      .then(({ data }) => setBudgets((data as MarketingBudget[]) ?? []));
+  };
+
+  useEffect(() => { fetchCampaigns(); fetchBudgets(); }, [mktStart, mktEnd]);
 
   const filtered = filter === "all" ? campaigns : campaigns.filter(c => c.platform === filter);
   const totalLeads = campaigns.reduce((s, c) => s + c.leads_generated, 0);
@@ -742,6 +862,7 @@ function MarketingContent() {
   const avgROI = campaigns.length
     ? Math.round(campaigns.reduce((s, c) => s + roi(c), 0) / campaigns.length)
     : 0;
+  const totalBudgetAllocated = budgets.reduce((s, b) => s + Number(b.budget_amount), 0);
 
   const handleSave = async () => {
     if (!form.name) return;
@@ -759,11 +880,29 @@ function MarketingContent() {
       status: "active",
       start_date: form.start_date || null,
       end_date: form.end_date || null,
+      executive_name: form.executive_name || null,
+      campaign_link: form.campaign_link || null,
     });
     setSaving(false);
     setShowModal(false);
     setForm(emptyCampaignForm);
     fetchCampaigns();
+  };
+
+  const handleSaveBudget = async () => {
+    if (!budgetForm.budget_amount) return;
+    setSaving(true);
+    await supabase.from("marketing_budgets").upsert({
+      project_id: PROJECT_ID,
+      year: budgetForm.year,
+      month: budgetForm.month,
+      budget_amount: Number(budgetForm.budget_amount),
+      executive_name: budgetForm.executive_name,
+      notes: budgetForm.notes,
+    }, { onConflict: "project_id,year,month" });
+    setSaving(false);
+    setShowBudgetModal(false);
+    fetchBudgets();
   };
 
   return (
@@ -802,92 +941,138 @@ function MarketingContent() {
         </GlassCard>
       </div>
 
-      <AIInsightPanel
-        type="success"
-        priority="medium"
-        title="AI: Facebook ROI สูงสุด"
-        message="แคมเปญ Facebook มี ROI เฉลี่ยสูงสุด แนะนำเพิ่มงบอีก 20% และทดสอบ Creative ใหม่ในกลุ่มเป้าหมาย 35-50 ปีครับ"
-      />
-
-      <PeriodFilter period={mktPeriod} onChange={(p, s, e) => { setMktPeriod(p); setMktStart(s); setMktEnd(e); }} />
-
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> สร้างแคมเปญ
-      </button>
-
-      {/* Platform Filter */}
-      <div>
-        <SectionHeader title="แคมเปญ" subtitle="กรองตาม Platform" />
-        <div className="flex gap-2 mb-4">
-          {(["all", "Facebook", "TikTok", "Google"] as const).map(p => (
-            <button key={p} onClick={() => setFilter(p)}
-              className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
-                filter === p
-                  ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
-                  : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-              )}>
-              {p === "all" ? "ทั้งหมด" : p}
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-3">
-          {loading
-            ? [1, 2, 3].map(i => <div key={i} className="h-36 rounded-2xl bg-aviva-card/50 animate-pulse" />)
-            : filtered.map(c => {
-                const pStyle = platformStyle[c.platform] ?? { color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/20" };
-                const spentPct = Math.round((c.spent / (c.budget || 1)) * 100);
-                return (
-                  <GlassCard key={c.id} className={clsx("p-4 border", pStyle.bg)}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-sm font-bold text-aviva-text">{c.name}</h3>
-                          <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", statusStyle[c.status] ?? "bg-gray-500/20 text-gray-400")}>
-                            {statusLabel[c.status] ?? c.status}
-                          </span>
-                        </div>
-                        <span className={clsx("text-xs font-medium", pStyle.color)}>{c.platform}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-aviva-gold">{roi(c)}%</p>
-                        <p className="text-[10px] text-aviva-secondary">ROI</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-aviva-text">{c.leads_generated}</p>
-                        <p className="text-[10px] text-aviva-secondary">Leads</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-aviva-text">฿{cpl(c)}</p>
-                        <p className="text-[10px] text-aviva-secondary">CPL</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-green-400">{c.conversions}</p>
-                        <p className="text-[10px] text-aviva-secondary">Conversion</p>
-                      </div>
-                    </div>
-                    <ProgressBar
-                      label={`ใช้ไป ฿${(c.spent / 1000).toFixed(0)}K / ฿${(c.budget / 1000).toFixed(0)}K`}
-                      value={spentPct}
-                      color={spentPct > 90 ? "red" : "gold"}
-                    />
-                  </GlassCard>
-                );
-              })
-          }
-        </div>
+      {/* View Toggle */}
+      <div className="flex gap-2">
+        <button onClick={() => setActiveView("campaigns")}
+          className={clsx("flex-1 py-2 rounded-xl text-xs font-semibold border transition-all",
+            activeView === "campaigns" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+          )}>แคมเปญ</button>
+        <button onClick={() => setActiveView("budget")}
+          className={clsx("flex-1 py-2 rounded-xl text-xs font-semibold border transition-all",
+            activeView === "budget" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+          )}>งบประมาณ</button>
       </div>
+
+      {activeView === "campaigns" && (
+        <>
+          <AIInsightPanel type="success" priority="medium"
+            title="AI: Facebook ROI สูงสุด"
+            message="แคมเปญ Facebook มี ROI เฉลี่ยสูงสุด แนะนำเพิ่มงบอีก 20% และทดสอบ Creative ใหม่ในกลุ่มเป้าหมาย 35-50 ปีครับ" />
+          <PeriodFilter period={mktPeriod} onChange={(p, s, e) => { setMktPeriod(p); setMktStart(s); setMktEnd(e); }} />
+          <button onClick={() => setShowModal(true)}
+            className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
+            <Plus size={16} /> สร้างแคมเปญ
+          </button>
+          <div>
+            <SectionHeader title="แคมเปญ" subtitle="กรองตาม Platform" />
+            <div className="flex gap-2 mb-4">
+              {(["all", "Facebook", "TikTok", "Google"] as const).map(p => (
+                <button key={p} onClick={() => setFilter(p)}
+                  className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+                    filter === p ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+                  )}>{p === "all" ? "ทั้งหมด" : p}</button>
+              ))}
+            </div>
+            <div className="space-y-3">
+              {loading
+                ? [1, 2, 3].map(i => <div key={i} className="h-36 rounded-2xl bg-aviva-card/50 animate-pulse" />)
+                : filtered.map(c => {
+                    const pStyle = platformStyle[c.platform] ?? { color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/20" };
+                    const spentPct = Math.round((c.spent / (c.budget || 1)) * 100);
+                    return (
+                      <GlassCard key={c.id} className={clsx("p-4 border", pStyle.bg)}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-sm font-bold text-aviva-text">{c.name}</h3>
+                              <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", statusStyle[c.status] ?? "bg-gray-500/20 text-gray-400")}>
+                                {statusLabel[c.status] ?? c.status}
+                              </span>
+                            </div>
+                            <span className={clsx("text-xs font-medium", pStyle.color)}>{c.platform}</span>
+                            {c.executive_name && (
+                              <p className="text-[10px] text-aviva-secondary mt-0.5">ผู้รับผิดชอบ: {c.executive_name}</p>
+                            )}
+                            {c.campaign_link && (
+                              <a href={c.campaign_link} target="_blank" rel="noopener noreferrer"
+                                className="text-[10px] text-blue-400 underline mt-0.5 inline-block">ดูข้อมูลแคมเปญ</a>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-lg font-bold text-aviva-gold">{roi(c)}%</p>
+                            <p className="text-[10px] text-aviva-secondary">ROI</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mb-3">
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-aviva-text">{c.leads_generated}</p>
+                            <p className="text-[10px] text-aviva-secondary">Leads</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-aviva-text">฿{cpl(c)}</p>
+                            <p className="text-[10px] text-aviva-secondary">CPL</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-green-400">{c.conversions}</p>
+                            <p className="text-[10px] text-aviva-secondary">Conversion</p>
+                          </div>
+                        </div>
+                        <ProgressBar
+                          label={`ใช้ไป ฿${(c.spent / 1000).toFixed(0)}K / ฿${(c.budget / 1000).toFixed(0)}K`}
+                          value={spentPct} color={spentPct > 90 ? "red" : "gold"} />
+                      </GlassCard>
+                    );
+                  })
+              }
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeView === "budget" && (
+        <>
+          <GlassCard gold className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs text-aviva-secondary">งบประมาณทั้งหมดที่จัดสรร</p>
+                <p className="text-2xl font-bold text-aviva-gold">฿{(totalBudgetAllocated / 1000).toFixed(0)}K</p>
+              </div>
+              <DollarSign size={28} className="text-aviva-gold/40" />
+            </div>
+          </GlassCard>
+          <button onClick={() => setShowBudgetModal(true)}
+            className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
+            <Plus size={16} /> กำหนดงบประมาณ
+          </button>
+          <div className="space-y-3">
+            <SectionHeader title="งบประมาณรายเดือน" subtitle="กำหนดโดยผู้บริหาร" />
+            {budgets.length === 0 ? (
+              <GlassCard className="p-8 text-center">
+                <p className="text-aviva-secondary text-sm">ยังไม่มีการกำหนดงบ</p>
+              </GlassCard>
+            ) : budgets.map(b => (
+              <GlassCard key={b.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-aviva-text">{MONTH_TH[b.month - 1]} {b.year}</p>
+                    {b.executive_name && <p className="text-xs text-aviva-secondary mt-0.5">อนุมัติโดย: {b.executive_name}</p>}
+                    {b.notes && <p className="text-[11px] text-aviva-secondary/70 mt-0.5">{b.notes}</p>}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-aviva-gold">฿{Number(b.budget_amount).toLocaleString("th-TH")}</p>
+                    <p className="text-[10px] text-aviva-secondary">งบที่จัดสรร</p>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Create Campaign Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">สร้างแคมเปญใหม่</h2>
               <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -914,6 +1099,18 @@ function MarketingContent() {
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับผิดชอบ / ผู้อนุมัติ</label>
+                <input type="text" value={form.executive_name} onChange={e => setForm({ ...form, executive_name: e.target.value })}
+                  placeholder="ชื่อผู้บริหารที่รับผิดชอบ"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ลิงก์ข้อมูลแคมเปญ</label>
+                <input type="url" value={form.campaign_link} onChange={e => setForm({ ...form, campaign_link: e.target.value })}
+                  placeholder="https://docs.google.com/..."
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">วันเริ่ม</label>
@@ -934,6 +1131,58 @@ function MarketingContent() {
           </div>
         </div>
       )}
+
+      {/* Budget Modal */}
+      {showBudgetModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">กำหนดงบประมาณ</h2>
+              <button onClick={() => setShowBudgetModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ปี</label>
+                  <select value={budgetForm.year} onChange={e => setBudgetForm({ ...budgetForm, year: Number(e.target.value) })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">เดือน</label>
+                  <select value={budgetForm.month} onChange={e => setBudgetForm({ ...budgetForm, month: Number(e.target.value) })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    {MONTH_TH.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท) *</label>
+                <input type="number" value={budgetForm.budget_amount} onChange={e => setBudgetForm({ ...budgetForm, budget_amount: e.target.value })}
+                  placeholder="100000"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้อนุมัติงบ</label>
+                <input type="text" value={budgetForm.executive_name} onChange={e => setBudgetForm({ ...budgetForm, executive_name: e.target.value })}
+                  placeholder="ชื่อผู้บริหาร"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea value={budgetForm.notes} onChange={e => setBudgetForm({ ...budgetForm, notes: e.target.value })}
+                  placeholder="รายละเอียดแผนการใช้งบ..."
+                  rows={2} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+            <button onClick={handleSaveBudget} disabled={saving || !budgetForm.budget_amount}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : "บันทึกงบประมาณ"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -942,6 +1191,7 @@ function MarketingContent() {
 
 interface Employee {
   id: string;
+  employee_code?: string;
   full_name: string;
   nickname: string;
   phone: string;
@@ -984,6 +1234,7 @@ function HRContent() {
   const [form, setForm] = useState(emptyEmployeeForm);
   const [saving, setSaving] = useState(false);
   const [filterDept, setFilterDept] = useState("ทั้งหมด");
+  const [kpiModalHR, setKpiModalHR] = useState<"employees" | "probation" | "salary" | null>(null);
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -1031,23 +1282,29 @@ function HRContent() {
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
-        <GlassCard className="p-3 text-center">
-          <Users size={14} className="text-aviva-gold mx-auto mb-1" />
-          <p className="text-xl font-bold text-aviva-text">{active.length}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">พนักงานทั้งหมด</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <Clock size={14} className="text-yellow-400 mx-auto mb-1" />
-          <p className="text-xl font-bold text-yellow-400">{probationAlerts.length}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">ทดลองงาน</p>
-        </GlassCard>
-        <GlassCard gold className="p-3 text-center">
-          <DollarSign size={14} className="text-aviva-gold mx-auto mb-1" />
-          <p className="text-xl font-bold text-aviva-gold">
-            {formatM(active.reduce((s, e) => s + Number(e.base_salary), 0))}
-          </p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">เงินเดือนรวม</p>
-        </GlassCard>
+        <button onClick={() => setKpiModalHR("employees")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <Users size={14} className="text-aviva-gold mx-auto mb-1" />
+            <p className="text-xl font-bold text-aviva-text">{active.length}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">พนักงานทั้งหมด</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModalHR("probation")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard className="p-3 text-center">
+            <Clock size={14} className="text-yellow-400 mx-auto mb-1" />
+            <p className="text-xl font-bold text-yellow-400">{probationAlerts.length}</p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">ทดลองงาน</p>
+          </GlassCard>
+        </button>
+        <button onClick={() => setKpiModalHR("salary")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard gold className="p-3 text-center">
+            <DollarSign size={14} className="text-aviva-gold mx-auto mb-1" />
+            <p className="text-xl font-bold text-aviva-gold">
+              {formatM(active.reduce((s, e) => s + Number(e.base_salary), 0))}
+            </p>
+            <p className="text-[10px] text-aviva-secondary mt-0.5">เงินเดือนรวม</p>
+          </GlassCard>
+        </button>
       </div>
 
       <AIInsightPanel
@@ -1117,7 +1374,10 @@ function HRContent() {
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {emp.employee_code && (
+                        <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">{emp.employee_code}</span>
+                      )}
                       <p className="text-sm font-semibold text-aviva-text">{emp.full_name}</p>
                       {emp.nickname && <span className="text-xs text-aviva-secondary">({emp.nickname})</span>}
                       <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full",
@@ -1161,7 +1421,7 @@ function HRContent() {
       {/* Add Employee Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เพิ่มพนักงาน</h2>
               <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -1243,6 +1503,60 @@ function HRContent() {
           </div>
         </div>
       )}
+
+      {/* KPI Detail Modal */}
+      {kpiModalHR && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-aviva-text">
+                {kpiModalHR === "employees" ? "พนักงานทั้งหมด" :
+                 kpiModalHR === "probation" ? "ทดลองงาน" : "เงินเดือนรวมแยกฝ่าย"}
+                {kpiModalHR !== "salary" && (
+                  <span className="ml-1.5 text-xs font-normal text-aviva-secondary">
+                    ({kpiModalHR === "probation" ? probationAlerts.length : active.length} คน)
+                  </span>
+                )}
+              </h2>
+              <button onClick={() => setKpiModalHR(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="overflow-y-auto space-y-2 flex-1">
+              {kpiModalHR === "salary" ? (
+                Object.entries(
+                  active.reduce((acc, e) => {
+                    const dept = e.department || "ไม่ระบุ";
+                    acc[dept] = (acc[dept] || 0) + Number(e.base_salary);
+                    return acc;
+                  }, {} as Record<string, number>)
+                ).sort((a, b) => b[1] - a[1]).map(([dept, total]) => (
+                  <div key={dept} className="flex items-center justify-between p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
+                    <p className="text-xs font-semibold text-aviva-text">{dept}</p>
+                    <p className="text-xs font-bold text-aviva-gold">{formatM(total)}</p>
+                  </div>
+                ))
+              ) : (
+                (kpiModalHR === "probation"
+                  ? probationAlerts.map(e => ({ ...e }))
+                  : active
+                ).map(e => (
+                  <div key={e.id} className="flex items-center gap-3 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
+                    {e.employee_code && (
+                      <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded border border-aviva-gold/20 flex-shrink-0">
+                        {e.employee_code}
+                      </span>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-aviva-text truncate">{e.full_name}</p>
+                      <p className="text-[10px] text-aviva-secondary">{e.department} · {e.position}</p>
+                    </div>
+                    <p className="text-xs font-bold text-aviva-gold flex-shrink-0">{formatM(Number(e.base_salary))}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1305,6 +1619,7 @@ function AfterSalesContent() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [form, setForm] = useState(emptyClaimForm);
   const [saving, setSaving] = useState(false);
+  const [kpiModalAS, setKpiModalAS] = useState<"all" | "pending" | "in_progress" | "resolved" | null>(null);
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
@@ -1362,23 +1677,27 @@ function AfterSalesContent() {
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       {/* Status Summary */}
       <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "ทั้งหมด", value: claims.length, color: "text-aviva-text" },
-          { label: "รอดำเนินการ", value: counts.pending, color: "text-yellow-400" },
-          { label: "กำลังทำ", value: counts.in_progress, color: "text-blue-400" },
-        ].map(({ label, value, color }) => (
-          <GlassCard key={label} className="p-3 text-center">
-            <p className={clsx("text-xl font-bold", color)}>{loading ? "—" : value}</p>
-            <p className="text-[10px] text-aviva-secondary mt-0.5">{label}</p>
-          </GlassCard>
+        {([
+          { label: "ทั้งหมด", value: claims.length, color: "text-aviva-text", filter: "all" as const },
+          { label: "รอดำเนินการ", value: counts.pending, color: "text-yellow-400", filter: "pending" as const },
+          { label: "กำลังทำ", value: counts.in_progress, color: "text-blue-400", filter: "in_progress" as const },
+        ]).map(({ label, value, color, filter }) => (
+          <button key={label} onClick={() => setKpiModalAS(filter)} className="active:scale-[0.96] transition-transform w-full text-left">
+            <GlassCard className="p-3 text-center">
+              <p className={clsx("text-xl font-bold", color)}>{loading ? "—" : value}</p>
+              <p className="text-[10px] text-aviva-secondary mt-0.5">{label}</p>
+            </GlassCard>
+          </button>
         ))}
-        <GlassCard gold className="p-3 text-center">
-          <div className="flex items-center justify-center gap-0.5 mb-0.5">
-            <Star size={12} className="text-aviva-gold" />
-            <p className="text-xl font-bold text-aviva-gold">{avgSatisfaction ?? "—"}</p>
-          </div>
-          <p className="text-[10px] text-aviva-secondary">Satisfaction</p>
-        </GlassCard>
+        <button onClick={() => setKpiModalAS("resolved")} className="active:scale-[0.96] transition-transform w-full text-left">
+          <GlassCard gold className="p-3 text-center">
+            <div className="flex items-center justify-center gap-0.5 mb-0.5">
+              <Star size={12} className="text-aviva-gold" />
+              <p className="text-xl font-bold text-aviva-gold">{avgSatisfaction ?? "—"}</p>
+            </div>
+            <p className="text-[10px] text-aviva-secondary">Satisfaction</p>
+          </GlassCard>
+        </button>
       </div>
 
       <AIInsightPanel
@@ -1462,7 +1781,7 @@ function AfterSalesContent() {
       {/* Add Claim Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">แจ้งซ่อม / Warranty</h2>
               <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -1516,7 +1835,7 @@ function AfterSalesContent() {
       {/* Update Status Modal */}
       {selectedClaim && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-aviva-text">{selectedClaim.customer_name}</h2>
@@ -1537,6 +1856,49 @@ function AfterSalesContent() {
                   {statusConfig[s].label}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Detail Modal */}
+      {kpiModalAS && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-aviva-text">
+                {kpiModalAS === "all" ? "แจ้งซ่อมทั้งหมด" :
+                 kpiModalAS === "pending" ? "รอดำเนินการ" :
+                 kpiModalAS === "in_progress" ? "กำลังดำเนินการ" : `แก้ไขแล้ว · ⭐ ${avgSatisfaction ?? "—"}`}
+                {kpiModalAS !== "resolved" && (
+                  <span className="ml-1.5 text-xs font-normal text-aviva-secondary">
+                    ({(kpiModalAS === "all" ? claims : claims.filter(c => c.status === kpiModalAS)).length} รายการ)
+                  </span>
+                )}
+              </h2>
+              <button onClick={() => setKpiModalAS(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="overflow-y-auto space-y-2 flex-1">
+              {(kpiModalAS === "all" ? claims : claims.filter(c => c.status === kpiModalAS)).map(c => {
+                const sc = statusConfig[c.status];
+                return (
+                  <div key={c.id} className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <p className="text-xs font-semibold text-aviva-text truncate">{c.customer_name}</p>
+                      <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0", sc?.bg, sc?.color)}>
+                        {sc?.label ?? c.status}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-aviva-secondary">{c.description}</p>
+                    {c.satisfaction_score && (
+                      <p className="text-[10px] text-aviva-gold mt-0.5">⭐ {c.satisfaction_score}/5</p>
+                    )}
+                  </div>
+                );
+              })}
+              {(kpiModalAS === "all" ? claims : claims.filter(c => c.status === kpiModalAS)).length === 0 && (
+                <p className="text-center text-aviva-secondary text-sm py-8">ไม่มีข้อมูล</p>
+              )}
             </div>
           </div>
         </div>
@@ -1699,7 +2061,7 @@ function ApprovalsContent() {
 
       {rejectingId && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เหตุผลการปฏิเสธ</h2>
               <button onClick={() => setRejectingId(null)}><X size={20} className="text-aviva-secondary" /></button>
@@ -1910,7 +2272,7 @@ function MaterialsContent() {
       {/* Create PO Modal */}
       {showPOModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">สร้างใบสั่งซื้อ (PO)</h2>
               <button onClick={() => setShowPOModal(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -2101,17 +2463,446 @@ function PayrollContent() {
   );
 }
 
+// ─── Community (ค่าส่วนกลาง) ─────────────────────────────────────────────────
+
+interface CommunityMember {
+  member_id: string;
+  house_id: string | null;
+  owner_name: string;
+  owner_phone: string;
+  area_sqw: number;
+  annual_fee: number;
+  fee_status: string;
+  transferred_at: string | null;
+}
+
+function CommunityContent() {
+  const [members, setMembers] = useState<CommunityMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ owner_name: "", owner_phone: "", area_sqw: "" });
+  const [saving, setSaving] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"all" | "Paid" | "Unpaid">("all");
+
+  const fetchMembers = () => {
+    supabase.from("community_members").select("*").order("owner_name")
+      .then(({ data }) => { setMembers((data as CommunityMember[]) ?? []); setLoading(false); });
+  };
+
+  useEffect(() => { fetchMembers(); }, []);
+
+  const fmtFee = (n: number) => `฿${Number(n).toLocaleString("th-TH")}`;
+  const totalFee = members.reduce((s, m) => s + Number(m.annual_fee), 0);
+  const paidCount = members.filter((m) => m.fee_status === "Paid").length;
+  const unpaidCount = members.filter((m) => m.fee_status === "Unpaid").length;
+  const filtered = filterStatus === "all" ? members : members.filter((m) => m.fee_status === filterStatus);
+
+  const handleAdd = async () => {
+    if (!form.owner_name || !form.area_sqw) return;
+    setSaving(true);
+    await supabase.from("community_members").insert({
+      owner_name: form.owner_name,
+      owner_phone: form.owner_phone,
+      area_sqw: Number(form.area_sqw),
+      fee_status: "Unpaid",
+    });
+    setSaving(false);
+    setShowModal(false);
+    setForm({ owner_name: "", owner_phone: "", area_sqw: "" });
+    fetchMembers();
+  };
+
+  const handleMarkPaid = async (id: string) => {
+    await supabase.from("community_members").update({ fee_status: "Paid" }).eq("member_id", id);
+    fetchMembers();
+  };
+
+  return (
+    <>
+    <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-aviva-secondary">
+          {loading ? "กำลังโหลด..." : `${members.length} สมาชิก · รวม ${fmtFee(totalFee)}`}
+        </p>
+        <button onClick={() => { setForm({ owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
+          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+          <Plus size={14} /> เพิ่มสมาชิก
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <GlassCard className="p-3 text-center">
+          <Users size={16} className="text-aviva-gold mx-auto mb-1" />
+          <p className="text-xl font-bold text-aviva-text">{members.length}</p>
+          <p className="text-[10px] text-aviva-secondary">สมาชิกทั้งหมด</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <CheckCircle size={16} className="text-green-400 mx-auto mb-1" />
+          <p className="text-xl font-bold text-green-400">{paidCount}</p>
+          <p className="text-[10px] text-aviva-secondary">ชำระแล้ว</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <DollarSign size={16} className="text-red-400 mx-auto mb-1" />
+          <p className="text-xl font-bold text-red-400">{unpaidCount}</p>
+          <p className="text-[10px] text-aviva-secondary">ค้างชำระ</p>
+        </GlassCard>
+      </div>
+
+      <div className="flex gap-2">
+        {[{ k: "all", l: "ทั้งหมด" }, { k: "Unpaid", l: "ค้างชำระ" }, { k: "Paid", l: "ชำระแล้ว" }].map(({ k, l }) => (
+          <button key={k} onClick={() => setFilterStatus(k as "all" | "Paid" | "Unpaid")}
+            className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+              filterStatus === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+            )}>{l}</button>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <SectionHeader title="ทะเบียนสมาชิก" subtitle="ค่าส่วนกลาง = พื้นที่ × ฿30/ตร.ว." />
+        {loading ? (
+          [1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />)
+        ) : filtered.length === 0 ? (
+          <GlassCard className="p-8 text-center">
+            <Home size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
+            <p className="text-aviva-secondary text-sm">ยังไม่มีสมาชิก</p>
+          </GlassCard>
+        ) : (
+          filtered.map((m) => (
+            <GlassCard key={m.member_id} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-aviva-text">{m.owner_name}</p>
+                  {m.owner_phone && <p className="text-xs text-aviva-secondary">{m.owner_phone}</p>}
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-aviva-secondary">{m.area_sqw} ตร.ว.</span>
+                    <span className="text-xs font-medium text-aviva-gold">{fmtFee(Number(m.annual_fee))}/ปี</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
+                    m.fee_status === "Paid" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                  )}>
+                    {m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ"}
+                  </span>
+                  {m.fee_status === "Unpaid" && (
+                    <button onClick={() => handleMarkPaid(m.member_id)}
+                      className="text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg">
+                      บันทึกรับชำระ
+                    </button>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+          ))
+        )}
+      </div>
+    </div>
+
+    {showModal && (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+        <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-aviva-text">เพิ่มสมาชิกใหม่</h2>
+            <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเจ้าของ *</label>
+              <input type="text" value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
+                placeholder="ชื่อ-นามสกุล"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
+              <input type="tel" value={form.owner_phone} onChange={(e) => setForm({ ...form, owner_phone: e.target.value })}
+                placeholder="0XX-XXX-XXXX"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">พื้นที่ (ตร.ว.) *</label>
+              <input type="number" value={form.area_sqw} onChange={(e) => setForm({ ...form, area_sqw: e.target.value })}
+                placeholder="50"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              {form.area_sqw && (
+                <p className="text-xs text-aviva-gold mt-1">ค่าส่วนกลางต่อปี: ฿{(Number(form.area_sqw) * 30).toLocaleString("th-TH")}</p>
+              )}
+            </div>
+          </div>
+          <button onClick={handleAdd} disabled={saving || !form.owner_name || !form.area_sqw}
+            className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+            {saving ? "กำลังบันทึก..." : "เพิ่มสมาชิก"}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
+
+// ─── Documents (เอกสาร) ───────────────────────────────────────────────────────
+
+interface OfficeDocument {
+  id: string;
+  doc_number?: string;
+  name: string;
+  category: string;
+  status: "pending" | "approved" | "rejected";
+  uploaded_by: string;
+  approved_by: string | null;
+  created_at: string;
+}
+
+type DocFilterCat = "all" | "Contract" | "Loan" | "Permit" | "Utility";
+
+const docStatusConfig = {
+  approved: { label: "อนุมัติแล้ว", icon: CheckCircle, color: "text-green-400", bg: "border-green-400/20" },
+  pending:  { label: "รออนุมัติ",   icon: Clock,        color: "text-yellow-400", bg: "border-yellow-400/20" },
+  rejected: { label: "ปฏิเสธ",      icon: XCircle,      color: "text-red-400",    bg: "border-red-400/20" },
+};
+
+const docCategoryStyle: Record<string, string> = {
+  Contract: "bg-purple-500/20 text-purple-400",
+  Loan:     "bg-blue-500/20 text-blue-400",
+  Permit:   "bg-orange-500/20 text-orange-400",
+  Utility:  "bg-teal-500/20 text-teal-400",
+  Other:    "bg-gray-500/20 text-gray-400",
+};
+
+const docCategoryTh: Record<string, string> = {
+  Contract: "สัญญา",
+  Loan:     "สินเชื่อ",
+  Permit:   "ใบอนุญาต",
+  Utility:  "สาธารณูปโภค",
+  Other:    "อื่นๆ",
+};
+
+function DocumentsContent() {
+  const [docs, setDocs] = useState<OfficeDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<DocFilterCat>("all");
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "" });
+  const [saving, setSaving] = useState(false);
+
+  const fetchDocs = () => {
+    supabase.from("documents").select("*").eq("project_id", PROJECT_ID)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { setDocs((data as OfficeDocument[]) ?? []); setLoading(false); });
+  };
+
+  useEffect(() => { fetchDocs(); }, []);
+
+  const counts = {
+    approved: docs.filter(d => d.status === "approved").length,
+    pending:  docs.filter(d => d.status === "pending").length,
+  };
+
+  const filtered = docs.filter(
+    d => (filter === "all" || d.category === filter) &&
+      (search === "" || d.name.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const handleSave = async () => {
+    if (!form.name) return;
+    setSaving(true);
+    await supabase.from("documents").insert({
+      project_id: PROJECT_ID,
+      name: form.name,
+      category: form.category,
+      uploaded_by: form.uploaded_by,
+      file_url: form.file_url || null,
+      status: "pending",
+    });
+    setSaving(false);
+    setShowModal(false);
+    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "" });
+    fetchDocs();
+  };
+
+  const handleApprove = async (id: string, approve: boolean) => {
+    await supabase.from("documents").update({
+      status: approve ? "approved" : "rejected",
+      approved_by: "Admin",
+    }).eq("id", id);
+    fetchDocs();
+  };
+
+  return (
+    <>
+    <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-aviva-secondary">
+          {loading ? "กำลังโหลด..." : `${docs.length} ไฟล์`}
+        </p>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+          <Upload size={13} /> เพิ่มเอกสาร
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <GlassCard className="p-3 text-center">
+          <CheckCircle size={16} className="text-green-400 mx-auto mb-1" />
+          <p className="text-xl font-bold text-green-400">{loading ? "—" : counts.approved}</p>
+          <p className="text-[10px] text-aviva-secondary">อนุมัติแล้ว</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <Clock size={16} className="text-yellow-400 mx-auto mb-1" />
+          <p className="text-xl font-bold text-yellow-400">{loading ? "—" : counts.pending}</p>
+          <p className="text-[10px] text-aviva-secondary">รออนุมัติ</p>
+        </GlassCard>
+        <GlassCard gold className="p-3 text-center">
+          <FolderOpen size={16} className="text-aviva-gold mx-auto mb-1" />
+          <p className="text-xl font-bold text-aviva-gold">{loading ? "—" : docs.length}</p>
+          <p className="text-[10px] text-aviva-secondary">ทั้งหมด</p>
+        </GlassCard>
+      </div>
+
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-aviva-secondary" />
+        <input
+          type="text"
+          placeholder="ค้นหาเอกสาร..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl pl-8 pr-4 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/50 outline-none focus:border-aviva-gold/40"
+        />
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {(["all", "Contract", "Loan", "Permit", "Utility"] as DocFilterCat[]).map((cat) => (
+          <button key={cat} onClick={() => setFilter(cat)}
+            className={clsx("flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+              filter === cat ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+            )}>
+            {cat === "all" ? "ทั้งหมด" : docCategoryTh[cat]}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <SectionHeader title={`เอกสาร (${filtered.length})`} />
+        {loading
+          ? [1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-aviva-card/50 animate-pulse" />)
+          : filtered.length === 0
+          ? (
+            <GlassCard className="p-8 text-center">
+              <p className="text-aviva-secondary text-sm">ไม่พบเอกสาร</p>
+            </GlassCard>
+          )
+          : filtered.map((doc) => {
+              const sConf = docStatusConfig[doc.status] ?? docStatusConfig.pending;
+              const Icon = sConf.icon;
+              return (
+                <GlassCard key={doc.id} className={clsx("p-3 border", sConf.bg)}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-aviva-card flex items-center justify-center flex-shrink-0">
+                      <FolderOpen size={16} className="text-aviva-gold" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {doc.doc_number && (
+                          <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">
+                            {doc.doc_number}
+                          </span>
+                        )}
+                        <p className="text-sm text-aviva-text font-medium truncate">{doc.name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", docCategoryStyle[doc.category])}>
+                          {docCategoryTh[doc.category] ?? doc.category}
+                        </span>
+                        <span className="text-[10px] text-aviva-secondary">{doc.uploaded_by}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                      <Icon size={14} className={sConf.color} />
+                      <span className={clsx("text-[10px] font-medium", sConf.color)}>{sConf.label}</span>
+                    </div>
+                  </div>
+                  {doc.status === "pending" && (
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => handleApprove(doc.id, true)}
+                        className="flex-1 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-xs font-medium">
+                        อนุมัติ
+                      </button>
+                      <button onClick={() => handleApprove(doc.id, false)}
+                        className="flex-1 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-medium">
+                        ปฏิเสธ
+                      </button>
+                    </div>
+                  )}
+                </GlassCard>
+              );
+            })}
+      </div>
+    </div>
+
+    {showModal && (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+        <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-aviva-text">เพิ่มเอกสาร</h2>
+            <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเอกสาร *</label>
+              <input type="text" value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="เช่น สัญญาจะซื้อจะขาย บ้านเลข A-01"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {["Contract","Loan","Permit","Utility","Other"].map(c =>
+                    <option key={c} value={c}>{docCategoryTh[c] ?? c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">อัปโหลดโดย</label>
+                <input type="text" value={form.uploaded_by}
+                  onChange={(e) => setForm({ ...form, uploaded_by: e.target.value })}
+                  placeholder="ชื่อผู้อัปโหลด"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">ลิงค์ไฟล์ (Google Drive / URL)</label>
+              <input type="url" value={form.file_url}
+                onChange={(e) => setForm({ ...form, file_url: e.target.value })}
+                placeholder="https://drive.google.com/..."
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+            </div>
+          </div>
+          <button onClick={handleSave} disabled={saving || !form.name}
+            className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+            {saving ? "กำลังบันทึก..." : "เพิ่มเอกสาร"}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
+
 // ─── Tab Config ───────────────────────────────────────────────────────────────
 
-const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; constructionOnly?: boolean }[] = [
+const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; constructionOnly?: boolean; adminOnly?: boolean }[] = [
   { key: "finance",     label: "การเงิน" },
   { key: "accounting",  label: "บัญชี" },
   { key: "marketing",   label: "การตลาด" },
   { key: "hr",          label: "บุคคล" },
   { key: "after-sales", label: "หลังการขาย" },
-  { key: "approvals",   label: "อนุมัติ",   managerOnly: true },
-  { key: "materials",   label: "คลังวัสดุ", constructionOnly: true },
-  { key: "payroll",     label: "เงินเดือน", managerOnly: true },
+  { key: "approvals",   label: "อนุมัติ",    managerOnly: true },
+  { key: "materials",   label: "คลังวัสดุ",  constructionOnly: true },
+  { key: "payroll",     label: "เงินเดือน",  managerOnly: true },
+  { key: "documents",   label: "เอกสาร" },
+  { key: "community",   label: "ค่าส่วนกลาง", adminOnly: true },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -2122,6 +2913,7 @@ export default function OfficePage() {
 
   const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
   const visibleTabs = TABS.filter(t => {
+    if (t.adminOnly && !user?.isAdmin) return false;
     if (t.managerOnly && !user?.isManager && !user?.isAdmin) return false;
     if (t.constructionOnly && !isConstruction && !user?.isManager && !user?.isAdmin) return false;
     return true;
@@ -2141,13 +2933,13 @@ export default function OfficePage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
           <h1 className="text-lg font-bold text-aviva-text mb-3">ออฟฟิศ</h1>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {visibleTabs.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
                 className={clsx(
-                  "flex-1 py-2 px-1 rounded-xl text-[11px] font-semibold border transition-all truncate",
+                  "flex-shrink-0 py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all whitespace-nowrap",
                   activeTab === key
                     ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
                     : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -2169,6 +2961,8 @@ export default function OfficePage() {
       {activeTab === "approvals"   && <ApprovalsContent />}
       {activeTab === "materials"   && <MaterialsContent />}
       {activeTab === "payroll"     && <PayrollContent />}
+      {activeTab === "community"   && <CommunityContent />}
+      {activeTab === "documents"   && <DocumentsContent />}
     </div>
   );
 }

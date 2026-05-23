@@ -2,8 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+
+const DEMO_ACCOUNTS = [
+  { email: "demo.admin@aviva.th",        label: "Admin",       dept: "ฝ่ายบริหาร",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
+  { email: "demo.sales@aviva.th",         label: "นายหน้า",     dept: "ฝ่ายขาย",          color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
+  { email: "demo.finance@aviva.th",       label: "การเงิน",     dept: "ฝ่ายการเงิน",      color: "text-green-400    bg-green-500/10    border-green-500/20" },
+  { email: "demo.construction@aviva.th",  label: "ก่อสร้าง",    dept: "ฝ่ายก่อสร้าง",     color: "text-orange-400   bg-orange-500/10   border-orange-500/20" },
+  { email: "demo.accounting@aviva.th",    label: "บัญชี",       dept: "ฝ่ายบัญชี",        color: "text-purple-400   bg-purple-500/10   border-purple-500/20" },
+  { email: "demo.hr@aviva.th",            label: "บุคคล",       dept: "ฝ่ายบุคคล",        color: "text-pink-400     bg-pink-500/10     border-pink-500/20" },
+  { email: "demo.marketing@aviva.th",     label: "การตลาด",     dept: "ฝ่ายการตลาด",      color: "text-cyan-400     bg-cyan-500/10     border-cyan-500/20" },
+  { email: "demo.aftersales@aviva.th",    label: "หลังการขาย",  dept: "ฝ่ายหลังการขาย",   color: "text-teal-400     bg-teal-500/10     border-teal-500/20" },
+];
+
+const DEMO_PASSWORD = "Demo1234";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,15 +25,16 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showDemo, setShowDemo] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin(e?: React.FormEvent, demoEmail?: string, demoPass?: string) {
+    e?.preventDefault();
     setLoading(true);
     setError("");
 
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: demoEmail ?? email,
+      password: demoPass ?? password,
     });
 
     if (authError) {
@@ -31,6 +45,12 @@ export default function LoginPage() {
 
     router.push("/dashboard");
     router.refresh();
+  }
+
+  function loginAsDemo(demoEmail: string) {
+    setEmail(demoEmail);
+    setPassword(DEMO_PASSWORD);
+    handleLogin(undefined, demoEmail, DEMO_PASSWORD);
   }
 
   return (
@@ -96,7 +116,45 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-8 w-full max-w-sm text-center">
+      {/* Demo Accounts */}
+      <div className="mt-6 w-full max-w-sm">
+        <button
+          onClick={() => setShowDemo((p) => !p)}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-aviva-gold/20 bg-aviva-card/50 text-sm text-aviva-secondary hover:border-aviva-gold/40 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-aviva-gold" />
+            <span className="font-medium text-aviva-text">บัญชีทดสอบ</span>
+            <span className="text-[10px] bg-aviva-gold/10 text-aviva-gold px-1.5 py-0.5 rounded-full border border-aviva-gold/20">
+              Demo
+            </span>
+          </div>
+          {showDemo ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+
+        {showDemo && (
+          <div className="mt-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl p-3 space-y-2">
+            <p className="text-[10px] text-aviva-secondary/60 text-center pb-1">
+              รหัสผ่านทุกบัญชี: <span className="font-bold text-aviva-secondary">Demo1234</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  onClick={() => loginAsDemo(acc.email)}
+                  disabled={loading}
+                  className={`flex flex-col items-start p-2.5 rounded-xl border transition-all active:scale-[0.97] disabled:opacity-50 ${acc.color}`}
+                >
+                  <span className="text-xs font-bold">{acc.label}</span>
+                  <span className="text-[10px] opacity-70 mt-0.5">{acc.dept}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 w-full max-w-sm text-center">
         <p className="text-[10px] text-aviva-secondary/30">
           ติดต่อผู้ดูแลระบบเพื่อขอรับบัญชีผู้ใช้งาน
         </p>

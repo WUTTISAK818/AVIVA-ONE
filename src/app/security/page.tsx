@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, UserCheck, AlertTriangle, DoorOpen, UserPlus, FileBarChart, Ban, Camera } from "lucide-react";
+import { ShieldCheck, UserCheck, AlertTriangle, DoorOpen, UserPlus, FileBarChart, Ban, Camera, Megaphone, Receipt, Wrench } from "lucide-react";
 import KPICard from "@/components/KPICard";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
@@ -16,14 +16,17 @@ interface OverviewCounts {
 }
 
 const QUICK_LINKS = [
-  { href: "/security/residents",     label: "ลูกบ้าน",         desc: "เชิญลูกบ้าน · จัดการทะเบียนรถ",       icon: UserPlus },
-  { href: "/security/visitor-logs",  label: "บันทึกผู้มาเยือน", desc: "ค้นย้อนหลัง · กรองตามเจ้าบ้าน",        icon: UserCheck },
-  { href: "/security/gate-events",   label: "เหตุการณ์ประตู",   desc: "ฟีดสด ALPR · ดูประวัติเข้า-ออก",       icon: DoorOpen },
-  { href: "/security/gates",         label: "ควบคุมประตู",       desc: "เปิดประตูด้วยมือ · มี audit log",      icon: ShieldCheck },
-  { href: "/security/incidents",     label: "เหตุการณ์",         desc: "งานค้าง · งานปิดแล้ว",                  icon: AlertTriangle },
-  { href: "/security/blacklist",     label: "แบล็คลิสต์",        desc: "ทะเบียนรถ/ชื่อบุคคลที่ห้ามเข้า",       icon: Ban },
-  { href: "/security/reports",       label: "รายงานรายเดือน",   desc: "พิมพ์ส่งผู้บริหาร",                     icon: FileBarChart },
-  { href: "/security/mock-alpr",     label: "ทดสอบ ALPR",        desc: "ยิง event จำลองเพื่อ demo",            icon: Camera },
+  { href: "/security/residents",         label: "ลูกบ้าน",            desc: "เชิญลูกบ้าน · จัดการทะเบียนรถ",       icon: UserPlus },
+  { href: "/security/visitor-logs",      label: "บันทึกผู้มาเยือน",   desc: "ค้นย้อนหลัง · กรองตามเจ้าบ้าน",        icon: UserCheck },
+  { href: "/security/gate-events",       label: "เหตุการณ์ประตู",     desc: "ฟีดสด ALPR · ดูประวัติเข้า-ออก",       icon: DoorOpen },
+  { href: "/security/gates",             label: "ควบคุมประตู",         desc: "เปิดประตูด้วยมือ · มี audit log",      icon: ShieldCheck },
+  { href: "/security/announcements",     label: "ประกาศ",              desc: "ออกประกาศแจ้งลูกบ้าน · ปักหมุดได้",   icon: Megaphone },
+  { href: "/security/bills",             label: "บิลค่าส่วนกลาง",      desc: "ออกบิล · รับสลิป · ยืนยันชำระ",         icon: Receipt },
+  { href: "/security/service-requests",  label: "งานแจ้งซ่อม",         desc: "รับงานจากลูกบ้าน · มอบหมาย",            icon: Wrench },
+  { href: "/security/incidents",         label: "เหตุการณ์",           desc: "งานค้าง · งานปิดแล้ว",                  icon: AlertTriangle },
+  { href: "/security/blacklist",         label: "แบล็คลิสต์",          desc: "ทะเบียนรถ/ชื่อบุคคลที่ห้ามเข้า",       icon: Ban },
+  { href: "/security/reports",           label: "รายงานรายเดือน",     desc: "พิมพ์ส่งผู้บริหาร",                     icon: FileBarChart },
+  { href: "/security/mock-alpr",         label: "ทดสอบ ALPR",          desc: "ยิง event จำลองเพื่อ demo",            icon: Camera },
 ];
 
 export default function SecurityOverviewPage() {

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutGrid, Users, HardHat,
-  Briefcase,
+  Briefcase, Megaphone, UserCheck, Receipt,
+  Package, Wrench, ShieldCheck,
   Settings, MoreHorizontal, X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -12,32 +13,48 @@ import { useCurrentUser } from "@/lib/user-context";
 
 const OFFICE_DEPTS = ["ฝ่ายการเงิน", "ฝ่ายบัญชี", "ฝ่ายบุคคล", "ฝ่ายการตลาด", "ฝ่ายหลังการขาย"];
 
-const MORE_ITEMS = [
-  { href: "/settings", label: "ตั้งค่า", icon: Settings, adminOnly: false },
-];
-
 export default function BottomNav() {
   const pathname = usePathname();
   const user = useCurrentUser();
   const [showMore, setShowMore] = useState(false);
 
   if (pathname === "/login") return null;
+  if (pathname.startsWith("/guard")) return null;
+  if (pathname.startsWith("/v/")) return null;
 
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
 
-  const mainTabs = [
+  // Resident navigation (4 main tabs + More)
+  const residentTabs = [
+    { href: "/community/announcements",    label: "ประกาศ",     icon: Megaphone },
+    { href: "/community/visitors",         label: "ผู้มาเยือน", icon: UserCheck },
+    { href: "/community/parcels",          label: "พัสดุ",      icon: Package },
+    { href: "/community/bills",            label: "บิล",        icon: Receipt },
+  ];
+  const residentMoreItems = [
+    { href: "/community/service-requests", label: "แจ้งซ่อม",   icon: Wrench },
+    { href: "/settings",                   label: "ตั้งค่า",    icon: Settings },
+  ];
+
+  // Staff/admin navigation
+  const staffTabs = [
     { href: "/dashboard",    label: "หน้าหลัก",  icon: LayoutGrid, show: true },
     { href: "/crm",          label: "ขาย",        icon: Users,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
     { href: "/construction", label: "ก่อสร้าง",   icon: HardHat,    show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
     { href: "/office",       label: "ออฟฟิศ",     icon: Briefcase,  show: !user || user.isAdmin || user.isManager || isOfficeUser },
   ].filter(t => t.show);
+  const staffMoreItems = [
+    { href: "/security",     label: "ความปลอดภัย", icon: ShieldCheck, show: !user || user.isAdmin || user.isManager },
+    { href: "/settings",     label: "ตั้งค่า",     icon: Settings,    show: true },
+  ].filter(t => t.show);
 
-  const moreItems = MORE_ITEMS.filter(t => !t.adminOnly || user?.isAdmin);
+  const isResident = user?.isResident ?? false;
+  const mainTabs = isResident ? residentTabs : staffTabs;
+  const moreItems = isResident ? residentMoreItems : staffMoreItems;
   const activeMore = moreItems.some(t => pathname.startsWith(t.href));
 
   return (
     <>
-      {/* Backdrop */}
       {showMore && (
         <div
           className="fixed inset-0 z-[45] bg-black/50 backdrop-blur-sm"
@@ -45,7 +62,6 @@ export default function BottomNav() {
         />
       )}
 
-      {/* More drawer */}
       {showMore && (
         <div className="fixed bottom-[56px] left-0 right-0 z-[46] bg-aviva-card border-t border-aviva-gold/20 rounded-t-2xl shadow-2xl px-4 pt-4 pb-6">
           <div className="flex items-center justify-between mb-4">
@@ -74,7 +90,6 @@ export default function BottomNav() {
         </div>
       )}
 
-      {/* Bottom Nav Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-nav border-t border-aviva-gold/20">
         <div className="flex items-center px-1 py-1">
           {mainTabs.map(({ href, label, icon: Icon }) => {
@@ -92,7 +107,6 @@ export default function BottomNav() {
             );
           })}
 
-          {/* เพิ่มเติม */}
           <button
             onClick={() => setShowMore(v => !v)}
             className={clsx(

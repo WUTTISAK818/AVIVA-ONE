@@ -42,7 +42,6 @@ export async function POST(req: NextRequest) {
 
   const activeCampaigns = (campaigns as {status:string}[]).filter(c => c.status === "active");
   const totalLeadsCampaign = (campaigns as {leads_generated:number}[]).reduce((s,c) => s + (c.leads_generated ?? 0), 0);
-
   const empByDept = (employees as {department:string}[]).reduce((acc: Record<string,number>, e) => {
     acc[e.department] = (acc[e.department] ?? 0) + 1; return acc;
   }, {});
@@ -74,7 +73,7 @@ export async function POST(req: NextRequest) {
 - Leads จากแคมเปญรวม: ${totalLeadsCampaign} ราย
 
 👔 พนักงาน:
-- พนักงาน Active: ${employees.length} คน | รออนุมัติทั้งระบบ: ${pendingApprovals.length} รายการ
+- พนักงาน Active: ${employees.length} คน · รออนุมัติทั้งระบบ: ${pendingApprovals.length} รายการ
 - แบ่งตามแผนก: ${Object.entries(empByDept).map(([k,v]) => `${k}: ${v}`).join(", ")}
 
 ตอบเป็นภาษาไทย กระชับ มืออาชีพ ให้คำแนะนำเชิงกลยุทธ์ที่นำไปใช้ได้จริง`;
@@ -87,12 +86,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "system", content: systemContext }, { role: "user", content: message }],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
+      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "system", content: systemContext }, { role: "user", content: message }], temperature: 0.7, max_tokens: 500 }),
     });
     const data = await res.json();
     return NextResponse.json({ response: data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่" });
@@ -101,17 +95,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function generateFallback(message: string, d: {
-  soldUnits: number; totalUnits: number;
-  delayedHouses: {house_number:string}[];
-  bookingLeads: unknown[];
-  monthIncome: number; monthExpense: number;
-  pendingApprovals: number;
-  employees: number;
-  empByDept: Record<string,number>;
-  pendingClaims: number;
-  pendingInstallments: number;
-}) {
+function generateFallback(message: string, d: { soldUnits: number; totalUnits: number; delayedHouses: {house_number:string}[]; bookingLeads: unknown[]; monthIncome: number; monthExpense: number; pendingApprovals: number; employees: number; empByDept: Record<string,number>; pendingClaims: number; pendingInstallments: number; }) {
   const pct = Math.round((d.soldUnits / (d.totalUnits || 1)) * 100);
   const net = d.monthIncome - d.monthExpense;
   const msg = message.toLowerCase();

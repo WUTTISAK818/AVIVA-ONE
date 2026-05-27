@@ -110,10 +110,8 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10 transition-all hover:border-aviva-gold/30"
-      >
+      <button onClick={() => setOpen((o) => !o)}
+        className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10 transition-all hover:border-aviva-gold/30">
         <Bell size={18} className="text-aviva-secondary" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
@@ -121,16 +119,13 @@ export default function NotificationBell() {
           </span>
         )}
       </button>
-
       {open && (
         <div className="absolute right-0 top-12 w-80 bg-aviva-card border border-aviva-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-aviva-gold/10">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-aviva-text">การแจ้งเตือน</h3>
               {unreadCount > 0 && (
-                <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-bold">
-                  {unreadCount} ใหม่
-                </span>
+                <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-bold">{unreadCount} ใหม่</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -144,15 +139,12 @@ export default function NotificationBell() {
                   <Trash2 size={11} /> ลบที่อ่านแล้ว
                 </button>
               )}
-              <button onClick={() => setOpen(false)}>
-                <X size={14} className="text-aviva-secondary" />
-              </button>
+              <button onClick={() => setOpen(false)}><X size={14} className="text-aviva-secondary" /></button>
             </div>
           </div>
-
           <div className="max-h-96 overflow-y-auto divide-y divide-aviva-gold/5">
             {loading ? (
-              [1, 2, 3].map((i) => (
+              [1,2,3].map(i => (
                 <div key={i} className="px-4 py-3 flex items-start gap-3 animate-pulse">
                   <div className="w-7 h-7 rounded-full bg-aviva-bg/50 flex-shrink-0" />
                   <div className="flex-1 space-y-1.5">
@@ -167,34 +159,24 @@ export default function NotificationBell() {
                 <p className="text-xs text-aviva-secondary">ยังไม่มีการแจ้งเตือน</p>
               </div>
             ) : (
-              notifications.map((n) => {
+              notifications.map(n => {
                 const tc = TYPE_CONFIG[n.type] ?? TYPE_CONFIG["info"];
                 const { Icon } = tc;
                 const hasLink = !!getNotifHref(n);
                 return (
-                  <button
-                    key={n.id}
-                    onClick={() => handleNotifClick(n)}
-                    className={clsx(
-                      "w-full text-left px-4 py-3 flex items-start gap-3 transition-all hover:bg-aviva-gold/5",
+                  <button key={n.id} onClick={() => handleNotifClick(n)}
+                    className={clsx("w-full text-left px-4 py-3 flex items-start gap-3 transition-all hover:bg-aviva-gold/5",
                       !n.is_read && "bg-aviva-gold/5 border-l-2 border-aviva-gold",
                       hasLink && "cursor-pointer"
-                    )}
-                  >
+                    )}>
                     <div className={clsx("w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5", tc.bg)}>
                       <Icon size={13} className={tc.color} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx("text-xs font-semibold truncate", !n.is_read ? "text-aviva-text" : "text-aviva-secondary")}>
-                        {n.title}
-                      </p>
+                      <p className={clsx("text-xs font-semibold truncate", !n.is_read ? "text-aviva-text" : "text-aviva-secondary")}>{n.title}</p>
                       <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{n.message}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        {n.from_dept && (
-                          <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">
-                            {n.from_dept}
-                          </span>
-                        )}
+                        {n.from_dept && <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{n.from_dept}</span>}
                         <span className="text-[9px] text-aviva-secondary/50">{timeAgo(n.created_at)}</span>
                       </div>
                     </div>

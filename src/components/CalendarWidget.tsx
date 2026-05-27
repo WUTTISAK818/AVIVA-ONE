@@ -154,7 +154,6 @@ export default function CalendarWidget() {
   return (
     <>
       <GlassCard className="p-4">
-        {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronLeft size={16} className="text-aviva-secondary" />
@@ -166,15 +165,11 @@ export default function CalendarWidget() {
             <ChevronRight size={16} className="text-aviva-secondary" />
           </button>
         </div>
-
-        {/* Day headers */}
         <div className="grid grid-cols-7 mb-1">
           {DAYS_TH.map(d => (
             <div key={d} className="text-center text-[10px] font-medium text-aviva-secondary/60 py-1">{d}</div>
           ))}
         </div>
-
-        {/* Grid */}
         <div className="grid grid-cols-7 gap-0.5">
           {cells.map((d, i) => {
             if (!d) return <div key={i} />;
@@ -209,8 +204,6 @@ export default function CalendarWidget() {
             );
           })}
         </div>
-
-        {/* Legend */}
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-aviva-gold/10">
           {LEGEND.map(({ color, label }) => (
             <div key={label} className="flex items-center gap-1">
@@ -219,8 +212,6 @@ export default function CalendarWidget() {
             </div>
           ))}
         </div>
-
-        {/* Selected date details */}
         {selected && (
           <div className="mt-3 border-t border-aviva-gold/10 pt-3">
             <div className="flex items-center justify-between mb-2">
@@ -234,12 +225,10 @@ export default function CalendarWidget() {
                 </button>
               )}
             </div>
-
             {selectedEvents.length === 0 && selectedSalesActs.length === 0 && selectedConstReports.length === 0 ? (
               <p className="text-xs text-aviva-secondary/60">ไม่มีกิจกรรม</p>
             ) : (
               <div className="space-y-2">
-                {/* Events */}
                 {selectedEvents.map(e => {
                   const et = EVENT_TYPES.find(t => t.value === e.event_type);
                   return (
@@ -262,8 +251,6 @@ export default function CalendarWidget() {
                     </div>
                   );
                 })}
-
-                {/* Sales Activities */}
                 {selectedSalesActs.length > 0 && (
                   <div className="bg-orange-500/10 rounded-xl px-3 py-2">
                     <div className="flex items-center gap-1.5 mb-1">
@@ -277,8 +264,6 @@ export default function CalendarWidget() {
                     ))}
                   </div>
                 )}
-
-                {/* Construction Reports */}
                 {selectedConstReports.length > 0 && (
                   <div className="bg-green-500/10 rounded-xl px-3 py-2">
                     <div className="flex items-center gap-1.5 mb-1">
@@ -297,8 +282,6 @@ export default function CalendarWidget() {
           </div>
         )}
       </GlassCard>
-
-      {/* Add event modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">

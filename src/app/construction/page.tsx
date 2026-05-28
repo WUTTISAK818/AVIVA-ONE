@@ -35,6 +35,7 @@ interface Report {
   progress: number;
   issue: string;
   created_at: string;
+  photo_url: string | null;
 }
 
 interface Defect {
@@ -134,6 +135,10 @@ export default function ConstructionPage() {
   const [uploadingTask, setUploadingTask] = useState<string | null>(null);
   const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
 
+  const [dailyPhoto, setDailyPhoto] = useState<File | null>(null);
+  const [dailyPhotoPreview, setDailyPhotoPreview] = useState("");
+  const [uploadingDailyPhoto, setUploadingDailyPhoto] = useState(false);
+
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
   const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
@@ -221,12 +226,14 @@ export default function ConstructionPage() {
     const rows = reports.map((r) => {
       const house = houses.find((h) => h.id === r.house_id);
       const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+      const photoCell = r.photo_url ? `<img src="${r.photo_url}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" />` : "—";
       return `<tr>
         <td>${d}</td>
         <td>${house?.house_number ?? "—"}</td>
         <td>${r.work_detail ?? "—"}</td>
         <td style="text-align:center">${r.progress ?? 0}%</td>
         <td style="color:#c0392b">${r.issue ?? "—"}</td>
+        <td style="text-align:center">${photoCell}</td>
       </tr>`;
     }).join("");
     const w = window.open("", "_blank");
@@ -249,7 +256,7 @@ export default function ConstructionPage() {
     <h1>รายงานประจำวัน — ฝ่ายก่อสร้าง</h1>
     <div class="meta">วันที่พิมพ์: ${dateStr} &nbsp;|&nbsp; จำนวน ${reports.length} รายการ</div>
     <table>
-      <thead><tr><th>วันที่</th><th>ยูนิต</th><th>รายละเอียดงาน</th><th>คืบหน้า</th><th>ปัญหา/หมายเหตุ</th></tr></thead>
+      <thead><tr><th>วันที่</th><th>ยูนิต</th><th>รายละเอียดงาน</th><th>คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th>รูป</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="footer">
@@ -295,6 +302,8 @@ export default function ConstructionPage() {
     setSelectedHouse(house);
     setEditingReport(null);
     setForm({ house_id: house.id, work_detail: "", progress: String(house.progress), issue: "", new_status: house.status });
+    setDailyPhoto(null);
+    setDailyPhotoPreview("");
     setShowModal(true);
   };
 
@@ -303,6 +312,8 @@ export default function ConstructionPage() {
     setEditingReport(report);
     setSelectedHouse(null);
     setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "on-track" });
+    setDailyPhoto(null);
+    setDailyPhotoPreview(report.photo_url ?? "");
     setShowModal(true);
   };
 
@@ -333,17 +344,35 @@ export default function ConstructionPage() {
   const handleSave = async () => {
     if (!form.work_detail) return;
     setSaving(true);
+    let reportId = editingReport?.id ?? null;
     if (editingReport) {
       await supabase.from("construction_reports").update({ work_detail: form.work_detail, progress: Number(form.progress) || 0, issue: form.issue, updated_at: new Date().toISOString() }).eq("id", editingReport.id);
     } else {
       if (!form.house_id) { setSaving(false); return; }
-      await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, progress: Number(form.progress) || 0, issue: form.issue });
+      const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, progress: Number(form.progress) || 0, issue: form.issue }).select().single();
+      reportId = (inserted as Report | null)?.id ?? null;
       await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
+    }
+    if (dailyPhoto && reportId) {
+      setUploadingDailyPhoto(true);
+      const ext = dailyPhoto.name.split(".").pop() ?? "jpg";
+      const path = `daily/${reportId}.${ext}`;
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(path, dailyPhoto, { upsert: true });
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(path);
+        await supabase.from("construction_reports").update({ photo_url: publicUrl }).eq("id", reportId);
+        setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+      } else {
+        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      }
+      setUploadingDailyPhoto(false);
     }
     setSaving(false);
     setShowModal(false);
     setSelectedHouse(null);
     setEditingReport(null);
+    setDailyPhoto(null);
+    setDailyPhotoPreview("");
     fetchData();
   };
 
@@ -552,6 +581,11 @@ export default function ConstructionPage() {
                         </div>
                         <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                         {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
+                        {r.photo_url && (
+                          <a href={r.photo_url} target="_blank" rel="noreferrer" className="mt-2 block">
+                            <img src={r.photo_url} alt="รูปตรวจงาน" className="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                          </a>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button onClick={(e) => openEditReport(r, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all">
@@ -793,10 +827,23 @@ export default function ConstructionPage() {
                   placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน</label>
+                <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
+                  <input type="file" accept="image/*" capture="environment" className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) { setDailyPhoto(f); setDailyPhotoPreview(URL.createObjectURL(f)); }
+                    }} />
+                  {uploadingDailyPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
+                  <span className="text-sm text-aviva-secondary/60 flex-1">{dailyPhoto ? dailyPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
+                  {dailyPhotoPreview && <img src={dailyPhotoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
+                </label>
+              </div>
             </div>
-            <button onClick={handleSave} disabled={saving || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)}
+            <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}
+              {saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}
             </button>
           </div>
         </div>

@@ -157,7 +157,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v{APP_VERSION}</span>
+              <span className="text-xs font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v{APP_VERSION}</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {user ? `${user.full_name} · ${user.department}` : fmtDate()}
@@ -260,7 +260,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-aviva-text">รายการรออนุมัติ</p>
-                  <p className="text-[10px] text-aviva-secondary">{pendingApprovals} รายการต้องตัดสินใจ</p>
+                  <p className="text-xs text-aviva-secondary">{pendingApprovals} รายการต้องตัดสินใจ</p>
                 </div>
               </div>
               <Link href="/approvals" className="flex items-center gap-0.5 text-xs text-aviva-gold font-medium">
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-aviva-text truncate">{String(item.description ?? "—")}</p>
-                      <p className="text-[10px] text-aviva-secondary mt-0.5">
+                      <p className="text-xs text-aviva-secondary mt-0.5">
                         {String(item.module ?? "")}
                         {item.requested_by ? ` · ${String(item.requested_by)}` : ""}
                       </p>
@@ -288,7 +288,7 @@ export default function DashboardPage() {
                 </button>
               ))}
               {pendingApprovals > 3 && (
-                <Link href="/approvals" className="block text-center text-[11px] text-aviva-secondary hover:text-aviva-gold py-1">
+                <Link href="/approvals" className="block text-center text-xs text-aviva-secondary hover:text-aviva-gold py-1">
                   + อีก {pendingApprovals - 3} รายการ
                 </Link>
               )}
@@ -305,17 +305,17 @@ export default function DashboardPage() {
             <GlassCard className="p-3 text-center">
               <Building2 size={14} className="text-aviva-gold mx-auto mb-1" />
               <p className="text-xl font-bold text-aviva-text">{p?.total_units ?? "-"}</p>
-              <p className="text-[10px] text-aviva-secondary">ยูนิตทั้งหมด</p>
+              <p className="text-xs text-aviva-secondary">ยูนิตทั้งหมด</p>
             </GlassCard>
             <GlassCard className="p-3 text-center border border-green-400/20">
               <CheckCircle2 size={14} className="text-green-400 mx-auto mb-1" />
               <p className="text-xl font-bold text-green-400">{p?.sold_units ?? "-"}</p>
-              <p className="text-[10px] text-aviva-secondary">ขายแล้ว</p>
+              <p className="text-xs text-aviva-secondary">ขายแล้ว</p>
             </GlassCard>
             <GlassCard className="p-3 text-center border border-blue-400/20">
               <Home size={14} className="text-blue-400 mx-auto mb-1" />
               <p className="text-xl font-bold text-blue-400">{p?.available_units ?? "-"}</p>
-              <p className="text-[10px] text-aviva-secondary">ว่างอยู่</p>
+              <p className="text-xs text-aviva-secondary">ว่างอยู่</p>
             </GlassCard>
           </div>
 
@@ -327,27 +327,27 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-aviva-text">สถานะการเงิน</p>
               </div>
               <button onClick={() => setShowChart(v => !v)}
-                className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">
+                className="text-xs text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">
                 {showChart ? "ซ่อน" : "ดูกราฟ"}
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-2">
               <div className="text-center">
                 <p className="text-sm font-bold text-green-400">฿{fmt(monthIncome)}</p>
-                <p className="text-[10px] text-aviva-secondary">รายรับเดือนนี้</p>
+                <p className="text-xs text-aviva-secondary">รายรับเดือนนี้</p>
               </div>
               <div className="text-center">
                 <p className="text-sm font-bold text-red-400">฿{fmt(monthExpense)}</p>
-                <p className="text-[10px] text-aviva-secondary">รายจ่ายเดือนนี้</p>
+                <p className="text-xs text-aviva-secondary">รายจ่ายเดือนนี้</p>
               </div>
               <div className="text-center">
                 <p className={`text-sm font-bold ${financialNet >= 0 ? "text-aviva-gold" : "text-red-400"}`}>
                   {financialNet >= 0 ? "+" : ""}฿{fmt(financialNet)}
                 </p>
-                <p className="text-[10px] text-aviva-secondary">กำไร(สุทธิ)</p>
+                <p className="text-xs text-aviva-secondary">กำไร(สุทธิ)</p>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-aviva-secondary">
+            <div className="flex items-center justify-between text-xs text-aviva-secondary">
               <span>รายได้รวมสะสม: <b className="text-aviva-gold">฿{fmt(p?.revenue_actual ?? 0)}</b></span>
               <span>เป้า: <b>฿{fmt(p?.revenue_target ?? 0)}</b></span>
             </div>
@@ -357,7 +357,7 @@ export default function DashboardPage() {
             )}
             {showChart && (
               <div className="mt-3 h-36">
-                <p className="text-[10px] text-aviva-secondary mb-1">รายได้-รายจ่ายรายเดือน (ล้านบาท)</p>
+                <p className="text-xs text-aviva-secondary mb-1">รายได้-รายจ่ายรายเดือน (ล้านบาท)</p>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                     <defs>
@@ -390,27 +390,27 @@ export default function DashboardPage() {
               <HardHat size={14} className="text-orange-400" />
               <p className="text-sm font-semibold text-aviva-text">ภาพรวมก่อสร้าง</p>
             </div>
-            <Link href="/construction" className="text-[10px] text-aviva-gold flex items-center gap-0.5">
+            <Link href="/construction" className="text-xs text-aviva-gold flex items-center gap-0.5">
               ดูทั้งหมด <ChevronRight size={12} />
             </Link>
           </div>
           <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-orange-400">{underConstruction}</p>
-              <p className="text-[10px] text-aviva-secondary">กำลังก่อสร้าง</p>
+              <p className="text-xs text-aviva-secondary">กำลังก่อสร้าง</p>
             </div>
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className={`text-base font-bold ${constructionPending > 0 ? "text-yellow-400" : "text-green-400"}`}>{constructionPending}</p>
-              <p className="text-[10px] text-aviva-secondary">รอตรวจงวด</p>
+              <p className="text-xs text-aviva-secondary">รอตรวจงวด</p>
             </div>
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className={`text-base font-bold ${delayedHouses > 0 ? "text-red-400" : "text-green-400"}`}>{delayedHouses}</p>
-              <p className="text-[10px] text-aviva-secondary">ล่าช้า</p>
+              <p className="text-xs text-aviva-secondary">ล่าช้า</p>
             </div>
           </div>
           <ProgressBar label={`ความคืบหน้าก่อสร้างโดยรวม ${p?.construction_progress ?? 0}%`}
             value={p?.construction_progress ?? 0} />
-          <div className="mt-2 flex items-center gap-2 text-[10px] text-aviva-secondary">
+          <div className="mt-2 flex items-center gap-2 text-xs text-aviva-secondary">
             <Users size={10} /> <span>วิศวกรโครงการ: <b className="text-aviva-text">{employees}</b> คน</span>
             <span className="ml-auto">แบบบ้าน AVA + VIVA</span>
           </div>
@@ -424,10 +424,10 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold text-aviva-text">CRM — ลูกค้าสัมพันธ์</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setCrmModal(true)} className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">
+              <button onClick={() => setCrmModal(true)} className="text-xs text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">
                 รายละเอียด
               </button>
-              <Link href="/crm" className="text-[10px] text-blue-400 flex items-center gap-0.5">
+              <Link href="/crm" className="text-xs text-blue-400 flex items-center gap-0.5">
                 ทั้งหมด <ChevronRight size={12} />
               </Link>
             </div>
@@ -435,15 +435,15 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-aviva-text">{totalLeads}</p>
-              <p className="text-[10px] text-aviva-secondary">Leads ทั้งหมด</p>
+              <p className="text-xs text-aviva-secondary">Leads ทั้งหมด</p>
             </div>
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-green-400">{closedLeads}</p>
-              <p className="text-[10px] text-aviva-secondary">ปิดการขาย</p>
+              <p className="text-xs text-aviva-secondary">ปิดการขาย</p>
             </div>
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-blue-400">{totalLeads - closedLeads}</p>
-              <p className="text-[10px] text-aviva-secondary">กำลังติดตาม</p>
+              <p className="text-xs text-aviva-secondary">กำลังติดตาม</p>
             </div>
           </div>
           <ProgressBar label={`ปิดการขาย ${selloutPct}% — คาดขายหมด: ${p?.sellout_forecast ?? "-"}`}
@@ -458,10 +458,10 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold text-aviva-text">การตลาด</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setMktModal(true)} className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">
+              <button onClick={() => setMktModal(true)} className="text-xs text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">
                 รายละเอียด
               </button>
-              <Link href="/office" className="text-[10px] text-pink-400 flex items-center gap-0.5">
+              <Link href="/office" className="text-xs text-pink-400 flex items-center gap-0.5">
                 ทั้งหมด <ChevronRight size={12} />
               </Link>
             </div>
@@ -469,11 +469,11 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-2">
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-pink-400">{activeCampaigns}</p>
-              <p className="text-[10px] text-aviva-secondary">แคมเปญ Active</p>
+              <p className="text-xs text-aviva-secondary">แคมเปญ Active</p>
             </div>
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-aviva-text">{campaignLeads}</p>
-              <p className="text-[10px] text-aviva-secondary">Leads จากแคมเปญ</p>
+              <p className="text-xs text-aviva-secondary">Leads จากแคมเปญ</p>
             </div>
             <div className="text-center bg-aviva-bg/50 rounded-lg p-2">
               <p className="text-base font-bold text-aviva-gold">
@@ -481,7 +481,7 @@ export default function DashboardPage() {
                   ? (campaignItems as Array<{platform?: string}>).filter(c => (c as {status?: string}).status === "active").map(c => c.platform).join(", ") || "—"
                   : "—"}
               </p>
-              <p className="text-[10px] text-aviva-secondary">ช่องทาง</p>
+              <p className="text-xs text-aviva-secondary">ช่องทาง</p>
             </div>
           </div>
         </GlassCard>
@@ -490,7 +490,7 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-aviva-secondary/70 uppercase tracking-wider">ปฏิทินกิจกรรม</p>
-            <span className="text-[10px] text-aviva-secondary">กดวันเพื่อดู/เพิ่มกิจกรรม</span>
+            <span className="text-xs text-aviva-secondary">กดวันเพื่อดู/เพิ่มกิจกรรม</span>
           </div>
           <CalendarWidget />
         </div>
@@ -505,7 +505,7 @@ export default function DashboardPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[75vh] flex flex-col mb-14">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-aviva-text">รายการรออนุมัติ ({pendingApprovals})</h2>
-              <button onClick={() => setAlertModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setAlertModal(null)} aria-label="ปิด" className="p-2 -mr-2 text-aviva-secondary hover:text-aviva-gold"><X size={20} /></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {approvalItems.map((item, i) => (
@@ -532,14 +532,14 @@ export default function DashboardPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[75vh] flex flex-col mb-14">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-aviva-text">แจ้งซ่อมรอดำเนินการ ({pendingClaims})</h2>
-              <button onClick={() => setAlertModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setAlertModal(null)} aria-label="ปิด" className="p-2 -mr-2 text-aviva-secondary hover:text-aviva-gold"><X size={20} /></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {claimItems.map((item, i) => (
                 <div key={i} className="bg-aviva-bg rounded-xl px-4 py-3">
                   <p className="text-sm font-medium text-aviva-text">{String(item.customer_name ?? "—")}</p>
                   <p className="text-xs text-aviva-secondary">{String(item.issue_type ?? "")} — {String(item.description ?? "")}</p>
-                  <p className="text-[10px] text-aviva-secondary/60 mt-1">สร้าง: {item.created_at ? new Date(String(item.created_at)).toLocaleDateString("th-TH") : "—"}</p>
+                  <p className="text-xs text-aviva-secondary/60 mt-1">สร้าง: {item.created_at ? new Date(String(item.created_at)).toLocaleDateString("th-TH") : "—"}</p>
                 </div>
               ))}
             </div>
@@ -559,7 +559,7 @@ export default function DashboardPage() {
               <h2 className="text-base font-bold text-aviva-text">
                 {insightModal === "approvals" ? "รายการรออนุมัติ" : insightModal === "claims" ? "คลิมหลังการขาย" : "งวดงานรอตรวจสอบ"}
               </h2>
-              <button onClick={() => setInsightModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setInsightModal(null)} aria-label="ปิด" className="p-2 -mr-2 text-aviva-secondary hover:text-aviva-gold"><X size={20} /></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {insightModal === "approvals" && approvalItems.map((item, i) => (
@@ -597,14 +597,14 @@ export default function DashboardPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[80vh] flex flex-col mb-14">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-aviva-text">CRM — Leads ทั้งหมด ({totalLeads})</h2>
-              <button onClick={() => setCrmModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setCrmModal(false)} aria-label="ปิด" className="p-2 -mr-2 text-aviva-secondary hover:text-aviva-gold"><X size={20} /></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {(leadItems as Array<{customer_name?: string; status?: string; source?: string; budget?: number; notes?: string}>).map((item, i) => (
                 <div key={i} className="bg-aviva-bg rounded-xl px-4 py-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-aviva-text">{item.customer_name ?? "—"}</p>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                       item.status === "Closed Deal" ? "bg-green-500/20 text-green-400" :
                       item.status === "Interested" ? "bg-blue-500/20 text-blue-400" :
                       "bg-gray-500/20 text-gray-400"}`}>
@@ -612,7 +612,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-xs text-aviva-secondary mt-0.5">{item.source} · ฿{Number(item.budget ?? 0).toLocaleString()}</p>
-                  {item.notes && <p className="text-[10px] text-aviva-secondary/60 mt-1">{item.notes}</p>}
+                  {item.notes && <p className="text-xs text-aviva-secondary/60 mt-1">{item.notes}</p>}
                 </div>
               ))}
             </div>
@@ -630,19 +630,19 @@ export default function DashboardPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[80vh] flex flex-col mb-14">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-aviva-text">แคมเปญการตลาด</h2>
-              <button onClick={() => setMktModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setMktModal(false)} aria-label="ปิด" className="p-2 -mr-2 text-aviva-secondary hover:text-aviva-gold"><X size={20} /></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {(campaignItems as Array<{name?: string; platform?: string; status?: string; leads_generated?: number; budget?: number; spent?: number; impressions?: number; clicks?: number}>).map((item, i) => (
                 <div key={i} className="bg-aviva-bg rounded-xl px-4 py-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-aviva-text">{item.name ?? "—"}</p>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.status === "active" ? "bg-green-500/20 text-green-400" : "bg-gray-500/20 text-gray-400"}`}>
+                    <span className={`text-xs px-2.5 py-1 rounded-full ${item.status === "active" ? "bg-green-500/20 text-green-400" : "bg-gray-500/20 text-gray-400"}`}>
                       {item.status === "active" ? "กำลังทำงาน" : "เสร็จแล้ว"}
                     </span>
                   </div>
                   <p className="text-xs text-aviva-secondary mt-0.5">{item.platform} · Leads: {item.leads_generated}</p>
-                  <div className="flex justify-between text-[10px] text-aviva-secondary mt-1">
+                  <div className="flex justify-between text-xs text-aviva-secondary mt-1">
                     <span>งบ: ฿{Number(item.budget ?? 0).toLocaleString()}</span>
                     <span>ใช้ไป: ฿{Number(item.spent ?? 0).toLocaleString()}</span>
                     <span>Impression: {Number(item.impressions ?? 0).toLocaleString()}</span>

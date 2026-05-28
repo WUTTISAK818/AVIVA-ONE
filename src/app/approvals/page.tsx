@@ -110,7 +110,7 @@ export default function ApprovalsPage() {
             { k: "rejected", l: "ปฏิเสธ" },
           ].map(({ k, l }) => (
             <button key={k} onClick={() => setActiveTab(k as FilterTab)}
-              className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+              className={clsx("flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all",
                 activeTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
               )}>{l}</button>
           ))}
@@ -132,22 +132,22 @@ export default function ApprovalsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-aviva-gold">{log.source_doc_index}</span>
                       {log.amount != null && log.amount > 50000 && (
-                        <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                          <ShieldAlert size={9} /> ต้องอนุมัติ 2 ชั้น
+                        <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <ShieldAlert size={12} /> ต้องอนุมัติ 2 ชั้น
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-aviva-text mt-0.5">{log.workflow_type}</p>
                     <p className="text-xs text-aviva-secondary">ผู้อนุมัติ: {log.current_approver_role}</p>
                     {log.action_timestamp && (
-                      <p className="text-[10px] text-aviva-secondary/60">
+                      <p className="text-xs text-aviva-secondary/60">
                         {new Date(log.action_timestamp).toLocaleDateString("th-TH")}
                       </p>
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
                     {log.amount != null && <p className="text-sm font-bold text-aviva-gold">{fmt(log.amount)}</p>}
-                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
+                    <span className={clsx("text-xs px-2.5 py-1 rounded-full",
                       log.action_taken === "Pending" ? "bg-yellow-500/20 text-yellow-400" :
                       log.action_taken === "Approved" ? "bg-green-500/20 text-green-400" :
                       "bg-red-500/20 text-red-400"
@@ -166,12 +166,12 @@ export default function ApprovalsPage() {
                 {log.action_taken === "Pending" && (
                   <div className="flex gap-2">
                     <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
-                      className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                      <CheckCircle size={12} /> อนุมัติ
+                      className="flex-1 py-2.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5">
+                      <CheckCircle size={16} /> อนุมัติ
                     </button>
                     <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
-                      className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                      <XCircle size={12} /> ปฏิเสธ
+                      className="flex-1 py-2.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5">
+                      <XCircle size={16} /> ปฏิเสธ
                     </button>
                   </div>
                 )}
@@ -186,7 +186,7 @@ export default function ApprovalsPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เหตุผลการปฏิเสธ</h2>
-              <button onClick={() => setRejectingId(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setRejectingId(null)} aria-label="ปิด" className="p-2 -mr-2 text-aviva-secondary hover:text-aviva-gold"><X size={20} /></button>
             </div>
             <textarea value={rejectComment} onChange={(e) => setRejectComment(e.target.value)}
               placeholder="ระบุเหตุผล..." rows={3}

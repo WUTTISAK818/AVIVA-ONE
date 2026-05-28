@@ -2829,8 +2829,9 @@ function DocumentsContent() {
   const [filter, setFilter] = useState<DocFilterCat>("all");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
+  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "", photo: null as File | null, photoPreview: "" });
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const fetchDocs = () => {
     supabase.from("documents").select("*").eq("project_id", PROJECT_ID)
@@ -2853,12 +2854,23 @@ function DocumentsContent() {
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
+    let attachmentUrl: string | null = form.file_url || null;
+    if (form.photo) {
+      setUploadingPhoto(true);
+      const ext = form.photo.name.split(".").pop() ?? "jpg";
+      const path = `docs/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("document-attachments").upload(path, form.photo, { upsert: true });
+      if (!error) {
+        attachmentUrl = supabase.storage.from("document-attachments").getPublicUrl(path).data.publicUrl;
+      }
+      setUploadingPhoto(false);
+    }
     const { data: docData } = await supabase.from("documents").insert({
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
       uploaded_by: form.uploaded_by,
-      file_url: form.file_url || null,
+      file_url: attachmentUrl,
       description: form.description || null,
       status: "pending",
     }).select().single();
@@ -2880,7 +2892,7 @@ function DocumentsContent() {
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
+    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "", photo: null, photoPreview: "" });
     fetchDocs();
   };
 
@@ -3055,14 +3067,32 @@ function DocumentsContent() {
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ลิงค์ไฟล์ (Google Drive / URL)</label>
+              <label className="text-xs text-aviva-secondary mb-1 block">ถ่ายรูปเอกสาร / แนบรูปภาพ</label>
+              <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
+                <input type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) setForm(prev => ({ ...prev, photo: f, photoPreview: URL.createObjectURL(f), file_url: "" }));
+                  }} />
+                {uploadingPhoto
+                  ? <span className="text-xs text-aviva-gold animate-pulse">กำลังอัปโหลด...</span>
+                  : <><Upload size={14} className="text-aviva-secondary/60 flex-shrink-0" />
+                    <span className="text-sm text-aviva-secondary/60">{form.photo ? form.photo.name : "ถ่ายรูปหรือเลือกรูป..."}</span>
+                    {form.photoPreview && <img src={form.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover ml-auto border border-aviva-gold/20" />}
+                  </>
+                }
+              </label>
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">หรือ ลิงค์ไฟล์ (Google Drive / URL)</label>
               <input type="url" value={form.file_url}
-                onChange={(e) => setForm({ ...form, file_url: e.target.value })}
+                onChange={(e) => setForm({ ...form, file_url: e.target.value, photo: null, photoPreview: "" })}
                 placeholder="https://drive.google.com/..."
-                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                disabled={!!form.photo}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 disabled:opacity-40" />
             </div>
           </div>
-          <button onClick={handleSave} disabled={saving || !form.name}
+          <button onClick={handleSave} disabled={saving || !form.name || uploadingPhoto}
             className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
             {saving ? "กำลังบันทึก..." : "เพิ่มเอกสาร"}
           </button>

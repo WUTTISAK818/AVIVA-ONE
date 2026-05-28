@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
+import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 
@@ -129,6 +130,10 @@ export default function ConstructionPage() {
   const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus });
   const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "" });
 
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [uploadingTask, setUploadingTask] = useState<string | null>(null);
+  const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
   const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
@@ -175,7 +180,7 @@ export default function ConstructionPage() {
     setInstTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, is_complete: updated } : t));
   };
 
-  const advanceInstStatus = async (inst: Installment) => {
+  const doAdvanceInst = async (inst: Installment) => {
     const next: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
     const newStatus = next[inst.status] ?? inst.status;
     if (newStatus === inst.status) return;
@@ -199,6 +204,14 @@ export default function ConstructionPage() {
       message: instHouse ? `ยูนิต ${instHouse.house_number}` : "",
       from_dept: "ฝ่ายก่อสร้าง",
     });
+    setToast({ msg: statusLabels[newStatus] ?? newStatus, type: "success" });
+    setConfirmInst(null);
+  };
+
+  const advanceInstStatus = (inst: Installment) => {
+    const next: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
+    if (next[inst.status] === inst.status || !next[inst.status]) return;
+    setConfirmInst(inst);
   };
 
   const printInstallments = () => { window.print(); };
@@ -252,13 +265,20 @@ export default function ConstructionPage() {
   };
 
   const uploadTaskPhoto = async (task: InstTask, file: File) => {
+    setUploadingTask(task.id);
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `tasks/${task.id}.${ext}`;
     const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
-    if (error) return;
+    if (error) {
+      setUploadingTask(null);
+      setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      return;
+    }
     const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
     await supabase.from("installment_tasks").update({ photo_url: publicUrl }).eq("id", task.id);
     setInstTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, photo_url: publicUrl } : t));
+    setUploadingTask(null);
+    setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
   };
 
   const counts = {
@@ -650,11 +670,15 @@ export default function ConstructionPage() {
                                   <label className="cursor-pointer flex-shrink-0">
                                     <input type="file" accept="image/*" capture="environment" className="hidden"
                                       onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadTaskPhoto(task, f); }} />
-                                    {task.photo_url
-                                      ? <img src={task.photo_url} alt="รูป" className="w-8 h-8 rounded-lg object-cover border border-aviva-gold/20" />
-                                      : <div className="w-8 h-8 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center">
-                                          <Camera size={12} className="text-aviva-secondary/50" />
+                                    {uploadingTask === task.id
+                                      ? <div className="w-8 h-8 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center">
+                                          <Loader2 size={12} className="text-aviva-gold animate-spin" />
                                         </div>
+                                      : task.photo_url
+                                        ? <img src={task.photo_url} alt="รูป" className="w-8 h-8 rounded-lg object-cover border border-aviva-gold/20" />
+                                        : <div className="w-8 h-8 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center">
+                                            <Camera size={12} className="text-aviva-secondary/50" />
+                                          </div>
                                     }
                                   </label>
                                 </div>
@@ -833,6 +857,24 @@ export default function ConstructionPage() {
           </div>
         </div>
       )}
+
+      {/* Confirm advance installment dialog */}
+      {confirmInst && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">
+            <h2 className="text-base font-bold text-aviva-text">ยืนยันการส่งเบิก?</h2>
+            <p className="text-sm text-aviva-secondary">{confirmInst.name} — เปลี่ยนสถานะเป็น "{instStatusConfig[{ pending: "in_review", in_review: "approved", approved: "paid" }[confirmInst.status] ?? confirmInst.status]?.label}"</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmInst(null)}
+                className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
+              <button onClick={() => doAdvanceInst(confirmInst)}
+                className="flex-1 py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm">ยืนยัน</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

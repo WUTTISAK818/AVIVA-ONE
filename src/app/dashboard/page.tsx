@@ -99,7 +99,8 @@ export default function DashboardPage() {
     setAiMsgs(p => [...p, { role: "user", text: msg }]);
     setAiLoading(true);
     try {
-      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg }) });
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json", ...(session?.access_token ? { "Authorization": `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ message: msg }) });
       const data = await res.json();
       setAiMsgs(p => [...p, { role: "assistant", text: data.response ?? "ขออภัย ไม่สามารถตอบได้ค่ะ" }]);
     } catch {
@@ -211,7 +212,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.4</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.5</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -398,6 +399,26 @@ export default function DashboardPage() {
             {/* Financial Overview with chart */}
             <GlassCard className="p-4">
               <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
+              {project && project.revenue_target > 0 && (
+                <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-aviva-secondary">รายรับจริง vs เป้าหมาย</span>
+                    <span className="text-[10px] font-bold text-aviva-gold">
+                      {Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-aviva-bg rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-aviva-gold rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-aviva-secondary">฿{formatMillions(stats.totalReceipts)}</span>
+                    <span className="text-[10px] text-aviva-secondary">เป้า ฿{formatMillions(project.revenue_target)}</span>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <button onClick={() => openKpi("revenue")}
                   className="bg-aviva-bg/50 rounded-xl p-3 text-center active:scale-95 transition-all">

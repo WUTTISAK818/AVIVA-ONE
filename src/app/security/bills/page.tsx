@@ -91,8 +91,8 @@ export default function AdminBillsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">บิลค่าส่วนกลาง</h1>
@@ -100,7 +100,7 @@ export default function AdminBillsPage() {
             </div>
           </div>
           <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> ออกบิล
           </button>
         </div>
@@ -139,7 +139,7 @@ export default function AdminBillsPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-aviva-gold">{fmtBaht(b.amount)}</p>
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border",
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full border",
                     b.status === "paid" ? "bg-green-500/15 text-green-300 border-green-500/30" : "bg-red-500/15 text-red-300 border-red-500/30"
                   )}>{b.status === "paid" ? "ชำระแล้ว" : "ค้างชำระ"}</span>
                 </div>
@@ -154,7 +154,7 @@ export default function AdminBillsPage() {
               )}
               {b.status !== "paid" && (
                 <button onClick={() => confirmPayment(b.id)}
-                  className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold text-xs font-bold px-3 py-2 rounded-xl">
+                  className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold text-sm font-bold px-4 py-2.5 rounded-xl">
                   <CheckCircle size={12} /> ยืนยันรับชำระ
                 </button>
               )}
@@ -171,7 +171,7 @@ export default function AdminBillsPage() {
               <button onClick={() => setShowForm(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             {error && (
-              <div className="text-xs px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-center gap-2">
+              <div className="text-sm px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-center gap-2">
                 <AlertCircle size={12} /> {error}
               </div>
             )}
@@ -220,7 +220,7 @@ export default function AdminBillsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

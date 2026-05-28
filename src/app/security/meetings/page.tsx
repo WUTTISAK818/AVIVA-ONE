@@ -70,8 +70,8 @@ export default function AdminMeetingsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security/governance" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security/governance" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">ประชุมนิติฯ</h1>
@@ -79,7 +79,7 @@ export default function AdminMeetingsPage() {
             </div>
           </div>
           <button onClick={() => { setForm(empty); setShowForm(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> นัดประชุม
           </button>
         </div>
@@ -101,11 +101,11 @@ export default function AdminMeetingsPage() {
               <GlassCard key={m.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] text-aviva-gold/80 font-medium">{TYPE_TH[m.meeting_type] ?? m.meeting_type}</p>
+                    <p className="text-xs text-aviva-gold/80 font-medium">{TYPE_TH[m.meeting_type] ?? m.meeting_type}</p>
                     <p className="text-sm font-semibold text-aviva-text">{m.title}</p>
                     <p className="text-xs text-aviva-secondary mt-0.5">{fmt(m.scheduled_at)} · {m.location ?? "—"}</p>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", st.c)}>{st.l}</span>
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full border", st.c)}>{st.l}</span>
                 </div>
               </GlassCard>
             );
@@ -162,7 +162,7 @@ export default function AdminMeetingsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

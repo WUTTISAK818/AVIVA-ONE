@@ -56,8 +56,8 @@ export default function GatesPage() {
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+          <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">ควบคุมประตู</h1>
@@ -90,18 +90,18 @@ export default function GatesPage() {
                     <div className="flex items-center gap-2">
                       <DirIcon size={16} className="text-aviva-gold" />
                       <p className="text-sm font-semibold text-aviva-text">{g.name_th}</p>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-aviva-bg/50 text-aviva-secondary font-mono">{g.code}</span>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-aviva-bg/50 text-aviva-secondary font-mono">{g.code}</span>
                     </div>
                     <p className="text-xs text-aviva-secondary mt-0.5">{g.direction === "entry" ? "ขาเข้า" : "ขาออก"}</p>
                   </div>
                   <button onClick={() => openGate(g.id)} disabled={busy === g.id}
-                    className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50">
+                    className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl disabled:opacity-50">
                     <DoorOpen size={14} /> {busy === g.id ? "กำลังเปิด…" : "เปิดประตู"}
                   </button>
                 </div>
 
                 <div className="rounded-xl border border-aviva-gold/10 bg-aviva-bg/30 p-3 space-y-2">
-                  <p className="text-[10px] uppercase tracking-wide text-aviva-secondary/70">การตั้งค่ากล้อง ALPR</p>
+                  <p className="text-xs uppercase tracking-wide text-aviva-secondary/70">การตั้งค่ากล้อง ALPR</p>
                   <CopyRow label="Webhook URL" value={webhookUrl} k={`url-${g.id}`} onCopy={copy} copied={copied} />
                   <CopyRow label="X-Gate-Secret" value={g.webhook_secret ?? "—"} k={`sec-${g.id}`} onCopy={copy} copied={copied} mask />
                   <CopyRow label="gate_id (body)" value={g.code} k={`gid-${g.id}`} onCopy={copy} copied={copied} />
@@ -121,7 +121,7 @@ function CopyRow({ label, value, k, onCopy, copied, mask }:
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] text-aviva-secondary">{label}</p>
+        <p className="text-xs text-aviva-secondary">{label}</p>
         <p className="text-xs font-mono text-aviva-text/90 truncate">{shown}</p>
       </div>
       <button onClick={() => onCopy(value, k)}

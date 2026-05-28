@@ -70,8 +70,8 @@ export default function CommitteePage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security/governance" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security/governance" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">คณะกรรมการนิติฯ</h1>
@@ -79,7 +79,7 @@ export default function CommitteePage() {
             </div>
           </div>
           <button onClick={() => { setForm(empty); setShowForm(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> เพิ่ม
           </button>
         </div>
@@ -101,12 +101,12 @@ export default function CommitteePage() {
                 <div>
                   <p className="text-sm font-semibold text-aviva-text">{residentName(m.resident_id)}</p>
                   <p className="text-xs text-aviva-gold">{roleLabel(m.role)}</p>
-                  <p className="text-[11px] text-aviva-secondary mt-1">
+                  <p className="text-xs text-aviva-secondary mt-1">
                     {m.term_start}{m.term_end ? ` → ${m.term_end}` : " (active)"}
                   </p>
                 </div>
                 <button onClick={() => toggle(m.id, m.is_active)}
-                  className={clsx("text-[10px] px-2 py-1 rounded-lg border",
+                  className={clsx("text-xs px-2.5 py-1 rounded-lg border",
                     m.is_active ? "bg-green-500/15 text-green-300 border-green-500/30" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
                   )}>{m.is_active ? "active · ปิด" : "ปิด · เปิด"}</button>
               </div>
@@ -159,7 +159,7 @@ export default function CommitteePage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

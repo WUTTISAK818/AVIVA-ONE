@@ -48,8 +48,8 @@ export default function GovernanceHubPage() {
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+          <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">การบริหารนิติฯ</h1>

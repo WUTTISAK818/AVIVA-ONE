@@ -61,8 +61,8 @@ export default function VisitorLogsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">บันทึกผู้มาเยือน</h1>
@@ -101,7 +101,7 @@ export default function VisitorLogsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-aviva-text truncate">{r.visitors?.visitor_name ?? "—"}</p>
                   <p className="text-xs text-aviva-secondary">เจ้าบ้าน: {r.visitors?.residents?.full_name ?? "—"}</p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] text-aviva-secondary">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-aviva-secondary">
                     {r.visitors?.license_plate && <span>ทะเบียน {r.visitors.license_plate}</span>}
                     <span>ออกบัตร {fmt(r.created_at)}</span>
                     {r.checked_in_at && <span>เข้า {fmt(r.checked_in_at)}</span>}
@@ -127,5 +127,5 @@ function StatusPill({ status }: { status: string }) {
     blocked:     { l: "ถูกบล็อก",         c: "bg-red-500/20 text-red-400 border-red-500/40" },
   };
   const m = map[status] ?? map.pending;
-  return <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", m.c)}>{m.l}</span>;
+  return <span className={clsx("text-xs px-2.5 py-1 rounded-full border", m.c)}>{m.l}</span>;
 }

@@ -68,8 +68,8 @@ export default function GateEventsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">เหตุการณ์ประตู</h1>
@@ -103,16 +103,16 @@ export default function GateEventsPage() {
                       <DirIcon size={14} className="text-aviva-gold/80" />
                       <span className="font-mono">{e.license_plate ?? "—"}</span>
                       {e.confidence !== null && (
-                        <span className="text-[10px] text-aviva-secondary font-normal">{Math.round(e.confidence * 100)}%</span>
+                        <span className="text-xs text-aviva-secondary font-normal">{Math.round(e.confidence * 100)}%</span>
                       )}
                     </div>
                     <p className="text-xs text-aviva-secondary mt-1">
                       {e.gates?.name_th ?? "—"} · {MATCH_TH[e.match_type ?? "unknown"] ?? e.match_type ?? "—"}
                     </p>
-                    <p className="text-[11px] text-aviva-secondary/70 mt-1">{fmt(e.event_at)}</p>
+                    <p className="text-xs text-aviva-secondary/70 mt-1">{fmt(e.event_at)}</p>
                   </div>
                   {meta && (
-                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", meta.cls)}>{meta.label}</span>
+                    <span className={clsx("text-xs px-2.5 py-1 rounded-full border", meta.cls)}>{meta.label}</span>
                   )}
                 </div>
               </GlassCard>

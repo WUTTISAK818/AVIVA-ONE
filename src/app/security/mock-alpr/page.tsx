@@ -74,8 +74,8 @@ export default function MockAlprPage() {
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+          <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">ทดสอบ ALPR</h1>
@@ -87,7 +87,7 @@ export default function MockAlprPage() {
       <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
         <GlassCard className="p-5 space-y-4">
           <div>
-            <label className="text-xs text-aviva-secondary mb-1 block">ประตู</label>
+            <label className="text-sm text-aviva-secondary mb-1.5 block">ประตู</label>
             <select value={gateCode} onChange={e => setGateCode(e.target.value)}
               className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
               {gates.map(g => (
@@ -96,13 +96,13 @@ export default function MockAlprPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-aviva-secondary mb-1 block">ทะเบียนรถ</label>
+            <label className="text-sm text-aviva-secondary mb-1.5 block">ทะเบียนรถ</label>
             <input type="text" value={plate} onChange={e => setPlate(e.target.value)}
               placeholder="กข 1234"
               className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 font-mono" />
           </div>
           <div>
-            <label className="text-xs text-aviva-secondary mb-1 block">Confidence (0.00 - 1.00)</label>
+            <label className="text-sm text-aviva-secondary mb-1.5 block">Confidence (0.00 - 1.00)</label>
             <input type="number" min="0" max="1" step="0.01" value={confidence}
               onChange={e => setConfidence(e.target.value)}
               className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
@@ -141,7 +141,7 @@ export default function MockAlprPage() {
               <span className="text-aviva-secondary">match: {last.match_type}</span>
             </div>
             {last.reason && <p className="text-xs text-aviva-secondary mt-1">เหตุผล: {last.reason}</p>}
-            <p className="text-[11px] text-aviva-secondary/70 mt-2">ดู event ใน <Link href="/security/gate-events" className="text-aviva-gold underline">เหตุการณ์ประตู</Link></p>
+            <p className="text-xs text-aviva-secondary/70 mt-2">ดู event ใน <Link href="/security/gate-events" className="text-aviva-gold underline">เหตุการณ์ประตู</Link></p>
           </GlassCard>
         )}
       </div>
@@ -157,14 +157,14 @@ function ChipRow({ label, items, onPick, accent }: { label: string; items: strin
   }[accent];
   return (
     <div>
-      <p className="text-[11px] text-aviva-secondary mb-1">{label}</p>
+      <p className="text-xs text-aviva-secondary mb-1">{label}</p>
       <div className="flex flex-wrap gap-1">
         {items.length === 0 ? (
-          <span className="text-[11px] text-aviva-secondary/50 italic">ไม่มีในระบบ</span>
+          <span className="text-xs text-aviva-secondary/50 italic">ไม่มีในระบบ</span>
         ) : (
           items.map(p => (
             <button key={p} onClick={() => onPick(p)}
-              className={clsx("text-[11px] font-mono px-2 py-1 rounded-md border bg-aviva-card", cls)}>
+              className={clsx("text-xs font-mono px-2 py-1 rounded-md border bg-aviva-card", cls)}>
               {p}
             </button>
           ))

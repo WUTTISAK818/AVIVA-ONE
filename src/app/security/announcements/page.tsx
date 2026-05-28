@@ -79,8 +79,8 @@ export default function AdminAnnouncementsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">จัดการประกาศ</h1>
@@ -88,7 +88,7 @@ export default function AdminAnnouncementsPage() {
             </div>
           </div>
           <button onClick={() => { setForm(empty); setShowForm(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> ใหม่
           </button>
         </div>
@@ -112,17 +112,17 @@ export default function AdminAnnouncementsPage() {
                     <p className="text-sm font-semibold text-aviva-text">{a.title}</p>
                   </div>
                   {a.body_md && <p className="text-xs text-aviva-secondary line-clamp-2 mt-1">{a.body_md}</p>}
-                  <p className="text-[10px] text-aviva-secondary/70 mt-1">
+                  <p className="text-xs text-aviva-secondary/70 mt-1">
                     {a.category} · {new Date(a.published_at).toLocaleString("th-TH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
                 <div className="flex flex-col gap-1">
                   <button onClick={() => togglePin(a.id, a.pinned)}
-                    className={clsx("text-[10px] px-2 py-1 rounded-lg border",
+                    className={clsx("text-xs px-2.5 py-1 rounded-lg border",
                       a.pinned ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/40" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
                     )}>{a.pinned ? "ถอน" : "ปักหมุด"}</button>
                   <button onClick={() => remove(a.id)}
-                    className="text-[10px] px-2 py-1 rounded-lg border bg-red-500/10 text-red-300 border-red-500/30">ลบ</button>
+                    className="text-xs px-2.5 py-1 rounded-lg border bg-red-500/10 text-red-300 border-red-500/30">ลบ</button>
                 </div>
               </div>
             </GlassCard>
@@ -180,7 +180,7 @@ export default function AdminAnnouncementsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

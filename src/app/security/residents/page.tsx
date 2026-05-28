@@ -84,8 +84,8 @@ export default function SecurityResidentsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">ลูกบ้าน</h1>
@@ -95,7 +95,7 @@ export default function SecurityResidentsPage() {
             </div>
           </div>
           <button onClick={() => { setForm(emptyForm); setFeedback(null); setShowInvite(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> เชิญลูกบ้าน
           </button>
         </div>
@@ -130,7 +130,7 @@ export default function SecurityResidentsPage() {
                       {member && <span className="flex items-center gap-1"><Car size={11} />ยูนิต {member.unit_no ?? member.owner_name}</span>}
                     </div>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30">
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30">
                     {r.resident_type ?? "owner"}
                   </span>
                 </div>
@@ -205,7 +205,7 @@ export default function SecurityResidentsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

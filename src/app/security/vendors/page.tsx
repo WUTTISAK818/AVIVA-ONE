@@ -59,8 +59,8 @@ export default function VendorsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">ผู้รับเหมา / Vendor</h1>
@@ -68,7 +68,7 @@ export default function VendorsPage() {
             </div>
           </div>
           <button onClick={() => { setForm(empty); setShowForm(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> เพิ่ม
           </button>
         </div>
@@ -90,14 +90,14 @@ export default function VendorsPage() {
                 <div>
                   <p className="text-sm font-semibold text-aviva-text">{v.name}</p>
                   {v.service_type && <p className="text-xs text-aviva-gold">{v.service_type}</p>}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] text-aviva-secondary">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-aviva-secondary">
                     {v.contact_name && <span>{v.contact_name}</span>}
                     {v.contact_phone && <span className="flex items-center gap-1"><Phone size={10} />{v.contact_phone}</span>}
                   </div>
-                  {v.notes && <p className="text-[11px] text-aviva-secondary/80 mt-1">{v.notes}</p>}
+                  {v.notes && <p className="text-xs text-aviva-secondary/80 mt-1">{v.notes}</p>}
                 </div>
                 <button onClick={() => toggle(v.id, v.is_active)}
-                  className={clsx("text-[10px] px-2 py-1 rounded-lg border",
+                  className={clsx("text-xs px-2.5 py-1 rounded-lg border",
                     v.is_active ? "bg-green-500/15 text-green-300 border-green-500/30" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
                   )}>{v.is_active ? "active" : "ปิด"}</button>
               </div>
@@ -158,7 +158,7 @@ export default function VendorsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

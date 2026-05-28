@@ -76,8 +76,8 @@ export default function DocumentsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security/governance" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security/governance" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">คลังเอกสาร</h1>
@@ -85,7 +85,7 @@ export default function DocumentsPage() {
             </div>
           </div>
           <button onClick={() => { setForm(empty); setFile(null); setShowForm(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> อัปโหลด
           </button>
         </div>
@@ -109,7 +109,7 @@ export default function DocumentsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-aviva-text">{d.title}</p>
                     {d.description && <p className="text-xs text-aviva-secondary line-clamp-1">{d.description}</p>}
-                    <p className="text-[11px] text-aviva-secondary/70 mt-0.5">
+                    <p className="text-xs text-aviva-secondary/70 mt-0.5">
                       {CATEGORIES.find(c => c.v === d.category)?.l ?? d.category}
                       {d.version ? ` · v${d.version}` : ""}
                       {d.is_public ? " · เปิดให้ลูกบ้านดู" : " · ภายในเท่านั้น"}
@@ -172,7 +172,7 @@ export default function DocumentsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

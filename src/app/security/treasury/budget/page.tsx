@@ -57,8 +57,8 @@ export default function BudgetPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security/treasury" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security/treasury" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">งบประมาณ {buddhistYear(new Date(year, 0, 1))}</h1>
@@ -103,7 +103,7 @@ function BudgetGroup({ title, accounts, budgets, setBudget, save, saving, signFl
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-medium text-aviva-text">{a.name_th}</p>
-                  <p className="text-[10px] text-aviva-secondary font-mono">{a.code}</p>
+                  <p className="text-xs text-aviva-secondary font-mono">{a.code}</p>
                 </div>
                 <p className="text-xs text-aviva-secondary">
                   ใช้จริง <span className="text-aviva-text font-bold ml-1">{fmtBaht(actual)}</span>
@@ -125,7 +125,7 @@ function BudgetGroup({ title, accounts, budgets, setBudget, save, saving, signFl
                     <div className={`h-full ${overrun ? "bg-red-500" : "bg-aviva-gold"}`}
                       style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
                   </div>
-                  <p className={`text-[10px] text-right ${overrun ? "text-red-300" : "text-aviva-secondary"}`}>
+                  <p className={`text-xs text-right ${overrun ? "text-red-300" : "text-aviva-secondary"}`}>
                     {pct}% · เหลืองบ {fmtBaht(planned - actual)}
                   </p>
                 </div>

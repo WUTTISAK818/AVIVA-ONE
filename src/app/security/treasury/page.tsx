@@ -126,8 +126,8 @@ export default function TreasuryPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-              <ArrowLeft size={18} />
+            <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+              <ArrowLeft size={20} />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-aviva-text">บัญชีนิติบุคคล</h1>
@@ -135,7 +135,7 @@ export default function TreasuryPage() {
             </div>
           </div>
           <button onClick={() => { setForm(empty); setShowForm(true); }}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
             <Plus size={14} /> ลงรายการ
           </button>
         </div>
@@ -169,7 +169,7 @@ export default function TreasuryPage() {
             <div className="space-y-3">
               {types.map(t => (
                 <div key={t}>
-                  <p className="text-[10px] uppercase tracking-wider text-aviva-secondary/70 mb-1">{TYPE_TH[t] ?? t}</p>
+                  <p className="text-xs uppercase tracking-wider text-aviva-secondary/70 mb-1">{TYPE_TH[t] ?? t}</p>
                   <GlassCard className="divide-y divide-aviva-gold/10">
                     {grouped[t]
                       .sort((a, b) => a.code.localeCompare(b.code))
@@ -177,7 +177,7 @@ export default function TreasuryPage() {
                         <div key={a.id} className="flex items-center justify-between px-4 py-3 text-sm">
                           <div>
                             <p className="text-aviva-text font-medium">{a.name_th}</p>
-                            <p className="text-[10px] text-aviva-secondary font-mono">{a.code}</p>
+                            <p className="text-xs text-aviva-secondary font-mono">{a.code}</p>
                           </div>
                           <p className={clsx("font-bold font-mono",
                             displayBalance(a) > 0 ? "text-aviva-gold" : displayBalance(a) < 0 ? "text-red-300" : "text-aviva-secondary"
@@ -214,7 +214,7 @@ export default function TreasuryPage() {
                   </div>
                   <div className="mt-2 space-y-0.5">
                     {lines.map(l => (
-                      <div key={l.id} className="flex items-center justify-between text-[11px] text-aviva-secondary">
+                      <div key={l.id} className="flex items-center justify-between text-xs text-aviva-secondary">
                         <span>{accountName(l.account_id)}</span>
                         <span className="font-mono">
                           {Number(l.debit) > 0 && <span className="text-aviva-text">Dr {fmtBaht(l.debit)}</span>}
@@ -299,7 +299,7 @@ export default function TreasuryPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

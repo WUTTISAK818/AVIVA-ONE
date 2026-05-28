@@ -58,8 +58,8 @@ export default function AdminIncidentsPage() {
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/security" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+          <Link href="/security" aria-label="กลับ" className="p-2 -ml-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">เหตุการณ์</h1>
@@ -97,12 +97,12 @@ export default function AdminIncidentsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-aviva-text">{i.title ?? "เหตุการณ์"}</p>
                     {i.description && <p className="text-xs text-aviva-secondary line-clamp-2 mt-1">{i.description}</p>}
-                    <p className="text-[11px] text-aviva-secondary/70 mt-1">
+                    <p className="text-xs text-aviva-secondary/70 mt-1">
                       {i.category ?? "—"} · {fmt(i.occurred_at)} · {STATUS_TH[i.status] ?? i.status}
                       {i.location_note ? ` · ${i.location_note}` : ""}
                     </p>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", sev.c)}>{sev.l}</span>
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full border", sev.c)}>{sev.l}</span>
                 </div>
                 {i.photo_urls && i.photo_urls.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto">
@@ -116,7 +116,7 @@ export default function AdminIncidentsPage() {
                 )}
                 {canAdvance && (
                   <button onClick={() => advance(i.id, i.status)}
-                    className="text-xs flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold font-bold px-3 py-1.5 rounded-lg">
+                    className="text-sm flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold font-bold px-3 py-2 rounded-lg">
                     เลื่อนเป็น {STATUS_TH[i.status === "open" ? "investigating" : "resolved"]}
                   </button>
                 )}

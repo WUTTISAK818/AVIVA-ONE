@@ -8,7 +8,7 @@
   --color-aviva-gold-soft: #E6C77A;
   --color-aviva-text: #FFFFFF;
   --color-aviva-secondary: #D1D5DB;
-  --font-sans: var(--font-sarabun);
+  --font-sans: var(--font-ibm-plex-sans-thai);
 }
 
 html {
@@ -19,7 +19,7 @@ html {
 body {
   background-color: var(--color-aviva-bg);
   color: var(--color-aviva-text);
-  font-family: var(--font-sarabun), "Noto Sans Thai", sans-serif;
+  font-family: var(--font-ibm-plex-sans-thai), "Noto Sans Thai", sans-serif;
   overflow-x: hidden;
 }
 

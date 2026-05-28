@@ -5,6 +5,7 @@ import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock } from "lucide-
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
+import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
@@ -57,6 +58,7 @@ export default function ApprovalsPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -77,27 +79,57 @@ export default function ApprovalsPage() {
   });
   const pendingCount = logs.filter(l => l.action_taken === "Pending").length;
 
-  const cascadeApprove = async (log: ApprovalLog) => {
-    if (!log.source_record_id) return;
-    if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
-    else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-    else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+  const cascadeApprove = async (log: ApprovalLog): Promise<string | null> => {
+    if (!log.source_record_id) return null;
+    try {
+      if (log.workflow_type === "Installment_Review") {
+        const { error } = await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Material_Purchase") {
+        const { error } = await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Document_Approval") {
+        const { error } = await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      }
+    } catch (e) {
+      return String(e);
+    }
+    return null;
   };
 
-  const cascadeReject = async (log: ApprovalLog) => {
-    if (!log.source_record_id) return;
-    if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
-    else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
-    else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+  const cascadeReject = async (log: ApprovalLog): Promise<string | null> => {
+    if (!log.source_record_id) return null;
+    try {
+      if (log.workflow_type === "Installment_Review") {
+        const { error } = await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Material_Purchase") {
+        const { error } = await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Document_Approval") {
+        const { error } = await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      }
+    } catch (e) {
+      return String(e);
+    }
+    return null;
   };
 
   const handleApprove = async (id: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
-    await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+    const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+    if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log) {
-      await cascadeApprove(log);
+      const cascadeError = await cascadeApprove(log);
       const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
+      if (cascadeError) {
+        setToast({ msg: "อนุมัติแล้ว แต่อัปเดตสถานะต้นทางล้มเหลว", type: "warning" });
+      } else {
+        setToast({ msg: `อนุมัติแล้ว — ${log.source_doc_index}`, type: "success" });
+      }
       await createNotification({ type: "success", title: `อนุมัติแล้ว — ${log.source_doc_index}`, message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`, from_dept: dept, to_dept: dept });
     }
     setSaving(false); fetchLogs();
@@ -106,10 +138,12 @@ export default function ApprovalsPage() {
   const handleReject = async (id: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
-    await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
+    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
+    if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log) {
       await cascadeReject(log);
       const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
+      setToast({ msg: `ปฏิเสธแล้ว — ${log.source_doc_index}`, type: "info" });
       await createNotification({ type: "info", title: `ปฏิเสธ — ${log.source_doc_index}`, message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`, from_dept: dept, to_dept: dept });
     }
     setSaving(false); setRejectingId(null); setRejectComment(""); fetchLogs();
@@ -190,6 +224,7 @@ export default function ApprovalsPage() {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

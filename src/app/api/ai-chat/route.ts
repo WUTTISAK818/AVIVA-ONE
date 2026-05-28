@@ -9,7 +9,29 @@ const supabase = createClient(
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT = 10;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const recent = (rateLimitMap.get(ip) ?? []).filter(t => now - t < RATE_WINDOW);
+  if (recent.length >= RATE_LIMIT) return false;
+  rateLimitMap.set(ip, [...recent, now]);
+  return true;
+}
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (token) {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { message } = await req.json();
   if (!message) return NextResponse.json({ error: "No message provided" }, { status: 400 });
 
@@ -24,7 +46,7 @@ export async function POST(req: NextRequest) {
       supabase.from("receipts").select("amount,receipt_date,receipt_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
       supabase.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
       supabase.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
-      supabase.from("approval_logs").select("approval_id", { count: "exact", head: true }).eq("action_taken", "Pending").then(r => Array(r.count ?? 0).fill({})),
+      supabase.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
       supabase.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
       supabase.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
     ]);

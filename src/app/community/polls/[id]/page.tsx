@@ -72,9 +72,9 @@ export default function PollVotePage({ params }: { params: Promise<{ id: string 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/polls" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/polls" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold shrink-0">
+            <ArrowLeft size={20} />
           </Link>
           <h1 className="text-base font-bold text-aviva-text truncate">{poll.title}</h1>
         </div>
@@ -86,7 +86,7 @@ export default function PollVotePage({ params }: { params: Promise<{ id: string 
             <p className="text-sm text-aviva-text">{poll.description}</p>
           </GlassCard>
         )}
-        <p className="text-xs text-aviva-secondary text-center">
+        <p className="text-sm text-aviva-secondary text-center">
           {closed ? "ปิดแล้ว · ผลโหวต:" : myVote ? "คุณโหวตแล้ว — เปลี่ยนได้ก่อนปิด" : "เลือกคำตอบ"}
         </p>
         <div className="space-y-2">
@@ -114,7 +114,7 @@ export default function PollVotePage({ params }: { params: Promise<{ id: string 
             );
           })}
         </div>
-        <p className="text-[11px] text-aviva-secondary/70 text-center">รวม {total} เสียง</p>
+        <p className="text-xs text-aviva-secondary/70 text-center">รวม {total} เสียง</p>
       </div>
     </div>
   );

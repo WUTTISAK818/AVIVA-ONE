@@ -74,18 +74,18 @@ export default function AnnouncementsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {a.pinned && <Pin size={12} className="text-aviva-gold" />}
+                      {a.pinned && <Pin size={14} className="text-aviva-gold" />}
                       <p className="text-sm font-semibold text-aviva-text">{a.title}</p>
-                      <span className={clsx("text-[10px] px-2 py-0.5 rounded-full", CATEGORY_CLS[a.category ?? "general"] ?? "")}>
+                      <span className={clsx("text-xs px-2.5 py-1 rounded-full", CATEGORY_CLS[a.category ?? "general"] ?? "")}>
                         {CATEGORY_TH[a.category ?? "general"] ?? a.category}
                       </span>
                     </div>
                     {a.body_md && (
                       <p className="text-xs text-aviva-secondary mt-1 line-clamp-2">{a.body_md}</p>
                     )}
-                    <p className="text-[10px] text-aviva-secondary/70 mt-1">{fmt(a.published_at)}</p>
+                    <p className="text-xs text-aviva-secondary/70 mt-1">{fmt(a.published_at)}</p>
                   </div>
-                  <ArrowRight size={14} className="text-aviva-secondary/50" />
+                  <ArrowRight size={16} className="text-aviva-secondary/50 shrink-0" />
                 </div>
               </GlassCard>
             </Link>

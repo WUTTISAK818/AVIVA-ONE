@@ -88,9 +88,9 @@ export default function ResolutionVotePage({ params }: { params: Promise<{ id: s
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/governance" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/governance" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold shrink-0">
+            <ArrowLeft size={20} />
           </Link>
           <div className="min-w-0">
             <h1 className="text-base font-bold text-aviva-text truncate">{resolution.title}</h1>
@@ -112,18 +112,18 @@ export default function ResolutionVotePage({ params }: { params: Promise<{ id: s
           <BarRow label="เห็นชอบ" pct={pct(resolution.result_for)} count={resolution.result_for} color="bg-green-500" />
           <BarRow label="คัดค้าน" pct={pct(resolution.result_against)} count={resolution.result_against} color="bg-red-500" />
           <BarRow label="งดออกเสียง" pct={pct(resolution.result_abstain)} count={resolution.result_abstain} color="bg-aviva-secondary" />
-          <p className="text-[11px] text-aviva-secondary text-right pt-1">รวม {total} เสียง</p>
+          <p className="text-xs text-aviva-secondary text-right pt-1">รวม {total} เสียง</p>
         </GlassCard>
 
         {error && (
-          <div className="text-xs px-3 py-2 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300 flex items-center gap-2">
-            <AlertCircle size={12} /> {error}
+          <div className="text-sm px-4 py-3 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300 flex items-center gap-2">
+            <AlertCircle size={16} /> {error}
           </div>
         )}
 
         {canVote ? (
           <div className="space-y-2">
-            <p className="text-xs text-aviva-secondary text-center">{myVote ? "คุณโหวตแล้ว — เปลี่ยนได้ก่อนปิด" : "เลือกคำตอบของคุณ"}</p>
+            <p className="text-sm text-aviva-secondary text-center">{myVote ? "คุณโหวตแล้ว — เปลี่ยนได้ก่อนปิด" : "เลือกคำตอบของคุณ"}</p>
             <ChoiceButton label="เห็นชอบ" icon={CheckCircle} active={myVote === "for"}
               onClick={() => castVote("for")} disabled={busy} accent="green" />
             <ChoiceButton label="คัดค้าน" icon={XCircle} active={myVote === "against"}
@@ -164,9 +164,9 @@ function ChoiceButton({ label, icon: Icon, active, onClick, disabled, accent }:
   };
   return (
     <button onClick={onClick} disabled={disabled}
-      className={clsx("w-full flex items-center justify-between border rounded-2xl px-4 py-3 transition-all disabled:opacity-50", colors[accent])}>
+      className={clsx("w-full flex items-center justify-between border rounded-2xl px-4 py-3.5 transition-all disabled:opacity-50", colors[accent])}>
       <span className="flex items-center gap-2 font-medium">
-        <Icon size={16} /> {label}
+        <Icon size={18} /> {label}
       </span>
       {active && <span className="text-xs">เลือกแล้ว</span>}
     </button>

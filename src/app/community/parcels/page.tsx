@@ -77,12 +77,12 @@ export default function ParcelsPage() {
                       <p className="text-xs text-green-300 mt-0.5">รับแล้ว {fmtDateTime(p.picked_up_at)}</p>
                     )}
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1",
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full border flex items-center gap-1 shrink-0",
                     picked
                       ? "bg-green-500/15 text-green-300 border-green-500/30"
                       : "bg-aviva-gold/15 text-aviva-gold border-aviva-gold/30"
                   )}>
-                    {picked ? <CheckCircle size={10} /> : <Clock size={10} />}
+                    {picked ? <CheckCircle size={12} /> : <Clock size={12} />}
                     {picked ? "รับแล้ว" : "รอรับ"}
                   </span>
                 </div>

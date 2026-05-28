@@ -43,9 +43,9 @@ export default function NewServiceRequestPage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/service-requests" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/service-requests" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <h1 className="text-xl font-bold text-aviva-text">แจ้งซ่อมใหม่</h1>
         </div>
@@ -53,7 +53,7 @@ export default function NewServiceRequestPage() {
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
         {error && (
-          <div className="text-xs px-3 py-2 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300">{error}</div>
+          <div className="text-sm px-4 py-3 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300">{error}</div>
         )}
         <GlassCard className="p-5 space-y-4">
           <Field label="หมวด">
@@ -94,7 +94,7 @@ export default function NewServiceRequestPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

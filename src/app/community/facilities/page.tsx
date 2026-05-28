@@ -105,9 +105,9 @@ export default function CommunityFacilitiesPage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/announcements" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/announcements" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">จองส่วนกลาง</h1>
@@ -133,7 +133,7 @@ export default function CommunityFacilitiesPage() {
                       <div>
                         <p className="text-sm font-semibold text-aviva-text">{f.name_th}</p>
                         <p className="text-xs text-aviva-secondary mt-0.5">{f.description ?? "—"}</p>
-                        <p className="text-[11px] text-aviva-secondary/70 mt-1">
+                        <p className="text-xs text-aviva-secondary/70 mt-1">
                           เปิด {f.hours_open.slice(0, 5)}–{f.hours_close.slice(0, 5)} · ช่วงละ {f.slot_minutes} นาที
                         </p>
                       </div>
@@ -148,24 +148,24 @@ export default function CommunityFacilitiesPage() {
           </>
         ) : (
           <>
-            <button onClick={() => setPicked(null)} className="text-xs text-aviva-gold flex items-center gap-1">
-              <ArrowLeft size={12} /> เลือกสถานที่อื่น
+            <button onClick={() => setPicked(null)} className="text-sm text-aviva-gold flex items-center gap-1.5 py-2 -ml-1">
+              <ArrowLeft size={14} /> เลือกสถานที่อื่น
             </button>
             <div>
               <p className="text-sm font-semibold text-aviva-text">{picked.name_th}</p>
               <p className="text-xs text-aviva-secondary">ช่วงละ {picked.slot_minutes} นาที</p>
             </div>
             <div className="flex items-center gap-2">
-              <CalendarDays size={14} className="text-aviva-gold" />
+              <CalendarDays size={16} className="text-aviva-gold" />
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
                 min={todayISO()}
-                className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none" />
+                className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none" />
             </div>
             {feedback && (
-              <div className={clsx("text-xs px-3 py-2 rounded-xl flex items-center gap-1.5",
+              <div className={clsx("text-sm px-4 py-3 rounded-xl flex items-center gap-2",
                 feedback.ok ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"
               )}>
-                {feedback.ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />} {feedback.msg}
+                {feedback.ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />} {feedback.msg}
               </div>
             )}
             <div className="grid grid-cols-3 gap-2">
@@ -174,7 +174,7 @@ export default function CommunityFacilitiesPage() {
                 const past = s.start.getTime() < Date.now();
                 return (
                   <button key={i} onClick={() => !booked && !past && book(s)} disabled={booked || past || busy}
-                    className={clsx("py-3 rounded-xl text-xs font-medium border transition-all",
+                    className={clsx("py-3.5 rounded-xl text-sm font-medium border transition-all",
                       booked
                         ? "bg-red-500/10 border-red-500/20 text-red-300/70 cursor-not-allowed"
                         : past
@@ -182,7 +182,7 @@ export default function CommunityFacilitiesPage() {
                           : "bg-aviva-card border-aviva-gold/20 text-aviva-text hover:bg-aviva-gold/10 hover:border-aviva-gold/50"
                     )}>
                     {s.start.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                    {booked && <span className="block text-[9px] mt-0.5">มีคนจอง</span>}
+                    {booked && <span className="block text-[10px] mt-0.5">มีคนจอง</span>}
                   </button>
                 );
               })}

@@ -120,9 +120,9 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/bills" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/bills" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">{bill.bill_type ?? "ค่าส่วนกลาง"} {bill.period_label}</h1>
@@ -138,14 +138,14 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
             {fmtBaht(bill.amount)}
             {copied ? <Check size={20} className="text-green-400" /> : <Copy size={18} className="text-aviva-secondary/60" />}
           </button>
-          <p className="text-[10px] text-aviva-secondary mt-1">แตะเพื่อคัดลอกยอด</p>
+          <p className="text-xs text-aviva-secondary mt-1">แตะเพื่อคัดลอกยอด</p>
 
           {!isPaid ? (
             <div className="mt-5">
               {payload ? (
                 <div className="flex flex-col items-center gap-3">
-                  <QRCodeDisplay value={payload} size={220} caption="สแกนด้วย Mobile Banking / LINE Pay" />
-                  <p className="text-[11px] text-aviva-secondary">PromptPay QR · ใช้กับแอปธนาคารไทยทุกราย</p>
+                  <QRCodeDisplay value={payload} size={260} caption="สแกนด้วย Mobile Banking / LINE Pay" />
+                  <p className="text-xs text-aviva-secondary">PromptPay QR · ใช้กับแอปธนาคารไทยทุกราย</p>
                 </div>
               ) : (
                 <button onClick={generateQr} disabled={generating}
@@ -164,56 +164,56 @@ export default function BillDetailPage({ params }: { params: Promise<{ id: strin
         {!isPaid && (
           <>
             <button onClick={() => setUploadOpen(true)}
-              className="w-full bg-aviva-card border border-aviva-gold/30 text-aviva-text font-medium py-3 rounded-2xl text-sm flex items-center justify-center gap-2">
-              <Upload size={14} /> อัปโหลดสลิปเพื่อยืนยันการโอน
+              className="w-full bg-aviva-card border border-aviva-gold/30 text-aviva-text font-medium py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
+              <Upload size={16} /> อัปโหลดสลิปเพื่อยืนยันการโอน
             </button>
             {bill.slip_url && (
               <GlassCard className="p-3">
                 <div className="flex items-center gap-2 text-xs text-aviva-secondary mb-2">
-                  <ImageIcon size={12} /> สลิปที่อัปโหลด · รอนิติฯ ตรวจสอบ
+                  <ImageIcon size={14} /> สลิปที่อัปโหลด · รอนิติฯ ตรวจสอบ
                 </div>
                 <a href={bill.slip_url} target="_blank" rel="noreferrer">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={bill.slip_url} alt="slip" className="max-h-48 w-auto rounded-xl border border-aviva-gold/20" />
                 </a>
-                {bill.payment_ref && <p className="text-[11px] text-aviva-secondary mt-2">เลขอ้างอิง: {bill.payment_ref}</p>}
+                {bill.payment_ref && <p className="text-xs text-aviva-secondary mt-2">เลขอ้างอิง: {bill.payment_ref}</p>}
               </GlassCard>
             )}
           </>
         )}
 
         {error && (
-          <div className="text-xs px-3 py-2 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300 flex items-center gap-2">
-            <AlertCircle size={12} /> {error}
+          <div className="text-sm px-4 py-3 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300 flex items-center gap-2">
+            <AlertCircle size={16} /> {error}
           </div>
         )}
       </div>
 
       {uploadOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 md:mb-6">
             <h2 className="text-lg font-bold text-aviva-text">อัปโหลดสลิป</h2>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">เลขอ้างอิงการโอน (ไม่บังคับ)</label>
+              <label className="text-sm text-aviva-secondary mb-1.5 block">เลขอ้างอิงการโอน (ไม่บังคับ)</label>
               <input type="text" value={paymentRef} onChange={e => setPaymentRef(e.target.value)}
                 placeholder="REF-12345"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">รูปสลิป *</label>
+              <label className="text-sm text-aviva-secondary mb-1.5 block">รูปสลิป *</label>
               <input type="file" accept="image/*" disabled={uploading}
                 onChange={e => {
                   const f = e.target.files?.[0];
                   if (f) handleFileUpload(f);
                 }}
                 className={clsx(
-                  "w-full text-xs text-aviva-text file:mr-3 file:px-3 file:py-2 file:rounded-lg",
-                  "file:border-0 file:bg-aviva-gold file:text-aviva-bg file:font-bold file:text-xs"
+                  "w-full text-sm text-aviva-text file:mr-3 file:px-4 file:py-2.5 file:rounded-lg",
+                  "file:border-0 file:bg-aviva-gold file:text-aviva-bg file:font-bold file:text-sm"
                 )} />
-              {uploading && <p className="text-xs text-aviva-secondary mt-2">กำลังอัปโหลด…</p>}
+              {uploading && <p className="text-sm text-aviva-secondary mt-2">กำลังอัปโหลด…</p>}
             </div>
             <button onClick={() => setUploadOpen(false)}
-              className="w-full text-xs text-aviva-secondary py-2">ยกเลิก</button>
+              className="w-full text-sm text-aviva-secondary bg-aviva-bg/50 border border-aviva-gold/10 rounded-2xl py-3">ยกเลิก</button>
           </div>
         </div>
       )}

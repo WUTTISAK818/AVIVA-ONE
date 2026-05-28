@@ -62,9 +62,9 @@ export default function NewVisitorPage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/visitors" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/visitors" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">ลงทะเบียนผู้มาเยือน</h1>
@@ -75,7 +75,7 @@ export default function NewVisitorPage() {
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
         {error && (
-          <div className="text-xs px-3 py-2 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300">{error}</div>
+          <div className="text-sm px-4 py-3 rounded-xl border bg-red-500/10 border-red-500/30 text-red-300">{error}</div>
         )}
 
         <GlassCard className="p-5 space-y-4">
@@ -96,7 +96,7 @@ export default function NewVisitorPage() {
               onChange={e => setForm({ ...form, license_plate: e.target.value })}
               placeholder="กข 1234"
               className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
-            <p className="text-[10px] text-aviva-secondary/70 mt-1">ใส่ทะเบียนเพื่อให้กล้อง ALPR เปิดประตูให้อัตโนมัติ</p>
+            <p className="text-xs text-aviva-secondary/70 mt-1">ใส่ทะเบียนเพื่อให้กล้อง ALPR เปิดประตูให้อัตโนมัติ</p>
           </Field>
           <Field label="วัตถุประสงค์">
             <input type="text" value={form.purpose}
@@ -130,7 +130,7 @@ export default function NewVisitorPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

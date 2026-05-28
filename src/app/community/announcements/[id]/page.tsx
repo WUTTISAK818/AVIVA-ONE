@@ -58,9 +58,9 @@ export default function AnnouncementDetailPage({ params }: { params: Promise<{ i
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/announcements" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/announcements" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold shrink-0">
+            <ArrowLeft size={20} />
           </Link>
           <div className="min-w-0">
             <h1 className="text-base font-bold text-aviva-text truncate">{item.title}</h1>
@@ -73,8 +73,8 @@ export default function AnnouncementDetailPage({ params }: { params: Promise<{ i
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
         <div className="flex items-center gap-2">
-          {item.pinned && <Pin size={12} className="text-aviva-gold" />}
-          <span className={clsx("text-[10px] px-2 py-0.5 rounded-full", CATEGORY_CLS[item.category ?? "general"] ?? "")}>
+          {item.pinned && <Pin size={14} className="text-aviva-gold" />}
+          <span className={clsx("text-xs px-2.5 py-1 rounded-full", CATEGORY_CLS[item.category ?? "general"] ?? "")}>
             {CATEGORY_TH[item.category ?? "general"] ?? item.category}
           </span>
         </div>

@@ -73,8 +73,8 @@ export default function VisitorsListPage() {
             </p>
           </div>
           <Link href="/community/visitors/new"
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-            <Plus size={14} /> ลงทะเบียนใหม่
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
+            <Plus size={16} /> ลงทะเบียนใหม่
           </Link>
         </div>
       </div>
@@ -119,11 +119,11 @@ export default function VisitorsListPage() {
                         นัด {fmtDateTime(v?.expected_at ?? null)} · หมดอายุ {fmtDateTime(v?.expires_at ?? null)}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1", meta.cls)}>
-                        <Icon size={10} /> {meta.label}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <span className={clsx("text-xs px-2.5 py-1 rounded-full border flex items-center gap-1", meta.cls)}>
+                        <Icon size={12} /> {meta.label}
                       </span>
-                      <QrCode size={20} className="text-aviva-gold/70" />
+                      <QrCode size={22} className="text-aviva-gold/70" />
                     </div>
                   </div>
                 </GlassCard>

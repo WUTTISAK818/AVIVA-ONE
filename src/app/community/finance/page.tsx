@@ -38,9 +38,9 @@ export default function CommunityFinancePage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/announcements" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/announcements" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">ความโปร่งใสทางการเงิน</h1>
@@ -63,9 +63,9 @@ export default function CommunityFinancePage() {
             {revenueList.length === 0 ? (
               <p className="p-4 text-xs text-aviva-secondary text-center">ยังไม่มีรายรับ</p>
             ) : revenueList.map(a => (
-              <div key={a.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <p className="text-aviva-text">{a.name_th}</p>
-                <p className="font-bold font-mono text-green-300">{fmtBaht(-a.balance)}</p>
+              <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <p className="text-aviva-text flex-1 min-w-0 truncate">{a.name_th}</p>
+                <p className="font-bold font-mono text-green-300 shrink-0">{fmtBaht(-a.balance)}</p>
               </div>
             ))}
           </GlassCard>
@@ -77,15 +77,15 @@ export default function CommunityFinancePage() {
             {expenseList.length === 0 ? (
               <p className="p-4 text-xs text-aviva-secondary text-center">ยังไม่มีค่าใช้จ่าย</p>
             ) : expenseList.map(a => (
-              <div key={a.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <p className="text-aviva-text">{a.name_th}</p>
-                <p className="font-bold font-mono text-red-300">{fmtBaht(a.balance)}</p>
+              <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <p className="text-aviva-text flex-1 min-w-0 truncate">{a.name_th}</p>
+                <p className="font-bold font-mono text-red-300 shrink-0">{fmtBaht(a.balance)}</p>
               </div>
             ))}
           </GlassCard>
         </div>
 
-        <p className="text-[11px] text-aviva-secondary/70 text-center px-3">
+        <p className="text-xs text-aviva-secondary/70 text-center px-3">
           ข้อมูลปรับปรุงทันทีเมื่อนิติฯ ลงบัญชี · เปิดเผยตามกฎหมายอาคารชุด/หมู่บ้านจัดสรร
         </p>
       </div>

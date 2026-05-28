@@ -67,13 +67,13 @@ export default function BillsListPage() {
                   <div>
                     <p className="text-sm font-semibold text-aviva-text">{b.bill_type ?? "ค่าส่วนกลาง"} {b.period_label}</p>
                     <p className="text-lg font-bold text-aviva-gold mt-1">{fmtBaht(b.amount)}</p>
-                    <p className="text-[11px] text-aviva-secondary/80 mt-1">
+                    <p className="text-xs text-aviva-secondary/80 mt-1">
                       กำหนดชำระ {fmtDate(b.due_date)}
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-col items-end gap-2 shrink-0">
                     <StatusPill status={b.status} />
-                    <ArrowRight size={14} className="text-aviva-secondary/60" />
+                    <ArrowRight size={16} className="text-aviva-secondary/60" />
                   </div>
                 </div>
               </GlassCard>
@@ -95,8 +95,8 @@ function StatusPill({ status }: { status: string }) {
   const m = map[status] ?? map.unpaid;
   const Icon = m.icon;
   return (
-    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1", m.c)}>
-      <Icon size={10} /> {m.l}
+    <span className={clsx("text-xs px-2.5 py-1 rounded-full border flex items-center gap-1", m.c)}>
+      <Icon size={12} /> {m.l}
     </span>
   );
 }

@@ -53,8 +53,8 @@ export default function ServiceRequestsPage() {
             </p>
           </div>
           <Link href="/community/service-requests/new"
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-            <Plus size={14} /> แจ้งใหม่
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
+            <Plus size={16} /> แจ้งใหม่
           </Link>
         </div>
       </div>
@@ -79,12 +79,12 @@ export default function ServiceRequestsPage() {
                     {r.description && (
                       <p className="text-xs text-aviva-secondary mt-0.5 line-clamp-2">{r.description}</p>
                     )}
-                    <div className="flex gap-x-3 mt-1 text-[11px] text-aviva-secondary/70">
+                    <div className="flex gap-x-3 mt-1 text-xs text-aviva-secondary/70">
                       {r.category && <span>{r.category}</span>}
                       <span>{fmt(r.created_at)}</span>
                     </div>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full", s.c)}>{s.l}</span>
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full shrink-0", s.c)}>{s.l}</span>
                 </div>
               </GlassCard>
             );

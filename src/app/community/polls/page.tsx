@@ -31,9 +31,9 @@ export default function CommunityPollsPage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Link href="/community/announcements" className="text-aviva-secondary hover:text-aviva-gold">
-            <ArrowLeft size={18} />
+        <div className="max-w-lg mx-auto flex items-center gap-1 -ml-2">
+          <Link href="/community/announcements" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+            <ArrowLeft size={20} />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-aviva-text">โพล / สำรวจ</h1>
@@ -57,7 +57,7 @@ export default function CommunityPollsPage() {
               <GlassCard className="p-4 active:scale-[0.98]">
                 <p className="text-sm font-semibold text-aviva-text">{p.title}</p>
                 {p.description && <p className="text-xs text-aviva-secondary mt-1 line-clamp-2">{p.description}</p>}
-                <p className="text-[11px] text-aviva-secondary/70 mt-1">
+                <p className="text-xs text-aviva-secondary/70 mt-1">
                   เปิด {fmt(p.opens_at)}{p.closes_at ? ` · ปิด ${fmt(p.closes_at)}` : ""}
                 </p>
               </GlassCard>

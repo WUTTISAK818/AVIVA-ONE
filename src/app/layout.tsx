@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Thai } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import AuthProvider from "@/components/AuthProvider";
 import { UserProvider } from "@/lib/user-context";
 import { ThemeProvider } from "@/lib/theme-context";
 
-const ibmPlexSansThai = IBM_Plex_Sans_Thai({
-  weight: ["400", "500", "600", "700"],
-  subsets: ["thai", "latin"],
-  variable: "--font-ibm-plex-sans-thai",
-  display: "swap",
-});
+const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "AVIVA ONE",
@@ -24,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${ibmPlexSansThai.variable} h-full antialiased`}>
+    <html lang="th" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full bg-aviva-bg text-aviva-text pb-20">
         <ThemeProvider>
           <UserProvider>

@@ -72,12 +72,9 @@ Bump the version number in BOTH files:
 
 Version format: `v{MAJOR}.{MINOR}.{PATCH}` — increment PATCH for fixes, MINOR for new features.
 
-## Step 2 — Push ไปทั้งสอง branch
-Push ไฟล์ที่แก้ไขไปยัง **ทั้งสอง branch** เพื่อให้ Vercel deploy ได้แน่นอน:
-- `main` — production branch
-- `claude/move-work-location-2CfBA` — Vercel watched branch
-
-ใช้ `mcp__github__push_files` สองครั้ง (branch ละครั้ง)
+## Step 2 — Push เข้า main (production)
+Push การแก้ไขเข้า `main` — Vercel (project `aviva-private`) deploy production จาก `main` โดยตรง
+(ยืนยันโดยผู้ใช้ 2026-05-29: ไม่ต้อง sync branch `claude/move-work-location-2CfBA` อีกต่อไป — เป็น branch เก่า/stale)
 
 ## Step 3 — บันทึก Deploy Report ลง Google Drive
 Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
@@ -100,13 +97,12 @@ Report to the user:
 - Date/time
 - **Web app link (URL)**
 - Google Drive file link/ID
-- Confirm pushed to both `main` and `claude/move-work-location-2CfBA`
 
 ## WEB APP URL (canonical — ใช้ในทุกรายงาน)
-- Netlify URL (ผู้ใช้ยืนยัน 2026-05-29): `https://winvote.netlify.app`
-- CI/Deploy ของ PR ทำงานบน **Vercel** (project: `aviva-private`) — production branch = `main`, watched branch = `claude/move-work-location-2CfBA`
-- ⚠️ ยังต้องยืนยันว่า production จริงที่ผู้ใช้เปิดใช้คือ Netlify หรือ Vercel (มีร่องรอยทั้งสอง) — ใส่ URL ที่ผู้ใช้ยืนยันในรายงาน
-- หมายเหตุ: environment นี้บล็อก outbound (curl คืน 403 เสมอ) — ตรวจ URL เองไม่ได้ อย่าเดาเติม subdomain ใหม่เอง
+- **Production: Vercel** — project `aviva-private`, deploy จาก branch `main` (ยืนยันโดยผู้ใช้ 2026-05-29)
+- Production URL: `<<PENDING — ขอผู้ใช้ระบุ Vercel production domain จริง เช่น xxxx.vercel.app หรือ custom domain>>`
+- Netlify (`winvote.netlify.app`) = ของเก่า/รอง ไม่ใช่ production — อย่าใช้ในรายงาน
+- หมายเหตุ: environment นี้บล็อก outbound (curl คืน 403 เสมอ) — ตรวจ URL เองไม่ได้ อย่าเดาเติม domain เอง ให้ยึดค่าที่ผู้ใช้ยืนยัน
 
 This rule is PERMANENT and applies to every deploy session without exception.
 หมายเหตุ: ข้อมูลที่ต้องมีในรายงานทุกครั้ง = เวอร์ชัน + วันที่/เวลา + ลิงก์เว็บแอป (+ รายการแก้ไข/ไฟล์/commit)

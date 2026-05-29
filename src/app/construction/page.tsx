@@ -547,7 +547,6 @@ export default function ConstructionPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-bold text-aviva-text">{instHouse.house_number}</p>
-                    <p className="text-xs text-aviva-secondary">{houseLabel(instHouse)}</p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => openDefectModal(instHouse)}

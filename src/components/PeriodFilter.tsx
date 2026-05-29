@@ -29,7 +29,7 @@ function getRange(period: Period): { start: string; end: string } {
 
 const OPTIONS: { key: Period; label: string }[] = [
   { key: "today", label: "วันนี้" },
-  { key: "week", label: "7 วัน" },
+  { key: "week", label: "สัปดาห์นี้" },
   { key: "month", label: "เดือนนี้" },
   { key: "custom", label: "กำหนดเอง" },
 ];

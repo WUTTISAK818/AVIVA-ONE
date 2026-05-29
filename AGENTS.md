@@ -82,13 +82,7 @@ Push ไฟล์ที่แก้ไขไปยัง **ทั้งสอง
 ## Step 3 — บันทึก Deploy Report ลง Google Drive
 Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
 - Filename: `AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt`
-- Content must include ALL of:
-  - version number
-  - **date AND time (HH:MM น. เวลาไทย UTC+7)** — ดึงจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7
-  - **web app link (URL ของเว็บแอปที่ deploy)** — see WEB APP URL below
-  - list of changes
-  - files changed
-  - commit hashes
+- Content must include: version number, **date AND time (HH:MM น. เวลาไทย UTC+7)**, list of changes, files changed, commit hashes
 
 **⚠️ บังคับ:** ต้องบันทึกเวลาจริง (HH:MM น.) ทุกครั้ง ไม่ใช่แค่วันที่
 ดึงเวลาจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7 ก่อนบันทึก
@@ -97,17 +91,8 @@ Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create
 ## Step 4 — แจ้งผู้ใช้
 Report to the user:
 - Version deployed (e.g., v2.9.2)
-- Date/time
-- **Web app link (URL)**
 - Google Drive file link/ID
 - Confirm pushed to both `main` and `claude/move-work-location-2CfBA`
 
-## WEB APP URL (canonical — ใช้ในทุกรายงาน)
-- Netlify URL (ผู้ใช้ยืนยัน 2026-05-29): `https://winvote.netlify.app`
-- CI/Deploy ของ PR ทำงานบน **Vercel** (project: `aviva-private`) — production branch = `main`, watched branch = `claude/move-work-location-2CfBA`
-- ⚠️ ยังต้องยืนยันว่า production จริงที่ผู้ใช้เปิดใช้คือ Netlify หรือ Vercel (มีร่องรอยทั้งสอง) — ใส่ URL ที่ผู้ใช้ยืนยันในรายงาน
-- หมายเหตุ: environment นี้บล็อก outbound (curl คืน 403 เสมอ) — ตรวจ URL เองไม่ได้ อย่าเดาเติม subdomain ใหม่เอง
-
 This rule is PERMANENT and applies to every deploy session without exception.
-หมายเหตุ: ข้อมูลที่ต้องมีในรายงานทุกครั้ง = เวอร์ชัน + วันที่/เวลา + ลิงก์เว็บแอป (+ รายการแก้ไข/ไฟล์/commit)
 <!-- END:deploy-report-rule -->

@@ -18,6 +18,7 @@ import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
+import Toast, { type ToastType } from "@/components/Toast";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents";
 
@@ -118,9 +119,11 @@ function FinanceContent() {
     ]));
     const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const finUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.href = finUrl;
     a.download = `finance_${dateStart}_${dateEnd}.csv`;
     a.click();
+    URL.revokeObjectURL(finUrl);
   };
 
   const handleSave = async () => {
@@ -515,9 +518,11 @@ function AccountingContent() {
     ]));
     const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const rcptUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.href = rcptUrl;
     a.download = `receipts_${acctStart}_${acctEnd}.csv`;
     a.click();
+    URL.revokeObjectURL(rcptUrl);
   };
 
   const handleSave = async () => {
@@ -2170,8 +2175,9 @@ function MaterialsContent() {
   const [poForm, setPoForm] = useState({ supplier_name: "", items: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
-  const fetchData = () => {
+  const fetchMaterialsData = () => {
     Promise.all([
       supabase.from("materials").select("*").eq("project_id", PROJECT_ID).order("name"),
       supabase.from("purchase_orders").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
@@ -2181,7 +2187,7 @@ function MaterialsContent() {
       setLoading(false);
     });
   };
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchMaterialsData(); }, []);
 
   const stockStatus = (m: Material) => {
     const cur = m.current_stock ?? 0;
@@ -2205,7 +2211,7 @@ function MaterialsContent() {
     let parsedItems = [];
     try { parsedItems = JSON.parse(poForm.items); } catch { parsedItems = [{ name: poForm.items, qty: 1, unit: "ชิ้น", unit_price: 0 }]; }
     const total = parsedItems.reduce((s: number, i: { qty: number; unit_price: number }) => s + (i.qty * i.unit_price), 0);
-    const { data: poData } = await supabase.from("purchase_orders").insert({
+    const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
       project_id: PROJECT_ID,
       supplier_name: poForm.supplier_name,
       items: parsedItems,
@@ -2214,6 +2220,7 @@ function MaterialsContent() {
       requested_by: user?.full_name ?? user?.email ?? "Unknown",
       notes: poForm.notes,
     }).select().single();
+    if (poErr) { setSaving(false); setToast({ msg: "สร้าง PO ไม่สำเร็จ: " + poErr.message, type: "error" }); return; }
     if (poData) {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
@@ -2233,7 +2240,7 @@ function MaterialsContent() {
     setSaving(false);
     setShowPOModal(false);
     setPoForm({ supplier_name: "", items: "", notes: "" });
-    fetchData();
+    fetchMaterialsData();
   };
 
   const handlePOApprove = async (id: string) => {
@@ -2247,7 +2254,7 @@ function MaterialsContent() {
         from_dept: "ฝ่ายก่อสร้าง",
       });
     }
-    fetchData();
+    fetchMaterialsData();
   };
 
   const lowStockCount = materials.filter(m => (m.current_stock ?? 0) < (m.min_stock ?? 0)).length;
@@ -2394,6 +2401,7 @@ function MaterialsContent() {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -2440,7 +2448,7 @@ function PayrollContent() {
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
       <title>สลิปเงินเดือน — ${pr.full_name}</title>
       <style>
-        body{font-family:'Sarabun',sans-serif;margin:0;padding:40px;color:#222;font-size:14px;max-width:600px;margin:0 auto}
+        body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:40px;color:#222;font-size:14px;max-width:600px;margin:0 auto}
         .header{text-align:center;margin-bottom:20px;border-bottom:2px solid #D4AF37;padding-bottom:16px}
         .logo{font-size:24px;font-weight:bold;letter-spacing:4px;color:#1E4A35}
         .sub{font-size:13px;color:#666;margin-top:4px}

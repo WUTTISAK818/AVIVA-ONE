@@ -11,7 +11,7 @@ export interface PresenceProof {
 }
 
 interface Props {
-  /** เก็บ selfie ไว้ใต้โฟลเดอร์นี้ใน bucket canvass-proof (เช่น national_id) */
+  /** เก็บ selfie ไว้ใต้โฟลเดอร์นี้ใน bucket winvote-proof (เช่น national_id) */
   refKey: string;
   onCaptured: (proof: PresenceProof) => void;
   onError?: (message: string) => void;
@@ -41,7 +41,7 @@ export default function PresenceCapture({ refKey, onCaptured, onError }: Props) 
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${refKey || "unknown"}/${Date.now()}.${ext}`;
       const { error } = await supabase.storage
-        .from("canvass-proof")
+        .from("winvote-proof")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (error) {
         onError?.("อัปโหลดรูปยืนยันไม่สำเร็จ");

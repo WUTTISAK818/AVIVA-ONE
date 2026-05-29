@@ -19,7 +19,7 @@ export default function BottomNav() {
     { href: "/dashboard",    label: "หน้าหลัก",  icon: LayoutGrid, show: true },
     { href: "/crm",          label: "ขาย",        icon: Users,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
     { href: "/construction", label: "ก่อสร้าง",   icon: HardHat,    show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
-    { href: "/canvass",      label: "เครือข่าย",  icon: Network,    show: !user || user.isAdmin || user.isManager },
+    { href: "/winvote",      label: "WinVote",    icon: Network,    show: !user || user.isAdmin || user.isManager },
     { href: "/office",       label: "ออฟฟิศ",     icon: Briefcase,  show: !user || user.isAdmin || user.isManager || isOfficeUser },
     { href: "/settings",     label: "ตั้งค่า",    icon: Settings,   show: true },
   ].filter(t => t.show);

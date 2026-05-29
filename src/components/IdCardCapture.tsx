@@ -33,7 +33,7 @@ export default function IdCardCapture({ onExtracted, onError }: Props) {
     try {
       const dataUrl = await fileToBase64(file);
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/canvass/extract-id", {
+      const res = await fetch("/api/winvote/extract-id", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

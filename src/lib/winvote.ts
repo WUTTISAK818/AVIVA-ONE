@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
 // ===== Types =====
-export interface CanvassDistrictKpi {
+export interface WinVoteDistrictKpi {
   district_id: string;
   municipality_id: string;
   code: number;
@@ -14,7 +14,7 @@ export interface CanvassDistrictKpi {
   pct_of_target: number | null;
 }
 
-export interface CanvassMunicipalitySummary {
+export interface WinVoteMunicipalitySummary {
   municipality_id: string;
   municipality_name: string;
   district_count: number;
@@ -26,7 +26,7 @@ export interface CanvassMunicipalitySummary {
   total_target: number;
 }
 
-export interface CanvassCommunityRollup {
+export interface WinVoteCommunityRollup {
   community_id: string;
   district_id: string;
   community_name: string;
@@ -35,7 +35,7 @@ export interface CanvassCommunityRollup {
   resident_count: number;
 }
 
-export interface CanvassMemberLoad {
+export interface WinVoteMemberLoad {
   member_id: string;
   community_id: string;
   full_name: string;
@@ -45,13 +45,13 @@ export interface CanvassMemberLoad {
   quota_status: "under" | "ok" | "over";
 }
 
-export interface CanvassCommunity {
+export interface WinVoteCommunity {
   id: string;
   district_id: string;
   name: string;
 }
 
-export interface CanvassMember {
+export interface WinVoteMember {
   id: string;
   community_id: string;
   full_name: string;
@@ -60,7 +60,7 @@ export interface CanvassMember {
   resident_quota: number;
 }
 
-export interface CanvassPollingUnit {
+export interface WinVotePollingUnit {
   id: string;
   district_id: string;
   unit_no: string;
@@ -68,7 +68,7 @@ export interface CanvassPollingUnit {
   location: string | null;
 }
 
-export interface CanvassResident {
+export interface WinVoteResident {
   id: string;
   member_id: string;
   polling_unit_id: string | null;
@@ -88,67 +88,67 @@ export interface CanvassResident {
 
 // ===== Queries =====
 export async function getMunicipalitySummary() {
-  const { data } = await supabase.from("canvass_municipality_summary").select("*").single();
-  return data as CanvassMunicipalitySummary | null;
+  const { data } = await supabase.from("winvote_municipality_summary").select("*").single();
+  return data as WinVoteMunicipalitySummary | null;
 }
 
 export async function getDistrictKpi() {
-  const { data } = await supabase.from("canvass_district_kpi").select("*").order("code");
-  return (data ?? []) as CanvassDistrictKpi[];
+  const { data } = await supabase.from("winvote_district_kpi").select("*").order("code");
+  return (data ?? []) as WinVoteDistrictKpi[];
 }
 
 export async function getCommunityRollup(districtId: string) {
   const { data } = await supabase
-    .from("canvass_community_rollup")
+    .from("winvote_community_rollup")
     .select("*")
     .eq("district_id", districtId)
     .order("community_name");
-  return (data ?? []) as CanvassCommunityRollup[];
+  return (data ?? []) as WinVoteCommunityRollup[];
 }
 
 export async function getMemberLoad(communityId: string) {
   const { data } = await supabase
-    .from("canvass_member_load")
+    .from("winvote_member_load")
     .select("*")
     .eq("community_id", communityId);
-  return (data ?? []) as CanvassMemberLoad[];
+  return (data ?? []) as WinVoteMemberLoad[];
 }
 
 export async function getCommunities(districtId: string) {
   const { data } = await supabase
-    .from("canvass_communities")
+    .from("winvote_communities")
     .select("*")
     .eq("district_id", districtId)
     .order("name");
-  return (data ?? []) as CanvassCommunity[];
+  return (data ?? []) as WinVoteCommunity[];
 }
 
 export async function getMembers(communityId: string) {
   const { data } = await supabase
-    .from("canvass_members")
+    .from("winvote_members")
     .select("*")
     .eq("community_id", communityId)
     .order("member_role")
     .order("full_name");
-  return (data ?? []) as CanvassMember[];
+  return (data ?? []) as WinVoteMember[];
 }
 
 export async function getPollingUnits(districtId: string) {
   const { data } = await supabase
-    .from("canvass_polling_units")
+    .from("winvote_polling_units")
     .select("*")
     .eq("district_id", districtId)
     .order("unit_no");
-  return (data ?? []) as CanvassPollingUnit[];
+  return (data ?? []) as WinVotePollingUnit[];
 }
 
 export async function getResidents(memberId: string) {
   const { data } = await supabase
-    .from("canvass_residents")
+    .from("winvote_residents")
     .select("*")
     .eq("member_id", memberId)
     .order("full_name");
-  return (data ?? []) as CanvassResident[];
+  return (data ?? []) as WinVoteResident[];
 }
 
 // ===== Validation =====
@@ -178,21 +178,21 @@ export async function checkDuplicate(opts: {
   const result: DuplicateWarning = { national_id: false, phone: false, full_name: false };
   if (opts.national_id) {
     const { count } = await supabase
-      .from("canvass_residents")
+      .from("winvote_residents")
       .select("id", { count: "exact", head: true })
       .eq("national_id", opts.national_id);
     result.national_id = (count ?? 0) > 0;
   }
   if (opts.phone) {
     const { count } = await supabase
-      .from("canvass_residents")
+      .from("winvote_residents")
       .select("id", { count: "exact", head: true })
       .eq("phone", opts.phone);
     result.phone = (count ?? 0) > 0;
   }
   if (opts.full_name) {
     const { count } = await supabase
-      .from("canvass_residents")
+      .from("winvote_residents")
       .select("id", { count: "exact", head: true })
       .eq("full_name", opts.full_name);
     result.full_name = (count ?? 0) > 0;

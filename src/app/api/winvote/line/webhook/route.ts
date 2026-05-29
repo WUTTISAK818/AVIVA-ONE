@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       const lineUserId = ev.source?.userId ?? null;
 
       const { data: vrec } = await admin
-        .from("canvass_phone_verifications")
+        .from("winvote_phone_verifications")
         .select("id, resident_id, status, expires_at")
         .eq("token", token)
         .single();
@@ -60,18 +60,18 @@ export async function POST(req: NextRequest) {
       if (!vrec) continue;
       if (vrec.status === "verified") continue;
       if (new Date(vrec.expires_at) < new Date()) {
-        await admin.from("canvass_phone_verifications").update({ status: "expired" }).eq("id", vrec.id);
+        await admin.from("winvote_phone_verifications").update({ status: "expired" }).eq("id", vrec.id);
         continue;
       }
 
       await admin
-        .from("canvass_phone_verifications")
+        .from("winvote_phone_verifications")
         .update({ status: "verified", verified_at: new Date().toISOString(), line_user_id: lineUserId })
         .eq("id", vrec.id);
 
       if (vrec.resident_id) {
         await admin
-          .from("canvass_residents")
+          .from("winvote_residents")
           .update({
             phone_verified: true,
             phone_verified_at: new Date().toISOString(),

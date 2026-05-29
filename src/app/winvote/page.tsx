@@ -21,9 +21,9 @@ import { supabase } from "@/lib/supabase";
 import {
   getMunicipalitySummary, getDistrictKpi, getCommunityRollup, getMemberLoad,
   getMembers, getPollingUnits, getResidents, validateThaiId, checkDuplicate,
-  type CanvassMunicipalitySummary, type CanvassDistrictKpi, type CanvassCommunityRollup,
-  type CanvassMemberLoad, type CanvassPollingUnit, type CanvassResident,
-} from "@/lib/canvass";
+  type WinVoteMunicipalitySummary, type WinVoteDistrictKpi, type WinVoteCommunityRollup,
+  type WinVoteMemberLoad, type WinVotePollingUnit, type WinVoteResident,
+} from "@/lib/winvote";
 
 type Tab = "overview" | "polling" | "report";
 
@@ -39,7 +39,7 @@ function kpiColor(pct: number | null): "green" | "gold" | "red" {
   return "red";
 }
 
-export default function CanvassPage() {
+export default function WinVotePage() {
   const user = useCurrentUser();
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
@@ -49,15 +49,15 @@ export default function CanvassPage() {
   const showToast = (msg: string, type: ToastType = "success") => setToast({ msg, type });
 
   // ภาพรวม + drill-down
-  const [summary, setSummary] = useState<CanvassMunicipalitySummary | null>(null);
-  const [districts, setDistricts] = useState<CanvassDistrictKpi[]>([]);
-  const [district, setDistrict] = useState<CanvassDistrictKpi | null>(null);
-  const [communities, setCommunities] = useState<CanvassCommunityRollup[]>([]);
-  const [community, setCommunity] = useState<CanvassCommunityRollup | null>(null);
-  const [members, setMembers] = useState<CanvassMemberLoad[]>([]);
-  const [member, setMember] = useState<CanvassMemberLoad | null>(null);
-  const [residents, setResidents] = useState<CanvassResident[]>([]);
-  const [pollingUnits, setPollingUnits] = useState<CanvassPollingUnit[]>([]);
+  const [summary, setSummary] = useState<WinVoteMunicipalitySummary | null>(null);
+  const [districts, setDistricts] = useState<WinVoteDistrictKpi[]>([]);
+  const [district, setDistrict] = useState<WinVoteDistrictKpi | null>(null);
+  const [communities, setCommunities] = useState<WinVoteCommunityRollup[]>([]);
+  const [community, setCommunity] = useState<WinVoteCommunityRollup | null>(null);
+  const [members, setMembers] = useState<WinVoteMemberLoad[]>([]);
+  const [member, setMember] = useState<WinVoteMemberLoad | null>(null);
+  const [residents, setResidents] = useState<WinVoteResident[]>([]);
+  const [pollingUnits, setPollingUnits] = useState<WinVotePollingUnit[]>([]);
   const [loading, setLoading] = useState(true);
 
   // role gate
@@ -83,7 +83,7 @@ export default function CanvassPage() {
   }, [authorized, loadOverview]);
 
   // drill handlers
-  const openDistrict = async (d: CanvassDistrictKpi) => {
+  const openDistrict = async (d: WinVoteDistrictKpi) => {
     setDistrict(d);
     setCommunity(null);
     setMember(null);
@@ -91,12 +91,12 @@ export default function CanvassPage() {
     setCommunities(c);
     setPollingUnits(pu);
   };
-  const openCommunity = async (c: CanvassCommunityRollup) => {
+  const openCommunity = async (c: WinVoteCommunityRollup) => {
     setCommunity(c);
     setMember(null);
     setMembers(await getMemberLoad(c.community_id));
   };
-  const openMember = async (m: CanvassMemberLoad) => {
+  const openMember = async (m: WinVoteMemberLoad) => {
     setMember(m);
     setResidents(await getResidents(m.member_id));
   };
@@ -112,7 +112,7 @@ export default function CanvassPage() {
         <div className="max-w-lg mx-auto px-4 pt-12 pb-3">
           <div className="flex items-center gap-2 mb-3">
             <Network size={22} className="text-aviva-gold" />
-            <h1 className="text-xl font-bold text-aviva-text">เครือข่ายฐานเสียง</h1>
+            <h1 className="text-xl font-bold text-aviva-text">WinVote <span className="text-sm font-normal text-aviva-muted">เครือข่ายฐานเสียง</span></h1>
           </div>
           <div className="flex gap-1 bg-aviva-card rounded-2xl p-1">
             {([
@@ -186,18 +186,18 @@ export default function CanvassPage() {
 // ===================== Overview / Drill-down =====================
 function OverviewTab(props: {
   loading: boolean;
-  summary: CanvassMunicipalitySummary | null;
-  districts: CanvassDistrictKpi[];
-  district: CanvassDistrictKpi | null;
-  communities: CanvassCommunityRollup[];
-  community: CanvassCommunityRollup | null;
-  members: CanvassMemberLoad[];
-  member: CanvassMemberLoad | null;
-  residents: CanvassResident[];
-  pollingUnits: CanvassPollingUnit[];
-  onOpenDistrict: (d: CanvassDistrictKpi) => void;
-  onOpenCommunity: (c: CanvassCommunityRollup) => void;
-  onOpenMember: (m: CanvassMemberLoad) => void;
+  summary: WinVoteMunicipalitySummary | null;
+  districts: WinVoteDistrictKpi[];
+  district: WinVoteDistrictKpi | null;
+  communities: WinVoteCommunityRollup[];
+  community: WinVoteCommunityRollup | null;
+  members: WinVoteMemberLoad[];
+  member: WinVoteMemberLoad | null;
+  residents: WinVoteResident[];
+  pollingUnits: WinVotePollingUnit[];
+  onOpenDistrict: (d: WinVoteDistrictKpi) => void;
+  onOpenCommunity: (c: WinVoteCommunityRollup) => void;
+  onOpenMember: (m: WinVoteMemberLoad) => void;
   onBack: (level: "district" | "community" | "member") => void;
   onChanged: () => Promise<void> | void;
   createdBy: string;
@@ -211,7 +211,7 @@ function OverviewTab(props: {
 
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddResident, setShowAddResident] = useState(false);
-  const [verifyResident, setVerifyResident] = useState<CanvassResident | null>(null);
+  const [verifyResident, setVerifyResident] = useState<WinVoteResident | null>(null);
 
   if (loading) {
     return (
@@ -476,7 +476,7 @@ function AddMemberModal(props: {
   const save = async () => {
     if (!form.full_name.trim()) { showToast("กรุณากรอกชื่อ", "warning"); return; }
     setSaving(true);
-    const { error } = await supabase.from("canvass_members").insert({
+    const { error } = await supabase.from("winvote_members").insert({
       community_id: communityId,
       full_name: form.full_name.trim(),
       phone: form.phone.trim() || null,
@@ -486,7 +486,7 @@ function AddMemberModal(props: {
     });
     setSaving(false);
     if (error) {
-      showToast(error.message.includes("canvass_one_president") ? "ชุมชนนี้มีประธานแล้ว" : "บันทึกไม่สำเร็จ", "error");
+      showToast(error.message.includes("winvote_one_president") ? "ชุมชนนี้มีประธานแล้ว" : "บันทึกไม่สำเร็จ", "error");
       return;
     }
     onSaved();
@@ -514,7 +514,7 @@ function AddMemberModal(props: {
 // ===================== Add Resident Modal =====================
 function AddResidentModal(props: {
   memberId: string;
-  pollingUnits: CanvassPollingUnit[];
+  pollingUnits: WinVotePollingUnit[];
   createdBy: string;
   onClose: () => void;
   onSaved: () => void;
@@ -563,7 +563,7 @@ function AddResidentModal(props: {
     if (!form.national_id || !form.full_name.trim()) { showToast("กรุณากรอกเลขบัตรและชื่อ", "warning"); return; }
     if (!validateThaiId(form.national_id)) { showToast("เลขบัตรประชาชนไม่ถูกต้อง (checksum)", "error"); return; }
     setSaving(true);
-    const { error } = await supabase.from("canvass_residents").insert({
+    const { error } = await supabase.from("winvote_residents").insert({
       member_id: memberId,
       polling_unit_id: form.polling_unit_id || null,
       national_id: form.national_id,
@@ -650,9 +650,9 @@ function AddResidentModal(props: {
 }
 
 // ===================== Polling Units Tab =====================
-function PollingTab({ districts, showToast }: { districts: CanvassDistrictKpi[]; showToast: (m: string, t?: ToastType) => void }) {
+function PollingTab({ districts, showToast }: { districts: WinVoteDistrictKpi[]; showToast: (m: string, t?: ToastType) => void }) {
   const [districtId, setDistrictId] = useState(districts[0]?.district_id ?? "");
-  const [units, setUnits] = useState<(CanvassPollingUnit & { resident_count: number })[]>([]);
+  const [units, setUnits] = useState<(WinVotePollingUnit & { resident_count: number })[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -662,7 +662,7 @@ function PollingTab({ districts, showToast }: { districts: CanvassDistrictKpi[];
       const pu = await getPollingUnits(districtId);
       // นับชาวบ้านต่อหน่วย
       const { data } = await supabase
-        .from("canvass_residents")
+        .from("winvote_residents")
         .select("polling_unit_id")
         .not("polling_unit_id", "is", null);
       const counts = new Map<string, number>();
@@ -702,11 +702,11 @@ function PollingTab({ districts, showToast }: { districts: CanvassDistrictKpi[];
 }
 
 // ===================== Report Tab (hierarchical rollup) =====================
-function ReportTab({ summary, districts }: { summary: CanvassMunicipalitySummary | null; districts: CanvassDistrictKpi[] }) {
+function ReportTab({ summary, districts }: { summary: WinVoteMunicipalitySummary | null; districts: WinVoteDistrictKpi[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [rollup, setRollup] = useState<Record<string, CanvassCommunityRollup[]>>({});
+  const [rollup, setRollup] = useState<Record<string, WinVoteCommunityRollup[]>>({});
 
-  const toggle = async (d: CanvassDistrictKpi) => {
+  const toggle = async (d: WinVoteDistrictKpi) => {
     if (expanded === d.district_id) { setExpanded(null); return; }
     setExpanded(d.district_id);
     if (!rollup[d.district_id]) {

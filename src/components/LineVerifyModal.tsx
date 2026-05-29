@@ -30,7 +30,7 @@ export default function LineVerifyModal({ residentId, residentName, phone, onClo
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch("/api/canvass/line/start", {
+        const res = await fetch("/api/winvote/line/start", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -61,7 +61,7 @@ export default function LineVerifyModal({ residentId, residentName, phone, onClo
     if (!qrDataUrl) return;
     pollRef.current = setInterval(async () => {
       const { data } = await supabase
-        .from("canvass_residents")
+        .from("winvote_residents")
         .select("phone_verified")
         .eq("id", residentId)
         .single();

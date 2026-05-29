@@ -34,6 +34,7 @@ interface Lead {
   lead_code?: string;
   customer_name: string;
   phone: string;
+  email?: string | null;
   budget: number;
   status: LeadStatus;
   source: string;
@@ -42,6 +43,10 @@ interface Lead {
   created_at_default: string;
   assigned_to?: string | null;
   plot_number?: number | null;
+  next_follow_up_date?: string | null;
+  last_contact_date?: string | null;
+  financing_type?: string | null;
+  urgency?: string | null;
 }
 
 interface HouseSlot {
@@ -58,6 +63,7 @@ interface CrmLog {
   call_status: string;
   call_note: string | null;
   created_at: string;
+  photo_url: string | null;
 }
 
 const sourceColor: Record<string, string> = {
@@ -89,11 +95,15 @@ function getChatLink(lead: Lead): string {
 const emptyForm = {
   customer_name: "",
   phone: "",
+  email: "",
   budget: "",
   source: "Facebook",
   status: "New Lead" as LeadStatus,
   notes: "",
   plot_number: "",
+  next_follow_up_date: "",
+  financing_type: "ไม่ระบุ",
+  urgency: "ปกติ",
 };
 
 const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photo: null as File | null, photoPreview: "" };
@@ -128,7 +138,7 @@ export default function CRMPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const [houses, setHouses] = useState<HouseSlot[]>([]);
-  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string }[]>([]);
+  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null }[]>([]);
   const [showActModal, setShowActModal] = useState(false);
   const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "" });
   const [savingAct, setSavingAct] = useState(false);
@@ -148,7 +158,7 @@ export default function CRMPage() {
     if (!selectedLead) { setLeadLogs([]); return; }
     setLoadingLogs(true);
     supabase.from("crm_logs")
-      .select("id,contact_channel,call_status,call_note,created_at")
+      .select("id,contact_channel,call_status,call_note,created_at,photo_url")
       .eq("lead_id", selectedLead.id)
       .order("created_at", { ascending: false })
       .limit(10)
@@ -156,9 +166,9 @@ export default function CRMPage() {
   }, [selectedLead]);
 
   const fetchSalesActs = () => {
-    supabase.from("sales_activities").select("id,activity_type,note,activity_date")
+    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url")
       .order("activity_date", { ascending: false }).limit(30)
-      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string }[]));
+      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null }[]));
   };
 
   const handleAddActivity = async () => {
@@ -367,7 +377,7 @@ export default function CRMPage() {
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, phone: lead.phone, budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "" });
+    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ" });
     setShowModal(true);
   };
 
@@ -399,6 +409,7 @@ export default function CRMPage() {
       setUploadingLogPhoto(false);
     }
     await supabase.from("crm_logs").insert({ lead_id: crmLogLead.id, contact_channel: crmLogForm.channel, call_status: crmLogForm.callStatus, call_note: crmLogForm.note, photo_url: photoUrl });
+    await supabase.from("leads").update({ last_contact_date: new Date().toISOString().split("T")[0] }).eq("id", crmLogLead.id);
     setSavingLog(false);
     setCrmLogLead(null);
     setCrmLogForm(emptyCrmLog);
@@ -416,7 +427,7 @@ export default function CRMPage() {
     setSaving(true);
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     if (editingLead) {
-      await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
         if (effectivePlot) {
@@ -435,7 +446,7 @@ export default function CRMPage() {
         });
       }
     } else {
-      await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50 });
+      await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null });
       await createNotification({
         type: "info",
         title: `ลูกค้าใหม่ — ${form.customer_name}`,
@@ -641,6 +652,19 @@ export default function CRMPage() {
                               <MapPin size={8} /> แปลง {lead.plot_number}
                             </span>
                           )}
+                          {lead.next_follow_up_date && (() => {
+                            const due = new Date(lead.next_follow_up_date);
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const overdue = due < today;
+                            const isToday = due.toDateString() === today.toDateString();
+                            return (
+                              <span className={clsx("inline-flex items-center gap-1 mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium",
+                                overdue ? "bg-red-500/20 text-red-400 border border-red-500/30" : isToday ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "bg-aviva-bg text-aviva-secondary border border-aviva-gold/10"
+                              )}>
+                                {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้"  : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                              </span>
+                            );
+                          })()}
                           <div className="flex items-center gap-2 mt-2">
                             <button onClick={(e) => openCall(lead, e)} className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">
                               <PhoneCall size={10} /> โทร
@@ -745,13 +769,22 @@ export default function CRMPage() {
                 <p className="text-xs font-semibold text-aviva-gold mb-2">กิจกรรมล่าสุด</p>
                 <div className="space-y-1.5">
                   {salesActs.slice(0, 10).map((a) => (
-                    <div key={a.id} className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
-                      <span className="text-xs text-aviva-text">{a.activity_type}</span>
-                      {a.note && <span className="text-[10px] text-aviva-secondary truncate">— {a.note}</span>}
-                      <span className="text-[10px] text-aviva-secondary/50 ml-auto flex-shrink-0">
-                        {new Date(a.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
-                      </span>
+                    <div key={a.id} className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0 mt-1.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-aviva-text">{a.activity_type}</span>
+                          {a.note && <span className="text-[10px] text-aviva-secondary truncate">— {a.note}</span>}
+                          <span className="text-[10px] text-aviva-secondary/50 ml-auto flex-shrink-0">
+                            {new Date(a.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                          </span>
+                        </div>
+                        {a.photo_url && (
+                          <a href={a.photo_url} target="_blank" rel="noreferrer">
+                            <img src={a.photo_url} alt="รูปกิจกรรม" className="w-16 h-16 rounded-lg object-cover mt-1 border border-aviva-gold/20" />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -972,6 +1005,39 @@ export default function CRMPage() {
                 </div>
               )}
               <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">อีเมล</label>
+                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="example@email.com"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">แผนการเงิน</label>
+                  <select value={form.financing_type} onChange={(e) => setForm({ ...form, financing_type: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="ไม่ระบุ">ไม่ระบุ</option>
+                    <option value="กู้แบงก์">กู้ธนาคาร</option>
+                    <option value="เงินสด">เงินสด</option>
+                    <option value="ผ่อนดาวน์">ผ่อนดาวน์</option>
+                    <option value="สินเชื่อบ้านนโยบาย">สินเชื่อนโยบาย</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ความเร่งด่วน</label>
+                  <select value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="ปกติ">ปกติ</option>
+                    <option value="ด่วน">ด่วน (1 เดือน)</option>
+                    <option value="เร่งด่วน">เร่งด่วน (1 สัปดาห์)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งต่อไป</label>
+                <input type="date" value={form.next_follow_up_date} onChange={(e) => setForm({ ...form, next_follow_up_date: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   placeholder="บันทึกเพิ่มเติม..." rows={2}
@@ -1077,6 +1143,11 @@ export default function CRMPage() {
                         <span className="text-aviva-secondary/60">{new Date(log.created_at).toLocaleDateString("th-TH")}</span>
                       </div>
                       {log.call_note && <p className="text-aviva-secondary leading-relaxed">{log.call_note}</p>}
+                      {log.photo_url && (
+                        <a href={log.photo_url} target="_blank" rel="noreferrer">
+                          <img src={log.photo_url} alt="รูปประกอบ" className="w-16 h-16 rounded-lg object-cover mt-1.5 border border-aviva-gold/20" />
+                        </a>
+                      )}
                     </div>
                   ))}
                 </div>

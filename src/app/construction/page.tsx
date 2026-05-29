@@ -26,6 +26,8 @@ interface House {
   contractor: string;
   phase: string;
   delayed_days: number;
+  planned_completion_date: string | null;
+  site_engineer: string | null;
 }
 
 interface Report {
@@ -35,6 +37,8 @@ interface Report {
   progress: number;
   issue: string;
   created_at: string;
+  photo_url: string | null;
+  reported_by: string | null;
 }
 
 interface Defect {
@@ -45,6 +49,9 @@ interface Defect {
   status: string;
   reported_at: string;
   resolved_at: string | null;
+  severity: string;
+  assigned_to: string;
+  due_date: string | null;
 }
 
 interface Installment {
@@ -126,13 +133,17 @@ export default function ConstructionPage() {
   const [expandedInst, setExpandedInst] = useState<string | null>(null);
   const [loadingInst, setLoadingInst] = useState(false);
 
-  const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "" });
-  const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus });
-  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "" });
+  const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "", planned_completion_date: "", site_engineer: "" });
+  const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus, reported_by: "" });
+  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
 
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [uploadingTask, setUploadingTask] = useState<string | null>(null);
   const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+
+  const [dailyPhoto, setDailyPhoto] = useState<File | null>(null);
+  const [dailyPhotoPreview, setDailyPhotoPreview] = useState("");
+  const [uploadingDailyPhoto, setUploadingDailyPhoto] = useState(false);
 
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
   const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
@@ -184,6 +195,27 @@ export default function ConstructionPage() {
     const next: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
     const newStatus = next[inst.status] ?? inst.status;
     if (newStatus === inst.status) return;
+
+    // ตรวจสอบ: task ต้องครบก่อน submit
+    if (inst.status === "pending") {
+      const tasks = instTasks.filter((t) => t.installment_id === inst.id);
+      if (tasks.length > 0 && !tasks.every((t) => t.is_complete)) {
+        setToast({ msg: "ต้องทำ task ให้ครบทุกรายการก่อนส่งตรวจสอบ", type: "error" });
+        setConfirmInst(null);
+        return;
+      }
+    }
+
+    // ตรวจสอบ: ต้องไม่มี defect Open อยู่สำหรับยูนิตนี้
+    if (inst.status === "pending" && instHouse) {
+      const openDefs = defects.filter((d) => d.house_id === instHouse.id && d.status === "Open");
+      if (openDefs.length > 0) {
+        setToast({ msg: `มี Defect เปิดอยู่ ${openDefs.length} รายการ — ต้องแก้ไขให้ครบก่อนส่งตรวจสอบ`, type: "error" });
+        setConfirmInst(null);
+        return;
+      }
+    }
+
     await supabase.from("contractor_installments").update({ status: newStatus }).eq("id", inst.id);
     setInstallments((prev) => prev.map((i) => i.id === inst.id ? { ...i, status: newStatus } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
@@ -221,12 +253,14 @@ export default function ConstructionPage() {
     const rows = reports.map((r) => {
       const house = houses.find((h) => h.id === r.house_id);
       const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+      const photoCell = r.photo_url ? `<img src="${r.photo_url}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" />` : "—";
       return `<tr>
         <td>${d}</td>
         <td>${house?.house_number ?? "—"}</td>
         <td>${r.work_detail ?? "—"}</td>
         <td style="text-align:center">${r.progress ?? 0}%</td>
         <td style="color:#c0392b">${r.issue ?? "—"}</td>
+        <td style="text-align:center">${photoCell}</td>
       </tr>`;
     }).join("");
     const w = window.open("", "_blank");
@@ -249,7 +283,7 @@ export default function ConstructionPage() {
     <h1>รายงานประจำวัน — ฝ่ายก่อสร้าง</h1>
     <div class="meta">วันที่พิมพ์: ${dateStr} &nbsp;|&nbsp; จำนวน ${reports.length} รายการ</div>
     <table>
-      <thead><tr><th>วันที่</th><th>ยูนิต</th><th>รายละเอียดงาน</th><th>คืบหน้า</th><th>ปัญหา/หมายเหตุ</th></tr></thead>
+      <thead><tr><th>วันที่</th><th>ยูนิต</th><th>รายละเอียดงาน</th><th>คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th>รูป</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="footer">
@@ -294,7 +328,9 @@ export default function ConstructionPage() {
   const openReport = (house: House) => {
     setSelectedHouse(house);
     setEditingReport(null);
-    setForm({ house_id: house.id, work_detail: "", progress: String(house.progress), issue: "", new_status: house.status });
+    setForm({ house_id: house.id, work_detail: "", progress: String(house.progress), issue: "", new_status: house.status, reported_by: house.site_engineer ?? "" });
+    setDailyPhoto(null);
+    setDailyPhotoPreview("");
     setShowModal(true);
   };
 
@@ -302,28 +338,30 @@ export default function ConstructionPage() {
     e.stopPropagation();
     setEditingReport(report);
     setSelectedHouse(null);
-    setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "on-track" });
+    setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "on-track", reported_by: report.reported_by ?? "" });
+    setDailyPhoto(null);
+    setDailyPhotoPreview(report.photo_url ?? "");
     setShowModal(true);
   };
 
   const openEditHouse = (house: House, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingHouse(house);
-    setHouseForm({ house_number: house.house_number, contractor: house.contractor ?? "", phase: house.phase ?? "", delayed_days: String(house.delayed_days ?? 0), status: house.status, progress: String(house.progress) });
+    setHouseForm({ house_number: house.house_number, contractor: house.contractor ?? "", phase: house.phase ?? "", delayed_days: String(house.delayed_days ?? 0), status: house.status, progress: String(house.progress), planned_completion_date: house.planned_completion_date ?? "", site_engineer: house.site_engineer ?? "" });
     setShowHouseEditModal(true);
   };
 
   const openDefectModal = (house: House, e: React.MouseEvent) => {
     e.stopPropagation();
     setDefectHouse(house);
-    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "" });
+    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
     setShowDefectModal(true);
   };
 
   const handleSaveHouse = async () => {
     if (!editingHouse) return;
     setSaving(true);
-    await supabase.from("houses").update({ house_number: houseForm.house_number, contractor: houseForm.contractor, phase: houseForm.phase, delayed_days: Number(houseForm.delayed_days) || 0, status: houseForm.status, progress: Number(houseForm.progress) || 0, updated_at: new Date().toISOString() }).eq("id", editingHouse.id);
+    await supabase.from("houses").update({ house_number: houseForm.house_number, contractor: houseForm.contractor, phase: houseForm.phase, delayed_days: Number(houseForm.delayed_days) || 0, status: houseForm.status, progress: Number(houseForm.progress) || 0, planned_completion_date: houseForm.planned_completion_date || null, site_engineer: houseForm.site_engineer || null, updated_at: new Date().toISOString() }).eq("id", editingHouse.id);
     setSaving(false);
     setShowHouseEditModal(false);
     setEditingHouse(null);
@@ -333,28 +371,54 @@ export default function ConstructionPage() {
   const handleSave = async () => {
     if (!form.work_detail) return;
     setSaving(true);
+    let reportId = editingReport?.id ?? null;
     if (editingReport) {
       await supabase.from("construction_reports").update({ work_detail: form.work_detail, progress: Number(form.progress) || 0, issue: form.issue, updated_at: new Date().toISOString() }).eq("id", editingReport.id);
     } else {
       if (!form.house_id) { setSaving(false); return; }
-      await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, progress: Number(form.progress) || 0, issue: form.issue });
+      const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, progress: Number(form.progress) || 0, issue: form.issue, reported_by: form.reported_by || null }).select().single();
+      reportId = (inserted as Report | null)?.id ?? null;
       await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
+    }
+    if (dailyPhoto && reportId) {
+      setUploadingDailyPhoto(true);
+      const ext = dailyPhoto.name.split(".").pop() ?? "jpg";
+      const path = `daily/${reportId}.${ext}`;
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(path, dailyPhoto, { upsert: true });
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(path);
+        await supabase.from("construction_reports").update({ photo_url: publicUrl }).eq("id", reportId);
+        setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+      } else {
+        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      }
+      setUploadingDailyPhoto(false);
     }
     setSaving(false);
     setShowModal(false);
     setSelectedHouse(null);
     setEditingReport(null);
+    setDailyPhoto(null);
+    setDailyPhotoPreview("");
     fetchData();
   };
 
   const handleSaveDefect = async () => {
     if (!defectForm.description || !defectForm.house_id) return;
     setSaving(true);
-    await supabase.from("defects").insert({ house_id: defectForm.house_id, defect_category: defectForm.defect_category, description: defectForm.description, status: "Open" });
+    await supabase.from("defects").insert({
+      house_id: defectForm.house_id,
+      defect_category: defectForm.defect_category,
+      description: defectForm.description,
+      status: "Open",
+      severity: defectForm.severity,
+      assigned_to: defectForm.assigned_to || null,
+      due_date: defectForm.due_date || null,
+    });
     setSaving(false);
     setShowDefectModal(false);
     setDefectHouse(null);
-    setDefectForm({ house_id: "", defect_category: "งานสี", description: "" });
+    setDefectForm({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
     fetchData();
   };
 
@@ -514,6 +578,11 @@ export default function ConstructionPage() {
                             <span className="text-[10px] text-red-400">ล่าช้า {house.delayed_days} วัน</span>
                           </div>
                         )}
+                        {house.planned_completion_date && (
+                          <div className="mt-1 text-[9px] text-aviva-secondary/70">
+                            กำหนดเสร็จ {new Date(house.planned_completion_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                          </div>
+                        )}
                       </GlassCard>
                     );
                   })}
@@ -552,6 +621,11 @@ export default function ConstructionPage() {
                         </div>
                         <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                         {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
+                        {r.photo_url && (
+                          <a href={r.photo_url} target="_blank" rel="noreferrer" className="mt-2 block">
+                            <img src={r.photo_url} alt="รูปตรวจงาน" className="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                          </a>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button onClick={(e) => openEditReport(r, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all">
@@ -588,16 +662,33 @@ export default function ConstructionPage() {
               defects.map((d) => {
                 const house = houses.find((h) => h.id === d.house_id);
                 const ds = defectStatusConfig[d.status] ?? defectStatusConfig["Open"];
+                const severityMap: Record<string, { label: string; color: string }> = {
+                  low: { label: "เล็กน้อย", color: "text-blue-400 bg-blue-400/10" },
+                  medium: { label: "ปานกลาง", color: "text-yellow-400 bg-yellow-400/10" },
+                  high: { label: "สูง", color: "text-orange-400 bg-orange-400/10" },
+                  critical: { label: "วิกฤต", color: "text-red-400 bg-red-400/10" },
+                };
+                const sev = severityMap[d.severity ?? "medium"] ?? severityMap.medium;
+                const daysOpen = d.status !== "Resolved" ? Math.floor((Date.now() - new Date(d.reported_at).getTime()) / 86400000) : null;
+                const overdue = d.due_date && d.status !== "Resolved" && new Date(d.due_date) < new Date();
                 return (
-                  <GlassCard key={d.defect_id} className="p-4">
+                  <GlassCard key={d.defect_id} className={clsx("p-4", overdue && "border border-red-500/40")}>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
                           <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{d.defect_category}</span>
+                          <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", sev.color)}>{sev.label}</span>
+                          {daysOpen !== null && daysOpen > 7 && (
+                            <span className="text-[10px] text-red-400 font-bold">⚠ {daysOpen} วัน</span>
+                          )}
                         </div>
                         <p className="text-sm text-aviva-text mt-0.5">{d.description}</p>
-                        <p className="text-[10px] text-aviva-secondary">{new Date(d.reported_at).toLocaleDateString("th-TH")}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <p className="text-[10px] text-aviva-secondary">{new Date(d.reported_at).toLocaleDateString("th-TH")}</p>
+                          {d.assigned_to && <p className="text-[10px] text-aviva-secondary">ผู้รับผิดชอบ: {d.assigned_to}</p>}
+                          {d.due_date && <p className={clsx("text-[10px]", overdue ? "text-red-400 font-bold" : "text-aviva-secondary")}>ครบกำหนด: {new Date(d.due_date).toLocaleDateString("th-TH")}</p>}
+                        </div>
                       </div>
                       <span className={clsx("text-[10px] px-2 py-0.5 rounded-full flex-shrink-0", ds.color)}>{ds.label}</span>
                     </div>
@@ -649,6 +740,7 @@ export default function ConstructionPage() {
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             {tasks.length > 0 && <span className="text-[10px] text-aviva-secondary">{doneCount}/{tasks.length}</span>}
+                            {inst.amount > 0 && <span className="text-[10px] text-aviva-gold font-medium">฿{inst.amount.toLocaleString()}</span>}
                             <span className={clsx("text-[10px] px-2 py-0.5 rounded-full", sc.color)}>{sc.label}</span>
                           </div>
                         </button>
@@ -733,6 +825,29 @@ export default function ConstructionPage() {
                   placeholder="อธิบายปัญหาที่พบ..." rows={3}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
+                  <select value={defectForm.severity} onChange={(e) => setDefectForm({ ...defectForm, severity: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="low">เล็กน้อย</option>
+                    <option value="medium">ปานกลาง</option>
+                    <option value="high">สูง</option>
+                    <option value="critical">วิกฤต</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไขภายใน</label>
+                  <input type="date" value={defectForm.due_date} onChange={(e) => setDefectForm({ ...defectForm, due_date: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
+                <input type="text" value={defectForm.assigned_to} onChange={(e) => setDefectForm({ ...defectForm, assigned_to: e.target.value })}
+                  placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
             </div>
             <button onClick={handleSaveDefect} disabled={saving || !defectForm.description || (!defectHouse && !defectForm.house_id)}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
@@ -788,15 +903,34 @@ export default function ConstructionPage() {
                 )}
               </div>
               <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
+                <input type="text" value={form.reported_by} onChange={(e) => setForm({ ...form, reported_by: e.target.value })}
+                  placeholder="ชื่อวิศวกร / ช่างควบคุมงาน"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ปัญหา / ข้อสังเกต</label>
                 <input type="text" value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })}
                   placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน</label>
+                <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
+                  <input type="file" accept="image/*" capture="environment" className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) { setDailyPhoto(f); setDailyPhotoPreview(URL.createObjectURL(f)); }
+                    }} />
+                  {uploadingDailyPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
+                  <span className="text-sm text-aviva-secondary/60 flex-1">{dailyPhoto ? dailyPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
+                  {dailyPhotoPreview && <img src={dailyPhotoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
+                </label>
+              </div>
             </div>
-            <button onClick={handleSave} disabled={saving || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)}
+            <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}
+              {saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}
             </button>
           </div>
         </div>
@@ -849,6 +983,19 @@ export default function ConstructionPage() {
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ</label>
+                  <input type="date" value={houseForm.planned_completion_date} onChange={(e) => setHouseForm({ ...houseForm, planned_completion_date: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">วิศวกร/ช่างควบคุม</label>
+                  <input type="text" value={houseForm.site_engineer} onChange={(e) => setHouseForm({ ...houseForm, site_engineer: e.target.value })}
+                    placeholder="ชื่อวิศวกรประจำยูนิต"
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
             </div>
             <button onClick={handleSaveHouse} disabled={saving}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
@@ -858,7 +1005,6 @@ export default function ConstructionPage() {
         </div>
       )}
 
-      {/* Confirm advance installment dialog */}
       {confirmInst && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">

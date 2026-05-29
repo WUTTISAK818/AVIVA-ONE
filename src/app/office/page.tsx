@@ -2797,6 +2797,7 @@ interface OfficeDocument {
   approved_by: string | null;
   created_at: string;
   description?: string | null;
+  file_url?: string | null;
 }
 
 type DocFilterCat = "all" | "Contract" | "Loan" | "Permit" | "Utility";

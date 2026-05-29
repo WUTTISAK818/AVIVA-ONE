@@ -444,7 +444,7 @@ export default function ConstructionPage() {
               </div>
             </div>
             {part === "daily" && (
-              <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" }); setShowModal(true); }}
+              <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "" }); setShowModal(true); }}
                 className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
                 <Plus size={14} /> รายงาน
               </button>

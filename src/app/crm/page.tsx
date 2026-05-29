@@ -1161,7 +1161,7 @@ export default function CRMPage() {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>

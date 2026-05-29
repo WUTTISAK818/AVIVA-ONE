@@ -141,9 +141,9 @@ export default function ApprovalsPage() {
     const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log) {
-      await cascadeReject(log);
+      const cascadeErr = await cascadeReject(log);
       const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
-      setToast({ msg: `ปฏิเสธแล้ว — ${log.source_doc_index}`, type: "info" });
+      setToast({ msg: cascadeErr ? "ปฏิเสธแล้ว แต่อัปเดตสถานะต้นทางล้มเหลว" : `ปฏิเสธแล้ว — ${log.source_doc_index}`, type: cascadeErr ? "warning" : "info" });
       await createNotification({ type: "info", title: `ปฏิเสธ — ${log.source_doc_index}`, message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`, from_dept: dept, to_dept: dept });
     }
     setSaving(false); setRejectingId(null); setRejectComment(""); fetchLogs();
@@ -161,7 +161,7 @@ export default function ApprovalsPage() {
         <div className="flex gap-2">
           {[{ k: "pending", l: `รออนุมัติ${pendingCount > 0 ? ` (${pendingCount})` : ""}` }, { k: "approved", l: "อนุมัติแล้ว" }, { k: "rejected", l: "ปฏิเสธ" }].map(({ k, l }) => (
             <button key={k} onClick={() => setActiveTab(k as FilterTab)}
-              className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all", activeTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
+              className={clsx("เflex-1 py-2 rounded-xl text-xs font-medium border transition-all", activeTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
           ))}
         </div>
         <div className="space-y-3">
@@ -216,6 +216,7 @@ export default function ApprovalsPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
             <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-aviva-text">เหตุผลการปฏิเสธ</h2><button onClick={() => setRejectingId(null)}><X size={20} className="text-aviva-secondary" /></button></div>
+            <label className="text-xs text-aviva-secondary font-medium mb-1 block">เหตุผล <span className="text-red-400">*</span> (บังคับระบุ)</label>
             <textarea value={rejectComment} onChange={e => setRejectComment(e.target.value)} placeholder="ระบุเหตุผล..." rows={3}
               className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
             <button onClick={() => handleReject(rejectingId)} disabled={saving || !rejectComment.trim()}

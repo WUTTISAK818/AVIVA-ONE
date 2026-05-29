@@ -24,6 +24,42 @@ Version bump ทุกครั้งต้อง increment จาก CURRENT_VE
 **เหตุผล:** session ถูก compact ทำให้ข้อมูลเวอร์ชันจากหน่วยความจำเก่าหรือไม่ตรง การอ่านจาก GitHub โดยตรงทุกครั้งรับประกันความถูกต้อง 100%
 <!-- END:preflight-rule -->
 
+<!-- BEGIN:pre-push-build-rule -->
+# Pre-Push Build Check (MANDATORY — ทำก่อน push ทุกครั้ง)
+
+**ห้าม push โค้ดก่อนผ่าน build** — รัน `npm run build` และต้องได้ผลลัพธ์ที่ไม่มี TypeScript error ก่อนเสมอ
+
+```bash
+npm run build
+# ต้องเห็น: ✓ Compiled successfully
+# ต้องไม่มี: Type error / Failed to type check
+```
+
+## ข้อผิดพลาดที่เคยเกิดแล้ว — ห้ามเกิดซ้ำ
+
+### ❌ ข้อผิดพลาดที่ 1 — เพิ่ม field ใน interface แล้วลืม reset
+**เกิดขึ้น:** v2.9.8 — เพิ่ม `reported_by` ใน form state แต่ลืมใส่ใน `setForm({...})` ที่ reset form
+**กฎ:** เมื่อเพิ่ม field ใด ๆ ใน form state ต้องค้นหาทุก `setForm({` ใน file นั้นและเพิ่ม field ให้ครบทุกจุด
+```bash
+# ตรวจสอบก่อน push เสมอ:
+grep -n "setForm({" src/app/FILENAME.tsx
+```
+
+### ❌ ข้อผิดพลาดที่ 2 — เพิ่ม field ใน emptyForm แต่ลืม openEdit / detail panel
+**เกิดขึ้น:** v2.9.8 — เพิ่ม `email`, `financing_type`, `urgency`, `next_follow_up_date` ใน CRM form แต่ `setForm` ที่เรียกจาก detail panel ลืมใส่ fields ใหม่
+**กฎ:** เมื่อเพิ่ม field ใน `emptyForm` ต้องอัปเดต **ทุกจุดที่** `setForm` ถูกเรียกพร้อม object literal (ไม่ใช่ spread)
+
+### ❌ ข้อผิดพลาดที่ 3 — ใช้ field ใน JSX แต่ไม่ได้ประกาศใน interface
+**เกิดขึ้น:** v2.9.8 — ใช้ `doc.file_url` ใน `office/page.tsx` แต่ `OfficeDocument` interface ไม่มี field นั้น
+**กฎ:** เมื่อ access property ใด ๆ จาก object ที่มี type กำกับ ต้องตรวจว่า interface มี field นั้นอยู่แล้ว ถ้าไม่มีให้เพิ่มก่อนใช้
+
+## Checklist ก่อน push ทุกครั้ง
+- [ ] `npm run build` ผ่าน ไม่มี TypeScript error
+- [ ] ทุก `setForm({...})` ที่เป็น object literal (ไม่ใช่ spread) มีครบทุก field
+- [ ] ทุก interface มี field ที่ถูกใช้ใน JSX
+- [ ] Version bump ครบทั้ง dashboard + settings
+<!-- END:pre-push-build-rule -->
+
 <!-- BEGIN:deploy-report-rule -->
 # Deploy Rule (MANDATORY — ทุกครั้งที่ git push)
 
@@ -46,7 +82,11 @@ Push ไฟล์ที่แก้ไขไปยัง **ทั้งสอง
 ## Step 3 — บันทึก Deploy Report ลง Google Drive
 Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
 - Filename: `AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt`
-- Content must include: version number, date/time, list of changes, files changed, commit hashes
+- Content must include: version number, **date AND time (HH:MM น. เวลาไทย UTC+7)**, list of changes, files changed, commit hashes
+
+**⚠️ บังคับ:** ต้องบันทึกเวลาจริง (HH:MM น.) ทุกครั้ง ไม่ใช่แค่วันที่
+ดึงเวลาจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7 ก่อนบันทึก
+ตัวอย่าง: `วันที่: 29 พฤษภาคม 2569 เวลา 12:00 น. (UTC+7)`
 
 ## Step 4 — แจ้งผู้ใช้
 Report to the user:

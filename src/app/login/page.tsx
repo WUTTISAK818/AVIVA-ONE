@@ -135,7 +135,7 @@ export default function LoginPage() {
         {showDemo && (
           <div className="mt-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl p-3 space-y-2">
             <p className="text-[10px] text-aviva-secondary/60 text-center pb-1">
-              รหัสผ่านทุกบัญชี: <span className="font-bold text-aviva-secondary">Demo1234</span>
+              กดเพื่อเข้าสู่ระบบด้วยบัญชีทดสอบ
             </p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_ACCOUNTS.map((acc) => (

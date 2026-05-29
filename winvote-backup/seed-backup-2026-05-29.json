@@ -1,0 +1,2413 @@
+{
+  "exported_at": "2026-05-29T14:13:16.355857+00:00",
+  "note": "WinVote seed backup ก่อนลบจาก Supabase ของ aviva-private",
+  "municipalities": [
+    {
+      "id": "f92925bf-26e2-45c2-a246-41514bbb800e",
+      "name": "เทศบาล",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    }
+  ],
+  "districts": [
+    {
+      "id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "municipality_id": "f92925bf-26e2-45c2-a246-41514bbb800e",
+      "name": "เขต 1",
+      "code": 1,
+      "resident_target": 10000,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "municipality_id": "f92925bf-26e2-45c2-a246-41514bbb800e",
+      "name": "เขต 2",
+      "code": 2,
+      "resident_target": 10000,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "municipality_id": "f92925bf-26e2-45c2-a246-41514bbb800e",
+      "name": "เขต 3",
+      "code": 3,
+      "resident_target": 10000,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "municipality_id": "f92925bf-26e2-45c2-a246-41514bbb800e",
+      "name": "เขต 4",
+      "code": 4,
+      "resident_target": 10000,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    }
+  ],
+  "communities": [
+    {
+      "id": "b16a976f-7b6e-46dc-85f3-f56d65c116a7",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-01",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9eef753f-1259-46d0-a025-f1bc29a45758",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-02",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f587a901-47b5-4331-a3ee-bf69545aae91",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-03",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a154b5d3-f060-4fdd-95f1-94f642cdba41",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-04",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "cf32cd63-2477-4166-baf5-965f080a9b77",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-05",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9349244c-0fd0-4e46-ada6-01bb0f15607e",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-06",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "90dbed17-c249-484c-992e-1fb199515bd7",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-07",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1487eb83-8fcf-4c83-bf7e-4a8659e927eb",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-08",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3af2bcb8-fce9-48eb-ac58-b75d2cb723f8",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-09",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6fcdd3d9-16a7-4645-822e-fdf9fa035237",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-10",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ef0d028f-f5b4-4844-96af-3cfcbf735cfc",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-11",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6c8f5ea3-20ec-42c1-9541-aecf71052ad4",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-12",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0c3378c3-9fe3-467b-abb0-e438d676818d",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-13",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "94d3302c-0b32-4e8c-bf99-245088f29e57",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-14",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b8ed2c19-18ae-4274-85db-b379b0784a3d",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-15",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "73c0cae7-793f-4432-ab52-11694eae1512",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-16",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "de25a46d-ab8e-4b7f-999e-c5922ad4d732",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-17",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4a590daf-654c-4d6e-9874-6988059bd492",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-18",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "78c58d37-256c-4bc6-be70-0e776a1ae9bb",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-19",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "94600630-5a79-4b74-b046-9434beed2ca1",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-20",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ae2cb2b5-c213-44e3-bc4d-b95e4bc202f9",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-21",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "37d89e3c-3fac-4cd7-ae16-80b1d5002436",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-22",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9c4ac082-f0e5-47b0-ae96-97f82afe75b1",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-23",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1b60333e-de14-4c4d-8692-9253acc94681",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "name": "ชุมชนเขต1-24",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "20f81e23-128e-4d5e-8049-82a8e1990dd6",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-01",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "875cca48-7606-438c-84c8-f056723dfd82",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-02",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "fd6da003-507f-44da-9bb9-452b730ca869",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-03",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "32c00701-ac90-412b-8632-586cc2c8ca5c",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-04",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c95d734b-07c9-4bc2-afa0-8b5de98b01d8",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-05",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0a65368a-babb-4473-8055-108c1643aee1",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-06",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e8d89a4e-45b7-4aab-858f-c782ab95730c",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-07",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "32dbe112-fa80-46c4-97ae-c58a579d6897",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-08",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "162dfa50-c4e3-4379-b2f9-9b820e451922",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-09",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5b3830f0-2e72-4f1d-8f7f-a4fbf67cee34",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-10",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "63b0bb89-865e-4580-a1fd-9ada603ae91d",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-11",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3c1e164e-2bb6-466e-8e37-d21f174287f5",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-12",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "17b237fb-f4b7-4928-8d8c-035e25d46081",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-13",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "41b2892a-c7f5-437e-a7db-a1aa16bceb7a",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-14",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7534faf4-734d-4efb-81f2-0dc02ceb7bef",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-15",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4ea86055-5871-4b40-a9f1-7d371bdbe836",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-16",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "985f0765-a15e-478f-89b6-8592eeba3cbc",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-17",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f6b52379-e332-4f5f-a62d-806cead265bb",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-18",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f3063940-9494-49ef-b802-05ef9ef747b7",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-19",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "40be875b-b9f8-490d-a9e0-44bcb9447e1d",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-20",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c4bc573e-56e2-448f-a865-f3c49eef7294",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-21",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4e60ad31-d76f-4950-a788-b5c9688e2275",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-22",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9c088fb6-8bbd-4197-bd2c-11160507ae8d",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-23",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0fe2a6a2-fa36-4492-84b4-fd9c34e3cbdd",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-24",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "390e53fc-8650-47e3-a10d-14f024f5e92f",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-25",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "34438a1d-c991-40ab-8dca-3ca0e3b42d90",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-26",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0076f219-f9cb-405f-a801-a5a82f914b7b",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "name": "ชุมชนเขต2-27",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1a46d990-65e8-40b6-89b2-aa24e949238f",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-01",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5c589c34-1c26-46eb-849c-1fb6890ca537",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-02",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8c438d66-ca7e-4be0-b50a-3523863776d1",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-03",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "011e1962-4eb2-473d-b4d3-f4ee83b84116",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-04",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "23f7c73d-5911-4ad5-8106-7b0d977df565",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-05",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "cd424f1c-1b07-4f4a-8531-f8ca1b3f718d",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-06",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9fa408f9-21d6-482f-b76a-a758ed483bba",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-07",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "157e1c73-4815-43a9-8ab1-c96627816d5a",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-08",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f1035d98-c90a-433e-aa73-321c9fe9769f",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-09",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "13e16f2b-3003-4de5-947f-c3c9c5ae78f1",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-10",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0bfe41de-9224-4ec3-adf4-7d9ceda197fc",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-11",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "bbc69ce6-730e-41e0-aaa2-bbbd5b5f9139",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-12",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1877cd7f-219b-4ea9-babd-9ee9ff800d41",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-13",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d4b6bc4d-679d-4a33-9b94-338f8f90f167",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-14",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a25a9873-00bc-4c98-b353-d23da963d1d1",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-15",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "473ebff9-3b92-4efe-b6e1-025f90cc5230",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-16",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "845622f1-55c9-41f1-9866-a43ce7885913",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-17",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2d3ab223-4015-4185-96ff-e09c61e81733",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-18",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "74fd6fde-1c49-421f-9dfc-5d8b50dec04e",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "name": "ชุมชนเขต3-19",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "52a50467-2b09-41ad-9cdb-c854ed086b1e",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-01",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7fdef450-e2e3-46e2-a054-1d395397e364",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-02",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0aca0776-6a88-4645-a8d9-75a265935b67",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-03",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3dbd600c-4ced-4c4c-83f3-029404d8cd7e",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-04",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "38fc2970-3441-442e-b2bf-59cb7c273f14",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-05",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "08b869dc-7380-48db-a057-87a715eb4bb5",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-06",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b33f0fed-7830-4adb-9320-f4600218a30d",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-07",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4227b1b1-ea5c-4b70-993c-721e0bd15136",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-08",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e697bf07-de13-4ca4-b984-305cd375aa11",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-09",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e0966a1b-0208-4e5c-b7f8-685a69ad23cd",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-10",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6bee80aa-e7cb-4dac-87c7-62e9ec071cfa",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-11",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b83d6494-8136-4778-9fa4-855c5fc2291e",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-12",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "521a5e75-f593-4ce0-9898-f7fb5b6b061e",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-13",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "26bc8bec-2aa3-4ccf-90bc-3a67eecbc1d0",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-14",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "478e9744-f166-4671-97c5-7a88ef649c75",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-15",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "fd204a6c-b96e-464a-9578-d52b0c490abe",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-16",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9dff2ca7-693f-4f8b-acfe-a7fbd159e783",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-17",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3442abe5-9f7c-4cbf-9943-9bee9332edde",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-18",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0aa725e9-4533-4da0-a583-40a83bf11052",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-19",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0546c978-1389-4811-a9a5-938fad1bde83",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-20",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4afccce6-5b2e-428a-9a55-a29120e69dad",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-21",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "dee618f0-f766-4fcc-b594-b191e57a9dad",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-22",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "aaba8c16-1c0c-472d-99ff-d0aeb71dde93",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-23",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "027173e8-f1bf-4275-baa7-bfc72aafb61f",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-24",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5f12cfc9-f3df-4846-9181-b02567fb20c4",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-25",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5ff584b2-3cb5-4439-8b2f-1e96ef33bec6",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-26",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3ee44280-1eae-4f2f-a36d-8155bae8b47b",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-27",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "871de37a-984f-46d3-afdd-99b62a2fd2b3",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "name": "ชุมชนเขต4-28",
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    }
+  ],
+  "polling_units": [
+    {
+      "id": "9369e24d-4406-4691-ae32-0fed7bcfbc25",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "001",
+      "name": "หน่วยเลือกตั้งที่ 1 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "11883c0b-3e39-4ce6-a91c-fc127a9e82bf",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "002",
+      "name": "หน่วยเลือกตั้งที่ 2 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4a3ef083-e36f-4177-8e89-9f3e836c392d",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "003",
+      "name": "หน่วยเลือกตั้งที่ 3 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e16512de-0398-4c18-8874-eebc160efeda",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "004",
+      "name": "หน่วยเลือกตั้งที่ 4 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3f2b2d2b-f443-448b-82ca-0a98b59d6989",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "005",
+      "name": "หน่วยเลือกตั้งที่ 5 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "419d28bc-02e7-496b-9dec-16abd058d7b2",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "006",
+      "name": "หน่วยเลือกตั้งที่ 6 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5c03eb3a-f6c5-44d9-a9f7-f45153d3847b",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "007",
+      "name": "หน่วยเลือกตั้งที่ 7 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "01bba3eb-43f9-432e-9c65-793e5d6ddb98",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "008",
+      "name": "หน่วยเลือกตั้งที่ 8 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4c09c59b-987b-4ed1-92e8-cacf8fdd2849",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "009",
+      "name": "หน่วยเลือกตั้งที่ 9 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3ce6c627-c416-4576-aac7-6f53fe16c228",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "010",
+      "name": "หน่วยเลือกตั้งที่ 10 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8f998993-4e8a-4838-9b1c-7d87e7cdcd29",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "011",
+      "name": "หน่วยเลือกตั้งที่ 11 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "50ad8580-a173-4c65-b415-89848ae1696e",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "012",
+      "name": "หน่วยเลือกตั้งที่ 12 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "831030ac-b3f5-4cd8-be40-15f834b79933",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "013",
+      "name": "หน่วยเลือกตั้งที่ 13 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2195affe-1da5-4865-ad2c-c35e3a48b6f0",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "014",
+      "name": "หน่วยเลือกตั้งที่ 14 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f4d802cd-d7d8-4584-a5f9-4d26406889e9",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "015",
+      "name": "หน่วยเลือกตั้งที่ 15 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "fec13603-e094-416e-82d5-7b5058d56a53",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "016",
+      "name": "หน่วยเลือกตั้งที่ 16 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "902824a8-7ee1-415e-8e19-063bb9eaa030",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "017",
+      "name": "หน่วยเลือกตั้งที่ 17 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c3fb67e7-6dfb-4f43-b050-60e3170471e7",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "018",
+      "name": "หน่วยเลือกตั้งที่ 18 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d215d40f-5452-4dcc-8e7a-0522144bcb1b",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "019",
+      "name": "หน่วยเลือกตั้งที่ 19 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b31f2c72-7cd1-409b-81e1-88ef09df4353",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "020",
+      "name": "หน่วยเลือกตั้งที่ 20 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "62384abf-0fbb-4147-bd10-18943e87ba68",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "021",
+      "name": "หน่วยเลือกตั้งที่ 21 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "56bf8acd-a58b-45f1-8d7b-8c0fbc7e4014",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "022",
+      "name": "หน่วยเลือกตั้งที่ 22 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d19b1a0f-f2b4-4b3f-b547-44f3be85d53f",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "023",
+      "name": "หน่วยเลือกตั้งที่ 23 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c4b133a6-85dd-4f52-ae12-a145e64ed1c1",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "024",
+      "name": "หน่วยเลือกตั้งที่ 24 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "73a95cd9-c5b6-41d1-87f8-d48198001851",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "025",
+      "name": "หน่วยเลือกตั้งที่ 25 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "69eb1b43-f8dd-4089-badf-70bbea5d5e0a",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "026",
+      "name": "หน่วยเลือกตั้งที่ 26 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "91f19671-0553-4a04-ab1d-7addbfe93c77",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "027",
+      "name": "หน่วยเลือกตั้งที่ 27 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ce16f20c-e188-43ab-9fe7-eccd5f4e1f3b",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "028",
+      "name": "หน่วยเลือกตั้งที่ 28 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e08525ac-bd88-4016-8846-2967dca1bfaf",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "029",
+      "name": "หน่วยเลือกตั้งที่ 29 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4c93c51e-c6c9-44f1-a407-786f63a87629",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "030",
+      "name": "หน่วยเลือกตั้งที่ 30 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8c207f1e-c17a-4d3b-b4d2-61f6dea5e748",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "031",
+      "name": "หน่วยเลือกตั้งที่ 31 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "cb57872a-5b53-47a2-a8ac-ad7e17aec3ba",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "032",
+      "name": "หน่วยเลือกตั้งที่ 32 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e5dd3ae5-0a87-472c-92c6-1b7b43aa69aa",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "033",
+      "name": "หน่วยเลือกตั้งที่ 33 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ec7b29f6-4472-492f-a8c6-107012fe817b",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "034",
+      "name": "หน่วยเลือกตั้งที่ 34 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1d89233f-4c11-4649-91a5-67b1da22eacd",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "035",
+      "name": "หน่วยเลือกตั้งที่ 35 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2147725c-28df-44b5-bc64-415fde361f10",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "036",
+      "name": "หน่วยเลือกตั้งที่ 36 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "747a5d5f-57b0-4192-bd88-df8e7f22e116",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "037",
+      "name": "หน่วยเลือกตั้งที่ 37 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "09bb306b-8e5d-4be6-af8b-f39a92630bbb",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "038",
+      "name": "หน่วยเลือกตั้งที่ 38 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9625d582-3688-488c-846d-4d6e64544d3f",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "039",
+      "name": "หน่วยเลือกตั้งที่ 39 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e19eff56-e3dc-4ea3-a1ca-d15225e43e36",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "040",
+      "name": "หน่วยเลือกตั้งที่ 40 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "42a590ee-ddfa-442a-89f0-8861b23220ed",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "041",
+      "name": "หน่วยเลือกตั้งที่ 41 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ff38da2d-8785-4b0d-acb9-bd920a328c12",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "042",
+      "name": "หน่วยเลือกตั้งที่ 42 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1842c903-cd82-466d-9111-483952c758c2",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "043",
+      "name": "หน่วยเลือกตั้งที่ 43 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a2562586-479a-4ea8-890c-c1753e98d4ae",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "044",
+      "name": "หน่วยเลือกตั้งที่ 44 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "41a0ec72-ac64-454d-9533-194a0669390d",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "045",
+      "name": "หน่วยเลือกตั้งที่ 45 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "95fdc6e8-b8b9-4319-a8c7-75763e785b0c",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "046",
+      "name": "หน่วยเลือกตั้งที่ 46 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1e44a831-cd9c-40c1-a86e-6902d16dca7d",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "047",
+      "name": "หน่วยเลือกตั้งที่ 47 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d3560c10-b236-45fe-aaf9-1f0fa8d98e6d",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "048",
+      "name": "หน่วยเลือกตั้งที่ 48 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e1d1c90d-ea87-404b-85ba-bd10499ee000",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "049",
+      "name": "หน่วยเลือกตั้งที่ 49 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3fc3b682-7d1a-4e0a-8bb1-67468a763973",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "050",
+      "name": "หน่วยเลือกตั้งที่ 50 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ba5562aa-dd95-41bc-adad-ff51e5ecdccb",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "051",
+      "name": "หน่วยเลือกตั้งที่ 51 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "98495b28-1239-4529-9b2c-bf8aed070e14",
+      "district_id": "f4672e79-6c21-474c-a240-ccb3f1ac379d",
+      "unit_no": "052",
+      "name": "หน่วยเลือกตั้งที่ 52 เขต 1",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "faa5b20d-ebb3-40c4-88f4-67976e993d8e",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "001",
+      "name": "หน่วยเลือกตั้งที่ 1 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0a2b60c4-875f-492e-8cac-bcff9327b20f",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "002",
+      "name": "หน่วยเลือกตั้งที่ 2 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "61111cfe-5199-4637-9911-59d77a2d05eb",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "003",
+      "name": "หน่วยเลือกตั้งที่ 3 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "47b230d3-4c3d-4f10-a11a-6253aea0ab43",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "004",
+      "name": "หน่วยเลือกตั้งที่ 4 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "cea4dfef-52ac-45a5-89b9-13d223dbcd44",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "005",
+      "name": "หน่วยเลือกตั้งที่ 5 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "28621687-3961-4699-8fcf-6d9c205a0f3b",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "006",
+      "name": "หน่วยเลือกตั้งที่ 6 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4680fa9b-b70f-4035-a147-f2ac8e7b5de3",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "007",
+      "name": "หน่วยเลือกตั้งที่ 7 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ab574497-4f9d-49c5-8d9e-c4649e2f188d",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "008",
+      "name": "หน่วยเลือกตั้งที่ 8 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d7bcb071-9f83-4d74-98c7-9f0869df0a34",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "009",
+      "name": "หน่วยเลือกตั้งที่ 9 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "67ac4266-fd51-4f3e-b2cd-cfc88ccf746e",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "010",
+      "name": "หน่วยเลือกตั้งที่ 10 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "bde6a479-2efb-41aa-9d11-9c01bcdfd61e",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "011",
+      "name": "หน่วยเลือกตั้งที่ 11 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9286cb74-8b33-4a5b-b4cc-b717890f1919",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "012",
+      "name": "หน่วยเลือกตั้งที่ 12 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8eba954a-a6f8-4cd5-977d-e6c125e57bd9",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "013",
+      "name": "หน่วยเลือกตั้งที่ 13 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f9d51718-daf4-4814-8138-bfbf436911b8",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "014",
+      "name": "หน่วยเลือกตั้งที่ 14 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7edcf968-1da3-4a4d-b065-f8f53248e668",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "015",
+      "name": "หน่วยเลือกตั้งที่ 15 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7b78f8e9-797e-41a3-af4e-9f60576e08f8",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "016",
+      "name": "หน่วยเลือกตั้งที่ 16 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3b97229c-b3f2-4534-9422-b44fb5722fab",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "017",
+      "name": "หน่วยเลือกตั้งที่ 17 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b16e6b1c-6967-4f6f-9532-2b67fafd43d9",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "018",
+      "name": "หน่วยเลือกตั้งที่ 18 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "663d5f9f-d595-4a3f-b48a-06736b53f44a",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "019",
+      "name": "หน่วยเลือกตั้งที่ 19 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8dcb6f37-e883-45ec-931e-890897861b79",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "020",
+      "name": "หน่วยเลือกตั้งที่ 20 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4c730f8b-3197-468c-b37f-5b9e78e2458c",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "021",
+      "name": "หน่วยเลือกตั้งที่ 21 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5ec55f4e-7001-4e0b-a965-51ce33732eab",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "022",
+      "name": "หน่วยเลือกตั้งที่ 22 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "75864e11-0690-48ae-af56-dd0ad6d98dd3",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "023",
+      "name": "หน่วยเลือกตั้งที่ 23 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "396fc16a-c556-482f-bacc-69b91643942c",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "024",
+      "name": "หน่วยเลือกตั้งที่ 24 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1413ca88-520a-4c4a-946c-13e397fe23a3",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "025",
+      "name": "หน่วยเลือกตั้งที่ 25 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f70e82b1-c724-4205-be76-0cf6a20731ee",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "026",
+      "name": "หน่วยเลือกตั้งที่ 26 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4fc549bf-f81b-412a-b482-a00b335354c1",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "027",
+      "name": "หน่วยเลือกตั้งที่ 27 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6142d969-18a8-495a-afca-1b5c22607f39",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "028",
+      "name": "หน่วยเลือกตั้งที่ 28 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e68e02dc-56bf-46cb-b5b4-8f94b1f34f41",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "029",
+      "name": "หน่วยเลือกตั้งที่ 29 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "720a6f7a-c149-472c-ae2e-7788c99cc0ae",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "030",
+      "name": "หน่วยเลือกตั้งที่ 30 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "62bc4a21-a53e-4ac2-9fb9-da2543723ba2",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "031",
+      "name": "หน่วยเลือกตั้งที่ 31 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "1b3f6477-d7cf-4ff9-b397-28a659947526",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "032",
+      "name": "หน่วยเลือกตั้งที่ 32 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a140d465-c5ba-4ccb-b1e2-ef028fc8022b",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "033",
+      "name": "หน่วยเลือกตั้งที่ 33 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a7c37b7d-eb8d-46f0-9f2c-08b0f19bf5bb",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "034",
+      "name": "หน่วยเลือกตั้งที่ 34 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "57ca5501-606c-4f92-930a-ab53c8e3c4de",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "035",
+      "name": "หน่วยเลือกตั้งที่ 35 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b0de5388-bc0c-45f6-adcb-842b8b6374e5",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "036",
+      "name": "หน่วยเลือกตั้งที่ 36 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ae14d46b-eca5-4064-a81d-f0c1b26af789",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "037",
+      "name": "หน่วยเลือกตั้งที่ 37 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5e10dd54-cdb8-46b0-bb33-3a37ab3e9c56",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "038",
+      "name": "หน่วยเลือกตั้งที่ 38 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3bb1538d-80b8-49b0-bb50-bff02f286c48",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "039",
+      "name": "หน่วยเลือกตั้งที่ 39 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ffa734ff-04cb-476c-abc5-d5d872205870",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "040",
+      "name": "หน่วยเลือกตั้งที่ 40 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a633e321-4a66-4638-82e3-c61e0a3440a2",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "041",
+      "name": "หน่วยเลือกตั้งที่ 41 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "840dd6ea-3e84-4c85-ad6f-846ff010cfcc",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "042",
+      "name": "หน่วยเลือกตั้งที่ 42 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "fb825b17-a548-42af-9bb7-0a19c503155a",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "043",
+      "name": "หน่วยเลือกตั้งที่ 43 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "945e8bb2-c446-436f-a3ad-66babde4c9e4",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "044",
+      "name": "หน่วยเลือกตั้งที่ 44 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "555bc968-766e-4a64-a4ac-c564c82cd56c",
+      "district_id": "a88c64e1-6340-4977-a45e-b0bc502c0f65",
+      "unit_no": "045",
+      "name": "หน่วยเลือกตั้งที่ 45 เขต 2",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ef5f1146-b7ad-41d4-b804-e40b0308586d",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "001",
+      "name": "หน่วยเลือกตั้งที่ 1 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ccc7559f-5786-4560-a67c-3c1a9d55d51c",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "002",
+      "name": "หน่วยเลือกตั้งที่ 2 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8febfacd-2a65-48d6-8c52-be93ae3897c2",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "003",
+      "name": "หน่วยเลือกตั้งที่ 3 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "47939319-71ac-4490-ac76-864103b50805",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "004",
+      "name": "หน่วยเลือกตั้งที่ 4 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "271cad14-4685-4305-a569-19c86ad8dbb8",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "005",
+      "name": "หน่วยเลือกตั้งที่ 5 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "36a2b33b-307f-4d21-9202-bc16e3fccaa7",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "006",
+      "name": "หน่วยเลือกตั้งที่ 6 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2963127c-f192-4d3a-8f47-e6c90ffd78de",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "007",
+      "name": "หน่วยเลือกตั้งที่ 7 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4cc8fcd7-9f00-4bd7-a162-16c9d7df1130",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "008",
+      "name": "หน่วยเลือกตั้งที่ 8 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f3f2869a-fca8-492d-b8db-353c2930471c",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "009",
+      "name": "หน่วยเลือกตั้งที่ 9 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b9d4583a-6663-4f6b-bff6-164b6fbbea5c",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "010",
+      "name": "หน่วยเลือกตั้งที่ 10 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0c4a75ac-fde5-4758-8f57-da3dcb5e9133",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "011",
+      "name": "หน่วยเลือกตั้งที่ 11 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "22e6cc39-4b30-4be9-b2b1-e3330196361f",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "012",
+      "name": "หน่วยเลือกตั้งที่ 12 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a7ce3e6a-3f26-4a5a-be76-e37080737aa6",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "013",
+      "name": "หน่วยเลือกตั้งที่ 13 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "8dad47be-facb-453c-a255-3056db8ff549",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "014",
+      "name": "หน่วยเลือกตั้งที่ 14 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "db014a11-75d9-45e3-8ff9-017d37d2496b",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "015",
+      "name": "หน่วยเลือกตั้งที่ 15 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c996b9a5-bd97-48f5-8093-c848ff25ce81",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "016",
+      "name": "หน่วยเลือกตั้งที่ 16 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "72fdc961-57f4-4cd2-a179-bbdacab14a0b",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "017",
+      "name": "หน่วยเลือกตั้งที่ 17 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e1afd874-47ce-4d9b-913a-5551b0d4c04a",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "018",
+      "name": "หน่วยเลือกตั้งที่ 18 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f1e49078-4137-48b7-870d-a0322d547dad",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "019",
+      "name": "หน่วยเลือกตั้งที่ 19 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b59a40f1-2195-47c0-aaa0-510e55bb9dab",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "020",
+      "name": "หน่วยเลือกตั้งที่ 20 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5fa674ca-79f1-463c-9f8b-19b5de47a45f",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "021",
+      "name": "หน่วยเลือกตั้งที่ 21 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "a3ed129d-56b1-45e3-87f3-502225c606bd",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "022",
+      "name": "หน่วยเลือกตั้งที่ 22 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d3255ea4-05bf-4ca9-9c42-4b915622caa5",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "023",
+      "name": "หน่วยเลือกตั้งที่ 23 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3aaa0943-0516-403f-afb6-a8107b2767c3",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "024",
+      "name": "หน่วยเลือกตั้งที่ 24 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "deaf4642-9cba-4eb9-a2b9-2377c66d148a",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "025",
+      "name": "หน่วยเลือกตั้งที่ 25 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "21a953dc-7fd4-4680-a29f-5f367b5d62a6",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "026",
+      "name": "หน่วยเลือกตั้งที่ 26 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7fbae486-dbdd-4c79-b754-ebfbcff79730",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "027",
+      "name": "หน่วยเลือกตั้งที่ 27 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "363344e6-91f5-493c-9a6a-35df14e7aaea",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "028",
+      "name": "หน่วยเลือกตั้งที่ 28 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6393d022-3e64-4697-b006-673da0505d71",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "029",
+      "name": "หน่วยเลือกตั้งที่ 29 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2513b8b6-df82-4f30-8cdf-40f93f565a76",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "030",
+      "name": "หน่วยเลือกตั้งที่ 30 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "13eab1d9-34fc-47c6-902e-2afb66edfd17",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "031",
+      "name": "หน่วยเลือกตั้งที่ 31 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f78d532c-9b40-43a1-993e-60abef387bbf",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "032",
+      "name": "หน่วยเลือกตั้งที่ 32 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2b40d0fc-01f0-482d-874b-a325d15997b8",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "033",
+      "name": "หน่วยเลือกตั้งที่ 33 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ae7e81bd-cb54-4cfd-bead-b30d94766e5d",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "034",
+      "name": "หน่วยเลือกตั้งที่ 34 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "44ba2beb-df7b-4814-a338-3b7acca0fbe5",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "035",
+      "name": "หน่วยเลือกตั้งที่ 35 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c2997d92-7de4-4e66-8e2f-4fe4a499e13c",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "036",
+      "name": "หน่วยเลือกตั้งที่ 36 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7927dd67-bc44-4c89-9b75-6b1ebf80393f",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "037",
+      "name": "หน่วยเลือกตั้งที่ 37 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e391d6b0-4efd-4ccf-a127-a3265e754632",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "038",
+      "name": "หน่วยเลือกตั้งที่ 38 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "925baa43-5e79-4960-867a-f045dd8d2a00",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "039",
+      "name": "หน่วยเลือกตั้งที่ 39 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e5b36431-5041-439a-9494-3b1be439af7e",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "040",
+      "name": "หน่วยเลือกตั้งที่ 40 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "51d408fe-62dc-4fce-a669-6ab9f776e205",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "041",
+      "name": "หน่วยเลือกตั้งที่ 41 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "818a0f94-6525-45ff-881e-5e9656223a38",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "042",
+      "name": "หน่วยเลือกตั้งที่ 42 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e5fbb059-5c8e-41e7-bf6a-ba399bd5a4e1",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "043",
+      "name": "หน่วยเลือกตั้งที่ 43 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "16c6772b-c033-43cf-9dd4-9fe19194d495",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "044",
+      "name": "หน่วยเลือกตั้งที่ 44 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4638a725-4220-477f-9e9a-8722481be0c1",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "045",
+      "name": "หน่วยเลือกตั้งที่ 45 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "35076bef-5cbf-46cd-af28-8c9a2e77d5b7",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "046",
+      "name": "หน่วยเลือกตั้งที่ 46 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "5330e1eb-a33c-4a98-ab66-752916c0b31e",
+      "district_id": "5cfe2b48-cb8d-4507-987e-639c3947bd06",
+      "unit_no": "047",
+      "name": "หน่วยเลือกตั้งที่ 47 เขต 3",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "db70baaa-2407-46cb-9f27-f933769afb8f",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "001",
+      "name": "หน่วยเลือกตั้งที่ 1 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "83c1ae6d-2795-44c7-aac3-aeb0ea7a3bd3",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "002",
+      "name": "หน่วยเลือกตั้งที่ 2 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "139d2f26-2c99-4659-9864-a57ca954b402",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "003",
+      "name": "หน่วยเลือกตั้งที่ 3 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "4e8161d8-391a-4f57-90a3-1d648a53c06a",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "004",
+      "name": "หน่วยเลือกตั้งที่ 4 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "469c5b59-66d2-40eb-8fc9-5775fc147474",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "005",
+      "name": "หน่วยเลือกตั้งที่ 5 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c9b48549-be48-4e05-95d0-914a00ea4666",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "006",
+      "name": "หน่วยเลือกตั้งที่ 6 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "77a182e6-7662-4d4f-a700-52752a8fe3d2",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "007",
+      "name": "หน่วยเลือกตั้งที่ 7 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e9461a90-d2da-4f70-8dcc-275f90da61be",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "008",
+      "name": "หน่วยเลือกตั้งที่ 8 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "e9486dc1-202b-4a5e-b41b-e3388a9d6203",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "009",
+      "name": "หน่วยเลือกตั้งที่ 9 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "fa21c964-30ec-49c4-9627-a161304608ff",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "010",
+      "name": "หน่วยเลือกตั้งที่ 10 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d464165e-1839-4732-83ad-cd1e2a85738f",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "011",
+      "name": "หน่วยเลือกตั้งที่ 11 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "cc23930d-05e0-470e-9058-8f494a2734cd",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "012",
+      "name": "หน่วยเลือกตั้งที่ 12 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ece54a89-e485-4a88-8a9b-aa0635e74f1c",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "013",
+      "name": "หน่วยเลือกตั้งที่ 13 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "7f104b33-300e-468d-9b74-68558f473c8d",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "014",
+      "name": "หน่วยเลือกตั้งที่ 14 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0b960a56-7261-4b31-8c84-a88205b55e14",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "015",
+      "name": "หน่วยเลือกตั้งที่ 15 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "c178598a-0031-4580-9974-fcb060f04de3",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "016",
+      "name": "หน่วยเลือกตั้งที่ 16 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "95cb7961-9301-49be-98df-039ab176db0a",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "017",
+      "name": "หน่วยเลือกตั้งที่ 17 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "aee665e4-8471-48ad-9be1-bd4f4094b5a6",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "018",
+      "name": "หน่วยเลือกตั้งที่ 18 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "0f501ca5-93f5-4ee2-b129-62f12629b94b",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "019",
+      "name": "หน่วยเลือกตั้งที่ 19 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "2b59b92a-67fa-42aa-a630-0b306f1b3fc7",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "020",
+      "name": "หน่วยเลือกตั้งที่ 20 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3b76070e-3cc5-4204-8da6-19b40d74f65c",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "021",
+      "name": "หน่วยเลือกตั้งที่ 21 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "08c75ccf-05c4-4276-8290-bd2a5c9a57e7",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "022",
+      "name": "หน่วยเลือกตั้งที่ 22 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "960c29be-45a8-4559-830c-818297cde41d",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "023",
+      "name": "หน่วยเลือกตั้งที่ 23 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "f5d6b221-c781-47ce-b51b-889327a39518",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "024",
+      "name": "หน่วยเลือกตั้งที่ 24 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "9d5c3282-979f-4f2e-8cab-7325a3f94574",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "025",
+      "name": "หน่วยเลือกตั้งที่ 25 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "43591fae-1967-431e-9bed-cc324af0ed70",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "026",
+      "name": "หน่วยเลือกตั้งที่ 26 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "58e49963-0f00-4606-8404-4581a39e66a1",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "027",
+      "name": "หน่วยเลือกตั้งที่ 27 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "6f0d866d-55dc-4880-b50f-5368111ce31b",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "028",
+      "name": "หน่วยเลือกตั้งที่ 28 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d483bd7a-d050-4120-b63e-cebac3d143af",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "029",
+      "name": "หน่วยเลือกตั้งที่ 29 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "863c9079-8dbd-42ac-9751-fbd4941cbede",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "030",
+      "name": "หน่วยเลือกตั้งที่ 30 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d0d462de-7a5f-4018-883e-f3015e33a120",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "031",
+      "name": "หน่วยเลือกตั้งที่ 31 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "dad8cf85-2017-474f-937c-99b55f6cf3ca",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "032",
+      "name": "หน่วยเลือกตั้งที่ 32 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ac8132ae-2346-4756-9b44-92d703d1fdc1",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "033",
+      "name": "หน่วยเลือกตั้งที่ 33 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "93dcbc83-1f45-4be8-9a95-bf4aa36f9f7c",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "034",
+      "name": "หน่วยเลือกตั้งที่ 34 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "bb3ac3a9-3734-4bc0-83d1-209e0d836d1f",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "035",
+      "name": "หน่วยเลือกตั้งที่ 35 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "d7290b72-dfe0-4033-a9a6-9f69a8eec347",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "036",
+      "name": "หน่วยเลือกตั้งที่ 36 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "abb405b5-1401-44de-9c11-b94cf8bc4d29",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "037",
+      "name": "หน่วยเลือกตั้งที่ 37 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "b30bb1a8-6df8-4d12-b17e-38f4855ca1aa",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "038",
+      "name": "หน่วยเลือกตั้งที่ 38 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "3f328a0b-7f76-4e05-a595-6ae1e5c60564",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "039",
+      "name": "หน่วยเลือกตั้งที่ 39 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "ede33ccb-66d8-4186-8a84-4d50870b2604",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "040",
+      "name": "หน่วยเลือกตั้งที่ 40 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    },
+    {
+      "id": "799fbbee-3e07-42ff-bc2d-d88bb96eb0a5",
+      "district_id": "6941ea7c-598f-4623-b393-dd12b3901917",
+      "unit_no": "041",
+      "name": "หน่วยเลือกตั้งที่ 41 เขต 4",
+      "location": null,
+      "created_at": "2026-05-28T19:11:54.35886+00:00",
+      "created_by": "seed"
+    }
+  ],
+  "counts": {
+    "municipalities": 1,
+    "districts": 4,
+    "communities": 98,
+    "polling_units": 185,
+    "members": 0,
+    "residents": 0
+  }
+}

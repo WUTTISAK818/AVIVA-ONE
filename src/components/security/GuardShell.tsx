@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { ShieldCheck, UserPlus, Package, AlertTriangle, MapPin, LogOut } from "lucide-react";
+import AvivaPlusWordmark from "@/components/community/AvivaPlusWordmark";
 import { supabase } from "@/lib/supabase";
 
 const TABS = [
@@ -21,9 +22,10 @@ export default function GuardShell({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-aviva-bg">
       <header className="sticky top-0 z-40 bg-aviva-nav border-b border-aviva-gold/20 px-4 md:px-6 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={20} className="text-aviva-gold" />
-            <span className="font-bold text-aviva-text">AVIVA Plus · รปภ.</span>
+          <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+            <ShieldCheck size={20} className="text-aviva-gold shrink-0" />
+            <AvivaPlusWordmark className="text-lg" />
+            <span className="text-aviva-secondary/60 text-sm hidden sm:inline">· รปภ.</span>
           </div>
           <nav className="flex items-center gap-1 overflow-x-auto">
             {TABS.map(({ href, label, icon: Icon, exact }) => {

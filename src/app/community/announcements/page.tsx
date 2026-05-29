@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Pin, Megaphone, ArrowRight } from "lucide-react";
+import { Pin, Megaphone, ArrowRight, Bell } from "lucide-react";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
+import AvivaPlusWordmark from "@/components/community/AvivaPlusWordmark";
+import CommunityHero from "@/components/community/CommunityHero";
+import CommunityQuickActions from "@/components/community/CommunityQuickActions";
 import { supabase } from "@/lib/supabase";
 
 interface Announcement {
@@ -48,17 +51,21 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-aviva-text">ประกาศจากนิติฯ</h1>
-          <p className="text-xs text-aviva-secondary mt-0.5">
-            {loading ? "กำลังโหลด…" : `${items.length} ประกาศ`}
-          </p>
+      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <AvivaPlusWordmark className="text-2xl" />
+          <button aria-label="แจ้งเตือน" className="p-2 -mr-2">
+            <Bell size={20} className="text-aviva-gold" />
+          </button>
         </div>
       </div>
 
-      <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
-        <SectionHeader title="อ่านล่าสุด" subtitle="ปักหมุดจะอยู่บนสุด" />
+      <CommunityHero />
+
+      <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        <CommunityQuickActions />
+
+        <SectionHeader title="ประกาศนิติฯ" subtitle={loading ? "กำลังโหลด…" : `${items.length} ประกาศ · ปักหมุดอยู่บนสุด`} />
 
         {loading ? (
           [1, 2].map(i => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />)

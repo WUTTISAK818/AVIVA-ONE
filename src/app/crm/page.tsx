@@ -11,6 +11,8 @@ import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
 import { createNotification } from "@/lib/notify";
+import { useCurrentUser } from "@/lib/user-context";
+import { generateDocNumber } from "@/lib/doc-numbers";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -116,6 +118,7 @@ const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photo: null as
 type MainTab = "pipeline" | "team" | "map";
 
 export default function CRMPage() {
+  const user = useCurrentUser();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
@@ -449,6 +452,15 @@ export default function CRMPage() {
         if (effectivePlot) {
           if (form.status === "Booking") {
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
+            const docNum = await generateDocNumber("BOOK");
+            await supabase.from("approval_logs").insert({
+              workflow_type: "Booking_Deposit",
+              source_doc_index: `${docNum} | จองแปลง ${effectivePlot} — ${form.customer_name} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+              source_record_id: editingLead.id,
+              current_approver_role: "manager",
+              action_taken: "Pending",
+              amount: form.budget ? Number(form.budget) : null,
+            });
           } else if (editingLead.status === "Booking" && !["Booking", "Loan Process"].includes(form.status)) {
             await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
           }

@@ -12,6 +12,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
+import { generateDocNumber } from "@/lib/doc-numbers";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -244,9 +245,10 @@ export default function ConstructionPage() {
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
     const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
     if (newStatus === "in_review") {
+      const docNum = await generateDocNumber("INST");
       await supabase.from("approval_logs").insert({
         workflow_type: "Installment_Review",
-        source_doc_index: `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} — โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_doc_index: `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         source_record_id: inst.id,
         current_approver_role: user?.isAdmin ? "admin" : "manager",
         action_taken: "Pending",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock } from "lucide-react";
+import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, AlertTriangle } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
 import { createNotification } from "@/lib/notify";
+import { SLA_DAYS } from "@/lib/approval-matrix";
 
 interface ApprovalLog {
   approval_id: string;
@@ -26,25 +27,40 @@ interface ApprovalLog {
 }
 
 const DEPT_BY_WORKFLOW: Record<string, string> = {
-  Material_Purchase: "ฝ่ายก่อสร้าง",
-  Finance_Approval: "ฝ่ายการเงิน",
+  Material_Purchase:  "ฝ่ายก่อสร้าง",
+  Finance_Approval:   "ฝ่ายการเงิน",
   Installment_Review: "ฝ่ายก่อสร้าง",
-  Leave_Request: "ฝ่ายบุคคล",
-  Document_Approval: "ฝ่ายออฟฟิศ",
+  Leave_Request:      "ฝ่ายบุคคล",
+  Document_Approval:  "ฝ่ายออฟฟิศ",
+  Booking_Deposit:    "ฝ่ายขาย",
+  Contract_Approval:  "ฝ่ายขาย",
+  Marketing_Budget:   "ฝ่ายการตลาด",
 };
 
 const WORKFLOW_LABEL: Record<string, string> = {
-  Material_Purchase: "ขออนุมัติจัดซื้อวัสดุ",
-  Finance_Approval: "ขออนุมัติรายจ่าย",
+  Material_Purchase:  "ขออนุมัติจัดซื้อวัสดุ",
+  Finance_Approval:   "ขออนุมัติรายจ่าย",
   Installment_Review: "ตรวจสอบงวดงาน",
-  Leave_Request: "ขออนุมัติการลา",
-  Document_Approval: "ขออนุมัติเอกสาร",
+  Leave_Request:      "ขออนุมัติการลา",
+  Document_Approval:  "ขออนุมัติเอกสาร",
+  Booking_Deposit:    "อนุมัติเงินจอง",
+  Contract_Approval:  "อนุมัติสัญญาซื้อขาย",
+  Marketing_Budget:   "อนุมัติงบการตลาด",
 };
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `฿${(n/1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `฿${(n/1_000).toFixed(0)}K`;
   return `฿${n.toLocaleString()}`;
+}
+
+function getSlaBadge(log: ApprovalLog): { label: string; cls: string } | null {
+  if (log.action_taken !== "Pending") return null;
+  const sla = SLA_DAYS[log.workflow_type] ?? 3;
+  const daysPending = Math.floor((Date.now() - new Date(log.created_at).getTime()) / 86_400_000);
+  if (daysPending > sla) return { label: `เกิน SLA ${daysPending - sla} วัน`, cls: "bg-red-500/20 text-red-400 border border-red-500/30" };
+  if (daysPending >= sla) return { label: `ครบ SLA วันนี้`, cls: "bg-orange-500/20 text-orange-400 border border-orange-500/30" };
+  return null;
 }
 
 type FilterTab = "pending" | "approved" | "rejected";
@@ -78,6 +94,11 @@ export default function ApprovalsPage() {
     return l.action_taken === "Rejected";
   });
   const pendingCount = logs.filter(l => l.action_taken === "Pending").length;
+  const overdueCount = logs.filter(l => {
+    if (l.action_taken !== "Pending") return false;
+    const sla = SLA_DAYS[l.workflow_type] ?? 3;
+    return Math.floor((Date.now() - new Date(l.created_at).getTime()) / 86_400_000) > sla;
+  }).length;
 
   const cascadeApprove = async (log: ApprovalLog): Promise<string | null> => {
     if (!log.source_record_id) return null;
@@ -90,6 +111,9 @@ export default function ApprovalsPage() {
         if (error) return error.message;
       } else if (log.workflow_type === "Document_Approval") {
         const { error } = await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Booking_Deposit") {
+        const { error } = await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
         if (error) return error.message;
       }
     } catch (e) {
@@ -187,7 +211,15 @@ export default function ApprovalsPage() {
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center gap-2"><BadgeCheck size={20} className="text-aviva-gold" /><h1 className="text-xl font-bold text-aviva-text">ระบบอนุมัติ</h1></div>
+          <div className="flex items-center gap-2">
+            <BadgeCheck size={20} className="text-aviva-gold" />
+            <h1 className="text-xl font-bold text-aviva-text">ระบบอนุมัติ</h1>
+            {overdueCount > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+                <AlertTriangle size={9} /> {overdueCount} เกิน SLA
+              </span>
+            )}
+          </div>
           <p className="text-xs text-aviva-secondary mt-0.5">{loading ? "กำลังโหลด..." : `รออนุมัติ ${pendingCount} รายการ`}</p>
         </div>
       </div>
@@ -195,55 +227,70 @@ export default function ApprovalsPage() {
         <div className="flex gap-2">
           {[{ k: "pending", l: `รออนุมัติ${pendingCount > 0 ? ` (${pendingCount})` : ""}` }, { k: "approved", l: "อนุมัติแล้ว" }, { k: "rejected", l: "ปฏิเสธ" }].map(({ k, l }) => (
             <button key={k} onClick={() => setActiveTab(k as FilterTab)}
-              className={clsx("เflex-1 py-2 rounded-xl text-xs font-medium border transition-all", activeTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
+              className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all", activeTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
           ))}
         </div>
         <div className="space-y-3">
           {loading ? [1,2,3].map(i => <div key={i} className="h-24 rounded-2xl bg-aviva-card/50 animate-pulse" />) :
           filtered.length === 0 ? (
             <GlassCard className="p-8 text-center"><BadgeCheck size={28} className="text-aviva-secondary/30 mx-auto mb-2" /><p className="text-aviva-secondary text-sm">ไม่มีรายการในหมวดนี้</p></GlassCard>
-          ) : filtered.map(log => (
-            <GlassCard key={log.approval_id} className="p-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-aviva-gold">{log.source_doc_index}</span>
-                    {log.amount != null && log.amount > 50000 && (
-                      <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><ShieldAlert size={9} /> ต้องอนุมัติ 2 ชั้น</span>
+          ) : filtered.map(log => {
+            const slaBadge = getSlaBadge(log);
+            return (
+              <GlassCard key={log.approval_id} className={clsx("p-4 space-y-3", slaBadge && log.action_taken === "Pending" ? "border border-red-500/20" : "")}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-aviva-gold">{log.source_doc_index.split(" | ")[0]}</span>
+                      {log.amount != null && log.amount > 50000 && (
+                        <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><ShieldAlert size={9} /> 2 ชั้น</span>
+                      )}
+                      {slaBadge && (
+                        <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5", slaBadge.cls)}>
+                          <AlertTriangle size={9} /> {slaBadge.label}
+                        </span>
+                      )}
+                    </div>
+                    {log.source_doc_index.includes(" | ") && (
+                      <p className="text-[10px] text-aviva-secondary/70 mt-0.5 truncate">{log.source_doc_index.split(" | ").slice(1).join(" · ")}</p>
                     )}
+                    <p className="text-sm text-aviva-text mt-0.5">{WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs text-aviva-secondary">ผู้อนุมัติ: {log.current_approver_role}</p>
+                      {DEPT_BY_WORKFLOW[log.workflow_type] && <span className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{DEPT_BY_WORKFLOW[log.workflow_type]}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Clock size={9} className="text-aviva-secondary/50" />
+                      <p className="text-[10px] text-aviva-secondary/60">
+                        ส่งเมื่อ {new Date(log.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                        {log.action_taken === "Pending" && ` · SLA ${SLA_DAYS[log.workflow_type] ?? 3} วันทำงาน`}
+                        {log.action_timestamp && log.action_taken !== "Pending" && ` · อัปเดต ${new Date(log.action_timestamp).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`}
+                      </p>
+                    </div>
+                    {log.approver_email && log.action_taken !== "Pending" && <p className="text-[10px] text-aviva-secondary/60 mt-0.5">โดย: {log.approver_email}</p>}
                   </div>
-                  <p className="text-sm text-aviva-text mt-0.5">{WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type}</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    <p className="text-xs text-aviva-secondary">ผู้อนุมัติ: {log.current_approver_role}</p>
-                    {DEPT_BY_WORKFLOW[log.workflow_type] && <span className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{DEPT_BY_WORKFLOW[log.workflow_type]}</span>}
+                  <div className="text-right flex-shrink-0">
+                    {log.amount != null && <p className="text-sm font-bold text-aviva-gold">{fmt(log.amount)}</p>}
+                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
+                      log.action_taken === "Pending" ? "bg-yellow-500/20 text-yellow-400" :
+                      log.action_taken === "Approved" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                    )}>{log.action_taken === "Pending" ? "รออนุมัติ" : log.action_taken === "Approved" ? "✓ อนุมัติ" : "✗ ปฏิเสธ"}</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Clock size={9} className="text-aviva-secondary/50" />
-                    <p className="text-[10px] text-aviva-secondary/60">ส่งเมื่อ {new Date(log.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}{log.action_timestamp && ` · อัปเดต ${new Date(log.action_timestamp).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`}</p>
+                </div>
+                {log.rejection_comment && <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">เหตุผล: {log.rejection_comment}</p>}
+                {log.action_taken === "Pending" && (
+                  <div className="flex gap-2">
+                    <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
+                      className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                      <CheckCircle size={12} /> อนุมัติ</button>
+                    <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
+                      className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                      <XCircle size={12} /> ปฏิเสธ</button>
                   </div>
-                  {log.approver_email && log.action_taken !== "Pending" && <p className="text-[10px] text-aviva-secondary/60 mt-0.5">โดย: {log.approver_email}</p>}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  {log.amount != null && <p className="text-sm font-bold text-aviva-gold">{fmt(log.amount)}</p>}
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
-                    log.action_taken === "Pending" ? "bg-yellow-500/20 text-yellow-400" :
-                    log.action_taken === "Approved" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-                  )}>{log.action_taken === "Pending" ? "รออนุมัติ" : log.action_taken === "Approved" ? "✓ อนุมัติ" : "✗ ปฏิเสธ"}</span>
-                </div>
-              </div>
-              {log.rejection_comment && <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">เหตุผล: {log.rejection_comment}</p>}
-              {log.action_taken === "Pending" && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
-                    className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <CheckCircle size={12} /> อนุมัติ</button>
-                  <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
-                    className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <XCircle size={12} /> ปฏิเสธ</button>
-                </div>
-              )}
-            </GlassCard>
-          ))}
+                )}
+              </GlassCard>
+            );
+          })}
         </div>
       </div>
       {rejectingId && (

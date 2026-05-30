@@ -19,6 +19,8 @@ import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
+import { generateDocNumber } from "@/lib/doc-numbers";
+import { SLA_DAYS } from "@/lib/approval-matrix";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents";
 
@@ -63,6 +65,7 @@ const emptyFinanceForm = {
   amount: "",
   description: "",
   category: "ค่าก่อสร้าง",
+  cost_center: "",
 };
 
 function FinanceContent() {
@@ -132,6 +135,7 @@ function FinanceContent() {
     setSaving(true);
     const amt = Number(form.amount);
     if (amt >= 100000) {
+      const finDocNum = await generateDocNumber("FIN");
       const { data } = await supabase.from("approvals").insert({
         module: "finance",
         reference_type: "transaction",
@@ -142,7 +146,7 @@ function FinanceContent() {
       }).select().single();
       await supabase.from("approval_logs").insert({
         workflow_type: "Finance_Approval",
-        source_doc_index: `[${form.category}] ${form.description} — โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_doc_index: `${finDocNum} | [${form.category}] ${form.description}${form.cost_center ? ` (${form.cost_center})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         source_record_id: data?.id ?? null,
         current_approver_role: amt >= 500000 ? "admin" : "manager",
         action_taken: "Pending",
@@ -398,6 +402,13 @@ function FinanceContent() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {FINANCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">Cost Center (ระบุถ้ามี)</label>
+                <input type="text" value={form.cost_center}
+                  onChange={e => setForm({ ...form, cost_center: e.target.value })}
+                  placeholder="เช่น CC-001 ฝ่ายก่อสร้าง"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
 
@@ -1963,6 +1974,7 @@ interface ApprovalLog {
   approver_email: string | null;
   rejection_comment: string | null;
   amount: number | null;
+  created_at: string;
 }
 
 type ApprovalsFilterTab = "pending" | "approved" | "rejected";
@@ -1973,6 +1985,9 @@ const APPR_DEPT: Record<string, string> = {
   Installment_Review: "ฝ่ายก่อสร้าง",
   Leave_Request: "ฝ่ายบุคคล",
   Document_Approval: "ฝ่ายออฟฟิศ",
+  Booking_Deposit: "ฝ่ายขาย",
+  Contract_Approval: "ฝ่ายขาย",
+  Marketing_Budget: "ฝ่ายการตลาด",
 };
 
 const APPR_LABEL: Record<string, string> = {
@@ -1981,12 +1996,24 @@ const APPR_LABEL: Record<string, string> = {
   Installment_Review: "ตรวจสอบงวดงาน",
   Leave_Request: "ขออนุมัติการลา",
   Document_Approval: "ขออนุมัติเอกสาร",
+  Booking_Deposit: "อนุมัติเงินจอง",
+  Contract_Approval: "อนุมัติสัญญาซื้อขาย",
+  Marketing_Budget: "อนุมัติงบการตลาด",
 };
 
 function fmtAmt(n: number) {
   if (n >= 1_000_000) return `฿${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `฿${(n / 1_000).toFixed(0)}K`;
   return `฿${n.toLocaleString()}`;
+}
+
+function getSlaBadge(log: ApprovalLog): { label: string; cls: string } | null {
+  if (log.action_taken !== "Pending") return null;
+  const sla = SLA_DAYS[log.workflow_type] ?? 3;
+  const daysPending = Math.floor((Date.now() - new Date(log.created_at).getTime()) / 86_400_000);
+  if (daysPending > sla) return { label: `เกิน SLA ${daysPending - sla} วัน`, cls: "bg-red-500/20 text-red-400 border border-red-500/30" };
+  if (daysPending >= sla) return { label: `ครบ SLA วันนี้`, cls: "bg-orange-500/20 text-orange-400 border border-orange-500/30" };
+  return null;
 }
 
 function ApprovalsContent() {
@@ -2015,6 +2042,11 @@ function ApprovalsContent() {
   });
 
   const pendingCount = logs.filter((l) => l.action_taken === "Pending").length;
+  const overdueCount = logs.filter((l) => {
+    if (l.action_taken !== "Pending") return false;
+    const sla = SLA_DAYS[l.workflow_type] ?? 3;
+    return Math.floor((Date.now() - new Date(l.created_at).getTime()) / 86_400_000) > sla;
+  }).length;
 
   const handleApprove = async (id: string) => {
     setSaving(true);
@@ -2104,6 +2136,12 @@ function ApprovalsContent() {
             )}>{l}</button>
         ))}
       </div>
+      {overdueCount > 0 && (
+        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+          <span className="text-xs text-red-400 font-medium">{overdueCount} รายการเกิน SLA — ต้องอนุมัติด่วน</span>
+        </div>
+      )}
 
       <div className="space-y-3">
         {loading ? (
@@ -2114,20 +2152,30 @@ function ApprovalsContent() {
             <p className="text-aviva-secondary text-sm">ไม่มีรายการในหมวดนี้</p>
           </GlassCard>
         ) : (
-          filtered.map((log) => (
-            <GlassCard key={log.approval_id} className="p-4 space-y-3">
+          filtered.map((log) => {
+            const docParts = log.source_doc_index.split(" | ");
+            const docNum = docParts[0];
+            const docDesc = docParts.slice(1).join(" | ");
+            const slaBadge = getSlaBadge(log);
+            return (
+            <GlassCard key={log.approval_id} className={clsx("p-4 space-y-3", slaBadge?.cls.includes("red") && "border border-red-500/30")}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-aviva-gold">{log.source_doc_index}</span>
+                    <span className="text-xs font-bold text-aviva-gold">{docNum}</span>
+                    {slaBadge && (
+                      <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", slaBadge.cls)}>
+                        {slaBadge.label}
+                      </span>
+                    )}
                     {log.amount != null && log.amount > 50000 && (
                       <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                         <ShieldAlert size={9} /> ต้องอนุมัติ 2 ชั้น
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-aviva-text mt-0.5">{log.workflow_type}</p>
-                  <p className="text-xs text-aviva-secondary">ผู้อนุมัติ: {log.current_approver_role}</p>
+                  {docDesc && <p className="text-xs text-aviva-text mt-0.5">{docDesc}</p>}
+                  <p className="text-xs text-aviva-secondary">{APPR_LABEL[log.workflow_type] ?? log.workflow_type} · {log.current_approver_role}</p>
                   {log.action_timestamp && (
                     <p className="text-[10px] text-aviva-secondary/60">
                       {new Date(log.action_timestamp).toLocaleDateString("th-TH")}
@@ -2165,7 +2213,7 @@ function ApprovalsContent() {
                 </div>
               )}
             </GlassCard>
-          ))
+          );})
         )}
       </div>
 
@@ -2211,7 +2259,7 @@ function MaterialsContent() {
   const [activeView, setActiveView] = useState<"stock" | "po">("stock");
   const [loading, setLoading] = useState(true);
   const [showPOModal, setShowPOModal] = useState(false);
-  const [poForm, setPoForm] = useState({ supplier_name: "", items: "", notes: "" });
+  const [poForm, setPoForm] = useState({ supplier_name: "", items: "", notes: "", delivery_date: "" });
   const [saving, setSaving] = useState(false);
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
@@ -2247,6 +2295,7 @@ function MaterialsContent() {
   const handleCreatePO = async () => {
     if (!poForm.supplier_name || !poForm.items) return;
     setSaving(true);
+    const poDocNum = await generateDocNumber("PO");
     let parsedItems = [];
     try { parsedItems = JSON.parse(poForm.items); } catch { parsedItems = [{ name: poForm.items, qty: 1, unit: "ชิ้น", unit_price: 0 }]; }
     const total = parsedItems.reduce((s: number, i: { qty: number; unit_price: number }) => s + (i.qty * i.unit_price), 0);
@@ -2258,12 +2307,13 @@ function MaterialsContent() {
       status: "draft",
       requested_by: user?.full_name ?? user?.email ?? "Unknown",
       notes: poForm.notes,
+      ...(poForm.delivery_date ? { delivery_date: poForm.delivery_date } : {}),
     }).select().single();
     if (poErr) { setSaving(false); setToast({ msg: "สร้าง PO ไม่สำเร็จ: " + poErr.message, type: "error" }); return; }
     if (poData) {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
-        source_doc_index: `PO — ${poForm.supplier_name} — โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_doc_index: `${poDocNum} | PO — ${poForm.supplier_name}${poForm.delivery_date ? ` (กำหนดส่ง ${poForm.delivery_date})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         source_record_id: poData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -2278,7 +2328,7 @@ function MaterialsContent() {
     });
     setSaving(false);
     setShowPOModal(false);
-    setPoForm({ supplier_name: "", items: "", notes: "" });
+    setPoForm({ supplier_name: "", items: "", notes: "", delivery_date: "" });
     fetchMaterialsData();
   };
 
@@ -2427,6 +2477,11 @@ function MaterialsContent() {
                 <textarea value={poForm.items} onChange={e => setPoForm(p => ({ ...p, items: e.target.value }))}
                   placeholder={'[{"name":"เหล็กเส้น 12mm","qty":100,"unit":"เส้น","unit_price":85}]'}
                   rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">กำหนดส่งของ</label>
+                <input type="date" value={poForm.delivery_date} onChange={e => setPoForm(p => ({ ...p, delivery_date: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>

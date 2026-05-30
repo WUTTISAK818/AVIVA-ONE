@@ -6,11 +6,12 @@ import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import Toast, { type ToastType } from "@/components/Toast";
+import AttachDocButton from "@/components/AttachDocButton";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
 import { createNotification } from "@/lib/notify";
-import { SLA_DAYS } from "@/lib/approval-matrix";
+import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 
 interface ApprovalLog {
   approval_id: string;
@@ -24,6 +25,31 @@ interface ApprovalLog {
   rejection_comment: string | null;
   amount: number | null;
   created_at: string;
+  assigned_to_name?: string | null;
+  sla_due_at?: string | null;
+}
+
+function SlaBadge({ slaDueAt }: { slaDueAt: string | null | undefined }) {
+  if (!slaDueAt) return null;
+  const due = new Date(slaDueAt);
+  const now = new Date();
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / 86400000);
+  if (diffDays < 0) return (
+    <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+      เกินกำหนด {Math.abs(diffDays)} วัน
+    </span>
+  );
+  if (diffDays <= 1) return (
+    <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
+      SLA เหลือ {diffDays} วัน
+    </span>
+  );
+  return (
+    <span className="text-[10px] bg-aviva-bg text-aviva-secondary/60 border border-aviva-gold/10 px-1.5 py-0.5 rounded-full">
+      SLA {diffDays} วัน
+    </span>
+  );
 }
 
 const DEPT_BY_WORKFLOW: Record<string, string> = {
@@ -391,6 +417,8 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
         current_approver_role: "admin",
         action_taken: "Pending",
         amount: log.amount,
+        sla_due_at: calcSlaDueAt(log.workflow_type),
+        assigned_to_name: "ผู้จัดการ",
       });
       const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
       await createNotification({ type: "info", title: `ส่งอนุมัติชั้น 2 — ${log.source_doc_index}`, message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type} ผ่านชั้น 1 แล้ว รอผู้บริหารอนุมัติชั้น 2`, from_dept: dept, to_dept: dept });
@@ -488,6 +516,31 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
                     </p>
                   </div>
                   {log.approver_email && log.action_taken !== "Pending" && <p className="text-[10px] text-aviva-secondary/60 mt-0.5">โดย: {log.approver_email}</p>}
+                  {log.action_taken === "Pending" && (
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <SlaBadge slaDueAt={log.sla_due_at} />
+                      {log.assigned_to_name && (
+                        <span className="text-[10px] text-aviva-secondary/70">มอบหมาย: {log.assigned_to_name}</span>
+                      )}
+                    </div>
+                  )}
+                  {log.action_taken === "Pending" && (
+                    <div className="mt-1.5">
+                      <input
+                        defaultValue={log.assigned_to_name ?? ""}
+                        onBlur={async e => {
+                          await supabase.from("approval_logs")
+                            .update({ assigned_to_name: e.target.value || null })
+                            .eq("approval_id", log.approval_id);
+                        }}
+                        placeholder="มอบหมายให้..."
+                        className="text-[10px] bg-aviva-bg border border-aviva-gold/10 rounded-lg px-2 py-1 text-aviva-text outline-none focus:border-aviva-gold/40 w-28"
+                      />
+                    </div>
+                  )}
+                  <div className="mt-1.5">
+                    <AttachDocButton entityType="approval_log" entityId={log.approval_id} attachedBy={user?.full_name ?? ""} />
+                  </div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   {log.amount != null && <p className="text-sm font-bold text-aviva-gold">{fmt(log.amount)}</p>}
@@ -565,17 +618,20 @@ export default function ApprovalsPage() {
     return Math.floor((Date.now() - new Date(l.created_at).getTime()) / 86_400_000) > sla;
   }).length;
 
+  const pending = logs.filter(l => l.action_taken === "Pending");
+
   useEffect(() => {
-    if (!loading && overdueCount > 0 && !slaNotifiedRef.current) {
+    const overdue = pending.filter(p => p.sla_due_at && new Date(p.sla_due_at) < new Date());
+    if (overdue.length > 0 && !slaNotifiedRef.current) {
       slaNotifiedRef.current = true;
       createNotification({
         type: "info",
-        title: `${overdueCount} รายการเกิน SLA`,
-        message: "มีเอกสารค้างเกินกำหนด — กรุณาตรวจสอบและดำเนินการโดยด่วน",
+        title: `SLA เกินกำหนด ${overdue.length} รายการ`,
+        message: `มีคำขออนุมัติที่เลยกำหนดแล้ว — กรุณาดำเนินการโดยด่วน`,
         from_dept: "ระบบ",
       });
     }
-  }, [loading, overdueCount]);
+  }, [loading, pending]);
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">

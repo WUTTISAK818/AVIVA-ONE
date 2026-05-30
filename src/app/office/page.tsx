@@ -13,6 +13,7 @@ import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
+import AttachDocButton from "@/components/AttachDocButton";
 import { supabase } from "@/lib/supabase";
 import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
@@ -20,7 +21,7 @@ import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
 import { generateDocNumber } from "@/lib/doc-numbers";
-import { SLA_DAYS } from "@/lib/approval-matrix";
+import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents";
 
@@ -228,6 +229,8 @@ function FinanceContent() {
         current_approver_role: amt >= 500000 ? "admin" : "manager",
         action_taken: "Pending",
         amount: amt,
+        sla_due_at: calcSlaDueAt("Finance_Approval"),
+        assigned_to_name: "ผู้จัดการ",
       });
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
       await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `[${form.category}] ${form.description} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการเงิน" });
@@ -643,6 +646,7 @@ const emptyReceiptForm = {
 };
 
 function AccountingContent() {
+  const user = useCurrentUser();
   const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -816,6 +820,9 @@ function AccountingContent() {
                   {e.reference_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.reference_number}</p>}
                   <div className="text-[10px] text-aviva-secondary/60 mt-0.5">
                     Dr: {e.account_debit} / Cr: {e.account_credit}
+                  </div>
+                  <div className="mt-1.5">
+                    <AttachDocButton entityType="accounting_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} />
                   </div>
                 </div>
                 <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.amount.toLocaleString()}</p>
@@ -2264,6 +2271,8 @@ function ApprovalsContent() {
         current_approver_role: "admin",
         action_taken: "Pending",
         amount: log.amount,
+        sla_due_at: calcSlaDueAt(log.workflow_type),
+        assigned_to_name: "ผู้จัดการ",
       });
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
       await createNotification({ type: "info", title: `ส่งอนุมัติชั้น 2 — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ผ่านชั้น 1 แล้ว รอผู้บริหารอนุมัติชั้น 2`, from_dept: dept, to_dept: dept });
@@ -2512,6 +2521,8 @@ function MaterialsContent() {
         current_approver_role: "manager",
         action_taken: "Pending",
         amount: total,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
       });
     }
     await createNotification({
@@ -3169,6 +3180,8 @@ function DocumentsContent() {
         current_approver_role: "manager",
         action_taken: "Pending",
         amount: null,
+        sla_due_at: calcSlaDueAt("Document_Approval"),
+        assigned_to_name: "ผู้จัดการ",
       });
     }
     await createNotification({

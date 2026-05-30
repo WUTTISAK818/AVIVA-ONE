@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
+import { calcSlaDueAt } from "@/lib/approval-matrix";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -490,6 +491,8 @@ export default function ConstructionPage() {
         current_approver_role: user?.isAdmin ? "admin" : "manager",
         action_taken: "Pending",
         amount: inst.amount ?? null,
+        sla_due_at: calcSlaDueAt("Installment_Review"),
+        assigned_to_name: "ผู้จัดการ",
       });
     }
     await createNotification({

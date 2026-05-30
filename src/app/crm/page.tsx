@@ -13,6 +13,8 @@ import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
+import { calcSlaDueAt } from "@/lib/approval-matrix";
+import AttachDocButton from "@/components/AttachDocButton";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -54,6 +56,21 @@ interface Lead {
   last_contact_date?: string | null;
   financing_type?: string | null;
   urgency?: string | null;
+  delivery_date?: string | null;
+  contract_price?: number | null;
+  contract_signed_date?: string | null;
+}
+
+interface CustomerInstallment {
+  id: string;
+  lead_id: string;
+  installment_no: number;
+  name: string;
+  amount: number;
+  due_date: string | null;
+  paid_date: string | null;
+  status: 'pending' | 'paid' | 'overdue';
+  notes: string | null;
 }
 
 interface HouseSlot {
@@ -120,6 +137,9 @@ const emptyForm = {
   next_follow_up_date: "",
   financing_type: "ไม่ระบุ",
   urgency: "ปกติ",
+  delivery_date: "",
+  contract_price: "",
+  contract_signed_date: "",
 };
 
 const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photo: null as File | null, photoPreview: "" };
@@ -165,6 +185,10 @@ export default function CRMPage() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [leadApprovals, setLeadApprovals] = useState<ApprovalLog[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
+  const [custInsts, setCustInsts] = useState<CustomerInstallment[]>([]);
+  const [loadingCustInsts, setLoadingCustInsts] = useState(false);
+  const [showCustInstModal, setShowCustInstModal] = useState(false);
+  const [custInstLead, setCustInstLead] = useState<Lead | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   useEffect(() => {
@@ -175,7 +199,7 @@ export default function CRMPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); return; }
+    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); setCustInsts([]); return; }
     setLoadingLogs(true);
     setLoadingApprovals(true);
     supabase.from("crm_logs")
@@ -189,6 +213,13 @@ export default function CRMPage() {
       .eq("source_record_id", selectedLead.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setLeadApprovals((data ?? []) as ApprovalLog[]); setLoadingApprovals(false); });
+    // Load customer installments
+    setLoadingCustInsts(true);
+    supabase.from("customer_installments")
+      .select("*")
+      .eq("lead_id", selectedLead.id)
+      .order("installment_no")
+      .then(({ data }) => { setCustInsts((data ?? []) as CustomerInstallment[]); setLoadingCustInsts(false); });
   }, [selectedLead]);
 
   const fetchSalesActs = () => {
@@ -410,7 +441,7 @@ export default function CRMPage() {
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ" });
+    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "" });
     setShowModal(true);
   };
 
@@ -452,6 +483,29 @@ export default function CRMPage() {
 
   const openAdd = () => { setEditingLead(null); setForm(emptyForm); setShowModal(true); };
 
+  const DEFAULT_CUST_INST = (price: number) => [
+    { installment_no: 1, name: "งวดจอง", amount: Math.round(price * 0.02), due_date: null },
+    { installment_no: 2, name: "งวดทำสัญญา", amount: Math.round(price * 0.08), due_date: null },
+    { installment_no: 3, name: "งวดระหว่างก่อสร้าง", amount: Math.round(price * 0.10), due_date: null },
+    { installment_no: 4, name: "งวดโอนกรรมสิทธิ์", amount: Math.round(price * 0.80), due_date: null },
+  ];
+
+  const createDefaultCustInsts = async (lead: Lead) => {
+    if (custInsts.length > 0) return;
+    const price = lead.contract_price ?? lead.budget ?? 0;
+    const rows = DEFAULT_CUST_INST(price).map(r => ({ ...r, lead_id: lead.id, house_id: null, status: 'pending' as const }));
+    const { data } = await supabase.from("customer_installments").insert(rows).select();
+    setCustInsts((data ?? []) as CustomerInstallment[]);
+    setToast({ msg: "สร้างตารางชำระเงินลูกค้าแล้ว", type: "success" });
+  };
+
+  const markCustInstPaid = async (inst: CustomerInstallment) => {
+    const today = new Date().toISOString().split("T")[0];
+    await supabase.from("customer_installments").update({ status: 'paid', paid_date: today }).eq("id", inst.id);
+    setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, status: 'paid', paid_date: today } : i));
+    setToast({ msg: `${inst.name} — บันทึกรับเงินแล้ว`, type: "success" });
+  };
+
   const STATUS_TH: Record<string, string> = {
     "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", "Site Visit": "เข้าชมสถานที่",
     Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "ปิดการขาย",
@@ -462,7 +516,7 @@ export default function CRMPage() {
     setSaving(true);
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     if (editingLead) {
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -477,6 +531,8 @@ export default function CRMPage() {
               current_approver_role: "manager",
               action_taken: "Pending",
               amount: form.budget ? Number(form.budget) : null,
+              sla_due_at: calcSlaDueAt("Booking_Deposit"),
+              assigned_to_name: "ผู้จัดการ",
             });
           } else if (editingLead.status === "Booking" && !["Booking", "Loan Process"].includes(form.status)) {
             await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
@@ -491,7 +547,7 @@ export default function CRMPage() {
         });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -534,6 +590,8 @@ export default function CRMPage() {
           current_approver_role: "manager",
           action_taken: "Pending",
           amount: lead.budget ?? null,
+          sla_due_at: calcSlaDueAt("Contract_Approval"),
+          assigned_to_name: "ผู้จัดการ",
         });
       }
     }
@@ -1095,6 +1153,16 @@ export default function CRMPage() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
+                <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">วันส่งมอบบ้าน</label>
+                <input type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+              </div>
+              <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   placeholder="บันทึกเพิ่มเติม..." rows={2}
@@ -1216,6 +1284,18 @@ export default function CRMPage() {
                   <p className="text-xs text-aviva-text">{new Date(selectedLead.last_contact_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
                 </div>
               )}
+              {selectedLead.delivery_date && (
+                <div className="bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">วันส่งมอบบ้าน</p>
+                  <p className="text-xs text-aviva-gold font-medium">{new Date(selectedLead.delivery_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                </div>
+              )}
+              {selectedLead.contract_price && (
+                <div className="bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">ราคาสัญญา</p>
+                  <p className="text-xs text-aviva-gold font-medium">฿{Number(selectedLead.contract_price).toLocaleString()}</p>
+                </div>
+              )}
             </div>
 
             {selectedLead.notes && (
@@ -1286,12 +1366,54 @@ export default function CRMPage() {
               </div>
             ) : null}
 
+            {/* ตารางชำระเงินลูกค้า */}
+            {(custInsts.length > 0 || BOOKING_STATUSES.includes(selectedLead.status)) && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold text-aviva-secondary">ตารางชำระเงิน ({custInsts.length} งวด)</p>
+                  {custInsts.length === 0 && (
+                    <button onClick={() => createDefaultCustInsts(selectedLead)}
+                      className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
+                      + สร้างตาราง
+                    </button>
+                  )}
+                </div>
+                {loadingCustInsts ? (
+                  <div className="h-8 bg-aviva-bg/50 rounded-xl animate-pulse" />
+                ) : (
+                  <div className="space-y-1.5">
+                    {custInsts.map(inst => (
+                      <div key={inst.id} className="bg-aviva-bg rounded-xl px-3 py-2 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-aviva-text font-medium">{inst.name}</p>
+                          <p className="text-[10px] text-aviva-secondary">฿{Number(inst.amount).toLocaleString()}{inst.due_date ? ` · ครบ ${new Date(inst.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}</p>
+                        </div>
+                        {inst.status === 'paid' ? (
+                          <span className="text-[10px] text-green-400 font-bold">✓ รับแล้ว</span>
+                        ) : (
+                          <button onClick={() => markCustInstPaid(inst)}
+                            className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
+                            บันทึกรับ
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* เอกสารแนบ Lead */}
+            <div>
+              <AttachDocButton entityType="lead" entityId={selectedLead.id} attachedBy={user?.full_name ?? ""} />
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => { setCrmLogLead(selectedLead); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>

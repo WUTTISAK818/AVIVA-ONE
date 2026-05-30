@@ -68,6 +68,35 @@ interface Installment {
   name: string;
   status: string;
   amount: number;
+  rejection_reason?: string | null;
+  rejection_count?: number | null;
+}
+
+interface WorkItem {
+  id: string;
+  template_id: string;
+  item_name: string;
+  seq_order: number;
+}
+
+interface Inspection {
+  id: string;
+  contractor_installment_id: string;
+  work_item_id: string;
+  work_item_name: string;
+  result: 'pass' | 'fail' | 'pending';
+  note: string | null;
+  photo_url: string | null;
+  sub_contractor_name: string | null;
+  inspected_by: string | null;
+  inspected_at: string | null;
+}
+
+interface InstTemplate {
+  id: string;
+  installment_number: number;
+  name: string;
+  description: string | null;
 }
 
 interface InstTask {
@@ -91,6 +120,7 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
   in_review: { label: "รอตรวจสอบ",  color: "bg-yellow-500/20 text-yellow-400" },
   approved:  { label: "อนุมัติแล้ว", color: "bg-blue-500/20 text-blue-400" },
   paid:      { label: "จ่ายแล้ว",    color: "bg-green-500/20 text-green-400" },
+  rejected:   { label: "ถูกปฏิเสธ",  color: "bg-red-500/20 text-red-400" },
 };
 
 const INSTALLMENT_NAMES = [
@@ -123,6 +153,113 @@ const filterBoxes: { key: FilterStatus; label: string; border: string; numColor:
   { key: "delayed",  label: "ล่าช้า",          border: "border-red-400/30",     numColor: "text-red-400" },
 ];
 
+function InspectionPanel({
+  inst, inspections, instTemplates, instWorkItems,
+  uploadingInsp, savingInsp, onEnsure, onSave, onUpload,
+}: {
+  inst: Installment;
+  inspections: Inspection[];
+  instTemplates: InstTemplate[];
+  instWorkItems: WorkItem[];
+  uploadingInsp: string | null;
+  savingInsp: boolean;
+  onEnsure: () => Promise<Inspection[]>;
+  onSave: (insp: Inspection, result: 'pass' | 'fail', note: string, sub: string) => Promise<void>;
+  onUpload: (insp: Inspection, file: File) => Promise<void>;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [localInsps, setLocalInsps] = useState<Inspection[]>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [subs, setSubs] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (inspections.length > 0) {
+      setLocalInsps(inspections);
+      setLoaded(true);
+    }
+  }, [inspections]);
+
+  const init = async () => {
+    const result = await onEnsure();
+    setLocalInsps(result);
+    setLoaded(true);
+  };
+
+  if (!loaded) {
+    return (
+      <button onClick={init} className="w-full py-2 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-bg/50 hover:border-aviva-gold/30">
+        โหลดรายการตรวจงาน
+      </button>
+    );
+  }
+
+  const tmpl = instTemplates.find(t => t.installment_number === inst.installment_no);
+  const wis = instWorkItems.filter(w => w.template_id === (tmpl?.id ?? ""));
+
+  if (wis.length === 0 && localInsps.length === 0) {
+    return <p className="text-[11px] text-aviva-secondary/60 text-center py-2">ยังไม่มีรายการงานในงวดนี้</p>;
+  }
+
+  const displayInsps = localInsps.length > 0 ? localInsps : inspections;
+  const passCount = displayInsps.filter(i => i.result === 'pass').length;
+  const failCount = displayInsps.filter(i => i.result === 'fail').length;
+
+  return (
+    <div className="space-y-2">
+      {displayInsps.length > 0 && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-aviva-secondary">รายการงาน:</span>
+          <span className="text-green-400 font-bold">✓ {passCount}</span>
+          <span className="text-red-400 font-bold">✗ {failCount}</span>
+          <span className="text-aviva-secondary/60">/ {displayInsps.length}</span>
+        </div>
+      )}
+      {displayInsps.map(insp => (
+        <div key={insp.id} className={clsx("bg-aviva-bg rounded-xl p-3 border", insp.result === 'pass' ? "border-green-500/30" : insp.result === 'fail' ? "border-red-500/30" : "border-aviva-gold/10")}>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-xs font-medium text-aviva-text">{insp.work_item_name}</p>
+            <div className="flex gap-1 flex-shrink-0">
+              <button onClick={() => onSave(insp, 'pass', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                disabled={savingInsp}
+                className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'pass' ? "bg-green-500 text-white border-green-500" : "bg-aviva-bg text-green-400 border-green-500/30 hover:bg-green-500/10")}>
+                ✓ ผ่าน
+              </button>
+              <button onClick={() => onSave(insp, 'fail', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                disabled={savingInsp}
+                className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'fail' ? "bg-red-500 text-white border-red-500" : "bg-aviva-bg text-red-400 border-red-500/30 hover:bg-red-500/10")}>
+                ✗ ไม่ผ่าน
+              </button>
+            </div>
+          </div>
+          <input placeholder="หมายเหตุ / เหตุผล"
+            defaultValue={insp.note ?? ""}
+            onChange={e => setNotes(prev => ({ ...prev, [insp.id]: e.target.value }))}
+            className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-2 py-1 text-[11px] text-aviva-secondary placeholder:text-aviva-secondary/30 outline-none mb-1.5" />
+          <input placeholder="ผู้รับเหมาเฉพาะงานนี้ (ถ้ามี)"
+            defaultValue={insp.sub_contractor_name ?? ""}
+            onChange={e => setSubs(prev => ({ ...prev, [insp.id]: e.target.value }))}
+            className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-2 py-1 text-[11px] text-aviva-secondary placeholder:text-aviva-secondary/30 outline-none mb-1.5" />
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer">
+              <input type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(insp, f); }} />
+              {uploadingInsp === insp.id
+                ? <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Loader2 size={12} className="text-aviva-gold animate-spin" /></div>
+                : insp.photo_url
+                  ? <img src={insp.photo_url} alt="รูปตรวจ" className="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
+                  : <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Camera size={12} className="text-aviva-secondary/50" /></div>
+              }
+            </label>
+            {insp.inspected_by && (
+              <p className="text-[10px] text-aviva-secondary/60">ตรวจโดย: {insp.inspected_by}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ConstructionPage() {
   const user = useCurrentUser();
   const [houses, setHouses] = useState<House[]>([]);
@@ -146,6 +283,11 @@ export default function ConstructionPage() {
   const [instTasks, setInstTasks] = useState<InstTask[]>([]);
   const [expandedInst, setExpandedInst] = useState<string | null>(null);
   const [loadingInst, setLoadingInst] = useState(false);
+  const [inspections, setInspections] = useState<Inspection[]>([]);
+  const [instTemplates, setInstTemplates] = useState<InstTemplate[]>([]);
+  const [instWorkItems, setInstWorkItems] = useState<WorkItem[]>([]);
+  const [uploadingInsp, setUploadingInsp] = useState<string | null>(null);
+  const [savingInsp, setSavingInsp] = useState(false);
 
   const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "", planned_completion_date: "", site_engineer: "" });
   const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus, reported_by: "", work_type: "งานตรวจสอบ" });
@@ -187,18 +329,89 @@ export default function ConstructionPage() {
     setInstHouse(house);
     setLoadingInst(true);
     setExpandedInst(null);
-    const { data: existing, error: fetchErr } = await supabase.from("contractor_installments").select("*").eq("house_id", house.id).order("installment_no");
+    setInspections([]);
+
+    const { data: templates } = await supabase.from("installment_templates")
+      .select("id,installment_number,name,description")
+      .eq("project_id", PROJECT_ID)
+      .order("installment_number");
+    const tmplList = (templates as InstTemplate[]) ?? [];
+    setInstTemplates(tmplList);
+
+    const tmplIds = tmplList.map(t => t.id);
+    let wiList: WorkItem[] = [];
+    if (tmplIds.length > 0) {
+      const { data: wis } = await supabase.from("installment_work_items")
+        .select("id,template_id,item_name,seq_order")
+        .in("template_id", tmplIds)
+        .order("seq_order");
+      wiList = (wis as WorkItem[]) ?? [];
+    }
+    setInstWorkItems(wiList);
+
+    const { data: existing, error: fetchErr } = await supabase.from("contractor_installments")
+      .select("*").eq("house_id", house.id).order("installment_no");
     let insts = (existing as Installment[]) ?? [];
-    if (!fetchErr && insts.length === 0) {
+    if (!fetchErr && insts.length === 0 && tmplList.length > 0) {
+      const rows = tmplList.map(t => ({ house_id: house.id, installment_no: t.installment_number, name: t.name, status: "pending", amount: 0 }));
+      const { data: created } = await supabase.from("contractor_installments").insert(rows).select();
+      insts = (created as Installment[]) ?? [];
+    } else if (!fetchErr && insts.length === 0) {
       const rows = INSTALLMENT_NAMES.map((name, i) => ({ house_id: house.id, installment_no: i + 1, name, status: "pending", amount: 0 }));
       const { data: created } = await supabase.from("contractor_installments").insert(rows).select();
       insts = (created as Installment[]) ?? [];
     }
     setInstallments(insts);
-    const { data: tasks } = await supabase.from("installment_tasks").select("*").in("installment_id", insts.map(i => i.id)).order("task_no");
+
+    if (insts.length > 0) {
+      const { data: insps } = await supabase.from("installment_inspections")
+        .select("*").in("contractor_installment_id", insts.map(i => i.id));
+      setInspections((insps as Inspection[]) ?? []);
+    }
+
+    const { data: tasks } = await supabase.from("installment_tasks")
+      .select("*").in("installment_id", insts.map(i => i.id)).order("task_no");
     setInstTasks((tasks as InstTask[]) ?? []);
+
     setLoadingInst(false);
     setTimeout(() => instPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  };
+
+  const ensureInspections = async (inst: Installment): Promise<Inspection[]> => {
+    const tmpl = instTemplates.find(t => t.installment_number === inst.installment_no);
+    if (!tmpl) return [];
+    const wis = instWorkItems.filter(w => w.template_id === tmpl.id);
+    const existing = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const missingWis = wis.filter(wi => !existing.some(e => e.work_item_id === wi.id));
+    if (missingWis.length > 0) {
+      const rows = missingWis.map(wi => ({ contractor_installment_id: inst.id, work_item_id: wi.id, work_item_name: wi.item_name, result: 'pending' }));
+      const { data: created } = await supabase.from("installment_inspections").insert(rows).select();
+      const newInsps = (created as Inspection[]) ?? [];
+      setInspections(prev => [...prev, ...newInsps]);
+      return [...existing, ...newInsps];
+    }
+    return existing;
+  };
+
+  const saveInspectionResult = async (insp: Inspection, result: 'pass' | 'fail', note: string, subContractor: string) => {
+    setSavingInsp(true);
+    const updates = { result, note: note || null, sub_contractor_name: subContractor || null, inspected_by: user?.full_name ?? user?.email ?? null, inspected_at: new Date().toISOString() };
+    await supabase.from("installment_inspections").update(updates).eq("id", insp.id);
+    setInspections(prev => prev.map(i => i.id === insp.id ? { ...i, ...updates } : i));
+    setSavingInsp(false);
+  };
+
+  const uploadInspectionPhoto = async (insp: Inspection, file: File) => {
+    setUploadingInsp(insp.id);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `inspections/${insp.id}.${ext}`;
+    const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
+    if (error) { setUploadingInsp(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
+    await supabase.from("installment_inspections").update({ photo_url: publicUrl }).eq("id", insp.id);
+    setInspections(prev => prev.map(i => i.id === insp.id ? { ...i, photo_url: publicUrl } : i));
+    setUploadingInsp(null);
+    setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
   };
 
   const toggleTask = async (task: InstTask) => {
@@ -212,9 +425,9 @@ export default function ConstructionPage() {
     const newStatus = next[inst.status] ?? inst.status;
     if (newStatus === inst.status) return;
     if (inst.status === "pending") {
-      const tasks = instTasks.filter(t => t.installment_id === inst.id);
-      if (tasks.length > 0 && !tasks.every(t => t.is_complete)) {
-        setToast({ msg: "ต้องทำ task ให้ครบทุกรายการก่อนส่งตรวจสอบ", type: "error" });
+      const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+      if (instInsps.length > 0 && !instInsps.every(i => i.result === 'pass')) {
+        setToast({ msg: "ต้องตรวจผ่านทุกรายการงานก่อนส่งตรวจสอบ", type: "error" });
         setConfirmInst(null); return;
       }
       if (instHouse) {
@@ -225,12 +438,10 @@ export default function ConstructionPage() {
         }
       }
     }
-    // Maker-checker: non-managers cannot approve their own installment reviews
     if (inst.status === "in_review" && !user?.isManager) {
       setToast({ msg: "ต้องรออนุมัติจากผู้จัดการผ่านหน้าระบบอนุมัติ", type: "error" });
       setConfirmInst(null); return;
     }
-    // 2-level enforcement: check if there is an approved log for this installment before marking paid
     if (inst.status === "approved") {
       const { data: approvedLogs } = await supabase.from("approval_logs")
         .select("approval_id").eq("source_record_id", inst.id)
@@ -265,8 +476,19 @@ export default function ConstructionPage() {
     setConfirmInst(null);
   };
 
+  const rejectInstallment = async (inst: Installment, reason: string) => {
+    await supabase.from("contractor_installments").update({
+      status: "rejected", rejection_reason: reason, rejected_at: new Date().toISOString(), rejection_count: (inst.rejection_count ?? 0) + 1,
+    }).eq("id", inst.id);
+    await supabase.from("approval_logs").update({ action_taken: "Rejected" })
+      .eq("source_record_id", inst.id).eq("action_taken", "Pending");
+    setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected", rejection_reason: reason } : i));
+    await createNotification({ type: "info", title: `${inst.name} — ถูกปฏิเสธ`, message: reason || "กรุณาตรวจสอบและแก้ไขก่อนส่งใหม่", from_dept: "ผู้บริหาร" });
+    setToast({ msg: "ปฏิเสธงวดงานแล้ว — แจ้งวิศวกรแล้ว", type: "success" });
+  };
+
   const advanceInstStatus = (inst: Installment) => {
-    const next: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
+    const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved", approved: "paid" };
     if (!next[inst.status] || next[inst.status] === inst.status) return;
     setConfirmInst(inst);
   };
@@ -280,59 +502,11 @@ export default function ConstructionPage() {
       const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
       const t = new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
       const photo = r.photo_url ? `<img src="${r.photo_url}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid #ddd;" />` : "—";
-      return `<tr>
-        <td style="white-space:nowrap">${d}<br><span style="color:#888;font-size:10px">${t}</span></td>
-        <td style="font-weight:600">${house?.house_number ?? "—"}</td>
-        <td>${r.work_type ?? "—"}</td>
-        <td>${r.work_detail ?? "—"}</td>
-        <td style="text-align:center;font-weight:700">${r.progress ?? 0}%</td>
-        <td style="color:#c0392b">${r.issue || "—"}</td>
-        <td style="text-align:center">${r.reported_by ?? "—"}</td>
-        <td style="text-align:center">${photo}</td>
-      </tr>`;
+      return `<tr><td style="white-space:nowrap">${d}<br><span style="color:#888;font-size:10px">${t}</span></td><td style="font-weight:600">${house?.house_number ?? "—"}</td><td>${r.work_type ?? "—"}</td><td>${r.work_detail ?? "—"}</td><td style="text-align:center;font-weight:700">${r.progress ?? 0}%</td><td style="color:#c0392b">${r.issue || "—"}</td><td style="text-align:center">${r.reported_by ?? "—"}</td><td style="text-align:center">${photo}</td></tr>`;
     }).join("");
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
-    <title>รายงานประจำวัน — ฝ่ายก่อสร้าง</title>
-    <style>
-      *{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}
-      .header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}
-      .logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}
-      h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}
-      .summary{display:flex;gap:12px;margin:12px 0 16px}
-      .sb{background:#f5f5f5;border-radius:8px;padding:10px 14px;flex:1;border-left:3px solid #1E4A35}
-      .sb .num{font-size:20px;font-weight:900;color:#1E4A35}.sb .lbl{font-size:10px;color:#666;margin-top:2px}
-      table{width:100%;border-collapse:collapse;font-size:11px}
-      thead tr{background:#1E4A35}th{color:#D4AF37;padding:7px 8px;text-align:left;font-size:11px;font-weight:600}
-      td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#fafafa}
-      .footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end}
-      .sig{text-align:center;width:200px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}
-      .btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}
-      .btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}
-      .btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}
-      @media print{.btns{display:none!important}body{padding:20px}}
-    </style></head><body>
-    <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
-    <div class="header">
-      <div class="logo">AVIVA <span>ONE</span></div>
-      <h2>รายงานประจำวัน — ฝ่ายก่อสร้าง</h2>
-      <div class="meta">วันที่พิมพ์: ${dateStr}</div>
-    </div>
-    <div class="summary">
-      <div class="sb"><div class="num">${reports.length}</div><div class="lbl">รายการทั้งหมด</div></div>
-      <div class="sb"><div class="num">${uniqueHouseIds}</div><div class="lbl">ยูนิตที่รายงาน</div></div>
-      <div class="sb"><div class="num">${avgProgress}%</div><div class="lbl">เฉลี่ยความคืบหน้า</div></div>
-    </div>
-    <table><thead><tr>
-      <th>วันที่/เวลา</th><th>ยูนิต</th><th>ประเภทงาน</th><th>รายละเอียดงาน</th>
-      <th style="text-align:center">คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th style="text-align:center">ผู้รายงาน</th><th style="text-align:center">รูป</th>
-    </tr></thead><tbody>${rows}</tbody></table>
-    <div class="footer">
-      <div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div>
-      <div class="sig"><div class="sig-line"></div><div class="sig-name">ผู้จัดทำรายงาน</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div>
-    </div>
-    </body></html>`);
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}.summary{display:flex;gap:12px;margin:12px 0 16px}.sb{background:#f5f5f5;border-radius:8px;padding:10px 14px;flex:1;border-left:3px solid #1E4A35}.sb .num{font-size:20px;font-weight:900;color:#1E4A35}.sb .lbl{font-size:10px;color:#666;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:11px}thead tr{background:#1E4A35}th{color:#D4AF37;padding:7px 8px;text-align:left;font-size:11px;font-weight:600}td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end}.sig{text-align:center;width:200px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>ONE</span></div><h2>รายงานประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่พิมพ์: ${dateStr}</div></div><div class="summary"><div class="sb"><div class="num">${reports.length}</div><div class="lbl">รายการทั้งหมด</div></div><div class="sb"><div class="num">${uniqueHouseIds}</div><div class="lbl">ยูนิตที่รายงาน</div></div><div class="sb"><div class="num">${avgProgress}%</div><div class="lbl">เฉลี่ยความคืบหน้า</div></div></div><table><thead><tr><th>วันที่/เวลา</th><th>ยูนิต</th><th>ประเภทงาน</th><th>รายละเอียดงาน</th><th style="text-align:center">คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th style="text-align:center">ผู้รายงาน</th><th style="text-align:center">รูป</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">ผู้จัดทำรายงาน</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
     w.document.close();
   };
 
@@ -356,11 +530,8 @@ export default function ConstructionPage() {
     delayed: houses.filter(h => h.status === "delayed").length,
   };
   const overallProgress = houses.length ? Math.round(houses.reduce((s, h) => s + h.progress, 0) / houses.length) : 0;
-  const filtered = filterStatus === "all" ? houses
-    : filterStatus === "building" ? houses.filter(h => h.status !== "complete")
-    : houses.filter(h => h.status === (filterStatus as HouseStatus));
+  const filtered = filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === (filterStatus as HouseStatus));
   const openDefects = defects.filter(d => d.status === "Open").length;
-
   const reporterNames = [...new Set(reports.filter(r => r.reported_by).map(r => r.reported_by as string))];
 
   const openEditReport = (report: Report, e: React.MouseEvent) => {
@@ -451,7 +622,6 @@ export default function ConstructionPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-3">
@@ -470,38 +640,24 @@ export default function ConstructionPage() {
             )}
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setPart("inspect")}
-              className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all",
-                part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
-              <HardHat size={15} /> ตรวจงานผู้รับเหมา
-            </button>
-            <button onClick={() => setPart("daily")}
-              className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all",
-                part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
-              <FileText size={15} /> งานรายวัน
-            </button>
+            <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={15} /> ตรวจงานผู้รับเหมา</button>
+            <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={15} /> งานรายวัน</button>
           </div>
         </div>
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-        {/* Clickable AI alerts */}
         {counts.delayed > 0 && (
           <button className="w-full text-left" onClick={() => { setPart("inspect"); setFilterStatus("delayed"); }}>
-            <AIInsightPanel type="alert" priority="high"
-              title={`มี ${counts.delayed} ยูนิตล่าช้ากว่าแผน`}
-              message="กดเพื่อดูรายการยูนิตที่ล่าช้า — ควรตรวจสอบผู้รับเหมาและวางแผนเร่งงาน" />
+            <AIInsightPanel type="alert" priority="high" title={`มี ${counts.delayed} ยูนิตล่าช้ากว่าแผน`} message="กดเพื่อดูรายการยูนิตที่ล่าช้า — ควรตรวจสอบผู้รับเหมาและวางแผนเร่งงาน" />
           </button>
         )}
         {openDefects > 0 && (
           <button className="w-full text-left" onClick={() => { setPart("daily"); setTab("defects"); }}>
-            <AIInsightPanel type="warning" priority="medium"
-              title={`Defect เปิดอยู่ ${openDefects} รายการ`}
-              message="กดเพื่อดูรายการ — ต้องดำเนินการแก้ไขก่อนส่งมอบบ้านให้ลูกค้า" />
+            <AIInsightPanel type="warning" priority="medium" title={`Defect เปิดอยู่ ${openDefects} รายการ`} message="กดเพื่อดูรายการ — ต้องดำเนินการแก้ไขก่อนส่งมอบบ้านให้ลูกค้า" />
           </button>
         )}
 
-        {/* Overview card with 4 filter boxes */}
         <GlassCard gold className="p-4">
           <SectionHeader title="ภาพรวมการก่อสร้าง" />
           {houses.length === 0 ? (
@@ -511,11 +667,7 @@ export default function ConstructionPage() {
               <ProgressBar label="ความคืบหน้าโดยรวม" value={overallProgress} sublabel={`${houses.length} ยูนิต`} />
               <div className="grid grid-cols-4 gap-2 mt-3">
                 {filterBoxes.map(({ key, label, border, numColor }) => (
-                  <button key={key} onClick={() => setFilterStatus(key)}
-                    className={clsx("rounded-xl border p-2.5 flex flex-col items-center gap-0.5 transition-all",
-                      border,
-                      filterStatus === key ? "ring-2 ring-aviva-gold/50 bg-aviva-gold/5" : "bg-aviva-bg/30"
-                    )}>
+                  <button key={key} onClick={() => setFilterStatus(key)} className={clsx("rounded-xl border p-2.5 flex flex-col items-center gap-0.5 transition-all", border, filterStatus === key ? "ring-2 ring-aviva-gold/50 bg-aviva-gold/5" : "bg-aviva-bg/30")}>
                     <span className={clsx("text-lg font-bold leading-none", numColor)}>{loading ? "—" : counts[key]}</span>
                     <span className="text-[9px] text-aviva-secondary leading-tight text-center">{label}</span>
                   </button>
@@ -525,7 +677,6 @@ export default function ConstructionPage() {
           )}
         </GlassCard>
 
-        {/* INSPECT MODE */}
         {part === "inspect" && (
           <>
             <div>
@@ -540,19 +691,10 @@ export default function ConstructionPage() {
                     const isSelected = instHouse?.id === house.id;
                     const dotColor = house.status === "complete" ? "bg-green-400" : house.status === "delayed" ? "bg-red-400" : "bg-blue-400";
                     return (
-                      <button key={house.id} onClick={() => fetchInstallments(house)}
-                        className={clsx("rounded-xl border p-2 flex flex-col items-center gap-1 transition-all active:scale-95",
-                          isSelected ? "bg-aviva-gold border-aviva-gold" : "bg-aviva-card border-aviva-gold/10 hover:border-aviva-gold/40"
-                        )}>
-                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>
-                          {house.house_model ?? "AVA"}
-                        </span>
-                        <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>
-                          {String(house.plot_number ?? 0).padStart(2, "0")}
-                        </span>
-                        <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>
-                          {house.land_size ?? "—"}ตร.ว.
-                        </span>
+                      <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("rounded-xl border p-2 flex flex-col items-center gap-1 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : "bg-aviva-card border-aviva-gold/10 hover:border-aviva-gold/40")}>
+                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
+                        <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
                         <div className={clsx("w-1.5 h-1.5 rounded-full", dotColor)} />
                       </button>
                     );
@@ -561,30 +703,15 @@ export default function ConstructionPage() {
               )}
             </div>
 
-            {/* Inline installments panel */}
             {instHouse && (
               <div ref={instPanelRef} className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-aviva-text">{instHouse.house_number}</p>
-                  </div>
+                  <p className="text-sm font-bold text-aviva-text">{instHouse.house_number}</p>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => openDefectModal(instHouse)}
-                      className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5">
-                      <Bug size={13} />
-                    </button>
-                    <button onClick={() => openEditHouse(instHouse)}
-                      className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50">
-                      <Pencil size={13} />
-                    </button>
-                    <button onClick={() => window.print()}
-                      className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl">
-                      <Printer size={12} /> พิมพ์
-                    </button>
-                    <button onClick={() => setInstHouse(null)}
-                      className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary">
-                      <X size={13} />
-                    </button>
+                    <button onClick={() => openDefectModal(instHouse)} className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
+                    <button onClick={() => openEditHouse(instHouse)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
+                    <button onClick={() => window.print()} className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์</button>
+                    <button onClick={() => setInstHouse(null)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
                   </div>
                 </div>
 
@@ -610,41 +737,57 @@ export default function ConstructionPage() {
                           </div>
                         </button>
                         {isExpanded && (
-                          <div className="mt-3 space-y-2 border-t border-aviva-gold/10 pt-3">
-                            {tasks.length === 0 ? (
-                              <p className="text-[11px] text-aviva-secondary/60 text-center py-2">ยังไม่มีรายการงาน</p>
-                            ) : tasks.map(task => (
-                              <div key={task.id} className="flex items-center gap-3">
-                                <button onClick={() => toggleTask(task)} className="flex items-center gap-3 flex-1 text-left">
-                                  <div className={clsx("w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all",
-                                    task.is_complete ? "bg-green-500 border-green-500" : "border-aviva-secondary/40")}>
-                                    {task.is_complete && <CheckCircle size={10} className="text-white" />}
-                                  </div>
-                                  <span className={clsx("text-xs", task.is_complete ? "text-aviva-secondary line-through" : "text-aviva-text")}>{task.task_name}</span>
-                                </button>
-                                <label className="cursor-pointer flex-shrink-0">
-                                  <input type="file" accept="image/*" className="hidden"
-                                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadTaskPhoto(task, f); }} />
-                                  {uploadingTask === task.id
-                                    ? <div className="w-8 h-8 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Loader2 size={12} className="text-aviva-gold animate-spin" /></div>
-                                    : task.photo_url
-                                      ? <img src={task.photo_url} alt="รูป" className="w-8 h-8 rounded-lg object-cover border border-aviva-gold/20" />
-                                      : <div className="w-8 h-8 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Camera size={12} className="text-aviva-secondary/50" /></div>
-                                  }
-                                </label>
+                          <div className="mt-3 space-y-3 border-t border-aviva-gold/10 pt-3">
+                            {inst.status === "rejected" && inst.rejection_reason && (
+                              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                                <p className="text-[10px] text-red-400 font-semibold mb-0.5">เหตุผลที่ปฏิเสธ</p>
+                                <p className="text-xs text-red-300">{inst.rejection_reason}</p>
+                                {inst.rejection_count && inst.rejection_count > 0 && (
+                                  <p className="text-[10px] text-red-400/70 mt-0.5">ถูกปฏิเสธ {inst.rejection_count} ครั้ง</p>
+                                )}
                               </div>
-                            ))}
+                            )}
+                            {user?.isAdmin && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
+                                <input type="number" defaultValue={inst.amount}
+                                  onBlur={async e => {
+                                    const v = Number(e.target.value);
+                                    if (!isNaN(v)) {
+                                      await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
+                                      setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
+                                    }
+                                  }}
+                                  className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                              </div>
+                            )}
+                            <InspectionPanel
+                              inst={inst}
+                              inspections={inspections.filter(i => i.contractor_installment_id === inst.id)}
+                              instTemplates={instTemplates}
+                              instWorkItems={instWorkItems}
+                              uploadingInsp={uploadingInsp}
+                              savingInsp={savingInsp}
+                              onEnsure={() => ensureInspections(inst)}
+                              onSave={saveInspectionResult}
+                              onUpload={uploadInspectionPhoto}
+                            />
                             {inst.status !== "paid" && (
-                              inst.status === "in_review" && !user?.isManager ? (
-                                <div className="w-full mt-2 py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">
-                                  รออนุมัติจากผู้จัดการ
-                                </div>
-                              ) : (
-                                <button onClick={() => advanceInstStatus(inst)}
-                                  className="w-full mt-2 py-2 bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-medium">
-                                  {inst.status === "pending" ? "ส่งตรวจสอบ" : inst.status === "in_review" ? "อนุมัติงวดนี้" : "บันทึกจ่ายเงิน"}
-                                </button>
-                              )
+                              <div className="space-y-2 pt-1">
+                                {inst.status === "in_review" && user?.isManager ? (
+                                  <div className="flex gap-2">
+                                    <button onClick={() => doAdvanceInst(inst)} className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium">✓ อนุมัติ</button>
+                                    <button onClick={() => { const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธ:"); if (reason !== null) rejectInstallment(inst, reason); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
+                                  </div>
+                                ) : inst.status === "in_review" && !user?.isManager ? (
+                                  <div className="w-full py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">รออนุมัติจากผู้จัดการ</div>
+                                ) : inst.status !== "in_review" ? (
+                                  <button onClick={() => advanceInstStatus(inst)} disabled={inst.status === "approved"}
+                                    className={clsx("w-full py-2 rounded-xl text-xs font-medium border", inst.status === "pending" || inst.status === "rejected" ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30")}>
+                                    {inst.status === "pending" ? "ส่งตรวจสอบ" : inst.status === "rejected" ? "ส่งตรวจสอบอีกครั้ง" : "รออนุมัติจากระบบ"}
+                                  </button>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                         )}
@@ -657,15 +800,11 @@ export default function ConstructionPage() {
           </>
         )}
 
-        {/* DAILY MODE */}
         {part === "daily" && (
           <>
             <div className="flex gap-2">
               {([["reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
-                <button key={k} onClick={() => setTab(k)}
-                  className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all",
-                    tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-                  )}>{l}</button>
+                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
               ))}
             </div>
 
@@ -675,16 +814,11 @@ export default function ConstructionPage() {
                 <div className="flex items-center justify-between">
                   <SectionHeader title="รายงานประจำวัน" subtitle="กรองตามช่วงเวลา" />
                   {reports.length > 0 && (
-                    <button onClick={printDailyReport} className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl">
-                      <Printer size={12} /> พิมพ์รายงาน
-                    </button>
+                    <button onClick={printDailyReport} className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์รายงาน</button>
                   )}
                 </div>
                 {reports.length === 0 ? (
-                  <GlassCard className="p-8 text-center">
-                    <ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
-                    <p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p>
-                  </GlassCard>
+                  <GlassCard className="p-8 text-center"><ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" /><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
                 ) : reports.map(r => {
                   const house = houses.find(h => h.id === r.house_id);
                   return (
@@ -694,9 +828,7 @@ export default function ConstructionPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
                             {r.work_type && <span className="text-[10px] bg-aviva-gold/10 text-aviva-gold/80 px-1.5 py-0.5 rounded-full">{r.work_type}</span>}
-                            <span className="text-[10px] text-aviva-secondary">
-                              {new Date(r.created_at).toLocaleDateString("th-TH")} {new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                            </span>
+                            <span className="text-[10px] text-aviva-secondary">{new Date(r.created_at).toLocaleDateString("th-TH")} {new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
                           </div>
                           <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
@@ -708,23 +840,15 @@ export default function ConstructionPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <button onClick={e => openEditReport(r, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all">
-                            <Pencil size={12} className="text-aviva-secondary" />
-                          </button>
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-aviva-gold">{r.progress}%</p>
-                            <p className="text-[10px] text-aviva-secondary">ความคืบหน้า</p>
-                          </div>
+                          <button onClick={e => openEditReport(r, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"><Pencil size={12} className="text-aviva-secondary" /></button>
+                          <div className="text-right"><p className="text-lg font-bold text-aviva-gold">{r.progress}%</p><p className="text-[10px] text-aviva-secondary">ความคืบหน้า</p></div>
                         </div>
                       </div>
                     </GlassCard>
                   );
                 })}
                 {!loading && reports.length >= rptLimit && (
-                  <button onClick={() => { const next = rptLimit + 50; setRptLimit(next); fetchData(next); }}
-                    className="w-full py-2.5 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card hover:border-aviva-gold/30 transition-all">
-                    โหลดเพิ่มเติม (แสดง {rptLimit} รายการแล้ว)
-                  </button>
+                  <button onClick={() => { const next = rptLimit + 50; setRptLimit(next); fetchData(next); }} className="w-full py-2.5 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card hover:border-aviva-gold/30 transition-all">โหลดเพิ่มเติม (แสดง {rptLimit} รายการแล้ว)</button>
                 )}
               </div>
             )}
@@ -733,10 +857,7 @@ export default function ConstructionPage() {
               <div className="space-y-3">
                 <SectionHeader title="Defect Tracking" subtitle="ปัญหาที่ตรวจพบ" />
                 {defects.length === 0 ? (
-                  <GlassCard className="p-8 text-center">
-                    <Bug size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
-                    <p className="text-aviva-secondary text-sm">ยังไม่มีรายการ Defect</p>
-                  </GlassCard>
+                  <GlassCard className="p-8 text-center"><Bug size={28} className="text-aviva-secondary/30 mx-auto mb-2" /><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ Defect</p></GlassCard>
                 ) : defects.map(d => {
                   const house = houses.find(h => h.id === d.house_id);
                   const ds = defectStatusConfig[d.status] ?? defectStatusConfig["Open"];
@@ -771,11 +892,9 @@ export default function ConstructionPage() {
                       {d.status !== "Resolved" && (
                         <div className="flex gap-2">
                           {d.status === "Open" && (
-                            <button onClick={() => updateDefectStatus(d.defect_id, "In Progress")}
-                              className="flex-1 py-1.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-[10px] font-medium">เริ่มแก้ไข</button>
+                            <button onClick={() => updateDefectStatus(d.defect_id, "In Progress")} className="flex-1 py-1.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-[10px] font-medium">เริ่มแก้ไข</button>
                           )}
-                          <button onClick={() => updateDefectStatus(d.defect_id, "Resolved")}
-                            className="flex-1 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">แก้ไขแล้ว</button>
+                          <button onClick={() => updateDefectStatus(d.defect_id, "Resolved")} className="flex-1 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">แก้ไขแล้ว</button>
                         </div>
                       )}
                     </GlassCard>
@@ -787,7 +906,6 @@ export default function ConstructionPage() {
         )}
       </div>
 
-      {/* Defect Modal */}
       {showDefectModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
@@ -799,8 +917,7 @@ export default function ConstructionPage() {
               {!defectHouse && (
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
-                  <select value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <select value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
                     {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
                   </select>
@@ -808,65 +925,48 @@ export default function ConstructionPage() {
               )}
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
-                <select value={defectForm.defect_category} onChange={e => setDefectForm({ ...defectForm, defect_category: e.target.value })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <select value={defectForm.defect_category} onChange={e => setDefectForm({ ...defectForm, defect_category: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {DEFECT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
-                <textarea value={defectForm.description} onChange={e => setDefectForm({ ...defectForm, description: e.target.value })}
-                  placeholder="อธิบายปัญหาที่พบ..." rows={3}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+                <textarea value={defectForm.description} onChange={e => setDefectForm({ ...defectForm, description: e.target.value })} placeholder="อธิบายปัญหาที่พบ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
-                  <select value={defectForm.severity} onChange={e => setDefectForm({ ...defectForm, severity: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="low">เล็กน้อย</option>
-                    <option value="medium">ปานกลาง</option>
-                    <option value="high">สูง</option>
-                    <option value="critical">วิกฤต</option>
+                  <select value={defectForm.severity} onChange={e => setDefectForm({ ...defectForm, severity: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="low">เล็กน้อย</option><option value="medium">ปานกลาง</option><option value="high">สูง</option><option value="critical">วิกฤต</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไขภายใน</label>
-                  <input type="date" value={defectForm.due_date} onChange={e => setDefectForm({ ...defectForm, due_date: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <input type="date" value={defectForm.due_date} onChange={e => setDefectForm({ ...defectForm, due_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
-                <input type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })}
-                  placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <input type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })} placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
-            <button onClick={handleSaveDefect} disabled={saving || !defectForm.description || (!defectHouse && !defectForm.house_id)}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : "บันทึก Defect"}
-            </button>
+            <button onClick={handleSaveDefect} disabled={saving || !defectForm.description || (!defectHouse && !defectForm.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึก Defect"}</button>
           </div>
         </div>
       )}
 
-      {/* Daily Report Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">
-                {editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}
-              </h2>
+              <h2 className="text-lg font-bold text-aviva-text">{editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}</h2>
               <button onClick={() => { setShowModal(false); setEditingReport(null); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               {!selectedHouse && !editingReport && (
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
-                  <select value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <select value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
                     {houses.map(h => <option key={h.id} value={h.id}>{h.house_number} ({h.progress}%)</option>)}
                   </select>
@@ -874,22 +974,18 @@ export default function ConstructionPage() {
               )}
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ประเภทงาน</label>
-                <select value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <select value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {WORK_TYPES.map(wt => <option key={wt} value={wt}>{wt}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">งานที่ทำวันนี้ *</label>
-                <textarea value={form.work_detail} onChange={e => setForm({ ...form, work_detail: e.target.value })}
-                  placeholder="อธิบายงานที่ดำเนินการ..." rows={3}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+                <textarea value={form.work_detail} onChange={e => setForm({ ...form, work_detail: e.target.value })} placeholder="อธิบายงานที่ดำเนินการ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า</label>
-                  <select value={form.progress} onChange={e => setForm({ ...form, progress: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <select value={form.progress} onChange={e => setForm({ ...form, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือก --</option>
                     {[10,20,30,40,50,60,70,80,90,100].map(p => <option key={p} value={String(p)}>{p}%</option>)}
                   </select>
@@ -897,50 +993,36 @@ export default function ConstructionPage() {
                 {!editingReport && (
                   <div>
                     <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                    <select value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as HouseStatus })}
-                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                      <option value="on-track">ตามแผน</option>
-                      <option value="delayed">ล่าช้า</option>
-                      <option value="complete">เสร็จแล้ว</option>
+                    <select value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
                     </select>
                   </div>
                 )}
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
-                <input type="text" value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })}
-                  list="reporter-list" placeholder="ชื่อวิศวกร / ช่างควบคุมงาน"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-                <datalist id="reporter-list">
-                  {reporterNames.map(name => <option key={name} value={name} />)}
-                </datalist>
+                <input type="text" value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} list="reporter-list" placeholder="ชื่อวิศวกร / ช่างควบคุมงาน" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <datalist id="reporter-list">{reporterNames.map(name => <option key={name} value={name} />)}</datalist>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ปัญหา / ข้อสังเกต</label>
-                <input type="text" value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })}
-                  placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <input type="text" value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })} placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน</label>
                 <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) { setDailyPhoto(f); setDailyPhotoPreview(URL.createObjectURL(f)); } }} />
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setDailyPhoto(f); setDailyPhotoPreview(URL.createObjectURL(f)); } }} />
                   {uploadingDailyPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
                   <span className="text-sm text-aviva-secondary/60 flex-1">{dailyPhoto ? dailyPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
                   {dailyPhotoPreview && <img src={dailyPhotoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
                 </label>
               </div>
             </div>
-            <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}
-            </button>
+            <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}</button>
           </div>
         </div>
       )}
 
-      {/* House Edit Modal */}
       {showHouseEditModal && editingHouse && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
@@ -952,65 +1034,49 @@ export default function ConstructionPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">หมายเลขยูนิต</label>
-                  <input type="text" value={houseForm.house_number} onChange={e => setHouseForm({ ...houseForm, house_number: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <input type="text" value={houseForm.house_number} onChange={e => setHouseForm({ ...houseForm, house_number: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                  <select value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="on-track">ตามแผน</option>
-                    <option value="delayed">ล่าช้า</option>
-                    <option value="complete">เสร็จแล้ว</option>
+                  <select value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
                   </select>
                 </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับเหมา</label>
-                <input type="text" value={houseForm.contractor} onChange={e => setHouseForm({ ...houseForm, contractor: e.target.value })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                <input type="text" value={houseForm.contractor} onChange={e => setHouseForm({ ...houseForm, contractor: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">เฟส / ขั้นตอน</label>
-                <input type="text" value={houseForm.phase} onChange={e => setHouseForm({ ...houseForm, phase: e.target.value })}
-                  placeholder="เช่น งานโครงสร้าง"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <input type="text" value={houseForm.phase} onChange={e => setHouseForm({ ...houseForm, phase: e.target.value })} placeholder="เช่น งานโครงสร้าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า (%)</label>
-                  <input type="number" min="0" max="100" value={houseForm.progress} onChange={e => setHouseForm({ ...houseForm, progress: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <input type="number" min="0" max="100" value={houseForm.progress} onChange={e => setHouseForm({ ...houseForm, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">ล่าช้า (วัน)</label>
-                  <input type="number" min="0" value={houseForm.delayed_days} onChange={e => setHouseForm({ ...houseForm, delayed_days: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <input type="number" min="0" value={houseForm.delayed_days} onChange={e => setHouseForm({ ...houseForm, delayed_days: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ</label>
-                  <input type="date" value={houseForm.planned_completion_date} onChange={e => setHouseForm({ ...houseForm, planned_completion_date: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <input type="date" value={houseForm.planned_completion_date} onChange={e => setHouseForm({ ...houseForm, planned_completion_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">วิศวกร/ช่างควบคุม</label>
-                  <input type="text" value={houseForm.site_engineer} onChange={e => setHouseForm({ ...houseForm, site_engineer: e.target.value })}
-                    placeholder="ชื่อวิศวกรประจำยูนิต"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                  <input type="text" value={houseForm.site_engineer} onChange={e => setHouseForm({ ...houseForm, site_engineer: e.target.value })} placeholder="ชื่อวิศวกรประจำยูนิต" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
             </div>
-            <button onClick={handleSaveHouse} disabled={saving}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
-            </button>
+            <button onClick={handleSaveHouse} disabled={saving} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}</button>
           </div>
         </div>
       )}
 
-      {/* Confirm installment advance */}
       {confirmInst && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">

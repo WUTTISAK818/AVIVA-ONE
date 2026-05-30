@@ -294,11 +294,12 @@ export default function CRMPage() {
         .sign-block{text-align:center}
         .sign-line{border-top:1px solid #999;margin-top:48px;padding-top:8px;font-size:12px;color:#666}
         .badge{display:inline-block;background:#D4AF37;color:#1E4A35;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold;margin-top:4px}
-        @media print{body{padding:20px}.no-print{display:none}}
+        .btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 18px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}
+        @media print{body{padding:20px}.no-print{display:none}.btns{display:none!important}}
       </style></head><body>
       <div class="header">
-        <div class="logo">AVIVA ONE</div>
-        <div class="sub">โครงการบ้านจัดสรร AVIVA ONE · ใบเสนอราคา</div>
+        <div class="logo">AVIVA Private</div>
+        <div class="sub">หมู่บ้านจัดสรร AVIVA Private · ใบเสนอราคา</div>
       </div>
       <div class="title">ใบเสนอราคา</div>
       <table>
@@ -311,7 +312,7 @@ export default function CRMPage() {
       </table>
       <div class="title">รายละเอียดสินค้า</div>
       <table>
-        <tr><td>โครงการ</td><td>AVIVA ONE</td></tr>
+        <tr><td>โครงการ</td><td>AVIVA Private</td></tr>
         <tr><td>แปลงที่สนใจ</td><td>${escapeHtml(plotStr)}</td></tr>
         <tr><td>งบประมาณลูกค้า</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
         <tr class="total-row"><td>ราคาเสนอขาย</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
@@ -321,7 +322,7 @@ export default function CRMPage() {
         <div class="sign-block"><div class="sign-line">ลงชื่อ พนักงานขาย<br>(_________________________)</div></div>
         <div class="sign-block"><div class="sign-line">ลงชื่อ ลูกค้า<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
       </div>
-      <script>window.onload=function(){window.print();}</script>
+      <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=700");
     if (w) { w.document.write(html); w.document.close(); }
@@ -346,17 +347,18 @@ export default function CRMPage() {
         .sign-line{border-top:1px solid #999;margin-top:48px;padding-top:8px;font-size:12px;color:#666}
         .footer{margin-top:32px;font-size:11px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px}
         .highlight{background:#fff9e6;border:1px solid #D4AF37;border-radius:4px;padding:8px 12px;margin:12px 0}
-        @media print{body{padding:20px}}
+        .btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 18px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}
+        @media print{body{padding:20px}.btns{display:none!important}}
       </style></head><body>
       <div class="header">
-        <div class="logo">AVIVA ONE</div>
-        <div style="font-size:12px;color:#666;margin-top:4px">โครงการบ้านจัดสรร AVIVA ONE</div>
+        <div class="logo">AVIVA Private</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">หมู่บ้านจัดสรร AVIVA Private</div>
       </div>
       <div style="text-align:center"><span class="doc-title">ใบจองซื้อบ้าน</span></div>
       <p style="text-align:right">วันที่ <span class="field">${dateStr}</span></p>
       <p>ข้าพเจ้า <span class="field" style="min-width:200px">${escapeHtml(lead.customer_name)}</span></p>
       <p>เบอร์โทรศัพท์ <span class="field">${escapeHtml(lead.phone)}</span></p>
-      <p>ขอจองซื้อบ้านโครงการ <strong>AVIVA ONE</strong> หมายเลขแปลง <span class="field">${escapeHtml(plotStr)}</span></p>
+      <p>ขอจองซื้อบ้านหมู่บ้านจัดสรร <strong>AVIVA Private</strong> หมายเลขแปลง <span class="field">${escapeHtml(plotStr)}</span></p>
       <div class="highlight">
         <p><strong>ราคาขาย:</strong> ฿<span class="field" style="min-width:120px">${Number(lead.budget).toLocaleString()}</span> (${numberToThai(Number(lead.budget))})</p>
         <p><strong>เงินจอง:</strong> ฿<span class="field" style="min-width:120px">${bookingDeposit.toLocaleString()}</span> (${numberToThai(bookingDeposit)})</p>
@@ -370,13 +372,10 @@ export default function CRMPage() {
       </div>
       <div class="sign">
         <div class="sign-box"><div class="sign-line">ลงชื่อผู้จอง<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
-        <div class="sign-box"><div class="sign-line">ลงชื่อตัวแทนขาย<br>(_________________________)<br>AVIVA ONE Sales</div></div>
+        <div class="sign-box"><div class="sign-line">ลงชื่อตัวแทนขาย<br>(_________________________)<br>AVIVA Private</div></div>
       </div>
-      <div class="footer">เอกสารนี้ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")} · รหัส: ${escapeHtml(lead.lead_code ?? lead.id.slice(0,8))}</div>
-      <script>
-        function numberToThai(n){const u=["","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า"];const p=["","สิบ","ร้อย","พัน","หมื่น","แสน","ล้าน"];if(n===0)return"ศูนย์บาทถ้วน";let r="";let m=n;const parts=[];while(m>0){parts.push(m%10);m=Math.floor(m/10);}let s="";for(let i=parts.length-1;i>=0;i--){if(parts[i]!==0)s+=u[parts[i]]+p[i];}return s+"บาทถ้วน";}
-        window.onload=function(){window.print();}
-      </script>
+      <div class="footer">เอกสารนี้ออกโดย AVIVA Private · ${new Date().toLocaleDateString("th-TH")} · รหัส: ${escapeHtml(lead.lead_code ?? lead.id.slice(0,8))}</div>
+      <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=700");
     if (w) { w.document.write(html); w.document.close(); }
@@ -526,6 +525,8 @@ export default function CRMPage() {
         const effectivePlot = plotNum ?? editingLead.plot_number;
         if (effectivePlot) {
           if (form.status === "Booking") {
+            const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
+            if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
             const docNum = await generateDocNumber("BOOK");
             await supabase.from("approval_logs").insert({
@@ -572,6 +573,8 @@ export default function CRMPage() {
     await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
     if (lead.plot_number) {
       if (newStatus === "Booking") {
+        const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", lead.id).maybeSingle();
+        if (existingBook) { setToast({ msg: `แปลง ${lead.plot_number} ถูกจองโดย ${existingBook.customer_name} แล้ว`, type: "error" }); return; }
         await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
       } else if (BOOKING_STATUSES.includes(lead.status as LeadStatus) && !BOOKING_STATUSES.includes(newStatus)) {
         await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);

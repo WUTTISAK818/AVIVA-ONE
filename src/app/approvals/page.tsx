@@ -407,6 +407,14 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
       setToast({ msg: "ไม่สามารถอนุมัติรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
       return;
     }
+    // Guard against double-click race condition
+    const { data: freshLog } = await supabase.from("approval_logs").select("action_taken").eq("approval_id", id).single();
+    if (freshLog?.action_taken !== "Pending") {
+      setSaving(false);
+      setToast({ msg: "รายการนี้ได้รับการดำเนินการไปแล้ว", type: "info" });
+      fetchLogs();
+      return;
+    }
     if (log && !user?.isAdmin && (log.amount ?? 0) > 50000 && !log.source_doc_index.startsWith("[2nd Approval]")) {
       const { error: e1 } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
       if (e1) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + e1.message, type: "error" }); return; }
@@ -442,6 +450,13 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
     if (log && user?.full_name && log.source_doc_index.includes(`โดย ${user.full_name}`)) {
       setSaving(false);
       setToast({ msg: "ไม่สามารถปฏิเสธรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
+      return;
+    }
+    const { data: freshLog2 } = await supabase.from("approval_logs").select("action_taken").eq("approval_id", id).single();
+    if (freshLog2?.action_taken !== "Pending") {
+      setSaving(false);
+      setToast({ msg: "รายการนี้ได้รับการดำเนินการไปแล้ว", type: "info" });
+      fetchLogs();
       return;
     }
     const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);

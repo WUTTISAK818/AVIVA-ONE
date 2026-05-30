@@ -1465,6 +1465,7 @@ function HRContent() {
   const [leaveForm, setLeaveForm] = useState({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string}[]>([]);
+  const [hrToast, setHrToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
 
   const fetchEmployees = () => {
@@ -1490,8 +1491,22 @@ function HRContent() {
   const handleLeaveSubmit = async () => {
     if (!leaveForm.employee_name || !leaveForm.date_from || !leaveForm.date_to) return;
     setLeaveSaving(true);
+    // Check for overlapping leave requests
+    const { data: overlap } = await supabase.from("leave_requests")
+      .select("id,date_from,date_to")
+      .eq("employee_name", leaveForm.employee_name)
+      .lte("date_from", leaveForm.date_to)
+      .gte("date_to", leaveForm.date_from)
+      .eq("status", "pending");
+    if (overlap && overlap.length > 0) {
+      setHrToast({ msg: `${leaveForm.employee_name} มีคำขอลาในช่วง ${overlap[0].date_from} – ${overlap[0].date_to} อยู่แล้ว`, type: "error" });
+      setLeaveSaving(false);
+      return;
+    }
     const days = Math.max(1, Math.ceil((new Date(leaveForm.date_to).getTime() - new Date(leaveForm.date_from).getTime()) / 86400000) + 1);
+    const docNum = await generateDocNumber("LEAVE");
     await supabase.from("leave_requests").insert({
+      doc_number: docNum,
       employee_name: leaveForm.employee_name,
       leave_type: leaveForm.leave_type,
       date_from: leaveForm.date_from,
@@ -1500,7 +1515,7 @@ function HRContent() {
       reason: leaveForm.reason || null,
       status: "pending",
     });
-    await createNotification({ type: "info", title: "คำขอลาใหม่", message: `${leaveForm.employee_name} ขอ${leaveForm.leave_type} ${days} วัน`, from_dept: "ฝ่ายบุคคล" });
+    await createNotification({ type: "info", title: `คำขอลาใหม่ — ${docNum}`, message: `${leaveForm.employee_name} ขอ${leaveForm.leave_type} ${days} วัน`, from_dept: "ฝ่ายบุคคล" });
     setLeaveSaving(false);
     setLeaveForm({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
     fetchLeave();
@@ -1539,6 +1554,7 @@ function HRContent() {
 
   return (
     <>
+      {hrToast && <Toast message={hrToast.msg} type={hrToast.type} onClose={() => setHrToast(null)} />}
       <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
         <div className="flex gap-2">
           {(["บุคคล", "เงินเดือน", "การลา"] as const).map(t => (
@@ -1956,6 +1972,7 @@ function AfterSalesContent() {
   const [form, setForm] = useState(emptyClaimForm);
   const [saving, setSaving] = useState(false);
   const [kpiModalAS, setKpiModalAS] = useState<"all" | "pending" | "in_progress" | "resolved" | null>(null);
+  const [asToast, setAsToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
@@ -1982,8 +1999,10 @@ function AfterSalesContent() {
   const handleSave = async () => {
     if (!form.customer_name || !form.description) return;
     setSaving(true);
+    const docNum = await generateDocNumber("WR");
     await supabase.from("warranty_claims").insert({
       project_id: PROJECT_ID,
+      doc_number: docNum,
       customer_name: form.customer_name,
       house_number: form.house_number || null,
       issue_type: form.issue_type,
@@ -1994,7 +2013,7 @@ function AfterSalesContent() {
     });
     await createNotification({
       type: "claim",
-      title: "แจ้งซ่อมใหม่",
+      title: `แจ้งซ่อมใหม่ — ${docNum}`,
       message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description}`,
       from_dept: "ฝ่ายหลังการขาย",
     });
@@ -2023,6 +2042,7 @@ function AfterSalesContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      {asToast && <Toast message={asToast.msg} type={asToast.type} onClose={() => setAsToast(null)} />}
       {/* Status Summary */}
       <div className="grid grid-cols-4 gap-2">
         {([
@@ -2864,10 +2884,11 @@ function PayrollContent() {
         .footer{text-align:center;margin-top:24px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px}
         .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px}
         .sign-box{text-align:center;border-top:1px solid #ccc;padding-top:8px;font-size:12px;color:#666}
-        @media print{body{padding:10px}}
+        .btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}
+        @media print{body{padding:10px}.btns{display:none!important}}
       </style></head><body>
       <div class="header">
-        <div class="logo">AVIVA ONE</div>
+        <div class="logo">AVIVA Private</div>
         <div class="sub">สลิปเงินเดือนประจำเดือน ${monthDisplay}</div>
       </div>
       <table>
@@ -2892,8 +2913,8 @@ function PayrollContent() {
         <div class="sign-box">ลงชื่อผู้รับเงิน<br><br>(_________________________)<br>${pr.full_name}</div>
         <div class="sign-box">ลงชื่อผู้อนุมัติ<br><br>(_________________________)<br>ผู้บริหาร</div>
       </div>
-      <div class="footer">เอกสารนี้ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")}</div>
-      <script>window.onload=function(){window.print();}</script>
+      <div class="footer">เอกสารนี้ออกโดย AVIVA Private · ${new Date().toLocaleDateString("th-TH")}</div>
+      <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=700,height=600");
     if (w) { w.document.write(html); w.document.close(); }

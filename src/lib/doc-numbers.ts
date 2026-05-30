@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type DocPrefix = "FIN" | "PO" | "INST" | "DOC" | "LEAVE" | "BOOK" | "CONTRACT" | "MKTG";
+export type DocPrefix = "FIN" | "PO" | "INST" | "DOC" | "LEAVE" | "BOOK" | "CONTRACT" | "MKTG" | "WR";
 
 const PREFIX_TO_WORKFLOW: Record<DocPrefix, string> = {
   FIN:      "Finance_Approval",
@@ -11,6 +11,7 @@ const PREFIX_TO_WORKFLOW: Record<DocPrefix, string> = {
   BOOK:     "Booking_Deposit",
   CONTRACT: "Contract_Approval",
   MKTG:     "Marketing_Budget",
+  WR:       "Warranty_Claim",
 };
 
 /** Generates sequential doc numbers like FIN-2026-001 using atomic RPC with count-based fallback */

@@ -11,6 +11,7 @@ import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
+import { useCurrentUser } from "@/lib/user-context";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -122,6 +123,7 @@ const filterBoxes: { key: FilterStatus; label: string; border: string; numColor:
 ];
 
 export default function ConstructionPage() {
+  const user = useCurrentUser();
   const [houses, setHouses] = useState<House[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [defects, setDefects] = useState<Defect[]>([]);
@@ -222,6 +224,21 @@ export default function ConstructionPage() {
         }
       }
     }
+    // Maker-checker: non-managers cannot approve their own installment reviews
+    if (inst.status === "in_review" && !user?.isManager) {
+      setToast({ msg: "ต้องรออนุมัติจากผู้จัดการผ่านหน้าระบบอนุมัติ", type: "error" });
+      setConfirmInst(null); return;
+    }
+    // 2-level enforcement: check if there is an approved log for this installment before marking paid
+    if (inst.status === "approved") {
+      const { data: approvedLogs } = await supabase.from("approval_logs")
+        .select("approval_id").eq("source_record_id", inst.id)
+        .eq("workflow_type", "Installment_Review").eq("action_taken", "Approved").limit(1);
+      if (!approvedLogs || approvedLogs.length === 0) {
+        setToast({ msg: "ยังไม่มีบันทึกการอนุมัติ — กรุณาอนุมัติจากหน้าระบบอนุมัติก่อน", type: "error" });
+        setConfirmInst(null); return;
+      }
+    }
     await supabase.from("contractor_installments").update({ status: newStatus }).eq("id", inst.id);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
@@ -229,9 +246,9 @@ export default function ConstructionPage() {
     if (newStatus === "in_review") {
       await supabase.from("approval_logs").insert({
         workflow_type: "Installment_Review",
-        source_doc_index: `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`,
+        source_doc_index: `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} — โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         source_record_id: inst.id,
-        current_approver_role: "manager",
+        current_approver_role: user?.isAdmin ? "admin" : "manager",
         action_taken: "Pending",
         amount: inst.amount ?? null,
       });
@@ -616,10 +633,16 @@ export default function ConstructionPage() {
                               </div>
                             ))}
                             {inst.status !== "paid" && (
-                              <button onClick={() => advanceInstStatus(inst)}
-                                className="w-full mt-2 py-2 bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-medium">
-                                {inst.status === "pending" ? "ส่งตรวจสอบ" : inst.status === "in_review" ? "อนุมัติงวดนี้" : "บันทึกจ่ายเงิน"}
-                              </button>
+                              inst.status === "in_review" && !user?.isManager ? (
+                                <div className="w-full mt-2 py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">
+                                  รออนุมัติจากผู้จัดการ
+                                </div>
+                              ) : (
+                                <button onClick={() => advanceInstStatus(inst)}
+                                  className="w-full mt-2 py-2 bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-medium">
+                                  {inst.status === "pending" ? "ส่งตรวจสอบ" : inst.status === "in_review" ? "อนุมัติงวดนี้" : "บันทึกจ่ายเงิน"}
+                                </button>
+                              )
                             )}
                           </div>
                         )}

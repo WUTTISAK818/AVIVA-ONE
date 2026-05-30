@@ -66,6 +66,7 @@ const emptyFinanceForm = {
 };
 
 function FinanceContent() {
+  const user = useCurrentUser();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [materialPurchasePending, setMaterialPurchasePending] = useState(0);
@@ -137,8 +138,16 @@ function FinanceContent() {
         amount: amt,
         description: `[${form.category}] ${form.description}`,
         status: "pending",
-        requested_by: "Admin",
+        requested_by: user?.full_name ?? "Admin",
       }).select().single();
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Finance_Approval",
+        source_doc_index: `[${form.category}] ${form.description} — โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_record_id: data?.id ?? null,
+        current_approver_role: amt >= 500000 ? "admin" : "manager",
+        action_taken: "Pending",
+        amount: amt,
+      });
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
       await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `[${form.category}] ${form.description} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการเงิน" });
     } else {
@@ -1946,6 +1955,7 @@ function AfterSalesContent() {
 interface ApprovalLog {
   approval_id: string;
   source_doc_index: string;
+  source_record_id: string | null;
   workflow_type: string;
   current_approver_role: string;
   action_taken: string;
@@ -1987,6 +1997,7 @@ function ApprovalsContent() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   const fetchLogs = () => {
     supabase.from("approval_logs").select("*")
@@ -2008,20 +2019,43 @@ function ApprovalsContent() {
   const handleApprove = async (id: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
-    await supabase.from("approval_logs").update({
-      action_taken: "Approved",
-      action_timestamp: new Date().toISOString(),
-      approver_email: user?.email,
-    }).eq("approval_id", id);
+
+    // Maker-checker: block approving your own submission
+    if (log && user?.full_name && log.source_doc_index.includes(`โดย ${user.full_name}`)) {
+      setSaving(false);
+      setToast({ msg: "ไม่สามารถอนุมัติรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
+      return;
+    }
+
+    // 2-level enforcement: manager (non-admin) with amount > 50,000 must escalate
+    if (log && !user?.isAdmin && (log.amount ?? 0) > 50000 && !log.source_doc_index.startsWith("[2nd Approval]")) {
+      const { error: e1 } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+      if (e1) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + e1.message, type: "error" }); return; }
+      await supabase.from("approval_logs").insert({
+        workflow_type: log.workflow_type,
+        source_doc_index: `[2nd Approval] ${log.source_doc_index}`,
+        source_record_id: log.source_record_id,
+        current_approver_role: "admin",
+        action_taken: "Pending",
+        amount: log.amount,
+      });
+      const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
+      await createNotification({ type: "info", title: `ส่งอนุมัติชั้น 2 — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ผ่านชั้น 1 แล้ว รอผู้บริหารอนุมัติชั้น 2`, from_dept: dept, to_dept: dept });
+      setToast({ msg: `ผ่านชั้น 1 แล้ว — ส่งขออนุมัติชั้น 2 (ผู้บริหาร)`, type: "info" });
+      setSaving(false); fetchLogs(); return;
+    }
+
+    const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+    if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
+    if (log?.source_record_id) {
+      if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+    }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
-      await createNotification({
-        type: "success",
-        title: `อนุมัติแล้ว — ${log.source_doc_index}`,
-        message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`,
-        from_dept: dept,
-        to_dept: dept,
-      });
+      setToast({ msg: `อนุมัติแล้ว — ${log.source_doc_index}`, type: "success" });
+      await createNotification({ type: "success", title: `อนุมัติแล้ว — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`, from_dept: dept, to_dept: dept });
     }
     setSaving(false);
     fetchLogs();
@@ -2030,21 +2064,25 @@ function ApprovalsContent() {
   const handleReject = async (id: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
-    await supabase.from("approval_logs").update({
-      action_taken: "Rejected",
-      action_timestamp: new Date().toISOString(),
-      approver_email: user?.email,
-      rejection_comment: rejectComment,
-    }).eq("approval_id", id);
+
+    // Maker-checker: block rejecting your own submission
+    if (log && user?.full_name && log.source_doc_index.includes(`โดย ${user.full_name}`)) {
+      setSaving(false);
+      setToast({ msg: "ไม่สามารถปฏิเสธรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
+      return;
+    }
+
+    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
+    if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
+    if (log?.source_record_id) {
+      if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+    }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
-      await createNotification({
-        type: "info",
-        title: `ปฏิเสธ — ${log.source_doc_index}`,
-        message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`,
-        from_dept: dept,
-        to_dept: dept,
-      });
+      setToast({ msg: `ปฏิเสธแล้ว — ${log.source_doc_index}`, type: "info" });
+      await createNotification({ type: "info", title: `ปฏิเสธ — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`, from_dept: dept, to_dept: dept });
     }
     setSaving(false);
     setRejectingId(null);
@@ -2148,6 +2186,7 @@ function ApprovalsContent() {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -2224,7 +2263,7 @@ function MaterialsContent() {
     if (poData) {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
-        source_doc_index: `PO — ${poForm.supplier_name}`,
+        source_doc_index: `PO — ${poForm.supplier_name} — โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         source_record_id: poData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -2246,6 +2285,7 @@ function MaterialsContent() {
   const handlePOApprove = async (id: string) => {
     const po = pos.find(p => p.id === id);
     await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", id);
+    await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending");
     if (po) {
       await createNotification({
         type: "success",
@@ -2833,6 +2873,7 @@ const docCategoryTh: Record<string, string> = {
 };
 
 function DocumentsContent() {
+  const user = useCurrentUser();
   const [docs, setDocs] = useState<OfficeDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<DocFilterCat>("all");
@@ -2897,8 +2938,9 @@ function DocumentsContent() {
     const doc = docs.find(d => d.id === id);
     await supabase.from("documents").update({
       status: approve ? "approved" : "rejected",
-      approved_by: "Admin",
+      approved_by: user?.full_name ?? "Admin",
     }).eq("id", id);
+    await supabase.from("approval_logs").update({ action_taken: approve ? "Approved" : "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Document_Approval").eq("action_taken", "Pending");
     if (doc) {
       await createNotification({
         type: approve ? "success" : "info",

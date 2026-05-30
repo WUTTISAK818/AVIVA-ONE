@@ -189,6 +189,7 @@ export default function CRMPage() {
   const [loadingCustInsts, setLoadingCustInsts] = useState(false);
   const [showCustInstModal, setShowCustInstModal] = useState(false);
   const [custInstLead, setCustInstLead] = useState<Lead | null>(null);
+  const [payRef, setPayRef] = useState<Record<string, { ref: string; date: string }>>({});
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   useEffect(() => {
@@ -501,8 +502,11 @@ export default function CRMPage() {
 
   const markCustInstPaid = async (inst: CustomerInstallment) => {
     const today = new Date().toISOString().split("T")[0];
-    await supabase.from("customer_installments").update({ status: 'paid', paid_date: today }).eq("id", inst.id);
+    const ref = payRef[inst.id]?.ref ?? "";
+    const date = payRef[inst.id]?.date ?? today;
+    await supabase.from("customer_installments").update({ status: 'paid', paid_date: today, transfer_ref: ref || null, transfer_date: date || null }).eq("id", inst.id);
     setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, status: 'paid', paid_date: today } : i));
+    setPayRef(prev => { const next = { ...prev }; delete next[inst.id]; return next; });
     setToast({ msg: `${inst.name} — บันทึกรับเงินแล้ว`, type: "success" });
   };
 
@@ -1391,10 +1395,25 @@ export default function CRMPage() {
                         {inst.status === 'paid' ? (
                           <span className="text-[10px] text-green-400 font-bold">✓ รับแล้ว</span>
                         ) : (
-                          <button onClick={() => markCustInstPaid(inst)}
-                            className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
-                            บันทึกรับ
-                          </button>
+                          <div className="flex flex-col gap-1 items-end">
+                            <input
+                              type="text"
+                              placeholder="เลขอ้างอิง..."
+                              value={payRef[inst.id]?.ref ?? ""}
+                              onChange={e => setPayRef(prev => ({ ...prev, [inst.id]: { ref: e.target.value, date: prev[inst.id]?.date ?? "" } }))}
+                              className="w-28 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-0.5 text-[10px] text-aviva-text placeholder:text-aviva-secondary/40 outline-none"
+                            />
+                            <input
+                              type="date"
+                              value={payRef[inst.id]?.date ?? ""}
+                              onChange={e => setPayRef(prev => ({ ...prev, [inst.id]: { ref: prev[inst.id]?.ref ?? "", date: e.target.value } }))}
+                              className="w-28 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-0.5 text-[10px] text-aviva-text outline-none"
+                            />
+                            <button onClick={() => markCustInstPaid(inst)}
+                              className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                              ยืนยันชำระ
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}

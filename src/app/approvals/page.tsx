@@ -631,6 +631,22 @@ export default function ApprovalsPage() {
         from_dept: "ระบบ",
       });
     }
+    // Check for SLA approaching (within 1 day)
+    const now = new Date();
+    const soonLogs = logs.filter(l => {
+      if (l.action_taken !== 'Pending' || !l.sla_due_at) return false;
+      const due = new Date(l.sla_due_at);
+      const hoursLeft = (due.getTime() - now.getTime()) / 3600000;
+      return hoursLeft > 0 && hoursLeft <= 24;
+    });
+    if (soonLogs.length > 0) {
+      createNotification({
+        type: 'info',
+        title: `SLA ใกล้ครบกำหนด ${soonLogs.length} รายการ`,
+        message: soonLogs.map(l => l.source_doc_index?.split(' | ')[0] ?? l.workflow_type).join(', '),
+        from_dept: 'ระบบ',
+      });
+    }
   }, [loading, pending]);
 
   return (

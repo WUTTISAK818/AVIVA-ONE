@@ -764,6 +764,15 @@ export default function ConstructionPage() {
                                   className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
                               </div>
                             )}
+                            <button
+                              onClick={() => {
+                                const url = `${window.location.origin}/inspection?id=${inst.id}`;
+                                navigator.clipboard.writeText(url);
+                              }}
+                              className="w-full py-1.5 text-[11px] text-aviva-secondary border border-aviva-gold/20 rounded-xl bg-aviva-bg/50 hover:border-aviva-gold/40 flex items-center justify-center gap-1.5"
+                            >
+                              <FileText size={11} /> สร้างลิงก์ตรวจสอบ
+                            </button>
                             <InspectionPanel
                               inst={inst}
                               inspections={inspections.filter(i => i.contractor_installment_id === inst.id)}

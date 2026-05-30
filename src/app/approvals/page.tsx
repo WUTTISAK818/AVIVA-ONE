@@ -120,6 +120,32 @@ export default function ApprovalsPage() {
   const handleApprove = async (id: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
+
+    // Maker-checker: block approving your own submission
+    if (log && user?.full_name && log.source_doc_index.includes(`โดย ${user.full_name}`)) {
+      setSaving(false);
+      setToast({ msg: "ไม่สามารถอนุมัติรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
+      return;
+    }
+
+    // 2-level enforcement: manager (non-admin) with amount > 50,000 must escalate to admin
+    if (log && !user?.isAdmin && (log.amount ?? 0) > 50000 && !log.source_doc_index.startsWith("[2nd Approval]")) {
+      const { error: e1 } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+      if (e1) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + e1.message, type: "error" }); return; }
+      await supabase.from("approval_logs").insert({
+        workflow_type: log.workflow_type,
+        source_doc_index: `[2nd Approval] ${log.source_doc_index}`,
+        source_record_id: log.source_record_id,
+        current_approver_role: "admin",
+        action_taken: "Pending",
+        amount: log.amount,
+      });
+      const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
+      await createNotification({ type: "info", title: `ส่งอนุมัติชั้น 2 — ${log.source_doc_index}`, message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type} ผ่านชั้น 1 แล้ว รอผู้บริหารอนุมัติชั้น 2`, from_dept: dept, to_dept: dept });
+      setToast({ msg: `ผ่านชั้น 1 แล้ว — ส่งขออนุมัติชั้น 2 (ผู้บริหาร) — ${log.source_doc_index}`, type: "info" });
+      setSaving(false); fetchLogs(); return;
+    }
+
     const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log) {
@@ -138,6 +164,14 @@ export default function ApprovalsPage() {
   const handleReject = async (id: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
+
+    // Maker-checker: block rejecting your own submission
+    if (log && user?.full_name && log.source_doc_index.includes(`โดย ${user.full_name}`)) {
+      setSaving(false);
+      setToast({ msg: "ไม่สามารถปฏิเสธรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
+      return;
+    }
+
     const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log) {

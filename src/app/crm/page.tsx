@@ -272,7 +272,7 @@ export default function CRMPage() {
         <div class="sign-block"><div class="sign-line">ลงชื่อ พนักงานขาย<br>(_________________________)</div></div>
         <div class="sign-block"><div class="sign-line">ลงชื่อ ลูกค้า<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
       </div>
-      <script>window.onload=function(){window.print();}</script>
+      <script>window.onload=function(){window.print();}<\/script>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=700");
     if (w) { w.document.write(html); w.document.close(); }
@@ -327,7 +327,7 @@ export default function CRMPage() {
       <script>
         function numberToThai(n){const u=["","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า"];const p=["","สิบ","ร้อย","พัน","หมื่น","แสน","ล้าน"];if(n===0)return"ศูนย์บาทถ้วน";let r="";let m=n;const parts=[];while(m>0){parts.push(m%10);m=Math.floor(m/10);}let s="";for(let i=parts.length-1;i>=0;i--){if(parts[i]!==0)s+=u[parts[i]]+p[i];}return s+"บาทถ้วน";}
         window.onload=function(){window.print();}
-      </script>
+      <\/script>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=700");
     if (w) { w.document.write(html); w.document.close(); }
@@ -508,6 +508,17 @@ export default function CRMPage() {
         from_dept: "ฝ่ายขาย",
         to_dept: "ฝ่ายขาย",
       });
+      if (newStatus === "Closed Deal") {
+        const docNum = await generateDocNumber("CONTRACT");
+        await supabase.from("approval_logs").insert({
+          workflow_type: "Contract_Approval",
+          source_doc_index: `${docNum} | ${lead.customer_name}${lead.plot_number ? ` แปลง ${lead.plot_number}` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+          source_record_id: lead.id,
+          current_approver_role: "manager",
+          action_taken: "Pending",
+          amount: lead.budget ?? null,
+        });
+      }
     }
     setSelectedLead(null);
     fetchLeads(dateStart, dateEnd, leadsLimit);
@@ -616,7 +627,7 @@ export default function CRMPage() {
 
         {/* Main tabs */}
         <div className="flex gap-2">
-          {([[ "pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
+          {([["pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1",
                 mainTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"

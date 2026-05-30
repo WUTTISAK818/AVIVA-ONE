@@ -1,14 +1,21 @@
 /** SLA working days for each workflow type */
 export const SLA_DAYS: Record<string, number> = {
+  Installment_Review: 2,
   Finance_Approval:   3,
   Material_Purchase:  2,
-  Installment_Review: 5,
-  Leave_Request:      2,
   Document_Approval:  3,
-  Booking_Deposit:    1,
-  Contract_Approval:  3,
+  Leave_Request:      1,
+  Contract_Approval:  5,
+  Booking_Deposit:    2,
   Marketing_Budget:   3,
 };
+
+export function calcSlaDueAt(workflowType: string): string {
+  const days = SLA_DAYS[workflowType] ?? 3;
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
 
 /**
  * Approval Authority Matrix

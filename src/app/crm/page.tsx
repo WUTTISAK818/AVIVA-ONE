@@ -60,6 +60,7 @@ interface Lead {
   delivery_date?: string | null;
   contract_price?: number | null;
   contract_signed_date?: string | null;
+  loan_approved_date?: string | null;
 }
 
 interface CustomerInstallment {
@@ -78,6 +79,7 @@ interface HouseSlot {
   plot_number: number;
   status: string;
   house_model: string;
+  land_size?: number | null;
 }
 
 interface AiMsg { role: "user" | "assistant"; text: string; }
@@ -141,6 +143,7 @@ const emptyForm = {
   delivery_date: "",
   contract_price: "",
   contract_signed_date: "",
+  loan_approved_date: "",
 };
 
 const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photo: null as File | null, photoPreview: "" };
@@ -193,9 +196,10 @@ export default function CRMPage() {
   const [payRef, setPayRef] = useState<Record<string, { ref: string; date: string }>>({});
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null } | null>(null);
+  const [mapPlotModal, setMapPlotModal] = useState<number | null>(null);
 
   useEffect(() => {
-    supabase.from("houses").select("plot_number,status,house_model")
+    supabase.from("houses").select("plot_number,status,house_model,land_size")
       .eq("project_id", PROJECT_ID).order("plot_number")
       .then(({ data }) => setHouses((data ?? []) as HouseSlot[]));
     fetchSalesActs();
@@ -443,7 +447,7 @@ export default function CRMPage() {
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "" });
+    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "" });
     setShowModal(true);
   };
 
@@ -521,7 +525,8 @@ export default function CRMPage() {
     setSaving(true);
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     if (editingLead) {
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const prevLoanDate = editingLead.loan_approved_date;
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -560,8 +565,19 @@ export default function CRMPage() {
           setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
         }
       }
+      // Notify when loan is newly approved
+      if (form.loan_approved_date && !prevLoanDate) {
+        await createNotification({
+          type: "success",
+          title: `🏦 กู้ผ่านแล้ว! — ${form.customer_name}`,
+          message: `ธนาคารอนุมัติสินเชื่อ${plotNum ? ` แปลงที่ ${plotNum}` : ""} วันที่ ${new Date(form.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}`,
+          from_dept: "ฝ่ายขาย",
+          to_dept: "ผู้บริหาร",
+        });
+        setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
+      }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -852,29 +868,32 @@ export default function CRMPage() {
                 <span key={lbl} className={clsx("px-2 py-0.5 rounded-full border",cls)}>{lbl}</span>
               ))}
             </div>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map((n) => {
                 const house = houses.find(h => h.plot_number === n);
                 const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
                 const st = house?.status ?? "available";
                 const isSold = st === "sold" || st === "completed" || leads.some(l => l.plot_number === n && l.status === "Closed Deal");
                 const isBooked = !!bookedLead && !isSold;
-                const isConstruction = !isSold && !isBooked && (st === "under_construction" || st === "in_progress");
+                const isConst = !isSold && !isBooked && (st === "under_construction" || st === "in_progress");
                 const cellCls = isSold
                   ? "bg-aviva-gold/20 border-aviva-gold/30 text-aviva-gold"
                   : isBooked
                   ? "bg-orange-500/20 border-orange-500/30 text-orange-400"
-                  : isConstruction
+                  : isConst
                   ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-400"
                   : "bg-green-500/20 border-green-500/30 text-green-400";
+                const interestedCount = !isBooked && !isSold ? leads.filter(l => l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).length : 0;
                 return (
-                  <div key={n} className={clsx("border rounded-xl p-2 text-center cursor-default", cellCls)}
-                    title={bookedLead ? `จอง: ${bookedLead.customer_name}` : house?.house_model ?? ""}>
-                    <p className="text-xs font-bold">{n}</p>
-                    <p className="text-[9px] leading-tight opacity-70">{house?.house_model ?? "—"}</p>
-                    {isBooked && <p className="text-[8px] mt-0.5 truncate">{bookedLead!.customer_name.split(" ")[0]}</p>}
-                    {isSold && <p className="text-[8px] mt-0.5">โอนแล้ว</p>}
-                  </div>
+                  <button key={n} onClick={() => setMapPlotModal(n)}
+                    className={clsx("border rounded-xl p-2 text-center cursor-pointer active:scale-95 transition-all", cellCls)}>
+                    <p className="text-xl font-black leading-none">{n}</p>
+                    <p className="text-xs font-semibold leading-tight mt-0.5">{house?.house_model ?? "—"}</p>
+                    <p className="text-[10px] leading-tight opacity-80">{house ? `${house.land_size ?? "—"}ตร.ว.` : "—"}</p>
+                    {isBooked && <p className="text-[9px] mt-0.5 truncate font-medium">{bookedLead!.customer_name.split(" ")[0]}</p>}
+                    {isSold && <p className="text-[9px] mt-0.5 font-medium">โอนแล้ว</p>}
+                    {interestedCount > 0 && <p className="text-[9px] mt-0.5 opacity-70">{interestedCount} สนใจ</p>}
+                  </button>
                 );
               })}
             </div>
@@ -1180,10 +1199,17 @@ export default function CRMPage() {
                 <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันส่งมอบบ้าน</label>
-                <input type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">🏦 วันกู้ผ่าน</label>
+                  <input type="date" value={form.loan_approved_date} onChange={e => setForm(p => ({ ...p, loan_approved_date: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-green-500/30 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-green-500/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">🏠 วันส่งมอบบ้าน</label>
+                  <input type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
@@ -1319,6 +1345,12 @@ export default function CRMPage() {
                   <p className="text-xs text-aviva-gold font-medium">฿{Number(selectedLead.contract_price).toLocaleString()}</p>
                 </div>
               )}
+              {selectedLead.loan_approved_date && (
+                <div className="col-span-2 bg-green-500/10 border border-green-500/30 rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-green-400 mb-0.5 font-semibold">🏦 กู้ผ่านแล้ว</p>
+                  <p className="text-xs text-green-300">{new Date(selectedLead.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                </div>
+              )}
             </div>
 
             {selectedLead.notes && (
@@ -1451,7 +1483,7 @@ export default function CRMPage() {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>
@@ -1482,6 +1514,87 @@ export default function CRMPage() {
         </div>
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* Map Plot Detail Modal */}
+      {mapPlotModal !== null && (() => {
+        const n = mapPlotModal;
+        const house = houses.find(h => h.plot_number === n);
+        const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
+        const isSold = house?.status === "sold" || house?.status === "completed" || leads.some(l => l.plot_number === n && l.status === "Closed Deal");
+        const isBooked = !!bookedLead && !isSold;
+        const interestedLeads = leads.filter(l => l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).sort((a, b) => b.ai_score - a.ai_score);
+        const displayLead = isSold ? leads.find(l => l.plot_number === n && l.status === "Closed Deal") : bookedLead;
+        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "ปิดการขาย" };
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setMapPlotModal(null)}>
+            <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-base font-bold text-aviva-text">แปลงที่ {n}</h2>
+                  <p className="text-xs text-aviva-secondary">{house?.house_model ?? "—"} · {house?.land_size ?? "—"} ตร.วา</p>
+                </div>
+                <button onClick={() => setMapPlotModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+              </div>
+              {(isBooked || isSold) && displayLead ? (
+                <div className="space-y-3">
+                  <div className={`rounded-2xl p-4 border ${isSold ? "bg-aviva-gold/10 border-aviva-gold/30" : "bg-orange-500/10 border-orange-500/30"}`}>
+                    <p className="text-[10px] text-aviva-secondary mb-1">{isSold ? "โอนกรรมสิทธิ์แล้ว" : "จองแล้ว"}</p>
+                    <p className="text-base font-bold text-aviva-text">{displayLead.customer_name}</p>
+                    <p className="text-sm text-aviva-gold font-medium mt-0.5">{displayLead.phone}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="text-[10px] bg-aviva-bg px-2 py-0.5 rounded-full text-aviva-secondary">{STATUS_TH_MAP[displayLead.status] ?? displayLead.status}</span>
+                      <span className="text-[10px] bg-aviva-bg px-2 py-0.5 rounded-full text-aviva-secondary">{displayLead.source}</span>
+                      {displayLead.financing_type && displayLead.financing_type !== "ไม่ระบุ" && (
+                        <span className="text-[10px] bg-aviva-bg px-2 py-0.5 rounded-full text-aviva-secondary">{displayLead.financing_type}</span>
+                      )}
+                    </div>
+                    {displayLead.loan_approved_date && (
+                      <p className="text-[10px] text-green-400 mt-2">🏦 กู้ผ่านแล้ว {new Date(displayLead.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    )}
+                    {displayLead.delivery_date && (
+                      <p className="text-[10px] text-aviva-gold mt-1">🏠 นัดส่งมอบ {new Date(displayLead.delivery_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    )}
+                    {displayLead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-2 leading-relaxed">{displayLead.notes}</p>}
+                  </div>
+                  <button onClick={() => { setSelectedLead(displayLead); setMapPlotModal(null); }}
+                    className="w-full py-2.5 bg-aviva-gold/10 border border-aviva-gold/30 rounded-xl text-xs text-aviva-gold font-medium">
+                    ดูข้อมูลเต็ม / เปลี่ยนสถานะ →
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-3 text-center">
+                    <p className="text-sm font-bold text-green-400">ว่าง — พร้อมขาย</p>
+                    {house?.status === "under_construction" || house?.status === "in_progress" ? (
+                      <p className="text-[10px] text-yellow-400 mt-0.5">อยู่ระหว่างก่อสร้าง</p>
+                    ) : null}
+                  </div>
+                  {interestedLeads.length > 0 ? (
+                    <div>
+                      <p className="text-xs font-semibold text-aviva-secondary mb-2">ผู้สนใจแปลงนี้ ({interestedLeads.length} ราย)</p>
+                      <div className="space-y-1.5">
+                        {interestedLeads.slice(0, 5).map((l, idx) => (
+                          <button key={l.id} onClick={() => { setSelectedLead(l); setMapPlotModal(null); }}
+                            className="w-full flex items-center justify-between bg-aviva-bg rounded-xl px-3 py-2 text-left hover:bg-aviva-gold/5">
+                            <div>
+                              <span className="text-[10px] text-aviva-secondary/50 mr-1.5">#{idx + 1}</span>
+                              <span className="text-xs font-medium text-aviva-text">{l.customer_name}</span>
+                            </div>
+                            <span className={`text-[10px] font-bold ${l.ai_score >= 70 ? "text-green-400" : l.ai_score >= 40 ? "text-yellow-400" : "text-red-400"}`}>AI {l.ai_score}%</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-aviva-secondary/50 text-center py-4">ยังไม่มีผู้สนใจแปลงนี้</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {celebration && (
         <CelebrationModal
           event={celebration.event}

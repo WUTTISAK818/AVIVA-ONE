@@ -280,6 +280,7 @@ export default function ConstructionPage() {
   const [defectHouse, setDefectHouse] = useState<House | null>(null);
 
   const [instHouse, setInstHouse] = useState<House | null>(null);
+  const [houseCustomer, setHouseCustomer] = useState<{ customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null } | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [instTasks, setInstTasks] = useState<InstTask[]>([]);
   const [expandedInst, setExpandedInst] = useState<string | null>(null);
@@ -328,9 +329,20 @@ export default function ConstructionPage() {
 
   const fetchInstallments = async (house: House) => {
     setInstHouse(house);
+    setHouseCustomer(null);
     setLoadingInst(true);
     setExpandedInst(null);
     setInspections([]);
+    // Fetch customer info for this plot (construction staff needs to know who the customer is)
+    if (house.plot_number) {
+      const { data: cust } = await supabase.from("leads")
+        .select("customer_name,phone,status,notes,loan_approved_date,delivery_date")
+        .eq("project_id", PROJECT_ID)
+        .eq("plot_number", house.plot_number)
+        .in("status", ["Booking", "Loan Process", "Closed Deal"])
+        .maybeSingle();
+      if (cust) setHouseCustomer(cust as { customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null });
+    }
 
     const { data: templates } = await supabase.from("installment_templates")
       .select("id,installment_number,name,description")
@@ -700,19 +712,19 @@ export default function ConstructionPage() {
             <div>
               <SectionHeader title={`ยูนิต (${filtered.length})`} subtitle="แตะยูนิตเพื่อดูงวดงานผู้รับเหมา" />
               {loading ? (
-                <div className="grid grid-cols-5 gap-2">{[1,2,3,4,5].map(i => <div key={i} className="h-16 rounded-xl bg-aviva-card/50 animate-pulse" />)}</div>
+                <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(i => <div key={i} className="h-20 rounded-xl bg-aviva-card/50 animate-pulse" />)}</div>
               ) : filtered.length === 0 ? (
                 <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
               ) : (
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {filtered.map(house => {
                     const isSelected = instHouse?.id === house.id;
                     const dotColor = house.status === "complete" ? "bg-green-400" : house.status === "delayed" ? "bg-red-400" : "bg-blue-400";
                     return (
                       <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("rounded-xl border p-2 flex flex-col items-center gap-1 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : "bg-aviva-card border-aviva-gold/10 hover:border-aviva-gold/40")}>
-                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
-                        <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
-                        <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
+                        <span className={clsx("text-xs font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
+                        <span className={clsx("text-lg font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-[10px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
                         <div className={clsx("w-1.5 h-1.5 rounded-full", dotColor)} />
                       </button>
                     );
@@ -729,9 +741,33 @@ export default function ConstructionPage() {
                     <button onClick={() => openDefectModal(instHouse)} className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
                     <button onClick={() => openEditHouse(instHouse)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
                     <button onClick={printInstReport} className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์</button>
-                    <button onClick={() => setInstHouse(null)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
+                    <button onClick={() => { setInstHouse(null); setHouseCustomer(null); }} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
                   </div>
                 </div>
+
+                {houseCustomer && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-3">
+                    <p className="text-[10px] text-blue-400 font-semibold mb-1.5">ข้อมูลลูกค้า</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-aviva-text">{houseCustomer.customer_name}</p>
+                        <p className="text-xs text-aviva-gold font-medium mt-0.5">{houseCustomer.phone}</p>
+                      </div>
+                      <span className="text-[10px] bg-aviva-bg px-2 py-1 rounded-full text-aviva-secondary">
+                        {({ Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
+                      </span>
+                    </div>
+                    {houseCustomer.loan_approved_date && (
+                      <p className="text-[10px] text-green-400 mt-1.5">🏦 กู้ผ่านแล้ว {new Date(houseCustomer.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</p>
+                    )}
+                    {houseCustomer.delivery_date && (
+                      <p className="text-[10px] text-aviva-gold mt-0.5">🏠 นัดส่งมอบ {new Date(houseCustomer.delivery_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    )}
+                    {houseCustomer.notes && (
+                      <p className="text-[10px] text-aviva-secondary/70 mt-1.5 leading-relaxed line-clamp-2">{houseCustomer.notes}</p>
+                    )}
+                  </div>
+                )}
 
                 {loadingInst ? (
                   [1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse" />)

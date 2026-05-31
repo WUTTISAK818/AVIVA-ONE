@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap } from "lucide-react";
+import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
@@ -90,6 +90,7 @@ export default function DashboardPage() {
     pendingClaims: 0, totalLeads: 0, pendingDocs: 0,
   });
   const [constructionStats, setConstructionStats] = useState<ConstructionStats>({ total: 0, inReview: 0, approved: 0, paid: 0 });
+  const [delayedHouseStats, setDelayedHouseStats] = useState({ count: 0, maxDays: 0, worstHouse: "" });
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
@@ -97,13 +98,21 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
-  const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI Executive พร้อมวิเคราะห์ข้อมูลโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
+  const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMsgs]);
+
+  useEffect(() => {
+    if (!ctxUser) return;
+    const welcome = ctxUser.isManager
+      ? "สวัสดีค่ะ AVIVA AI Executive พร้อมวิเคราะห์ข้อมูลโครงการ AVIVA ONE ถามได้เลยค่ะ"
+      : `สวัสดีค่ะ AVIVA AI ผู้ช่วยฝ่าย${ctxUser.department} ถามเกี่ยวกับงานของฝ่ายได้เลยค่ะ`;
+    setAiMsgs([{ role: "assistant", text: welcome }]);
+  }, [ctxUser?.id]);
 
   const sendAiMsg = async () => {
     const msg = aiInput.trim();
@@ -216,6 +225,24 @@ export default function DashboardPage() {
 
     fetchPendingBreakdown();
 
+    // Fetch delayed houses for executive construction insights
+    supabase.from("houses")
+      .select("house_number, delayed_days, plot_number")
+      .eq("project_id", PROJECT_ID)
+      .eq("status", "delayed")
+      .order("delayed_days", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        const delayed = (data ?? []) as { house_number: string; delayed_days: number }[];
+        if (delayed.length > 0) {
+          setDelayedHouseStats({
+            count: delayed.length,
+            maxDays: delayed[0].delayed_days ?? 0,
+            worstHouse: delayed[0].house_number ?? "",
+          });
+        }
+      });
+
     const channel = supabase.channel("dashboard_approvals_rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "approval_logs" }, fetchPendingBreakdown)
       .subscribe();
@@ -235,6 +262,7 @@ export default function DashboardPage() {
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
 
+  // Compute AI Executive Insights
   const monthsElapsed = new Date().getMonth() + 1;
   const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
   const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
@@ -345,7 +373,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.4.0</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.6</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -366,6 +394,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        {/* AVIVA AI Executive chat */}
         <div className="bg-aviva-card rounded-2xl border border-aviva-gold/20 overflow-hidden">
           <button onClick={() => setShowAI(a => !a)}
             className="w-full flex items-center gap-3 p-3 hover:bg-aviva-gold/5 transition-all active:scale-[0.99]">
@@ -373,8 +402,8 @@ export default function DashboardPage() {
               <Sparkles size={16} className="text-aviva-gold" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-aviva-text">AVIVA AI Executive</p>
-              <p className="text-xs text-aviva-secondary">วิเคราะห์ข้อมูลโครงการ Real-time</p>
+              <p className="text-sm font-semibold text-aviva-text">{ctxUser?.isManager ? "AVIVA AI Executive" : "AVIVA AI"}</p>
+              <p className="text-xs text-aviva-secondary">{ctxUser?.isManager ? "วิเคราะห์ข้อมูลโครงการ Real-time" : `ผู้ช่วยฝ่าย${ctxUser?.department ?? ""}`}</p>
             </div>
             <Bot size={16} className={showAI ? "text-aviva-gold" : "text-aviva-secondary/50"} />
           </button>
@@ -409,6 +438,7 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Pending approvals breakdown (manager+) */}
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">
             <div className="flex items-center justify-between mb-3">
@@ -459,6 +489,7 @@ export default function DashboardPage() {
           </GlassCard>
         )}
 
+        {/* AI Executive Insights — computed analytics */}
         <div>
           <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์ภาพรวมโครงการ Real-time" />
           <div className="space-y-2.5">
@@ -503,6 +534,7 @@ export default function DashboardPage() {
           </GlassCard>
         ) : (
           <>
+            {/* ภาพรวมโครงการ */}
             <div>
               <SectionHeader title="ภาพรวมโครงการ"
                 subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
@@ -528,6 +560,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* CRM — ฝ่ายขาย (ย้ายมาไว้ใต้ภาพรวมโครงการ) */}
             {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
@@ -550,6 +583,7 @@ export default function DashboardPage() {
               </div>
             </GlassCard>}
 
+            {/* ภาพรวมการเงิน — 3 lines: รายรับ + รายจ่าย */}
             {canSeeFinance && <GlassCard className="p-4">
               <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
               {project && project.revenue_target > 0 && (
@@ -596,6 +630,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
+              {/* Chart legend */}
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
@@ -633,34 +668,59 @@ export default function DashboardPage() {
               </div>
             </GlassCard>}
 
+            {/* ก่อสร้าง — Executive View */}
             {canSeeConstruction && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <SectionHeader title="ก่อสร้าง" subtitle="สถานะงวดงาน" />
-                <Link href="/construction" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
+                <SectionHeader title="ก่อสร้าง" subtitle="ประเด็นสำคัญสำหรับผู้บริหาร" />
+                <Link href="/construction" className="text-[11px] text-aviva-gold font-medium">รายละเอียด →</Link>
               </div>
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
-                  <p className="text-base font-bold text-aviva-text">{constructionStats.total}</p>
-                  <p className="text-[10px] text-aviva-secondary">งวดทั้งหมด</p>
-                </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
-                  <p className="text-base font-bold text-yellow-400">{constructionStats.inReview}</p>
-                  <p className="text-[10px] text-aviva-secondary">รออนุมัติ</p>
-                </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
-                  <p className="text-base font-bold text-green-400">{constructionStats.approved}</p>
-                  <p className="text-[10px] text-aviva-secondary">อนุมัติแล้ว</p>
-                </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
-                  <p className="text-base font-bold text-blue-400">{constructionStats.paid}</p>
-                  <p className="text-[10px] text-aviva-secondary">เบิกแล้ว</p>
+              <ProgressBar label={`ความคืบหน้าก่อสร้างโดยรวม ${constructionProgress}%`} value={constructionProgress} />
+              <div className="mt-3 space-y-2">
+                {delayedHouseStats.count > 0 ? (
+                  <Link href="/construction" className="flex items-start gap-2.5 p-3 bg-red-500/10 rounded-xl border border-red-500/20 active:scale-[0.98] transition-transform">
+                    <AlertTriangle size={13} className="text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-red-400">บ้านล่าช้า {delayedHouseStats.count} หลัง — กระทบกำหนดส่งมอบ</p>
+                      <p className="text-[10px] text-aviva-secondary/80 mt-0.5">
+                        ล่าช้ามากที่สุด: {delayedHouseStats.worstHouse} (+{delayedHouseStats.maxDays} วัน)
+                      </p>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-xl border border-green-500/20">
+                    <CheckCircle size={13} className="text-green-400 flex-shrink-0" />
+                    <p className="text-xs text-green-400 font-medium">ทุกหลังดำเนินการตามแผน ไม่มีความล่าช้า</p>
+                  </div>
+                )}
+                {constructionStats.inReview > 0 && (
+                  <Link href="/approvals" className="flex items-start gap-2.5 p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 active:scale-[0.98] transition-transform">
+                    <Clock size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-yellow-400">งวดงานรออนุมัติ {constructionStats.inReview} งวด — กระทบกระแสเงินสดผู้รับเหมา</p>
+                      <p className="text-[10px] text-aviva-secondary/80 mt-0.5">กดเพื่อไปอนุมัติ</p>
+                    </div>
+                  </Link>
+                )}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
+                    <p className="text-sm font-bold text-aviva-text">{constructionStats.total}</p>
+                    <p className="text-[10px] text-aviva-secondary">งวดทั้งหมด</p>
+                  </div>
+                  <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
+                    <p className="text-sm font-bold text-green-400">{constructionStats.approved}</p>
+                    <p className="text-[10px] text-aviva-secondary">อนุมัติแล้ว</p>
+                  </div>
+                  <div className="bg-aviva-bg/50 rounded-xl p-2.5 text-center">
+                    <p className="text-sm font-bold text-blue-400">{constructionStats.paid}</p>
+                    <p className="text-[10px] text-aviva-secondary">เบิกจ่ายแล้ว</p>
+                  </div>
                 </div>
               </div>
-              <ProgressBar label={`ความคืบหน้าก่อสร้าง ${constructionProgress}%`} value={constructionProgress} />
             </GlassCard>}
           </>
         )}
 
+        {/* ปฏิทินกิจกรรม */}
         <div>
           <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
           <CalendarWidget />

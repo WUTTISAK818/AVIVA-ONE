@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown } from "lucide-react";
+import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import AIInsightPanel from "@/components/AIInsightPanel";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -69,6 +68,19 @@ const KPI_LABELS: Record<string, string> = {
   revenue: "รายได้ 20 รายการล่าสุด",
 };
 
+interface InsightItem {
+  type: "success" | "warning" | "alert" | "info";
+  priority: "high" | "medium" | "low";
+  title: string;
+  message: string;
+  href?: string;
+  icon: typeof TrendingUp;
+  iconColor: string;
+  bg: string;
+  border: string;
+  titleColor: string;
+}
+
 export default function DashboardPage() {
   const ctxUser = useCurrentUser();
   const [project, setProject] = useState<Project | null>(null);
@@ -81,7 +93,7 @@ export default function DashboardPage() {
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
-  const [chartData, setChartData] = useState<{ month: string; revenue: number }[]>([]);
+  const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number }[]>([]);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI Executive พร้อมวิเคราะห์ข้อมูลโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
@@ -187,13 +199,19 @@ export default function DashboardPage() {
         paid: insts.filter(i => i.status === "paid").length,
       });
       const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-      const map: Record<number, number> = {};
-      allReceipts.filter(r => r.receipt_type === "income" && r.receipt_date?.startsWith(String(year))).forEach(r => {
+      const incMap: Record<number, number> = {};
+      const expMap: Record<number, number> = {};
+      allReceipts.filter(r => r.receipt_date?.startsWith(String(year))).forEach(r => {
         const m = new Date(r.receipt_date).getMonth();
-        map[m] = (map[m] ?? 0) + Number(r.amount) / 1_000_000;
+        if (r.receipt_type === "income") incMap[m] = (incMap[m] ?? 0) + Number(r.amount) / 1_000_000;
+        else expMap[m] = (expMap[m] ?? 0) + Number(r.amount) / 1_000_000;
       });
-      setChartData(MONTHS.map((month, i) => ({ month, revenue: +((map[i] ?? 0).toFixed(1)) })));
-    }).catch(() => { /* M5: silently keep default zero stats on network error */ });
+      setChartData(MONTHS.map((month, i) => ({
+        month,
+        revenue: +((incMap[i] ?? 0).toFixed(1)),
+        expense: +((expMap[i] ?? 0).toFixed(1)),
+      })));
+    }).catch(() => {});
 
     fetchPendingBreakdown();
 
@@ -216,6 +234,110 @@ export default function DashboardPage() {
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
 
+  // Compute AI Executive Insights
+  const monthsElapsed = new Date().getMonth() + 1;
+  const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
+  const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
+  const netPL = stats.totalReceipts - stats.expenseTotal;
+  const revenuePct = project && project.revenue_target > 0
+    ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
+    : null;
+
+  const insights: InsightItem[] = [];
+
+  if (revenuePct !== null) {
+    const gap = (project?.revenue_target ?? 0) - stats.totalReceipts;
+    insights.push({
+      type: revenuePct >= 80 ? "success" : revenuePct >= 50 ? "warning" : "alert",
+      priority: revenuePct >= 80 ? "low" : revenuePct >= 50 ? "medium" : "high",
+      title: `รายรับสะสม ${revenuePct}% ของเป้าหมายปีนี้`,
+      message: revenuePct >= 80
+        ? `รายรับ ฿${formatMillions(stats.totalReceipts)} — ใกล้ถึงเป้า ฿${formatMillions(project!.revenue_target)} แล้ว`
+        : `ยังต้องรับเพิ่มอีก ฿${formatMillions(gap)} เพื่อให้ถึงเป้า ฿${formatMillions(project!.revenue_target)}`,
+      href: undefined,
+      icon: Target,
+      iconColor: revenuePct >= 80 ? "text-green-400" : revenuePct >= 50 ? "text-yellow-400" : "text-red-400",
+      bg: revenuePct >= 80 ? "bg-green-500/10" : revenuePct >= 50 ? "bg-yellow-500/10" : "bg-red-500/10",
+      border: revenuePct >= 80 ? "border-green-500/20" : revenuePct >= 50 ? "border-yellow-500/20" : "border-red-500/20",
+      titleColor: revenuePct >= 80 ? "text-green-400" : revenuePct >= 50 ? "text-yellow-300" : "text-red-400",
+    });
+  }
+
+  if (project && totalUnits > 0) {
+    insights.push({
+      type: selloutPct >= 80 ? "success" : selloutPct >= 50 ? "info" : "warning",
+      priority: "medium",
+      title: `ความเร็วขาย ${salesVelocity.toFixed(1)} ยูนิต/เดือน — ปิดแล้ว ${soldUnits}/${totalUnits}`,
+      message: monthsToSellout
+        ? `คาดขายหมดใน ~${monthsToSellout} เดือน (เหลือว่าง ${available} ยูนิต)`
+        : available === 0 ? "ขายหมดทุกยูนิตแล้ว !" : `เหลือยูนิตว่าง ${available} ยูนิต`,
+      href: "/crm",
+      icon: Activity,
+      iconColor: selloutPct >= 80 ? "text-green-400" : "text-blue-400",
+      bg: selloutPct >= 80 ? "bg-green-500/10" : "bg-blue-500/10",
+      border: selloutPct >= 80 ? "border-green-500/20" : "border-blue-500/20",
+      titleColor: selloutPct >= 80 ? "text-green-400" : "text-blue-300",
+    });
+  }
+
+  if (stats.totalReceipts > 0 || stats.expenseTotal > 0) {
+    const isProfit = netPL >= 0;
+    insights.push({
+      type: isProfit ? "success" : "alert",
+      priority: isProfit ? "low" : "high",
+      title: `กำไร-ขาดทุนสุทธิ: ${isProfit ? "+" : "-"}฿${formatMillions(Math.abs(netPL))}`,
+      message: `รายรับ ฿${formatMillions(stats.totalReceipts)} — รายจ่าย ฿${formatMillions(stats.expenseTotal)}`,
+      icon: isProfit ? TrendingUp : TrendingDown,
+      iconColor: isProfit ? "text-green-400" : "text-red-400",
+      bg: isProfit ? "bg-green-500/10" : "bg-red-500/10",
+      border: isProfit ? "border-green-500/20" : "border-red-500/20",
+      titleColor: isProfit ? "text-green-400" : "text-red-400",
+    });
+  }
+
+  if (stats.pendingApprovals > 0) {
+    insights.push({
+      type: "warning",
+      priority: "high",
+      title: `${stats.pendingApprovals} รายการรออนุมัติ`,
+      message: `งวดงานรอตรวจ ${constructionStats.inReview} งวด — ดำเนินการเพื่อไม่ให้กระทบกระแสเงินสด`,
+      href: "/approvals",
+      icon: Zap,
+      iconColor: "text-yellow-400",
+      bg: "bg-yellow-500/10",
+      border: "border-yellow-500/20",
+      titleColor: "text-yellow-300",
+    });
+  }
+
+  if (stats.pendingClaims > 0) {
+    insights.push({
+      type: "alert",
+      priority: "medium",
+      title: `${stats.pendingClaims} คลิมหลังการขายรอดำเนินการ`,
+      message: "ควรติดตามและดำเนินการภายใน 7 วันเพื่อรักษาความพึงพอใจของลูกค้า",
+      icon: ShieldAlert,
+      iconColor: "text-orange-400",
+      bg: "bg-orange-500/10",
+      border: "border-orange-500/20",
+      titleColor: "text-orange-400",
+    });
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      type: "success",
+      priority: "low",
+      title: "ทุกระบบทำงานปกติ",
+      message: "ไม่มีรายการค้างดำเนินการในขณะนี้",
+      icon: CheckCircle,
+      iconColor: "text-green-400",
+      bg: "bg-green-500/10",
+      border: "border-green-500/20",
+      titleColor: "text-green-400",
+    });
+  }
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
@@ -223,7 +345,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.1.0</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.2.0</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -244,6 +366,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        {/* AVIVA AI Executive chat */}
         <div className="bg-aviva-card rounded-2xl border border-aviva-gold/20 overflow-hidden">
           <button onClick={() => setShowAI(a => !a)}
             className="w-full flex items-center gap-3 p-3 hover:bg-aviva-gold/5 transition-all active:scale-[0.99]">
@@ -287,6 +410,7 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Pending approvals breakdown (manager+) */}
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">
             <div className="flex items-center justify-between mb-3">
@@ -316,7 +440,7 @@ export default function DashboardPage() {
                     Material_Purchase:  { label: "ขออนุมัติจัดซื้อ", Icon: Package, color: "text-blue-400", bg: "bg-blue-500/10" },
                     Document_Approval:  { label: "ขออนุมัติเอกสาร", Icon: FileText, color: "text-purple-400", bg: "bg-purple-500/10" },
                     Finance_Approval:   { label: "ขออนุมัติรายจ่าย", Icon: Receipt, color: "text-yellow-400", bg: "bg-yellow-500/10" },
-                    Leave_Request:      { label: "ขออนุมัตดการลา", Icon: Briefcase, color: "text-teal-400", bg: "bg-teal-500/10" },
+                    Leave_Request:      { label: "ขออนุมัติการลา", Icon: Briefcase, color: "text-teal-400", bg: "bg-teal-500/10" },
                   };
                   const c = cfg[workflow_type] ?? { label: workflow_type, Icon: ShieldAlert, color: "text-aviva-secondary", bg: "bg-aviva-bg/50" };
                   return (
@@ -337,33 +461,25 @@ export default function DashboardPage() {
           </GlassCard>
         )}
 
+        {/* AI Executive Insights — computed analytics */}
         <div>
-          <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์โดย AVIVA AI" />
-          <div className="space-y-3">
-            {stats.pendingApprovals > 0 && (
-              <Link href="/approvals">
-                <AIInsightPanel type="warning" priority="high"
-                  title={`มี ${stats.pendingApprovals} รายการรออนุมัติ`}
-                  message="กรุณาตรวจสอบและอนุมัติรายการที่ค้างอยู่เพื่อไม่ให้กระทบการดำเนินงาน" />
-              </Link>
-            )}
-            {stats.pendingClaims > 0 && (
-              <AIInsightPanel type="alert" priority="medium"
-                title={`มี ${stats.pendingClaims} คลิมหลังการขายรอดำเนินการ`}
-                message="ควรติดตามและดำเนินการภายใน 7 วันเพื่อรักษาความพึงพอใจของลูกค้า" />
-            )}
-            {stats.totalLeads > 0 && (
-              <Link href="/crm">
-                <AIInsightPanel type="info" priority="low"
-                  title={`มี Leads ทั้งหมด ${stats.totalLeads} ราย`}
-                  message="ติดตาม Lead อย่างสม่ำเสมอเพื่อเพิ่มอัตราการปิดการขาย" />
-              </Link>
-            )}
-            {stats.pendingApprovals === 0 && stats.pendingClaims === 0 && stats.totalLeads === 0 && (
-              <AIInsightPanel type="success" priority="low"
-                title="ทุกระบบทำงานปกติ"
-                message="ไม่มีรายการค้างดำเนินการในขณะนี้" />
-            )}
+          <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์ภาพรวมโครงการ Real-time" />
+          <div className="space-y-2.5">
+            {insights.map((ins, idx) => {
+              const IconComp = ins.icon;
+              const card = (
+                <div key={idx} className={`flex items-start gap-3 p-3.5 rounded-2xl border ${ins.bg} ${ins.border} transition-all active:scale-[0.98]`}>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${ins.bg} border ${ins.border}`}>
+                    <IconComp size={15} className={ins.iconColor} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold leading-snug ${ins.titleColor}`}>{ins.title}</p>
+                    <p className="text-[11px] text-aviva-secondary/80 mt-0.5 leading-relaxed">{ins.message}</p>
+                  </div>
+                </div>
+              );
+              return ins.href ? <Link key={idx} href={ins.href}>{card}</Link> : card;
+            })}
           </div>
         </div>
 
@@ -378,6 +494,7 @@ export default function DashboardPage() {
           </GlassCard>
         ) : (
           <>
+            {/* ภาพรวมโครงการ */}
             <div>
               <SectionHeader title="ภาพรวมโครงการ"
                 subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
@@ -403,6 +520,30 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* CRM — ฝ่ายขาย (ย้ายมาไว้ใต้ภาพรวมโครงการ) */}
+            {canSeeCRM && <GlassCard className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
+                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
+              </div>
+              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-aviva-gold">{selloutPct}%</p>
+                  <p className="text-[10px] text-aviva-secondary">ปิดการขาย</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-aviva-text">{stats.totalLeads}</p>
+                  <p className="text-[10px] text-aviva-secondary">Leads ทั้งหมด</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-aviva-text">{available}</p>
+                  <p className="text-[10px] text-aviva-secondary">ยูนิตว่าง</p>
+                </div>
+              </div>
+            </GlassCard>}
+
+            {/* ภาพรวมการเงิน — 3 lines: รายรับ + รายจ่าย */}
             {canSeeFinance && <GlassCard className="p-4">
               <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
               {project && project.revenue_target > 0 && (
@@ -423,25 +564,45 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-2 mb-4">
                 <button onClick={() => openKpi("revenue")}
                   className="bg-aviva-bg/50 rounded-xl p-3 text-center active:scale-95 transition-all">
                   <div className="flex items-center justify-center gap-1 mb-1">
-                    <TrendingUp size={12} className="text-green-400" />
+                    <TrendingUp size={11} className="text-green-400" />
                     <span className="text-[10px] text-aviva-secondary">รายรับ</span>
                   </div>
-                  <p className="text-base font-bold text-green-400">฿{formatMillions(stats.totalReceipts)}</p>
+                  <p className="text-sm font-bold text-green-400">฿{formatMillions(stats.totalReceipts)}</p>
                 </button>
                 <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
                   <div className="flex items-center justify-center gap-1 mb-1">
-                    <TrendingDown size={12} className="text-red-400" />
+                    <TrendingDown size={11} className="text-red-400" />
                     <span className="text-[10px] text-aviva-secondary">รายจ่าย</span>
                   </div>
-                  <p className="text-base font-bold text-red-400">฿{formatMillions(stats.expenseTotal)}</p>
+                  <p className="text-sm font-bold text-red-400">฿{formatMillions(stats.expenseTotal)}</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Activity size={11} className={netPL >= 0 ? "text-aviva-gold" : "text-red-400"} />
+                    <span className="text-[10px] text-aviva-secondary">กำไรสุทธิ</span>
+                  </div>
+                  <p className={`text-sm font-bold ${netPL >= 0 ? "text-aviva-gold" : "text-red-400"}`}>
+                    {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
+                  </p>
                 </div>
               </div>
-              <p className="text-[10px] text-aviva-secondary mb-2">รายได้รายเดือน (ล้านบาท)</p>
-              <div className="h-32">
+              {/* Chart legend */}
+              <div className="flex items-center gap-4 mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">รายรับ</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-red-400 rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">รายจ่าย</span>
+                </div>
+                <span className="text-[9px] text-aviva-secondary/50 ml-auto">ล้านบาท / เดือน</span>
+              </div>
+              <div className="h-36">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                     <defs>
@@ -449,19 +610,25 @@ export default function DashboardPage() {
                         <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
                       </linearGradient>
+                      <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F87171" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#F87171" stopOpacity={0} />
+                      </linearGradient>
                     </defs>
                     <XAxis dataKey="month" tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "11px" }}
-                      formatter={(val) => [`฿${val}M`, "รายได้"]}
+                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : "รายจ่าย"]}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} fill="url(#goldGrad)" />
+                    <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} fill="url(#goldGrad)" dot={false} />
+                    <Area type="monotone" dataKey="expense" stroke="#F87171" strokeWidth={1.5} fill="url(#redGrad)" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </GlassCard>}
 
+            {/* ก่อสร้าง */}
             {canSeeConstruction && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="ก่อสร้าง" subtitle="สถานะงวดงาน" />
@@ -487,31 +654,10 @@ export default function DashboardPage() {
               </div>
               <ProgressBar label={`ความคืบหน้าก่อสร้าง ${constructionProgress}%`} value={constructionProgress} />
             </GlassCard>}
-
-            {canSeeCRM && <GlassCard className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
-                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
-              </div>
-              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-aviva-gold">{selloutPct}%</p>
-                  <p className="text-[10px] text-aviva-secondary">ปิดการขาย</p>
-                </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-aviva-text">{stats.totalLeads}</p>
-                  <p className="text-[10px] text-aviva-secondary">Leads ทั้งหมด</p>
-                </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-aviva-text">{available}</p>
-                  <p className="text-[10px] text-aviva-secondary">ยูนิตว่าง</p>
-                </div>
-              </div>
-            </GlassCard>}
           </>
         )}
 
+        {/* ปฏิทินกิจกรรม */}
         <div>
           <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
           <CalendarWidget />

@@ -167,10 +167,10 @@ export default function CalendarWidget() {
         </div>
         <div className="grid grid-cols-7 mb-1">
           {DAYS_TH.map(d => (
-            <div key={d} className="text-center text-[10px] font-medium text-aviva-secondary/60 py-1">{d}</div>
+            <div key={d} className="text-center text-xs font-medium text-aviva-secondary/60 py-1">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-0.5">
+        <div className="grid grid-cols-7 gap-1">
           {cells.map((d, i) => {
             if (!d) return <div key={i} />;
             const dateStr  = ds(d);
@@ -187,16 +187,16 @@ export default function CalendarWidget() {
             return (
               <button key={i}
                 onClick={() => setSelected(isSel ? null : dateStr)}
-                className={`flex flex-col items-center py-1 rounded-lg transition-all ${
+                className={`flex flex-col items-center py-1.5 rounded-lg transition-all ${
                   isSel   ? "bg-aviva-gold/20 border border-aviva-gold/40" :
                   isToday ? "border border-aviva-gold/30" : ""
                 }`}
               >
-                <span className={`text-xs font-medium ${isToday ? "text-aviva-gold" : "text-aviva-text"}`}>{d}</span>
+                <span className={`text-sm font-medium ${isToday ? "text-aviva-gold" : "text-aviva-text"}`}>{d}</span>
                 {allDots.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
                     {allDots.map((c, idx) => (
-                      <span key={idx} className={`w-1 h-1 rounded-full ${c}`} />
+                      <span key={idx} className={`w-1.5 h-1.5 rounded-full ${c}`} />
                     ))}
                   </div>
                 )}

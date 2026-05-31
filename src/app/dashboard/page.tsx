@@ -235,7 +235,6 @@ export default function DashboardPage() {
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
 
-  // Compute AI Executive Insights
   const monthsElapsed = new Date().getMonth() + 1;
   const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
   const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
@@ -346,7 +345,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.3.0</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.4.0</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -367,7 +366,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
-        {/* AVIVA AI Executive chat */}
         <div className="bg-aviva-card rounded-2xl border border-aviva-gold/20 overflow-hidden">
           <button onClick={() => setShowAI(a => !a)}
             className="w-full flex items-center gap-3 p-3 hover:bg-aviva-gold/5 transition-all active:scale-[0.99]">
@@ -411,7 +409,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Pending approvals breakdown (manager+) */}
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">
             <div className="flex items-center justify-between mb-3">
@@ -462,7 +459,6 @@ export default function DashboardPage() {
           </GlassCard>
         )}
 
-        {/* AI Executive Insights — computed analytics */}
         <div>
           <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์ภาพรวมโครงการ Real-time" />
           <div className="space-y-2.5">
@@ -507,7 +503,6 @@ export default function DashboardPage() {
           </GlassCard>
         ) : (
           <>
-            {/* ภาพรวมโครงการ */}
             <div>
               <SectionHeader title="ภาพรวมโครงการ"
                 subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
@@ -533,7 +528,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* CRM — ฝ่ายขาย */}
             {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
@@ -556,7 +550,6 @@ export default function DashboardPage() {
               </div>
             </GlassCard>}
 
-            {/* ภาพรวมการเงิน */}
             {canSeeFinance && <GlassCard className="p-4">
               <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
               {project && project.revenue_target > 0 && (
@@ -640,7 +633,6 @@ export default function DashboardPage() {
               </div>
             </GlassCard>}
 
-            {/* ก่อสร้าง */}
             {canSeeConstruction && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="ก่อสร้าง" subtitle="สถานะงวดงาน" />
@@ -669,7 +661,6 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* ปฏิทินกิจกรรม */}
         <div>
           <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
           <CalendarWidget />

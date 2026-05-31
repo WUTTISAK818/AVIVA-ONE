@@ -94,6 +94,7 @@ export default function DashboardPage() {
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
   const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number }[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI Executive พร้อมวิเคราะห์ข้อมูลโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
@@ -211,7 +212,7 @@ export default function DashboardPage() {
         revenue: +((incMap[i] ?? 0).toFixed(1)),
         expense: +((expMap[i] ?? 0).toFixed(1)),
       })));
-    }).catch(() => {});
+    }).catch(() => { setLoadError(true); });
 
     fetchPendingBreakdown();
 
@@ -345,7 +346,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.2.0</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.3.0</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -482,6 +483,18 @@ export default function DashboardPage() {
             })}
           </div>
         </div>
+
+        {loadError && (
+          <GlassCard className="p-5 text-center border border-red-500/20">
+            <ShieldAlert size={22} className="text-red-400 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-aviva-text mb-1">โหลดข้อมูลไม่สำเร็จ</p>
+            <p className="text-xs text-aviva-secondary mb-3">กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่</p>
+            <button onClick={() => { setLoadError(false); setLoading(true); window.location.reload(); }}
+              className="text-xs font-bold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-4 py-2 rounded-xl">
+              ลองใหม่
+            </button>
+          </GlassCard>
+        )}
 
         {noProjectData ? (
           <GlassCard className="p-6 text-center border border-aviva-gold/20">

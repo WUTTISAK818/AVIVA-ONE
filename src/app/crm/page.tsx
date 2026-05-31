@@ -22,6 +22,20 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+function calcAiScore(status: string, urgency: string | null): number {
+  const statusBase: Record<string, number> = {
+    "Closed Deal": 100, "Loan Process": 90, "Booking": 80,
+    "Interested": 65, "Follow Up": 50, "Contacted": 45,
+    "Site Visit": 60, "New Lead": 30, "No Interest": 10, "New": 30,
+  };
+  const urgencyBonus: Record<string, number> = {
+    "ด่วนมาก": 10, "ด่วน": 5, "ปานกลาง": 0, "ต่ำ": -5,
+  };
+  const base = statusBase[status] ?? 35;
+  const bonus = urgencyBonus[urgency ?? ""] ?? 0;
+  return Math.max(0, Math.min(100, base + bonus));
+}
+
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Loan Process", "Closed Deal"];
 const PLOT_COUNT = 31;
@@ -527,7 +541,7 @@ export default function CRMPage() {
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, ai_score: calcAiScore(form.status, form.urgency || null), next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -578,7 +592,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: calcAiScore(form.status, form.urgency || null), next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",

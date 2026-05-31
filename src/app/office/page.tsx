@@ -31,8 +31,6 @@ const today = new Date().toISOString().split("T")[0];
 // ─── Shared formatters ──────────────────────────────────────────────────────────────────────────────────
 
 function formatM(n: number) {
-  if (Math.abs(n) >= 1_000_000) return `฿${(Math.abs(n) / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `฿${(Math.abs(n) / 1_000).toFixed(0)}K`;
   return `฿${Math.abs(n).toLocaleString("th-TH")}`;
 }
 
@@ -1467,6 +1465,7 @@ function HRContent() {
   const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string}[]>([]);
   const [hrToast, setHrToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const [selectedLeave, setSelectedLeave] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string} | null>(null);
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -2913,7 +2912,7 @@ function PayrollContent() {
         <div class="sign-box">ลงชื่อผู้รับเงิน<br><br>(_________________________)<br>${pr.full_name}</div>
         <div class="sign-box">ลงชื่อผู้อนุมัติ<br><br>(_________________________)<br>ผู้บริหาร</div>
       </div>
-      <div class="footer">บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด · เลขทะเบียน 0305564005951 · ${new Date().toLocaleDateString("th-TH")}</div>
+      <div class="footer">บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด · เลขทะเบียน 0305564005951 · โทร 064-456-2878 · ${new Date().toLocaleDateString("th-TH")}</div>
       <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=700,height=600");
@@ -3520,17 +3519,17 @@ function DocumentsContent() {
 
 // ─── Tab Config ───────────────────────────────────────────────────────────────
 
-const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; constructionOnly?: boolean; adminOnly?: boolean }[] = [
-  { key: "finance",     label: "การเงิน" },
-  { key: "accounting",  label: "บัญชี" },
-  { key: "marketing",   label: "การตลาด" },
-  { key: "hr",          label: "บุคคล" },
-  { key: "after-sales", label: "หลังการขาย" },
-  { key: "approvals",   label: "อนุมัติ",    managerOnly: true },
-  { key: "materials",   label: "คลังวัสดุ",  constructionOnly: true },
+const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; constructionOnly?: boolean; adminOnly?: boolean; dept?: string }[] = [
+  { key: "finance",     label: "การเงิน",      dept: "ฝ่ายการเงิน" },
+  { key: "accounting",  label: "บัญชี",         dept: "ฝ่ายบัญชี" },
+  { key: "marketing",   label: "การตลาด",       dept: "ฝ่ายการตลาด" },
+  { key: "hr",          label: "บุคคล",          dept: "ฝ่ายบุคคล" },
+  { key: "after-sales", label: "หลังการขาย",    dept: "ฝ่ายหลังการขาย" },
+  { key: "approvals",   label: "อนุมัติ",        managerOnly: true },
+  { key: "materials",   label: "คลังวัสดุ",      constructionOnly: true },
   { key: "documents",   label: "เอกสาร" },
-  { key: "community",   label: "ค่าส่วนกลาง", adminOnly: true },
-  { key: "audit",       label: "Audit Log",    adminOnly: true },
+  { key: "community",   label: "ค่าส่วนกลาง",    adminOnly: true },
+  { key: "audit",       label: "Audit Log",       adminOnly: true },
 ];
 
 // ─── Audit Log Viewer ─────────────────────────────────────────────────────────
@@ -3633,6 +3632,8 @@ export default function OfficePage() {
     if (t.adminOnly && !user?.isAdmin) return false;
     if (t.managerOnly && !user?.isManager && !user?.isAdmin) return false;
     if (t.constructionOnly && !isConstruction && !user?.isManager && !user?.isAdmin) return false;
+    // Regular staff only see their own department's tab (managers/admins see all)
+    if (!user?.isManager && !user?.isAdmin && t.dept && t.dept !== user?.department) return false;
     return true;
   });
 
@@ -3642,6 +3643,7 @@ export default function OfficePage() {
     else if (user?.department === "ฝ่ายบุคคล") setActiveTab("hr");
     else if (user?.department === "ฝ่ายการตลาด") setActiveTab("marketing");
     else if (user?.department === "ฝ่ายหลังการขาย") setActiveTab("after-sales");
+    else if (user?.department === "ฝ่ายก่อสร้าง") setActiveTab("materials");
   }, [user]);
 
   return (

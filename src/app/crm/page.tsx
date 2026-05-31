@@ -15,6 +15,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
+import CelebrationModal from "@/components/CelebrationModal";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -106,7 +107,7 @@ const sourceColor: Record<string, string> = {
   Referral: "bg-purple-500/20 text-purple-400",
 };
 
-const SOURCES = ["Facebook", "TikTok", "Google", "Referral", "Walk-in", "อื่นๆ"];
+const SOURCES = ["Facebook", "TikTok", "Google", "Instagram", "LINE OA", "Call in", "Referral", "Walk-in", "อื่นๆ"];
 const CALL_STATUSES = ["โทรติด-สนใจ", "โทรติด-ไม่สนใจ", "โทรไม่ติด", "นัดหมายแล้ว", "ส่ง LINE แล้ว"];
 
 function scoreColor(score: number) {
@@ -191,6 +192,7 @@ export default function CRMPage() {
   const [custInstLead, setCustInstLead] = useState<Lead | null>(null);
   const [payRef, setPayRef] = useState<Record<string, { ref: string; date: string }>>({});
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null } | null>(null);
 
   useEffect(() => {
     supabase.from("houses").select("plot_number,status,house_model")
@@ -528,6 +530,7 @@ export default function CRMPage() {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
+            setCelebration({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: Number(form.budget) || null });
             const docNum = await generateDocNumber("BOOK");
             await supabase.from("approval_logs").insert({
               workflow_type: "Booking_Deposit",
@@ -550,6 +553,12 @@ export default function CRMPage() {
           from_dept: "ฝ่ายขาย",
           to_dept: "ฝ่ายขาย",
         });
+        if (form.status === "Loan Process") {
+          setCelebration({ event: "contract", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
+        }
+        if (form.status === "Closed Deal") {
+          setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
+        }
       }
     } else {
       const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null });
@@ -588,7 +597,14 @@ export default function CRMPage() {
         from_dept: "ฝ่ายขาย",
         to_dept: "ฝ่ายขาย",
       });
+      if (newStatus === "Booking") {
+        setCelebration({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null });
+      }
+      if (newStatus === "Loan Process") {
+        setCelebration({ event: "contract", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null });
+      }
       if (newStatus === "Closed Deal") {
+        setCelebration({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null });
         const docNum = await generateDocNumber("CONTRACT");
         await supabase.from("approval_logs").insert({
           workflow_type: "Contract_Approval",
@@ -1466,6 +1482,15 @@ export default function CRMPage() {
         </div>
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {celebration && (
+        <CelebrationModal
+          event={celebration.event}
+          customerName={celebration.customerName}
+          plotNumber={celebration.plotNumber}
+          amount={celebration.amount}
+          onClose={() => setCelebration(null)}
+        />
+      )}
     </div>
   );
 }

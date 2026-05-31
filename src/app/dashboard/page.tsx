@@ -211,6 +211,11 @@ export default function DashboardPage() {
   const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
   const noProjectData = !loading && project === null;
 
+  const canSeeAll = !ctxUser || ctxUser.isManager || ctxUser.isAdmin;
+  const canSeeFinance = canSeeAll || ctxUser?.department === "ฝ่ายการเงิน" || ctxUser?.department === "ฝ่ายบัญชี";
+  const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
+  const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
@@ -218,7 +223,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.22</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.23</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -398,7 +403,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <GlassCard className="p-4">
+            {canSeeFinance && <GlassCard className="p-4">
               <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
               {project && project.revenue_target > 0 && (
                 <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
@@ -455,9 +460,9 @@ export default function DashboardPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </GlassCard>
+            </GlassCard>}
 
-            <GlassCard className="p-4">
+            {canSeeConstruction && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="ก่อสร้าง" subtitle="สถานะงวดงาน" />
                 <Link href="/construction" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
@@ -481,9 +486,9 @@ export default function DashboardPage() {
                 </div>
               </div>
               <ProgressBar label={`ความคืบหน้าก่อสร้าง ${constructionProgress}%`} value={constructionProgress} />
-            </GlassCard>
+            </GlassCard>}
 
-            <GlassCard className="p-4">
+            {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
                 <Link href="/crm" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
@@ -503,7 +508,7 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-aviva-secondary">ยูนิตว่าง</p>
                 </div>
               </div>
-            </GlassCard>
+            </GlassCard>}
           </>
         )}
 

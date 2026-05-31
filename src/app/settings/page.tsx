@@ -107,7 +107,6 @@ export default function SettingsPage() {
             ))}
           </div>
         </GlassCard>
-        {/* Info section — visible to all */}
         <GlassCard className="p-0 overflow-hidden">
           <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">ข้อมูลองค์กร</p>
           <Link href="/settings/manual" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
@@ -177,7 +176,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 3.4.0</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 3.5.0</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

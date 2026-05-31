@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, AlertTriangle, Search, Download, FileText, BookOpen, Eye, ChevronDown, ChevronRight } from "lucide-react";
+import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, AlertTriangle, Search, Download, FileText, BookOpen, Eye, ChevronDown, ChevronRight, HardHat } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -99,8 +99,6 @@ function parseDocParts(source: string) {
   const submitter = byPart.replace("โดย ", "");
   return { docNum, desc, submitter };
 }
-
-// ─── Detail Modal ────────────────────────────────────────────────────────────
 
 function FieldBox({ label, value }: { label: string; value: string }) {
   return (
@@ -309,8 +307,6 @@ function ApprovalDetailModal({ log, onClose }: { log: ApprovalLog; onClose: () =
   );
 }
 
-// ─── Registry Tab ────────────────────────────────────────────────────────────
-
 const PAGE_SIZE = 20;
 
 function RegistryContent() {
@@ -387,7 +383,6 @@ function RegistryContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
-      {/* Date range filter */}
       <GlassCard className="p-4 space-y-3">
         <p className="text-xs font-medium text-aviva-gold flex items-center gap-1.5"><Clock size={12} /> ช่วงวันที่</p>
         <div className="flex gap-2">
@@ -403,8 +398,6 @@ function RegistryContent() {
           </div>
         </div>
       </GlassCard>
-
-      {/* Search + Type + Status filters */}
       <div className="space-y-2">
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-aviva-secondary/50" />
@@ -427,8 +420,6 @@ function RegistryContent() {
           </select>
         </div>
       </div>
-
-      {/* Summary stats */}
       {!loading && (
         <div className="grid grid-cols-4 gap-2">
           {[
@@ -444,8 +435,6 @@ function RegistryContent() {
           ))}
         </div>
       )}
-
-      {/* Export + count row */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-aviva-secondary">{loading ? "กำลังโหลด..." : `พบ ${filtered.length} รายการ`}</p>
         <button onClick={exportCSV} disabled={filtered.length === 0}
@@ -453,8 +442,6 @@ function RegistryContent() {
           <Download size={12} /> Export CSV
         </button>
       </div>
-
-      {/* Document list */}
       <div className="space-y-2">
         {loading ? (
           [1,2,3,4,5].map(i => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />)
@@ -507,8 +494,6 @@ function RegistryContent() {
           );
         })}
       </div>
-
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between gap-2">
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
@@ -526,8 +511,6 @@ function RegistryContent() {
   );
 }
 
-// ─── Approvals Tab ────────────────────────────────────────────────────────────
-
 type FilterTab = "pending" | "approved" | "rejected";
 
 function ApprovalsContent({ logs, loading, fetchLogs }: {
@@ -536,6 +519,7 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
   fetchLogs: () => void;
 }) {
   const user = useCurrentUser();
+  const canApprove = user && ["admin", "ceo", "manager", "director"].includes(user.role);
   const [activeTab, setActiveTab] = useState<FilterTab>("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
@@ -617,7 +601,6 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
       setToast({ msg: "ไม่สามารถอนุมัติรายการที่ท่านเป็นผู้ส่งได้ (Maker-Checker)", type: "error" });
       return;
     }
-    // Guard against double-click race condition
     const { data: freshLog } = await supabase.from("approval_logs").select("action_taken").eq("approval_id", id).single();
     if (freshLog?.action_taken !== "Pending") {
       setSaving(false);
@@ -780,7 +763,7 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
                 <button onClick={() => setViewingDetail(log)}
                   className="flex items-center gap-1 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-[10px] text-aviva-secondary hover:border-aviva-gold/50 hover:text-aviva-gold transition-all">
                   <Eye size={11} /> ดูรายละเอียด</button>
-                {log.action_taken === "Pending" && (
+                {log.action_taken === "Pending" && canApprove && (
                   <>
                     <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
                       className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
@@ -790,6 +773,9 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
                       <XCircle size={12} /> ปฏิเสธ</button>
                   </>
                 )}
+              {log.action_taken === "Pending" && !canApprove && (
+                <p className="text-[10px] text-aviva-secondary/60 text-center py-1">รอผู้มีอำนาจอนุมัติ</p>
+              )}
               </div>
             </GlassCard>
           );
@@ -818,9 +804,190 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
   );
 }
 
-// ─── Page Shell ───────────────────────────────────────────────────────────────
+interface HouseSimple {
+  id: string;
+  house_number: string;
+  plot_number: number | null;
+  status: string;
+  progress: number;
+  contractor: string;
+}
 
-type MainTab = "approvals" | "registry";
+interface InstSimple {
+  id: string;
+  house_id: string;
+  installment_no: number;
+  name: string;
+  status: string;
+  amount: number;
+  rejection_reason: string | null;
+}
+
+interface InspSimple {
+  id: string;
+  contractor_installment_id: string;
+  work_item_name: string;
+  result: string;
+  note: string | null;
+  photo_url: string | null;
+  inspected_by: string | null;
+  inspected_at: string | null;
+}
+
+const INST_STATUS_COLOR: Record<string, string> = {
+  pending:   "bg-gray-500/20 text-gray-400",
+  in_review: "bg-yellow-500/20 text-yellow-400",
+  approved:  "bg-blue-500/20 text-blue-400",
+  paid:      "bg-green-500/20 text-green-400",
+  rejected:  "bg-red-500/20 text-red-400",
+};
+const INST_STATUS_LABEL: Record<string, string> = {
+  pending: "รอดำเนินการ", in_review: "รอตรวจสอบ",
+  approved: "อนุมัติแล้ว", paid: "จ่ายแล้ว", rejected: "ถูกปฏิเสธ",
+};
+
+const INST_PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+function InstallmentViewer() {
+  const [houses, setHouses] = useState<HouseSimple[]>([]);
+  const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
+  const [installments, setInstallments] = useState<InstSimple[]>([]);
+  const [inspections, setInspections] = useState<InspSimple[]>([]);
+  const [expandedInstId, setExpandedInstId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingInst, setLoadingInst] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("houses").select("id,house_number,plot_number,status,progress,contractor")
+      .eq("project_id", INST_PROJECT_ID).order("plot_number")
+      .then(({ data }) => { setHouses((data as HouseSimple[]) ?? []); setLoading(false); });
+  }, []);
+
+  const loadInstallments = async (houseId: string) => {
+    setLoadingInst(true);
+    setInstallments([]); setInspections([]); setExpandedInstId(null);
+    const { data: insts } = await supabase.from("contractor_installments")
+      .select("id,house_id,installment_no,name,status,amount,rejection_reason")
+      .eq("house_id", houseId).order("installment_no");
+    const instList = (insts as InstSimple[]) ?? [];
+    setInstallments(instList);
+    if (instList.length > 0) {
+      const { data: insps } = await supabase.from("installment_inspections")
+        .select("id,contractor_installment_id,work_item_name,result,note,photo_url,inspected_by,inspected_at")
+        .in("contractor_installment_id", instList.map(i => i.id));
+      setInspections((insps as InspSimple[]) ?? []);
+    }
+    setLoadingInst(false);
+  };
+
+  return (
+    <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
+      <GlassCard className="p-4 space-y-2">
+        <p className="text-xs font-semibold text-aviva-gold flex items-center gap-1.5">
+          <HardHat size={12} /> เลือกยูนิต / แปลงที่ต้องการตรวจสอบ
+        </p>
+        {loading ? (
+          <div className="h-10 bg-aviva-bg/50 rounded-xl animate-pulse" />
+        ) : (
+          <select
+            value={selectedHouseId ?? ""}
+            onChange={e => { if (e.target.value) { setSelectedHouseId(e.target.value); loadInstallments(e.target.value); } }}
+            className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/60"
+          >
+            <option value="">— เลือกแปลง —</option>
+            {houses.map(h => (
+              <option key={h.id} value={h.id}>{h.house_number} [{h.status}]</option>
+            ))}
+          </select>
+        )}
+      </GlassCard>
+
+      {loadingInst ? (
+        [1,2,3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse" />)
+      ) : selectedHouseId && installments.length === 0 ? (
+        <GlassCard className="p-8 text-center">
+          <p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูลงวดงาน</p>
+        </GlassCard>
+      ) : installments.map(inst => {
+        const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+        const passCount = instInsps.filter(i => i.result === "pass").length;
+        const failCount = instInsps.filter(i => i.result === "fail").length;
+        const photoCount = instInsps.filter(i => i.photo_url).length;
+        const isExpanded = expandedInstId === inst.id;
+        return (
+          <GlassCard key={inst.id} className="overflow-hidden">
+            <button onClick={() => setExpandedInstId(isExpanded ? null : inst.id)}
+              className="w-full p-4 flex items-center gap-3 text-left hover:bg-aviva-gold/5 transition-all">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-aviva-text">งวด {inst.installment_no}</span>
+                  <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full font-medium", INST_STATUS_COLOR[inst.status] ?? "bg-gray-500/20 text-gray-400")}>
+                    {INST_STATUS_LABEL[inst.status] ?? inst.status}
+                  </span>
+                  {inst.amount > 0 && <span className="text-[10px] text-aviva-gold font-bold">฿{Number(inst.amount).toLocaleString()}</span>}
+                </div>
+                <p className="text-xs text-aviva-secondary mt-0.5">{inst.name}</p>
+                {instInsps.length > 0 && (
+                  <div className="flex items-center gap-2 mt-1 text-[10px]">
+                    <span className="text-green-400">✓ {passCount}</span>
+                    <span className="text-red-400">✗ {failCount}</span>
+                    <span className="text-aviva-secondary/60">/ {instInsps.length} รายการ</span>
+                    {photoCount > 0 && <span className="text-aviva-gold">📷 {photoCount} รูป</span>}
+                  </div>
+                )}
+                {inst.rejection_reason && <p className="text-[10px] text-red-400 mt-0.5">ปฏิเสธ: {inst.rejection_reason}</p>}
+              </div>
+              {isExpanded ? <ChevronDown size={14} className="text-aviva-gold flex-shrink-0" /> : <ChevronRight size={14} className="text-aviva-secondary/50 flex-shrink-0" />}
+            </button>
+
+            {isExpanded && (
+              <div className="px-4 pb-4 space-y-2 border-t border-aviva-gold/10 pt-3">
+                {instInsps.length === 0 ? (
+                  <p className="text-[11px] text-aviva-secondary/60 py-2 text-center">ยังไม่มีรายการตรวจงานที่บันทึก</p>
+                ) : instInsps.map(insp => (
+                  <div key={insp.id} className={clsx("bg-aviva-bg rounded-xl p-3 border", insp.result === "pass" ? "border-green-500/20" : insp.result === "fail" ? "border-red-500/20" : "border-aviva-gold/10")}>
+                    <div className="flex items-start gap-2">
+                      <span className={clsx("text-sm font-bold flex-shrink-0", insp.result === "pass" ? "text-green-400" : insp.result === "fail" ? "text-red-400" : "text-aviva-secondary/40")}>
+                        {insp.result === "pass" ? "✓" : insp.result === "fail" ? "✗" : "—"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-aviva-text">{insp.work_item_name}</p>
+                        {insp.note && <p className="text-[10px] text-aviva-secondary mt-0.5">{insp.note}</p>}
+                        {insp.inspected_by && (
+                          <p className="text-[9px] text-aviva-secondary/50 mt-0.5">
+                            ตรวจโดย: {insp.inspected_by}
+                            {insp.inspected_at ? ` · ${new Date(insp.inspected_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}
+                          </p>
+                        )}
+                      </div>
+                      {insp.photo_url && (
+                        <button onClick={() => setLightbox(insp.photo_url!)} className="flex-shrink-0 hover:opacity-80 transition-opacity">
+                          <img src={insp.photo_url} alt="รูปตรวจ" className="w-16 h-16 rounded-xl object-cover border border-aviva-gold/20" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        );
+      })}
+
+      {lightbox && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="รูปตรวจงาน" className="max-w-[92vw] max-h-[82vh] rounded-2xl object-contain shadow-2xl" />
+          <button onClick={() => setLightbox(null)} className="absolute top-6 right-6 p-2.5 rounded-full bg-black/60 hover:bg-black/80">
+            <X size={20} className="text-white" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type MainTab = "approvals" | "registry" | "reports";
 
 export default function ApprovalsPage() {
   const user = useCurrentUser();
@@ -862,7 +1029,6 @@ export default function ApprovalsPage() {
         from_dept: "ระบบ",
       });
     }
-    // Check for SLA approaching (within 1 day)
     const now = new Date();
     const soonLogs = logs.filter(l => {
       if (l.action_taken !== 'Pending' || !l.sla_due_at) return false;
@@ -882,7 +1048,6 @@ export default function ApprovalsPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center gap-2 mb-3">
@@ -895,7 +1060,6 @@ export default function ApprovalsPage() {
             )}
             <span className="ml-auto text-[10px] text-aviva-secondary">{loading ? "กำลังโหลด..." : `รออนุมัติ ${pendingCount}`}</span>
           </div>
-          {/* Main tabs */}
           <div className="flex gap-2">
             <button onClick={() => setMainTab("approvals")}
               className={clsx("flex items-center gap-1.5 flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
@@ -903,11 +1067,17 @@ export default function ApprovalsPage() {
               )}>
               <BadgeCheck size={13} /> อนุมัติ{pendingCount > 0 ? ` (${pendingCount})` : ""}
             </button>
+            <button onClick={() => setMainTab("reports")}
+              className={clsx("flex items-center gap-1.5 flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+                mainTab === "reports" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+              )}>
+              <HardHat size={13} /> งวดงาน
+            </button>
             <button onClick={() => setMainTab("registry")}
               className={clsx("flex items-center gap-1.5 flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
                 mainTab === "registry" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
               )}>
-              <BookOpen size={13} /> ทะเบียนเอกสาร
+              <BookOpen size={13} /> เอกสาร
             </button>
           </div>
         </div>
@@ -916,6 +1086,7 @@ export default function ApprovalsPage() {
       {mainTab === "approvals" && (
         <ApprovalsContent logs={logs} loading={loading} fetchLogs={fetchLogs} />
       )}
+      {mainTab === "reports" && <InstallmentViewer />}
       {mainTab === "registry" && <RegistryContent />}
     </div>
   );

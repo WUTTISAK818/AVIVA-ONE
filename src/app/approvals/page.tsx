@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, AlertTriangle, Search, Download, FileText, BookOpen } from "lucide-react";
+import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, AlertTriangle, Search, Download, FileText, BookOpen, Eye, ChevronDown, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -98,6 +98,215 @@ function parseDocParts(source: string) {
   const byPart = parts.find(p => p.startsWith("โดย ")) ?? "";
   const submitter = byPart.replace("โดย ", "");
   return { docNum, desc, submitter };
+}
+
+// ─── Detail Modal ────────────────────────────────────────────────────────────
+
+function FieldBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-aviva-bg/60 rounded-xl p-2.5">
+      <p className="text-[9px] text-aviva-secondary uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-xs text-aviva-text font-medium break-words">{value || "—"}</p>
+    </div>
+  );
+}
+
+function renderDetailFields(workflow: string, data: Record<string, unknown>) {
+  if (workflow === "Leave_Request") {
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <FieldBox label="ชื่อพนักงาน" value={String(data.employee_name ?? "")} />
+        <FieldBox label="ฝ่าย" value={String(data.department ?? "")} />
+        <FieldBox label="ประเภทการลา" value={String(data.leave_type ?? "")} />
+        <FieldBox label="วันที่ลา" value={data.leave_date ? new Date(String(data.leave_date)).toLocaleDateString("th-TH") : ""} />
+        <FieldBox label="จำนวนวัน" value={String(data.days ?? "")} />
+        <FieldBox label="สถานะ" value={String(data.status ?? "")} />
+        {!!data.reason && <div className="col-span-2"><FieldBox label="เหตุผล" value={String(data.reason)} /></div>}
+      </div>
+    );
+  }
+  if (workflow === "Installment_Review") {
+    const house = data.houses as Record<string, unknown> | null;
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <FieldBox label="ยูนิต" value={String(house?.house_number ?? "")} />
+        <FieldBox label="งวดที่" value={String(data.installment_no ?? "")} />
+        <div className="col-span-2"><FieldBox label="ชื่องวด" value={String(data.name ?? "")} /></div>
+        <FieldBox label="มูลค่า" value={data.amount ? `฿${Number(data.amount).toLocaleString()}` : ""} />
+        <FieldBox label="สถานะ" value={String(data.status ?? "")} />
+        <FieldBox label="ผู้รับเหมา" value={String(house?.contractor ?? "")} />
+        <FieldBox label="วิศวกร" value={String(house?.site_engineer ?? "")} />
+        {!!data.rejection_reason && <div className="col-span-2"><FieldBox label="เหตุผลที่ปฏิเสธ" value={String(data.rejection_reason)} /></div>}
+      </div>
+    );
+  }
+  if (workflow === "Material_Purchase") {
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <FieldBox label="เลข PO" value={String(data.po_number ?? data.doc_number ?? "")} />
+          <FieldBox label="ผู้จัดจำหน่าย" value={String(data.vendor_name ?? "")} />
+          <FieldBox label="มูลค่ารวม" value={data.total_amount ? `฿${Number(data.total_amount).toLocaleString()}` : ""} />
+          <FieldBox label="สถานะ" value={String(data.status ?? "")} />
+        </div>
+        {!!data.notes && <FieldBox label="หมายเหตุ" value={String(data.notes)} />}
+      </div>
+    );
+  }
+  if (workflow === "Document_Approval") {
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <FieldBox label="เลขที่เอกสาร" value={String(data.doc_number ?? "")} />
+        <FieldBox label="หมวด" value={String(data.category ?? "")} />
+        <div className="col-span-2"><FieldBox label="ชื่อเอกสาร" value={String(data.title ?? data.name ?? "")} /></div>
+        <div className="col-span-2"><FieldBox label="รายละเอียด" value={String(data.description ?? "")} /></div>
+        <FieldBox label="ผู้จัดทำ" value={String(data.created_by ?? "")} />
+        <FieldBox label="สถานะ" value={String(data.status ?? "")} />
+      </div>
+    );
+  }
+  if (workflow === "Booking_Deposit") {
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <FieldBox label="ชื่อลูกค้า" value={String(data.customer_name ?? "")} />
+        <FieldBox label="เบอร์โทร" value={String(data.phone ?? "")} />
+        <FieldBox label="แปลงที่" value={String(data.plot_number ?? "")} />
+        <FieldBox label="สถานะ" value={String(data.status ?? "")} />
+        <FieldBox label="เงินมัดจำ" value={data.deposit_amount ? `฿${Number(data.deposit_amount).toLocaleString()}` : ""} />
+        <FieldBox label="วันที่จอง" value={data.booking_date ? new Date(String(data.booking_date)).toLocaleDateString("th-TH") : ""} />
+        {!!data.notes && <div className="col-span-2"><FieldBox label="หมายเหตุ" value={String(data.notes)} /></div>}
+      </div>
+    );
+  }
+  if (workflow === "Finance_Approval") {
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <FieldBox label="ประเภท" value={String(data.type ?? data.transaction_type ?? "")} />
+        <FieldBox label="จำนวนเงิน" value={data.amount ? `฿${Number(data.amount).toLocaleString()}` : ""} />
+        <div className="col-span-2"><FieldBox label="รายละเอียด" value={String(data.description ?? data.title ?? "")} /></div>
+        <FieldBox label="ผู้ขอ" value={String(data.requested_by ?? data.submitted_by ?? "")} />
+        <FieldBox label="สถานะ" value={String(data.status ?? "")} />
+      </div>
+    );
+  }
+  const knownFields = Object.entries(data).filter(([k, v]) =>
+    !["id", "created_at", "updated_at", "project_id", "house_id", "houses"].includes(k) && v != null
+  ).slice(0, 10);
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {knownFields.map(([k, v]) => (
+        <FieldBox key={k} label={k.replace(/_/g, " ")} value={typeof v === "object" ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80)} />
+      ))}
+    </div>
+  );
+}
+
+function ApprovalDetailModal({ log, onClose }: { log: ApprovalLog; onClose: () => void }) {
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(true);
+  const { docNum, desc, submitter } = parseDocParts(log.source_doc_index);
+
+  useEffect(() => {
+    if (!log.source_record_id) { setLoadingDetail(false); return; }
+    (async () => {
+      let result: Record<string, unknown> | null = null;
+      if (log.workflow_type === "Installment_Review") {
+        const { data: d } = await supabase.from("contractor_installments").select("*, houses(house_number, contractor, site_engineer, plot_number)").eq("id", log.source_record_id).single();
+        result = d as Record<string, unknown>;
+      } else if (log.workflow_type === "Material_Purchase") {
+        const { data: d } = await supabase.from("purchase_orders").select("*").eq("id", log.source_record_id).single();
+        result = d as Record<string, unknown>;
+      } else if (log.workflow_type === "Document_Approval") {
+        const { data: d } = await supabase.from("documents").select("*").eq("id", log.source_record_id).single();
+        result = d as Record<string, unknown>;
+      } else if (log.workflow_type === "Leave_Request") {
+        const { data: d } = await supabase.from("leave_requests").select("*").eq("id", log.source_record_id).single();
+        result = d as Record<string, unknown>;
+      } else if (log.workflow_type === "Booking_Deposit") {
+        const { data: d } = await supabase.from("leads").select("*").eq("id", log.source_record_id).single();
+        result = d as Record<string, unknown>;
+      } else if (log.workflow_type === "Finance_Approval") {
+        const { data: d } = await supabase.from("approvals").select("*").eq("id", log.source_record_id).single();
+        result = d as Record<string, unknown>;
+      }
+      setData(result);
+      setLoadingDetail(false);
+    })();
+  }, [log]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-12 max-h-[85vh] overflow-y-auto space-y-4 mb-14">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] text-aviva-secondary">{WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type} · {DEPT_BY_WORKFLOW[log.workflow_type] ?? ""}</p>
+            <h2 className="text-base font-bold text-aviva-gold font-mono">{docNum}</h2>
+            {desc && <p className="text-xs text-aviva-text mt-0.5">{desc}</p>}
+            {submitter && <p className="text-[10px] text-aviva-secondary">ผู้ส่ง: {submitter}</p>}
+          </div>
+          <button onClick={onClose} className="flex-shrink-0 p-1.5 rounded-xl bg-aviva-bg border border-aviva-gold/20">
+            <X size={16} className="text-aviva-secondary" />
+          </button>
+        </div>
+
+        {log.amount != null && (
+          <div className="bg-aviva-gold/10 border border-aviva-gold/30 rounded-xl px-4 py-3 text-center">
+            <p className="text-[10px] text-aviva-secondary">มูลค่า</p>
+            <p className="text-xl font-bold text-aviva-gold">฿{Number(log.amount).toLocaleString()}</p>
+          </div>
+        )}
+
+        {loadingDetail ? (
+          <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)}</div>
+        ) : data ? (
+          <div className="space-y-3">
+            <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wider">รายละเอียดเอกสาร</p>
+            {renderDetailFields(log.workflow_type, data)}
+          </div>
+        ) : (
+          <p className="text-xs text-aviva-secondary text-center py-4">ไม่พบข้อมูลต้นทาง</p>
+        )}
+
+        <div className="space-y-2 pt-2 border-t border-aviva-gold/10">
+          <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wider">ประวัติการดำเนินการ</p>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-aviva-secondary">ส่งคำขอ</span>
+              <span className="text-aviva-text">{new Date(log.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-aviva-secondary">ผู้อนุมัติ</span>
+              <span className="text-aviva-text">{log.current_approver_role}</span>
+            </div>
+            {log.assigned_to_name && (
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">มอบหมาย</span>
+                <span className="text-aviva-text">{log.assigned_to_name}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-aviva-secondary">สถานะ</span>
+              <span className={clsx("font-semibold", log.action_taken === "Approved" ? "text-green-400" : log.action_taken === "Rejected" ? "text-red-400" : "text-yellow-400")}>
+                {log.action_taken === "Approved" ? "✓ อนุมัติแล้ว" : log.action_taken === "Rejected" ? "✗ ปฏิเสธ" : "รออนุมัติ"}
+              </span>
+            </div>
+            {log.approver_email && log.action_taken !== "Pending" && (
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">โดย</span>
+                <span className="text-aviva-text">{log.approver_email}</span>
+              </div>
+            )}
+            {log.rejection_comment && (
+              <div className="mt-2 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-red-400 font-semibold mb-0.5">เหตุผลการปฏิเสธ</p>
+                <p className="text-xs text-red-300">{log.rejection_comment}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Registry Tab ────────────────────────────────────────────────────────────
@@ -332,6 +541,7 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
   const [rejectComment, setRejectComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [viewingDetail, setViewingDetail] = useState<ApprovalLog | null>(null);
 
   const filtered = logs.filter(l => {
     if (activeTab === "pending") return l.action_taken === "Pending";
@@ -566,16 +776,21 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
                 </div>
               </div>
               {log.rejection_comment && <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">เหตุผล: {log.rejection_comment}</p>}
-              {log.action_taken === "Pending" && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
-                    className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <CheckCircle size={12} /> อนุมัติ</button>
-                  <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
-                    className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <XCircle size={12} /> ปฏิเสธ</button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <button onClick={() => setViewingDetail(log)}
+                  className="flex items-center gap-1 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-[10px] text-aviva-secondary hover:border-aviva-gold/50 hover:text-aviva-gold transition-all">
+                  <Eye size={11} /> ดูรายละเอียด</button>
+                {log.action_taken === "Pending" && (
+                  <>
+                    <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
+                      className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                      <CheckCircle size={12} /> อนุมัติ</button>
+                    <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
+                      className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                      <XCircle size={12} /> ปฏิเสธ</button>
+                  </>
+                )}
+              </div>
             </GlassCard>
           );
         })}
@@ -597,6 +812,7 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
           </div>
         </div>
       )}
+      {viewingDetail && <ApprovalDetailModal log={viewingDetail} onClose={() => setViewingDetail(null)} />}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

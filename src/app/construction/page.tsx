@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -18,7 +18,7 @@ import { calcSlaDueAt } from "@/lib/approval-matrix";
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 type HouseStatus = "complete" | "on-track" | "delayed";
-type FilterStatus = "all" | "building" | "on-track" | "delayed";
+type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
 type Tab = "reports" | "defects";
 type Part = "inspect" | "daily";
 
@@ -148,10 +148,11 @@ function houseLabel(h: House): string {
 }
 
 const filterBoxes: { key: FilterStatus; label: string; border: string; numColor: string }[] = [
-  { key: "all",      label: "ทั้งหมด",       border: "border-aviva-gold/30",  numColor: "text-aviva-gold" },
-  { key: "building", label: "กำลังก่อสร้าง", border: "border-blue-400/30",    numColor: "text-blue-400" },
-  { key: "on-track", label: "ตามแผน",         border: "border-green-400/30",   numColor: "text-green-400" },
-  { key: "delayed",  label: "ล่าช้า",          border: "border-red-400/30",     numColor: "text-red-400" },
+  { key: "all",      label: "ทั้งหมด",       border: "border-aviva-gold/30",   numColor: "text-aviva-gold"   },
+  { key: "complete", label: "เสร็จแล้ว",     border: "border-green-400/30",    numColor: "text-green-400"    },
+  { key: "building", label: "กำลังก่อสร้าง", border: "border-blue-400/30",     numColor: "text-blue-400"     },
+  { key: "on-track", label: "ตามแผน",         border: "border-sky-400/30",      numColor: "text-sky-400"      },
+  { key: "delayed",  label: "ล่าช้า",          border: "border-red-400/30",      numColor: "text-red-400"      },
 ];
 
 function InspectionPanel({
@@ -298,6 +299,12 @@ export default function ConstructionPage() {
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [uploadingTask, setUploadingTask] = useState<string | null>(null);
   const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+  const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
+  const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
+  const [showAI, setShowAI] = useState(false);
+  const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [dailyPhoto, setDailyPhoto] = useState<File | null>(null);
   const [dailyPhotoPreview, setDailyPhotoPreview] = useState("");
   const [uploadingDailyPhoto, setUploadingDailyPhoto] = useState(false);
@@ -317,10 +324,13 @@ export default function ConstructionPage() {
       supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number"),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
-    ]).then(([hRes, rRes, dRes]) => {
+      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Loan Process", "Closed Deal"]),
+    ]).then(([hRes, rRes, dRes, leadRes]) => {
       setHouses((hRes.data as House[]) ?? []);
       setReports((rRes.data as Report[]) ?? []);
       setDefects((dRes.data as Defect[]) ?? []);
+      const plots = new Set<number>((leadRes.data ?? []).filter((d: { plot_number: number | null }) => d.plot_number != null).map((d: { plot_number: number }) => d.plot_number));
+      setCustomerPlots(plots);
       setLoading(false);
     });
   };
@@ -555,14 +565,54 @@ export default function ConstructionPage() {
 
   const counts = {
     all: houses.length,
+    complete: houses.filter(h => h.status === "complete").length,
     building: houses.filter(h => h.status !== "complete").length,
     "on-track": houses.filter(h => h.status === "on-track").length,
     delayed: houses.filter(h => h.status === "delayed").length,
   };
   const overallProgress = houses.length ? Math.round(houses.reduce((s, h) => s + h.progress, 0) / houses.length) : 0;
-  const filtered = filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === (filterStatus as HouseStatus));
+  const filtered = filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === filterStatus);
   const openDefects = defects.filter(d => d.status === "Open").length;
   const reporterNames = [...new Set(reports.filter(r => r.reported_by).map(r => r.reported_by as string))];
+
+  const addTask = async (inst: Installment, taskName: string) => {
+    if (!taskName.trim()) return;
+    const existing = instTasks.filter(t => t.installment_id === inst.id);
+    const { data } = await supabase.from("installment_tasks").insert({
+      installment_id: inst.id,
+      task_no: existing.length + 1,
+      task_name: taskName.trim(),
+      is_complete: false,
+      photo_url: null,
+      notes: null,
+    }).select().single();
+    if (data) {
+      setInstTasks(prev => [...prev, data as InstTask]);
+      setNewTaskInputs(prev => ({ ...prev, [inst.id]: "" }));
+    }
+  };
+
+  const removeTask = async (taskId: string) => {
+    await supabase.from("installment_tasks").delete().eq("id", taskId);
+    setInstTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const sendAiMessage = async () => {
+    const q = aiInput.trim();
+    if (!q || aiLoading) return;
+    setAiMessages(prev => [...prev, { role: "user", content: q }]);
+    setAiInput("");
+    setAiLoading(true);
+    const ctx = `ข้อมูลฝ่ายก่อสร้าง AVIVA Private: ยูนิตทั้งหมด ${houses.length} หน่วย | เสร็จแล้ว ${counts.complete} | กำลังก่อสร้าง ${counts.building} (ตามแผน ${counts["on-track"]} ล่าช้า ${counts.delayed}) | ความคืบหน้าเฉลี่ย ${overallProgress}% | Defect เปิดอยู่ ${openDefects} รายการ | มีลูกค้าจอง ${customerPlots.size} หน่วย`;
+    try {
+      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, context: ctx }) });
+      const d = await res.json();
+      setAiMessages(prev => [...prev, { role: "assistant", content: d.reply ?? "ขออภัย เกิดข้อผิดพลาด" }]);
+    } catch {
+      setAiMessages(prev => [...prev, { role: "assistant", content: "ขออภัย ไม่สามารถเชื่อมต่อได้ในขณะนี้" }]);
+    }
+    setAiLoading(false);
+  };
 
   const openEditReport = (report: Report, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -662,6 +712,11 @@ export default function ConstructionPage() {
                 <p className="text-xs text-aviva-secondary">{loading ? "กำลังโหลด..." : `${houses.length} ยูนิต`}</p>
               </div>
             </div>
+            {part === "inspect" && (
+              <button onClick={() => setShowAI(p => !p)} className={clsx("flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-all", showAI ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/20")}>
+                <Bot size={14} /> AI
+              </button>
+            )}
             {part === "daily" && (
               <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setShowModal(true); }}
                 className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
@@ -695,11 +750,11 @@ export default function ConstructionPage() {
           ) : (
             <>
               <ProgressBar label="ความคืบหน้าโดยรวม" value={overallProgress} sublabel={`${houses.length} ยูนิต`} />
-              <div className="grid grid-cols-4 gap-2 mt-3">
+              <div className="grid grid-cols-5 gap-1.5 mt-3">
                 {filterBoxes.map(({ key, label, border, numColor }) => (
-                  <button key={key} onClick={() => setFilterStatus(key)} className={clsx("rounded-xl border p-2.5 flex flex-col items-center gap-0.5 transition-all", border, filterStatus === key ? "ring-2 ring-aviva-gold/50 bg-aviva-gold/5" : "bg-aviva-bg/30")}>
-                    <span className={clsx("text-lg font-bold leading-none", numColor)}>{loading ? "—" : counts[key]}</span>
-                    <span className="text-[9px] text-aviva-secondary leading-tight text-center">{label}</span>
+                  <button key={key} onClick={() => setFilterStatus(key)} className={clsx("rounded-xl border p-1.5 flex flex-col items-center gap-0.5 transition-all", border, filterStatus === key ? "ring-2 ring-aviva-gold/50 bg-aviva-gold/5" : "bg-aviva-bg/30")}>
+                    <span className={clsx("text-base font-bold leading-none", numColor)}>{loading ? "—" : counts[key]}</span>
+                    <span className="text-[8px] text-aviva-secondary leading-tight text-center">{label}</span>
                   </button>
                 ))}
               </div>
@@ -709,6 +764,39 @@ export default function ConstructionPage() {
 
         {part === "inspect" && (
           <>
+            {showAI && (
+              <GlassCard className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Bot size={15} className="text-aviva-gold" />
+                  <p className="text-sm font-semibold text-aviva-text">AI ฝ่ายก่อสร้าง</p>
+                  <p className="text-[10px] text-aviva-secondary ml-auto">ช่วยวิเคราะห์งานก่อสร้าง</p>
+                </div>
+                {aiMessages.length > 0 && (
+                  <div className="space-y-2 max-h-52 overflow-y-auto">
+                    {aiMessages.map((m, i) => (
+                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>
+                        {m.content}
+                      </div>
+                    ))}
+                    {aiLoading && <div className="bg-aviva-bg rounded-xl px-3 py-2 text-xs text-aviva-secondary mr-8">กำลังประมวลผล...</div>}
+                  </div>
+                )}
+                {aiMessages.length === 0 && !aiLoading && (
+                  <div className="text-xs text-aviva-secondary/60 space-y-1">
+                    <p>ตัวอย่างคำถาม:</p>
+                    {["ยูนิตไหนล่าช้าที่สุด?", "สรุปสถานะการก่อสร้างวันนี้", "Defect ที่ต้องแก้ไขด่วนมีอะไรบ้าง?"].map(q => (
+                      <button key={q} onClick={() => setAiInput(q)} className="block text-aviva-gold hover:text-aviva-gold/80 underline text-left">{q}</button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendAiMessage(); }} placeholder="ถามเกี่ยวกับงานก่อสร้าง..." className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50" />
+                  <button onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading} className="px-3 py-2 bg-aviva-gold text-aviva-bg rounded-xl disabled:opacity-40">
+                    <Send size={13} />
+                  </button>
+                </div>
+              </GlassCard>
+            )}
             <div>
               <SectionHeader title={`ยูนิต (${filtered.length})`} subtitle="แตะยูนิตเพื่อดูงวดงานผู้รับเหมา" />
               {loading ? (
@@ -719,16 +807,29 @@ export default function ConstructionPage() {
                 <div className="grid grid-cols-4 gap-2">
                   {filtered.map(house => {
                     const isSelected = instHouse?.id === house.id;
-                    const dotColor = house.status === "complete" ? "bg-green-400" : house.status === "delayed" ? "bg-red-400" : "bg-blue-400";
+                    const hasCustomer = house.plot_number != null && customerPlots.has(house.plot_number);
+                    const statusBorder = house.status === "complete" ? "border-green-400/80"
+                      : house.status === "delayed" ? "border-red-500/70"
+                      : "border-sky-400/60";
                     return (
-                      <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("rounded-xl border p-2 flex flex-col items-center gap-1 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : "bg-aviva-card border-aviva-gold/10 hover:border-aviva-gold/40")}>
-                        <span className={clsx("text-xs font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
-                        <span className={clsx("text-lg font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
-                        <span className={clsx("text-[10px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
-                        <div className={clsx("w-1.5 h-1.5 rounded-full", dotColor)} />
+                      <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("relative rounded-xl border-2 p-2 flex flex-col items-center gap-0.5 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : `bg-aviva-card ${statusBorder}`)}>
+                        {hasCustomer && !isSelected && (
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-aviva-gold border border-aviva-bg" />
+                        )}
+                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
+                        <span className={clsx("text-base font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
                       </button>
                     );
                   })}
+                </div>
+              )}
+              {!loading && filtered.length > 0 && (
+                <div className="flex items-center gap-3 mt-2 flex-wrap text-[9px] text-aviva-secondary/60">
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-green-400/80 bg-aviva-card inline-block" />เสร็จแล้ว</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-sky-400/60 bg-aviva-card inline-block" />ตามแผน</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-red-500/70 bg-aviva-card inline-block" />ล่าช้า</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-aviva-gold inline-block" />มีลูกค้า</span>
                 </div>
               )}
             </div>
@@ -835,6 +936,43 @@ export default function ConstructionPage() {
                               onSave={saveInspectionResult}
                               onUpload={uploadInspectionPhoto}
                             />
+                            {/* Dynamic sub-tasks */}
+                            <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
+                              <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
+                              {tasks.map(task => (
+                                <div key={task.id} className="bg-aviva-bg/70 rounded-xl p-2.5 border border-aviva-gold/10 flex items-center gap-2">
+                                  <button onClick={() => toggleTask(task)} className={clsx("w-5 h-5 rounded-md flex-shrink-0 border-2 flex items-center justify-center transition-all", task.is_complete ? "bg-green-500 border-green-500" : "border-aviva-gold/40")}>
+                                    {task.is_complete && <Check size={10} className="text-white" />}
+                                  </button>
+                                  <span className={clsx("text-xs flex-1 text-left", task.is_complete ? "line-through text-aviva-secondary/50" : "text-aviva-text")}>{task.task_name}</span>
+                                  <label className="cursor-pointer flex-shrink-0">
+                                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadTaskPhoto(task, f); }} />
+                                    {uploadingTask === task.id
+                                      ? <Loader2 size={13} className="text-aviva-gold animate-spin" />
+                                      : task.photo_url
+                                        ? <img src={task.photo_url} alt="" className="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
+                                        : <Camera size={13} className="text-aviva-secondary/40" />
+                                    }
+                                  </label>
+                                  <button onClick={() => removeTask(task.id)} className="flex-shrink-0 text-aviva-secondary/30 hover:text-red-400 transition-colors">
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="เพิ่มรายการงาน..."
+                                  value={newTaskInputs[inst.id] ?? ""}
+                                  onChange={e => setNewTaskInputs(prev => ({ ...prev, [inst.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === "Enter") addTask(inst, newTaskInputs[inst.id] ?? ""); }}
+                                  className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50"
+                                />
+                                <button onClick={() => addTask(inst, newTaskInputs[inst.id] ?? "")} className="px-3 py-2 bg-aviva-gold/20 text-aviva-gold rounded-xl border border-aviva-gold/30 active:bg-aviva-gold/40">
+                                  <Plus size={13} />
+                                </button>
+                              </div>
+                            </div>
                             {inst.status !== "paid" && (
                               <div className="space-y-2 pt-1">
                                 {inst.status === "in_review" && user?.isManager ? (

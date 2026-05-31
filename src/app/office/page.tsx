@@ -1914,6 +1914,7 @@ function HRContent() {
 
 interface Claim {
   id: string;
+  doc_number?: string;
   customer_name: string;
   house_number?: string;
   issue_type: string;
@@ -1972,6 +1973,7 @@ function AfterSalesContent() {
   const [saving, setSaving] = useState(false);
   const [kpiModalAS, setKpiModalAS] = useState<"all" | "pending" | "in_progress" | "resolved" | null>(null);
   const [asToast, setAsToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [satisfactionInput, setSatisfactionInput] = useState<number | null>(null);
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
@@ -1999,7 +2001,7 @@ function AfterSalesContent() {
     if (!form.customer_name || !form.description) return;
     setSaving(true);
     const docNum = await generateDocNumber("WR");
-    await supabase.from("warranty_claims").insert({
+    const { error } = await supabase.from("warranty_claims").insert({
       project_id: PROJECT_ID,
       doc_number: docNum,
       customer_name: form.customer_name,
@@ -2010,21 +2012,32 @@ function AfterSalesContent() {
       scheduled_date: form.scheduled_date || null,
       status: form.status,
     });
+    setSaving(false);
+    if (error) {
+      setAsToast({ msg: "บันทึกไม่สำเร็จ: " + error.message, type: "error" });
+      return;
+    }
     await createNotification({
       type: "claim",
       title: `แจ้งซ่อมใหม่ — ${docNum}`,
       message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description}`,
       from_dept: "ฝ่ายหลังการขาย",
     });
-    setSaving(false);
     setShowModal(false);
     setForm(emptyClaimForm);
     fetchClaims();
+    setAsToast({ msg: `บันทึกเคสแล้ว (${docNum})`, type: "success" });
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: Claim["status"]) => {
+  const handleUpdateStatus = async (id: string, newStatus: Claim["status"], score?: number) => {
     const claim = claims.find(c => c.id === id);
-    await supabase.from("warranty_claims").update({ status: newStatus }).eq("id", id);
+    const updateData: Record<string, unknown> = { status: newStatus };
+    if (newStatus === "resolved" && score) updateData.satisfaction_score = score;
+    const { error } = await supabase.from("warranty_claims").update(updateData).eq("id", id);
+    if (error) {
+      setAsToast({ msg: "อัปเดตไม่สำเร็จ: " + error.message, type: "error" });
+      return;
+    }
     const statusTh: Record<string, string> = { pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ", resolved: "แก้ไขแล้ว" };
     if (claim) {
       await createNotification({
@@ -2036,7 +2049,9 @@ function AfterSalesContent() {
       });
     }
     setSelectedClaim(null);
+    setSatisfactionInput(null);
     fetchClaims();
+    setAsToast({ msg: `อัปเดตสถานะเป็น "${statusTh[newStatus]}" แล้ว`, type: "success" });
   };
 
   return (
@@ -2058,11 +2073,14 @@ function AfterSalesContent() {
         ))}
         <button onClick={() => setKpiModalAS("resolved")} className="active:scale-[0.96] transition-transform w-full text-left">
           <GlassCard gold className="p-3 text-center">
-            <div className="flex items-center justify-center gap-0.5 mb-0.5">
-              <Star size={12} className="text-aviva-gold" />
-              <p className="text-xl font-bold text-aviva-gold">{avgSatisfaction ?? "—"}</p>
-            </div>
-            <p className="text-[10px] text-aviva-secondary">Satisfaction</p>
+            <p className="text-xl font-bold text-aviva-gold">{loading ? "—" : counts.resolved}</p>
+            <p className="text-[10px] text-aviva-secondary">เสร็จสิ้น</p>
+            {avgSatisfaction && (
+              <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                <Star size={9} className="text-aviva-gold" />
+                <span className="text-[9px] text-aviva-gold">{avgSatisfaction}</span>
+              </div>
+            )}
           </GlassCard>
         </button>
       </div>
@@ -2223,7 +2241,7 @@ function AfterSalesContent() {
             <p className="text-sm text-aviva-text">{selectedClaim.description}</p>
             <p className="text-xs text-aviva-secondary">อัปเดตสถานะ:</p>
             <div className="grid grid-cols-3 gap-2">
-              {(["pending", "in_progress", "resolved"] as Claim["status"][]).map(s => (
+              {(["pending", "in_progress"] as Claim["status"][]).map(s => (
                 <button key={s} onClick={() => handleUpdateStatus(selectedClaim.id, s)}
                   className={clsx("py-2.5 rounded-xl text-xs font-medium border transition-all",
                     selectedClaim.status === s
@@ -2233,7 +2251,37 @@ function AfterSalesContent() {
                   {statusConfig[s].label}
                 </button>
               ))}
+              <button onClick={() => setSatisfactionInput(satisfactionInput === -1 ? null : -1)}
+                className={clsx("py-2.5 rounded-xl text-xs font-medium border transition-all",
+                  selectedClaim.status === "resolved"
+                    ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                    : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                )}>
+                เสร็จสิ้น
+              </button>
             </div>
+            {(satisfactionInput !== null || selectedClaim.status === "resolved") && (
+              <div className="space-y-2">
+                <p className="text-xs text-aviva-secondary">คะแนนความพึงพอใจ (1–5):</p>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map(score => (
+                    <button key={score} onClick={() => setSatisfactionInput(score)}
+                      className={clsx("flex-1 py-2 rounded-xl text-xs font-bold border transition-all",
+                        satisfactionInput === score
+                          ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                          : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                      )}>
+                      {score}★
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => handleUpdateStatus(selectedClaim.id, "resolved", satisfactionInput && satisfactionInput > 0 ? satisfactionInput : undefined)}
+                  className="w-full bg-green-600/80 text-white font-bold py-3 rounded-2xl text-sm border border-green-500/30">
+                  ✓ ปิดเคส{satisfactionInput && satisfactionInput > 0 ? ` · ${satisfactionInput}★` : ""}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -17,7 +17,7 @@ import { calcSlaDueAt } from "@/lib/approval-matrix";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
-type HouseStatus = "complete" | "on-track" | "delayed";
+type HouseStatus = "complete" | "on-track" | "delayed" | "reserved" | "available";
 type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
 type Tab = "reports" | "defects";
 type Part = "inspect" | "daily";
@@ -110,10 +110,12 @@ interface InstTask {
   notes: string | null;
 }
 
-const statusConfig = {
-  complete: { label: "เสร็จแล้ว", icon: CheckCircle, color: "text-green-400", bg: "bg-green-400/10 border-green-400/20" },
-  "on-track": { label: "ตามแผน", icon: Clock, color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
-  delayed: { label: "ล่าช้า", icon: AlertTriangle, color: "text-red-400", bg: "bg-red-400/10 border-red-400/20" },
+const statusConfig: Record<HouseStatus, { label: string; icon: typeof CheckCircle; color: string; bg: string }> = {
+  complete:  { label: "เสร็จแล้ว",       icon: CheckCircle,    color: "text-green-400",  bg: "bg-green-400/10 border-green-400/20" },
+  "on-track":{ label: "ตามแผน",           icon: Clock,          color: "text-blue-400",   bg: "bg-blue-400/10 border-blue-400/20" },
+  delayed:   { label: "ล่าช้า",           icon: AlertTriangle,  color: "text-red-400",    bg: "bg-red-400/10 border-red-400/20" },
+  reserved:  { label: "จองแล้ว (CRM)",   icon: CheckCircle,    color: "text-aviva-gold", bg: "bg-aviva-gold/10 border-aviva-gold/20" },
+  available: { label: "ว่าง (CRM)",      icon: CheckCircle,    color: "text-teal-400",   bg: "bg-teal-400/10 border-teal-400/20" },
 };
 
 const instStatusConfig: Record<string, { label: string; color: string }> = {

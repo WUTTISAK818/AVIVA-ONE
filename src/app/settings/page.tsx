@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check } from "lucide-react";
+import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { useTheme } from "@/lib/theme-context";
 import { supabase } from "@/lib/supabase";
@@ -107,6 +107,26 @@ export default function SettingsPage() {
             ))}
           </div>
         </GlassCard>
+        {/* Info section — visible to all */}
+        <GlassCard className="p-0 overflow-hidden">
+          <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">ข้อมูลองค์กร</p>
+          <Link href="/settings/manual" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+            <div className="w-8 h-8 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center"><BookOpen size={14} className="text-aviva-gold" /></div>
+            <div className="flex-1"><p className="text-sm text-aviva-text">คู่มือการใช้งาน</p><p className="text-xs text-aviva-secondary">วิธีใช้แอปทุกฝ่าย แบบละเอียด</p></div>
+            <ChevronRight size={16} className="text-aviva-secondary/50" />
+          </Link>
+          <Link href="/settings/doc-index" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+            <div className="w-8 h-8 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center"><FileText size={14} className="text-purple-400" /></div>
+            <div className="flex-1"><p className="text-sm text-aviva-text">ดรรชนีเอกสาร</p><p className="text-xs text-aviva-secondary">รหัสเอกสาร (FIN, PO, WR...) และรูปแบบเลขที่</p></div>
+            <ChevronRight size={16} className="text-aviva-secondary/50" />
+          </Link>
+          <Link href="/settings/org-chart" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+            <div className="w-8 h-8 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center"><GitBranch size={14} className="text-teal-400" /></div>
+            <div className="flex-1"><p className="text-sm text-aviva-text">โครงสร้างองค์กร</p><p className="text-xs text-aviva-secondary">สายบังคับบัญชา Matrix การอนุมัติ</p></div>
+            <ChevronRight size={16} className="text-aviva-secondary/50" />
+          </Link>
+        </GlassCard>
+
         {user?.isManager && (
           <GlassCard className="p-0 overflow-hidden">
             <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">จัดการระบบ</p>
@@ -157,7 +177,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 3.3.0</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 3.4.0</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

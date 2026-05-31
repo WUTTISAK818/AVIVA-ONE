@@ -97,13 +97,21 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
-  const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI Executive พร้อมวิเคราะห์ข้อมูลโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
+  const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMsgs]);
+
+  useEffect(() => {
+    if (!ctxUser) return;
+    const welcome = ctxUser.isManager
+      ? "สวัสดีค่ะ AVIVA AI Executive พร้อมวิเคราะห์ข้อมูลโครงการ AVIVA ONE ถามได้เลยค่ะ"
+      : `สวัสดีค่ะ AVIVA AI ผู้ช่วยฝ่าย${ctxUser.department} ถามเกี่ยวกับงานของฝ่ายได้เลยค่ะ`;
+    setAiMsgs([{ role: "assistant", text: welcome }]);
+  }, [ctxUser?.id]);
 
   const sendAiMsg = async () => {
     const msg = aiInput.trim();
@@ -346,7 +354,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.4.0</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.5.0</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -375,8 +383,8 @@ export default function DashboardPage() {
               <Sparkles size={16} className="text-aviva-gold" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-aviva-text">AVIVA AI Executive</p>
-              <p className="text-xs text-aviva-secondary">วิเคราะห์ข้อมูลโครงการ Real-time</p>
+              <p className="text-sm font-semibold text-aviva-text">{ctxUser?.isManager ? "AVIVA AI Executive" : "AVIVA AI"}</p>
+              <p className="text-xs text-aviva-secondary">{ctxUser?.isManager ? "วิเคราะห์ข้อมูลโครงการ Real-time" : `ผู้ช่วยฝ่าย${ctxUser?.department ?? ""}`}</p>
             </div>
             <Bot size={16} className={showAI ? "text-aviva-gold" : "text-aviva-secondary/50"} />
           </button>

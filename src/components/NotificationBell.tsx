@@ -5,6 +5,7 @@ import { Bell, X, CheckCheck, AlertCircle, Info, CheckCircle, FileText, Trash2 }
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
+import { useCurrentUser } from "@/lib/user-context";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -14,6 +15,7 @@ interface Notification {
   title: string;
   message: string;
   from_dept: string | null;
+  to_dept: string | null;
   is_read: boolean;
   created_at: string;
 }
@@ -46,9 +48,11 @@ function getNotifHref(n: Notification): string | null {
 
 export default function NotificationBell() {
   const router = useRouter();
+  const currentUser = useCurrentUser();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
@@ -58,8 +62,13 @@ export default function NotificationBell() {
       .select("*")
       .eq("project_id", PROJECT_ID)
       .order("created_at", { ascending: false })
-      .limit(30);
-    setNotifications((data as Notification[]) ?? []);
+      .limit(50);
+    const all = (data as Notification[]) ?? [];
+    // Non-managers only see notifications for their own department or system-wide
+    const visible = currentUser && !currentUser.isManager
+      ? all.filter(n => !n.to_dept || n.to_dept === currentUser.department || n.from_dept === currentUser.department)
+      : all;
+    setNotifications(visible.slice(0, 30));
     setLoading(false);
   };
 
@@ -72,7 +81,7 @@ export default function NotificationBell() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -106,6 +115,7 @@ export default function NotificationBell() {
     await supabase.from("notifications").delete()
       .eq("project_id", PROJECT_ID).eq("is_read", true);
     setNotifications((prev) => prev.filter((n) => !n.is_read));
+    setConfirmClear(false);
   };
 
   return (
@@ -135,13 +145,22 @@ export default function NotificationBell() {
                 </button>
               )}
               {notifications.some(n => n.is_read) && (
-                <button onClick={clearRead} className="flex items-center gap-1 text-[10px] text-aviva-secondary hover:text-red-400 transition-colors">
+                <button onClick={() => setConfirmClear(true)} className="flex items-center gap-1 text-[10px] text-aviva-secondary hover:text-red-400 transition-colors">
                   <Trash2 size={11} /> ลบที่อ่านแล้ว
                 </button>
               )}
               <button onClick={() => setOpen(false)}><X size={14} className="text-aviva-secondary" /></button>
             </div>
           </div>
+          {confirmClear && (
+            <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between gap-2">
+              <p className="text-xs text-red-400">ยืนยันลบการแจ้งเตือนที่อ่านแล้วทั้งหมด?</p>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => setConfirmClear(false)} className="text-[10px] px-2 py-1 rounded-lg bg-aviva-bg border border-aviva-gold/10 text-aviva-secondary">ยกเลิก</button>
+                <button onClick={clearRead} className="text-[10px] px-2 py-1 rounded-lg bg-red-500 text-white font-bold">ลบ</button>
+              </div>
+            </div>
+          )}
           <div className="max-h-[min(384px,60vh)] overflow-y-auto divide-y divide-aviva-gold/5">
             {loading ? (
               [1,2,3].map(i => (

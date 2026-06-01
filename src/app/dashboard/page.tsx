@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock } from "lucide-react";
+import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock, ClipboardList } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
@@ -269,9 +269,11 @@ export default function DashboardPage() {
     ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
     : null;
 
+  const isEmployee = !!ctxUser && !ctxUser.isManager && !ctxUser.isAdmin;
+
   const insights: InsightItem[] = [];
 
-  if (revenuePct !== null) {
+  if (canSeeFinance && revenuePct !== null) {
     const gap = (project?.revenue_target ?? 0) - stats.totalReceipts;
     insights.push({
       type: revenuePct >= 80 ? "success" : revenuePct >= 50 ? "warning" : "alert",
@@ -289,7 +291,7 @@ export default function DashboardPage() {
     });
   }
 
-  if (project && totalUnits > 0) {
+  if (canSeeCRM && project && totalUnits > 0) {
     insights.push({
       type: selloutPct >= 80 ? "success" : selloutPct >= 50 ? "info" : "warning",
       priority: "medium",
@@ -306,7 +308,7 @@ export default function DashboardPage() {
     });
   }
 
-  if (stats.totalReceipts > 0 || stats.expenseTotal > 0) {
+  if (canSeeFinance && (stats.totalReceipts > 0 || stats.expenseTotal > 0)) {
     const isProfit = netPL >= 0;
     insights.push({
       type: isProfit ? "success" : "alert",
@@ -321,7 +323,7 @@ export default function DashboardPage() {
     });
   }
 
-  if (stats.pendingApprovals > 0) {
+  if (canSeeAll && stats.pendingApprovals > 0) {
     insights.push({
       type: "warning",
       priority: "high",
@@ -336,7 +338,7 @@ export default function DashboardPage() {
     });
   }
 
-  if (stats.pendingClaims > 0) {
+  if (canSeeAll && stats.pendingClaims > 0) {
     insights.push({
       type: "alert",
       priority: "medium",
@@ -347,6 +349,24 @@ export default function DashboardPage() {
       bg: "bg-orange-500/10",
       border: "border-orange-500/20",
       titleColor: "text-orange-400",
+    });
+  }
+
+  if (isEmployee) {
+    const hour = new Date().getHours();
+    insights.push({
+      type: hour >= 17 ? "warning" : "info",
+      priority: hour >= 17 ? "high" : "low",
+      title: hour >= 17 ? "อย่าลืมส่งรายงานประจำวัน !" : "รายงานประจำวัน",
+      message: hour >= 17
+        ? "กำหนดส่งคือ 18:00 น. — กดเพื่อไปกรอกรายงาน"
+        : "บันทึกกิจกรรมและส่งรายงานก่อน 18:00 น.",
+      href: "/reports",
+      icon: ClipboardList,
+      iconColor: hour >= 17 ? "text-yellow-400" : "text-blue-400",
+      bg: hour >= 17 ? "bg-yellow-500/10" : "bg-blue-500/10",
+      border: hour >= 17 ? "border-yellow-500/20" : "border-blue-500/20",
+      titleColor: hour >= 17 ? "text-yellow-300" : "text-blue-300",
     });
   }
 
@@ -371,7 +391,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v3.8</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -486,7 +506,7 @@ export default function DashboardPage() {
         )}
 
         <div>
-          <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์ภาพรวมโครงการ Real-time" />
+          <SectionHeader title={canSeeAll ? "AI Executive Insights" : "สรุปงานของคุณ"} subtitle={canSeeAll ? "วิเคราะห์ภาพรวมโครงการ Real-time" : "ข้อมูลสำคัญสำหรับวันนี้"} />
           <div className="space-y-2.5">
             {insights.map((ins, idx) => {
               const IconComp = ins.icon;

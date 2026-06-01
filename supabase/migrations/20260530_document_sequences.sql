@@ -25,7 +25,8 @@ VALUES
   ('Document_Approval',  'DOC',      2026, 0),
   ('Booking_Deposit',    'BOOK',     2026, 0),
   ('Contract_Approval',  'CONTRACT', 2026, 0),
-  ('Marketing_Budget',   'MKTG',     2026, 0)
+  ('Marketing_Budget',   'MKTG',     2026, 0),
+  ('Warranty_Claim',     'WR',       2026, 0)
 ON CONFLICT (workflow_type) DO NOTHING;
 
 -- RLS

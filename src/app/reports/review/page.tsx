@@ -130,15 +130,19 @@ export default function ReportsReviewPage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <Users size={18} className="text-aviva-gold" />
-          <h1 className="text-lg font-bold text-aviva-text">รายงานทีมงาน</h1>
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-aviva-gold" />
+            <h1 className="text-lg font-bold text-aviva-text">รายงานทีมงาน</h1>
+          </div>
+          <a href="/reports/audit" className="flex items-center gap-1.5 text-xs font-semibold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-3 py-1.5 rounded-xl">
+            <Eye size={12} /> Audit Trail
+          </a>
         </div>
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
 
-        {/* Date navigator */}
         <GlassCard className="p-3">
           <div className="flex items-center gap-2">
             <button onClick={() => setSelectedDate(addDays(selectedDate, -1))}
@@ -157,7 +161,6 @@ export default function ReportsReviewPage() {
           </div>
         </GlassCard>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-2">
           <GlassCard className="p-3 text-center">
             <CheckCircle size={15} className="text-green-400 mx-auto mb-1" />
@@ -176,7 +179,6 @@ export default function ReportsReviewPage() {
           </GlassCard>
         </div>
 
-        {/* List */}
         {loading ? (
           [1,2,3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card animate-pulse" />)
         ) : reports.length === 0 ? (
@@ -213,7 +215,6 @@ export default function ReportsReviewPage() {
         )}
       </div>
 
-      {/* Detail modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[88vh] flex flex-col">

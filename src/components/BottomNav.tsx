@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Users, HardHat, Briefcase, Settings } from "lucide-react";
+import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
 
@@ -20,6 +20,7 @@ export default function BottomNav() {
     { href: "/crm",          label: "ขาย",        icon: Users,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
     { href: "/construction", label: "ก่อสร้าง",   icon: HardHat,    show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
     { href: "/office",       label: "ออฟฟิศ",     icon: Briefcase,  show: !user || user.isAdmin || user.isManager || isOfficeUser },
+    { href: "/reports",      label: "รายงาน",     icon: ClipboardList, show: true },
     { href: "/settings",     label: "ตั้งค่า",    icon: Settings,   show: true },
   ].filter(t => t.show);
 

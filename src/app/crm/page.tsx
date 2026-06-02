@@ -17,6 +17,7 @@ import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
 import CelebrationModal from "@/components/CelebrationModal";
 import { COMPANY } from "@/lib/company-info";
+import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -196,6 +197,8 @@ export default function CRMPage() {
   const [custInstLead, setCustInstLead] = useState<Lead | null>(null);
   const [payRef, setPayRef] = useState<Record<string, { ref: string; date: string }>>({});
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
   const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null } | null>(null);
   const [mapPlotModal, setMapPlotModal] = useState<number | null>(null);
 
@@ -1605,6 +1608,44 @@ export default function CRMPage() {
           onClose={() => setCelebration(null)}
         />
       )}
+
+      {/* Floating report button */}
+      <button
+        onClick={async () => {
+          const today = new Date().toISOString().split("T")[0];
+          const items: AutoReportItem[] = [];
+          const { data: logs } = await supabase
+            .from("crm_logs")
+            .select("log_type,customer_name,note")
+            .eq("project_id", PROJECT_ID)
+            .gte("created_at", today);
+          (logs ?? []).forEach((l: { log_type: string; customer_name: string; note: string }) => {
+            const typeLabel: Record<string, string> = { call: "โทรหา", visit: "รับลูกค้า", followup: "ติดตาม", note: "บันทึก" };
+            items.push({ category: "activity", description: `${typeLabel[l.log_type] ?? l.log_type}: ${l.customer_name}${l.note ? ` — ${l.note}` : ""}` });
+          });
+          const { data: acts } = await supabase
+            .from("sales_activities")
+            .select("activity_type,description")
+            .eq("project_id", PROJECT_ID)
+            .gte("created_at", today);
+          (acts ?? []).forEach((a: { activity_type: string; description: string }) => {
+            items.push({ category: "activity", description: `${a.activity_type}: ${a.description}` });
+          });
+          setReportAutoItems(items);
+          setShowReportModal(true);
+        }}
+        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
+      >
+        <Send size={14} /> ส่งรายงานวัน
+      </button>
+
+      <ReportSubmitModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        department={user?.department ?? "ฝ่ายขาย"}
+        autoItems={reportAutoItems}
+        onSubmitted={() => setToast({ msg: "ส่งรายงานประจำวันเรียบร้อยแล้ว", type: "success" })}
+      />
     </div>
   );
 }

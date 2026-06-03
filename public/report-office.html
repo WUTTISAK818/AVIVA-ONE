@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AVIVA ONE — รายงานประจำวัน ฝ่ายออฟฟิศ/การเงิน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Sarabun', sans-serif; font-size: 14px; background: #f0efea; color: #1a1a1a; padding-top: 64px; }
+    .toolbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #1E4A35; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .toolbar-title { color: #D4AF37; font-weight: 700; font-size: 16px; letter-spacing: 0.5px; }
+    .btn-print { background: #D4AF37; color: #1E4A35; border: none; padding: 10px 22px; border-radius: 6px; font-family: 'Sarabun', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .page-wrapper { max-width: 900px; margin: 24px auto 40px; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); overflow: hidden; }
+    .report-header { background: linear-gradient(135deg, #1E4A35 0%, #2d6b4f 100%); padding: 32px 36px 28px; color: #fff; position: relative; }
+    .report-header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #D4AF37, #f0d060, #D4AF37); }
+    .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .logo-block .company-name { font-size: 26px; font-weight: 700; color: #D4AF37; letter-spacing: 2px; }
+    .logo-block .company-sub { font-size: 12px; color: #a8c9b5; margin-top: 2px; letter-spacing: 1px; }
+    .ref-block { text-align: right; }
+    .ref-block .ref-number { font-size: 13px; color: #D4AF37; font-weight: 600; }
+    .ref-block .ref-date { font-size: 12px; color: #a8c9b5; margin-top: 4px; }
+    .report-title-block { margin-top: 20px; }
+    .report-title-block h1 { font-size: 22px; font-weight: 700; color: #fff; }
+    .accent-bar { width: 60px; height: 3px; background: #7c3aed; margin-top: 8px; border-radius: 2px; }
+    .report-body { padding: 28px 36px 36px; }
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 15px; font-weight: 700; color: #1E4A35; padding: 8px 14px; background: #f5f4ef; border-left: 4px solid #D4AF37; border-radius: 0 4px 4px 0; margin-bottom: 14px; }
+    .section-title span { color: #7c3aed; margin-right: 6px; }
+    .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .info-field { background: #fafaf7; border: 1px solid #e2e0d6; border-radius: 6px; padding: 10px 14px; }
+    .info-field label { display: block; font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .info-field .value { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi-card { border-radius: 10px; padding: 16px 14px; text-align: center; border: 1px solid #e2e0d6; }
+    .kpi-card .kpi-num { font-size: 36px; font-weight: 700; line-height: 1; }
+    .kpi-card .kpi-label { font-size: 12px; font-weight: 600; margin-top: 6px; color: #555; }
+    .kpi-in { background: #eff6ff; border-color: #bfdbfe; } .kpi-in .kpi-num { color: #2563eb; }
+    .kpi-appr { background: #f0fdf4; border-color: #bbf7d0; } .kpi-appr .kpi-num { color: #166534; }
+    .kpi-pend { background: #fefce8; border-color: #fde68a; } .kpi-pend .kpi-num { color: #854d0e; }
+    .kpi-rej { background: #fff1f2; border-color: #fecdd3; } .kpi-rej .kpi-num { color: #be123c; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 700; }
+    .badge-pass { background: #dcfce7; color: #166534; }
+    .badge-fail { background: #fee2e2; color: #991b1b; }
+    .badge-pending { background: #fef9c3; color: #854d0e; }
+    .badge-done { background: #dbeafe; color: #1e40af; }
+    .badge-review { background: #f3e8ff; color: #7c3aed; }
+    .dtype-fin { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .dtype-po { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .dtype-wr { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .dtype-leave { background: #f3e8ff; color: #7c3aed; border: 1px solid #e9d5ff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th { background: #1E4A35; color: #fff; font-weight: 600; padding: 9px 12px; text-align: left; border: 1px solid #1E4A35; font-size: 12.5px; }
+    .data-table td { padding: 9px 12px; border: 1px solid #e8e8e0; vertical-align: middle; }
+    .data-table tr:nth-child(even) td { background: #f8f7f2; }
+    .data-table tr:nth-child(odd) td { background: #fff; }
+    .data-table .center { text-align: center; }
+    .data-table .right { text-align: right; }
+    .data-table tfoot td { background: #1E4A35 !important; color: #fff; font-weight: 700; font-size: 13px; }
+    .pay-in { background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .pay-out { background: #fee2e2; color: #991b1b; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .followup-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .followup-table th { background: #1E4A35; color: #fff; font-weight: 600; padding: 9px 12px; text-align: left; border: 1px solid #1E4A35; }
+    .followup-table td { padding: 9px 12px; border: 1px solid #e8e8e0; }
+    .followup-table tr:nth-child(even) td { background: #f8f7f2; }
+    .followup-table tr:nth-child(odd) td { background: #fff; }
+    .followup-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #7c3aed; color: #fff; border-radius: 50%; font-size: 11px; font-weight: 700; margin-right: 6px; }
+    .deadline-urgent { color: #dc2626; font-weight: 700; }
+    .deadline-soon { color: #d97706; font-weight: 700; }
+    .deadline-ok { color: #166534; font-weight: 600; }
+    .hr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .hr-table th { background: #1E4A35; color: #fff; font-weight: 600; padding: 9px 12px; text-align: left; border: 1px solid #1E4A35; }
+    .hr-table td { padding: 9px 12px; border: 1px solid #e8e8e0; }
+    .hr-table tr:nth-child(even) td { background: #f8f7f2; }
+    .hr-table tr:nth-child(odd) td { background: #fff; }
+    .exec-note-box { border: 2px solid #D4AF37; background: #fffdf0; border-radius: 8px; padding: 16px 18px; }
+    .exec-note-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .exec-note-icon { width: 28px; height: 28px; background: #D4AF37; color: #1E4A35; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+    .exec-note-title { font-size: 13px; font-weight: 700; color: #92400e; }
+    .exec-note-body { font-size: 13.5px; color: #1a1a1a; line-height: 1.8; }
+    .exec-note-body ol { padding-left: 18px; }
+    .exec-note-body li { margin-bottom: 4px; }
+    .sig-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 8px; }
+    .sig-box { border: 1px solid #e2e0d6; border-radius: 8px; padding: 16px; text-align: center; background: #fafaf7; }
+    .sig-area { height: 60px; border-bottom: 1px dashed #aaa; margin-bottom: 10px; }
+    .sig-name-line { height: 1px; background: #ccc; margin: 6px 0; }
+    .sig-label { font-size: 11px; color: #888; margin-top: 4px; }
+    .sig-title { font-size: 13px; font-weight: 700; color: #1E4A35; margin-bottom: 6px; }
+    .sig-date-line { font-size: 11px; color: #aaa; margin-top: 6px; }
+    .report-footer { background: #1E4A35; color: #a8c9b5; text-align: center; padding: 14px; font-size: 11px; letter-spacing: 0.5px; }
+    .report-footer span { color: #D4AF37; font-weight: 600; }
+    @media print {
+      body { background: #fff; padding-top: 0; font-size: 12px; }
+      .toolbar { display: none !important; }
+      .page-wrapper { max-width: 100%; margin: 0; border-radius: 0; box-shadow: none; }
+      @page { size: A4 portrait; margin: 12mm 14mm 14mm 14mm; }
+      .section { page-break-inside: avoid; }
+      .sig-row { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="toolbar-title">AVIVA ONE | รายงานประจำวัน ฝ่ายออฟฟิศ/การเงิน</div>
+  <button class="btn-print" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+</div>
+<div class="page-wrapper">
+  <div class="report-header">
+    <div class="header-top">
+      <div class="logo-block"><div class="company-name">AVIVA ONE</div><div class="company-sub">REAL ESTATE · โครงการบ้านจัดสรร</div></div>
+      <div class="ref-block"><div class="ref-number">เลขที่ OFF-2025-06-001</div><div class="ref-date">หมวด: รายงานฝ่ายออฟฟิศ/การเงิน</div></div>
+    </div>
+    <div class="report-title-block"><h1>แบบฟอร์มรายงานประจำวัน — ฝ่ายออฟฟิศ / การเงิน</h1><div class="accent-bar"></div></div>
+  </div>
+  <div class="report-body">
+    <div class="section">
+      <div class="section-title"><span>01</span> ข้อมูลทั่วไป</div>
+      <div class="info-grid">
+        <div class="info-field"><label>วันที่รายงาน</label><div class="value">3 มิถุนายน 2568</div></div>
+        <div class="info-field"><label>ผู้รายงาน</label><div class="value">นางสาวอรอุมา พงษ์สุวรรณ</div></div>
+        <div class="info-field"><label>ฝ่าย</label><div class="value">ออฟฟิศ / การเงิน-บัญชี</div></div>
+        <div class="info-field"><label>ตำแหน่ง</label><div class="value">ผู้จัดการสำนักงาน</div></div>
+        <div class="info-field"><label>เลขที่อ้างอิง</label><div class="value">OFF-2025-06-001</div></div>
+        <div class="info-field"><label>ช่วงเวลา</label><div class="value">08:30 – 17:30 น.</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>02</span> สรุปเอกสารวันนี้</div>
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-in"><div class="kpi-num">14</div><div class="kpi-label">เอกสารรับเข้า</div></div>
+        <div class="kpi-card kpi-appr"><div class="kpi-num">9</div><div class="kpi-label">อนุมัติแล้ว</div></div>
+        <div class="kpi-card kpi-pend"><div class="kpi-num">4</div><div class="kpi-label">รอดำเนินการ</div></div>
+        <div class="kpi-card kpi-rej"><div class="kpi-num">1</div><div class="kpi-label">ปฏิเสธ / คืน</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>03</span> รายการเอกสาร</div>
+      <table class="data-table"><thead><tr><th>เลขที่</th><th class="center">ประเภท</th><th>หัวข้อ</th><th class="right">จำนวนเงิน</th><th class="center">สถานะ</th><th>ผู้เกี่ยวข้อง</th></tr></thead><tbody>
+        <tr><td><strong>FIN-2025-0601</strong></td><td class="center"><span class="dtype-fin">FIN</span></td><td>ใบเสนอราคาค่าวัสดุ — บ.ซีเมนต์ไทย</td><td class="right">284,500.00</td><td class="center"><span class="badge badge-pass">อนุมัติ ✓</span></td><td>คุณสมชาย / CFO</td></tr>
+        <tr><td><strong>PO-2025-0312</strong></td><td class="center"><span class="dtype-po">PO</span></td><td>ใบสั่งซื้อเหล็กเส้น DB16 จำนวน 500 เส้น</td><td class="right">112,000.00</td><td class="center"><span class="badge badge-pass">อนุมัติ ✓</span></td><td>คุณสมชาย / จัดซื้อ</td></tr>
+        <tr><td><strong>WR-2025-0188</strong></td><td class="center"><span class="dtype-wr">WR</span></td><td>ใบเบิกค่าเดินทางวิศวกร 4 ราย</td><td class="right">8,400.00</td><td class="center"><span class="badge badge-done">จ่ายแล้ว</span></td><td>HR / การเงิน</td></tr>
+        <tr><td><strong>FIN-2025-0602</strong></td><td class="center"><span class="dtype-fin">FIN</span></td><td>ใบแจ้งหนี้ค่าไฟฟ้าและน้ำประปา มิ.ย.</td><td class="right">18,750.00</td><td class="center"><span class="badge badge-pending">รอชำระ</span></td><td>การเงิน</td></tr>
+        <tr><td><strong>LEAVE-2025-062</strong></td><td class="center"><span class="dtype-leave">LEAVE</span></td><td>ใบลาพักร้อน — นายวิทยา 5–6 มิ.ย.</td><td class="right">—</td><td class="center"><span class="badge badge-review">รออนุมัติ</span></td><td>ผู้จัดการ / HR</td></tr>
+      </tbody></table>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>04</span> การเงินวันนี้</div>
+      <table class="data-table"><thead><tr><th>รายการ</th><th class="center">ประเภท</th><th class="right">จำนวน (บาท)</th><th>หมายเหตุ</th></tr></thead><tbody>
+        <tr><td>รับเงินจอง — แปลง A-15</td><td class="center"><span class="pay-in">รับ</span></td><td class="right"><strong>50,000.00</strong></td><td>ออกใบเสร็จ REC-2025-0341</td></tr>
+        <tr><td>รับเงินจอง — แปลง D-03</td><td class="center"><span class="pay-in">รับ</span></td><td class="right"><strong>50,000.00</strong></td><td>ออกใบเสร็จ REC-2025-0342</td></tr>
+        <tr><td>จ่ายค่าแรงงานรายวัน (42 คน × 350 บ.)</td><td class="center"><span class="pay-out">จ่าย</span></td><td class="right">14,700.00</td><td>จ่ายเงินสด</td></tr>
+        <tr><td>จ่ายค่าเดินทางวิศวกร 4 ราย</td><td class="center"><span class="pay-out">จ่าย</span></td><td class="right">8,400.00</td><td>ตาม WR-2025-0188</td></tr>
+        <tr><td>จ่ายค่าน้ำมันเครื่องจักร</td><td class="center"><span class="pay-out">จ่าย</span></td><td class="right">6,200.00</td><td>ใบเสร็จแนบ</td></tr>
+      </tbody><tfoot>
+        <tr><td colspan="2"><strong>ยอดรวมรับ</strong></td><td class="right"><strong>100,000.00</strong></td><td>+100,000 บาท</td></tr>
+        <tr><td colspan="2"><strong>ยอดรวมจ่าย</strong></td><td class="right"><strong>29,300.00</strong></td><td>-29,300 บาท</td></tr>
+        <tr><td colspan="2"><strong>ยอดสุทธิ</strong></td><td class="right"><strong style="color:#D4AF37;font-size:15px;">+70,700.00</strong></td><td style="color:#D4AF37;">กระแสเงินสดบวก</td></tr>
+      </tfoot></table>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>05</span> Follow-up</div>
+      <table class="followup-table"><thead><tr><th class="center">#</th><th>เรื่อง</th><th class="center">กำหนด</th><th class="center">สถานะ</th><th>ผู้รับผิดชอบ</th></tr></thead><tbody>
+        <tr><td class="center"><span class="followup-num">1</span></td><td>ส่งสัญญาจอง A-15 และ D-03</td><td class="center deadline-urgent">6 มิ.ย.</td><td class="center"><span class="badge badge-pending">รอดำเนินการ</span></td><td>ฝ่ายนิติกรรม</td></tr>
+        <tr><td class="center"><span class="followup-num">2</span></td><td>ชำระค่าไฟฟ้า FIN-2025-0602</td><td class="center deadline-soon">10 มิ.ย.</td><td class="center"><span class="badge badge-pending">รอชำระ</span></td><td>การเงิน</td></tr>
+        <tr><td class="center"><span class="followup-num">3</span></td><td>อนุมัติใบลา LEAVE-2025-062</td><td class="center deadline-soon">4 มิ.ย.</td><td class="center"><span class="badge badge-review">รออนุมัติ</span></td><td>ผจก. / HR</td></tr>
+        <tr><td class="center"><span class="followup-num">4</span></td><td>ส่ง Report Q2</td><td class="center deadline-ok">30 มิ.ย.</td><td class="center"><span class="badge badge-done">กำลังจัดทำ</span></td><td>ผจก.</td></tr>
+        <tr><td class="center"><span class="followup-num">5</span></td><td>ต่ออายุประกันภัยไซต์</td><td class="center deadline-soon">12 มิ.ย.</td><td class="center"><span class="badge badge-pending">รอดำเนินการ</span></td><td>จัดซื้อ</td></tr>
+      </tbody></table>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>06</span> HR วันนี้</div>
+      <table class="hr-table"><thead><tr><th>ชื่อ-นามสกุล</th><th>ฝ่าย</th><th class="center">การมาทำงาน</th><th>หมายเหตุ</th></tr></thead><tbody>
+        <tr><td>นายสมชาย</td><td>ก่อสร้าง</td><td class="center"><span class="badge badge-pass">มาทำงาน</span></td><td>—</td></tr>
+        <tr><td>นางสาวพิมลรัตน์</td><td>ฝ่ายขาย</td><td class="center"><span class="badge badge-pass">มาทำงาน</span></td><td>—</td></tr>
+        <tr><td>นายวิทยา</td><td>ก่อสร้าง</td><td class="center"><span class="badge badge-pending">ยื่นลา</span></td><td>ยื่นลาพักร้อน 5–6 มิ.ย.</td></tr>
+        <tr><td>นางสาวอรอุมา</td><td>ออฟฟิศ</td><td class="center"><span class="badge badge-pass">มาทำงาน</span></td><td>—</td></tr>
+        <tr><td>นายประสิทธิ์</td><td>วิศวกร</td><td class="center"><span class="badge badge-fail">มาสาย</span></td><td>มาสาย 25 นาที — แจ้งเตือนครั้งที่ 1</td></tr>
+      </tbody></table>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>07</span> หมายเหตุถึงผู้บริหาร</div>
+      <div class="exec-note-box">
+        <div class="exec-note-header"><div class="exec-note-icon">★</div><div class="exec-note-title">ประเด็นสำคัญ — 3 มิถุนายน 2568</div></div>
+        <div class="exec-note-body"><ol>
+          <li><strong>Booking 2 ยูนิต</strong> (A-15, D-03) มูลค่า 7.0 ล้าน — เงินจอง 100,000 รับแล้ว ต้องส่งสัญญาภายใน 3 วัน</li>
+          <li><strong>แปลง B-07 ผนังเอียง</strong> — ผู้รับเหมาต้องรื้อทำใหม่ ขออนุมัติแจ้งผู้รับเหมา</li>
+          <li><strong>ประกันภัยใกล้หมดอายุ</strong> 15 มิ.ย. — ขออนุมัติงบภายใน 12 มิ.ย.</li>
+        </ol></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><span>08</span> ลงนาม</div>
+      <div class="sig-row">
+        <div class="sig-box"><div class="sig-title">ผู้จัดทำรายงาน</div><div class="sig-area"></div><div class="sig-name-line"></div><div class="sig-label">(...............................)</div><div class="sig-label">ผู้จัดการสำนักงาน</div></div>
+        <div class="sig-box"><div class="sig-title">ผู้ตรวจสอบ</div><div class="sig-area"></div><div class="sig-name-line"></div><div class="sig-label">(...............................)</div><div class="sig-label">ผู้จัดการฝ่ายการเงิน (CFO)</div></div>
+        <div class="sig-box"><div class="sig-title">รับทราบ</div><div class="sig-area"></div><div class="sig-name-line"></div><div class="sig-label">(...............................)</div><div class="sig-label">กรรมการผู้จัดการ (CEO)</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="report-footer"><span>AVIVA ONE</span> · รายงานประจำวัน ฝ่ายออฟฟิศ/การเงิน · OFF-2025-06-001</div>
+</div>
+</body>
+</html>

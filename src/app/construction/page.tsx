@@ -6,23 +6,18 @@ import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
+import AIInsightPanel from "@/components/AIInsightPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
+import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
-
-function makeLocalDocNo(prefix: string): string {
-  const now = new Date();
-  const yymm = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
-  return `${prefix}-${yymm}-${now.getTime().toString().slice(-4)}`;
-}
-import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
-type HouseStatus = "complete" | "on-track" | "delayed" | "reserved" | "available";
+type HouseStatus = "complete" | "on-track" | "delayed";
 type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
 type Tab = "reports" | "defects";
 type Part = "inspect" | "daily";
@@ -115,932 +110,1170 @@ interface InstTask {
   notes: string | null;
 }
 
-const statusConfig: Record<HouseStatus, { label: string; icon: typeof CheckCircle; color: string; bg: string }> = {
-  complete:  { label: "เสร็จแล้ว",       icon: CheckCircle,    color: "text-green-400",  bg: "bg-green-400/10 border-green-400/20" },
-  "on-track":{ label: "ตามแผน",           icon: Clock,          color: "text-blue-400",   bg: "bg-blue-400/10 border-blue-400/20" },
-  delayed:   { label: "ล่าช้า",           icon: AlertTriangle,  color: "text-red-400",    bg: "bg-red-400/10 border-red-400/20" },
-  reserved:  { label: "จองแล้ว (CRM)",   icon: CheckCircle,    color: "text-aviva-gold", bg: "bg-aviva-gold/10 border-aviva-gold/20" },
-  available: { label: "พร้อมขาย (CRM)",  icon: CheckCircle,    color: "text-teal-400",   bg: "bg-teal-400/10 border-teal-400/20" },
+const statusConfig = {
+  complete: { label: "เสร็จแล้ว", icon: CheckCircle, color: "text-green-400", bg: "bg-green-400/10 border-green-400/20" },
+  "on-track": { label: "ตามแผน", icon: Clock, color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
+  delayed: { label: "ล่าช้า", icon: AlertTriangle, color: "text-red-400", bg: "bg-red-400/10 border-red-400/20" },
 };
 
 const instStatusConfig: Record<string, { label: string; color: string }> = {
   pending:   { label: "รอดำเนินการ", color: "bg-gray-500/20 text-gray-400" },
-  in_review: { label: "รอ ตรวจสอบ",  color: "bg-yellow-500/20 text-yellow-400" },
+  in_review: { label: "รอตรวจสอบ",  color: "bg-yellow-500/20 text-yellow-400" },
   approved:  { label: "อนุมัติแล้ว", color: "bg-blue-500/20 text-blue-400" },
   paid:      { label: "จ่ายแล้ว",    color: "bg-green-500/20 text-green-400" },
-  rejected:  { label: "ถูกปฏิเสธ",  color: "bg-red-500/20 text-red-400" },
+  rejected:   { label: "ถูกปฏิเสธ",  color: "bg-red-500/20 text-red-400" },
 };
 
 const INSTALLMENT_NAMES = [
-  "งวดที่ 1 — ฐานราก", "งวดที่ 2 — คานคอดิน", "งวดที่ 3 — พื้นชั้น 1",
-  "งวดที่ 4 — โครงสร้าง 1", "งวดที่ 5 — โครงหลังคา", "งวดที่ 6 — หลังคา",
-  "งวดที่ 7 — โครงสร้าง", "งวดที่ 8 — ผนังเสร็จ", "งวดที่ 9 — หลังคาเสร็จ",
-  "งวดที่ 10 — ไฟฟ้า ประปา", "งวดที่ 11 — ฉาบปูน", "งวดที่ 12 — กระเบื้อง",
-  "งวดที่ 13 — สุขภัณฑ์", "งวดที่ 14 — ประตู หน้าต่าง", "งวดที่ 15 — สีรองพื้น",
-  "งวดที่ 16 — สีทาบ้าน", "งวดที่ 17 — งานระบบ", "งวดที่ 18 — ตรวจรับ",
-  "งวดที่ 19 — แก้ไข", "งวดที่ 20 — โอนกรรมสิทธิ์",
+  "งวด 1 — งานฐานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
+  "งวด 4 — งานผนังชั้น 1", "งวด 5 — งานโครงหลังคา", "งวด 6 — งานหลังคา",
+  "งวด 7 — งานผนังภายนอก", "งวด 8 — งานระบบน้ำ-ไฟ", "งวด 9 — งานตกแต่งภายใน",
+  "งวด 10 — งานส่งมอบ",
 ];
+
+const defectStatusConfig: Record<string, { label: string; color: string }> = {
+  Open:        { label: "พบปัญหา",    color: "bg-red-500/20 text-red-400" },
+  "In Progress":{ label: "กำลังแก้ไข", color: "bg-yellow-500/20 text-yellow-400" },
+  Resolved:    { label: "แก้ไขแล้ว",  color: "bg-green-500/20 text-green-400" },
+};
+
+const DEFECT_CATEGORIES = ["งานสี", "งานฝ้า", "งานพื้น", "งานประตู-หน้าต่าง", "งานระบบน้ำ", "งานไฟฟ้า", "อื่นๆ"];
+const WORK_TYPES = ["งานตรวจสอบ", "ติดตามงานเก่า", "แก้ไขงานซ่อมแซม", "งานเอกสาร", "งานติดต่อภายนอก", "อื่นๆ"];
+
+const progressColor = (pct: number): "gold" | "green" | "red" =>
+  pct === 100 ? "green" : pct < 50 ? "red" : "gold";
+
+function houseLabel(h: House): string {
+  return `${h.house_model ?? "AVA"} ${String(h.plot_number ?? 0).padStart(2, "0")} / ${h.land_size ?? "—"} ตร.ว.`;
+}
+
+const filterBoxes: { key: FilterStatus; label: string; border: string; numColor: string }[] = [
+  { key: "all",      label: "ทั้งหมด",       border: "border-aviva-gold/30",   numColor: "text-aviva-gold"   },
+  { key: "complete", label: "เสร็จแล้ว",     border: "border-green-400/30",    numColor: "text-green-400"    },
+  { key: "building", label: "กำลังก่อสร้าง", border: "border-blue-400/30",     numColor: "text-blue-400"     },
+  { key: "on-track", label: "ตามแผน",         border: "border-sky-400/30",      numColor: "text-sky-400"      },
+  { key: "delayed",  label: "ล่าช้า",          border: "border-red-400/30",      numColor: "text-red-400"      },
+];
+
+function InspectionPanel({
+  inst, inspections, instTemplates, instWorkItems,
+  uploadingInsp, savingInsp, onEnsure, onSave, onUpload,
+}: {
+  inst: Installment;
+  inspections: Inspection[];
+  instTemplates: InstTemplate[];
+  instWorkItems: WorkItem[];
+  uploadingInsp: string | null;
+  savingInsp: boolean;
+  onEnsure: () => Promise<Inspection[]>;
+  onSave: (insp: Inspection, result: 'pass' | 'fail', note: string, sub: string) => Promise<void>;
+  onUpload: (insp: Inspection, file: File) => Promise<void>;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [localInsps, setLocalInsps] = useState<Inspection[]>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [subs, setSubs] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (inspections.length > 0) {
+      setLocalInsps(inspections);
+      setLoaded(true);
+    }
+  }, [inspections]);
+
+  const init = async () => {
+    const result = await onEnsure();
+    setLocalInsps(result);
+    setLoaded(true);
+  };
+
+  if (!loaded) {
+    return (
+      <button onClick={init} className="w-full py-2 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-bg/50 hover:border-aviva-gold/30">
+        โหลดรายการตรวจงาน
+      </button>
+    );
+  }
+
+  const tmpl = instTemplates.find(t => t.installment_number === inst.installment_no);
+  const wis = instWorkItems.filter(w => w.template_id === (tmpl?.id ?? ""));
+
+  if (wis.length === 0 && localInsps.length === 0) {
+    return <p className="text-[11px] text-aviva-secondary/60 text-center py-2">ยังไม่มีรายการงานในงวดนี้</p>;
+  }
+
+  const displayInsps = localInsps.length > 0 ? localInsps : inspections;
+  const passCount = displayInsps.filter(i => i.result === 'pass').length;
+  const failCount = displayInsps.filter(i => i.result === 'fail').length;
+
+  return (
+    <div className="space-y-2">
+      {displayInsps.length > 0 && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-aviva-secondary">รายการงาน:</span>
+          <span className="text-green-400 font-bold">✓ {passCount}</span>
+          <span className="text-red-400 font-bold">✗ {failCount}</span>
+          <span className="text-aviva-secondary/60">/ {displayInsps.length}</span>
+        </div>
+      )}
+      {displayInsps.map(insp => (
+        <div key={insp.id} className={clsx("bg-aviva-bg rounded-xl p-3 border", insp.result === 'pass' ? "border-green-500/30" : insp.result === 'fail' ? "border-red-500/30" : "border-aviva-gold/10")}>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-xs font-medium text-aviva-text">{insp.work_item_name}</p>
+            <div className="flex gap-1 flex-shrink-0">
+              <button onClick={() => onSave(insp, 'pass', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                disabled={savingInsp}
+                className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'pass' ? "bg-green-500 text-white border-green-500" : "bg-aviva-bg text-green-400 border-green-500/30 hover:bg-green-500/10")}>
+                ✓ ผ่าน
+              </button>
+              <button onClick={() => onSave(insp, 'fail', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                disabled={savingInsp}
+                className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'fail' ? "bg-red-500 text-white border-red-500" : "bg-aviva-bg text-red-400 border-red-500/30 hover:bg-red-500/10")}>
+                ✗ ไม่ผ่าน
+              </button>
+            </div>
+          </div>
+          <input placeholder="หมายเหตุ / เหตุผล"
+            defaultValue={insp.note ?? ""}
+            onChange={e => setNotes(prev => ({ ...prev, [insp.id]: e.target.value }))}
+            className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-2 py-1 text-[11px] text-aviva-secondary placeholder:text-aviva-secondary/30 outline-none mb-1.5" />
+          <input placeholder="ผู้รับเหมาเฉพาะงานนี้ (ถ้ามี)"
+            defaultValue={insp.sub_contractor_name ?? ""}
+            onChange={e => setSubs(prev => ({ ...prev, [insp.id]: e.target.value }))}
+            className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-2 py-1 text-[11px] text-aviva-secondary placeholder:text-aviva-secondary/30 outline-none mb-1.5" />
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer">
+              <input type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(insp, f); }} />
+              {uploadingInsp === insp.id
+                ? <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Loader2 size={12} className="text-aviva-gold animate-spin" /></div>
+                : insp.photo_url
+                  ? <img src={insp.photo_url} alt="รูปตรวจ" className="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
+                  : <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Camera size={12} className="text-aviva-secondary/50" /></div>
+              }
+            </label>
+            {insp.inspected_by && (
+              <p className="text-[10px] text-aviva-secondary/60">ตรวจโดย: {insp.inspected_by}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function ConstructionPage() {
   const user = useCurrentUser();
   const [houses, setHouses] = useState<House[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [defects, setDefects] = useState<Defect[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const [part, setPart] = useState<Part>("inspect");
+  const [tab, setTab] = useState<Tab>("reports");
+  const [showModal, setShowModal] = useState(false);
+  const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [editingHouse, setEditingHouse] = useState<House | null>(null);
+  const [showHouseEditModal, setShowHouseEditModal] = useState(false);
+  const [showDefectModal, setShowDefectModal] = useState(false);
+  const [defectHouse, setDefectHouse] = useState<House | null>(null);
+
+  const [instHouse, setInstHouse] = useState<House | null>(null);
+  const [houseCustomer, setHouseCustomer] = useState<{ customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null } | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [instTasks, setInstTasks] = useState<InstTask[]>([]);
+  const [expandedInst, setExpandedInst] = useState<string | null>(null);
+  const [loadingInst, setLoadingInst] = useState(false);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [instTemplates, setInstTemplates] = useState<InstTemplate[]>([]);
-  const [instTasks, setInstTasks] = useState<InstTask[]>([]);
-  const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
-  const [activeTab, setActiveTab] = useState<Tab>("reports");
-  const [activePart, setActivePart] = useState<Part>("daily");
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("month");
-  const [showForm, setShowForm] = useState(false);
-  const [showDefectForm, setShowDefectForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [showInstDetail, setShowInstDetail] = useState<string | null>(null);
-  const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
-  const [showAI, setShowAI] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState<{ inst: Installment; reason: string } | null>(null);
+  const [instWorkItems, setInstWorkItems] = useState<WorkItem[]>([]);
+  const [uploadingInsp, setUploadingInsp] = useState<string | null>(null);
+  const [savingInsp, setSavingInsp] = useState(false);
+
+  const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "", planned_completion_date: "", site_engineer: "" });
+  const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus, reported_by: "", work_type: "งานตรวจสอบ" });
+  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
-  const photoRef = useRef<HTMLInputElement>(null);
-  const defectPhotoRef = useRef<HTMLInputElement>(null);
+  const [uploadingTask, setUploadingTask] = useState<string | null>(null);
+  const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+  const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
+  const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
+  const [showAI, setShowAI] = useState(false);
+  const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [dailyPhoto, setDailyPhoto] = useState<File | null>(null);
+  const [dailyPhotoPreview, setDailyPhotoPreview] = useState("");
+  const [uploadingDailyPhoto, setUploadingDailyPhoto] = useState(false);
 
-  const [form, setForm] = useState({
-    work_detail: "",
-    work_type: "",
-    progress: 0,
-    issue: "",
-    photo_url: null as string | null,
-    reported_by: "",
-  });
+  const [rptPeriod, setRptPeriod] = useState<Period>("month");
+  const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
+  const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [rptLimit, setRptLimit] = useState(50);
 
-  const [defectForm, setDefectForm] = useState({
-    defect_category: "",
-    description: "",
-    severity: "medium",
-    assigned_to: "",
-    due_date: "",
-  });
+  const instPanelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
-
-  async function fetchAll() {
-    setLoading(true);
-    const [{ data: h }, { data: r }, { data: d }, { data: inst }, { data: insp }, { data: tmpl }, { data: tasks }] = await Promise.all([
-      supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number", { ascending: true }),
-      supabase.from("construction_reports").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
-      supabase.from("defects").select("*").eq("project_id", PROJECT_ID).order("reported_at", { ascending: false }),
-      supabase.from("contractor_installments").select("*").eq("project_id", PROJECT_ID).order("installment_no", { ascending: true }),
-      supabase.from("installment_inspections").select("*").eq("project_id", PROJECT_ID),
-      supabase.from("installment_templates").select("*").order("installment_number", { ascending: true }),
-      supabase.from("installment_tasks").select("*"),
-    ]);
-    setHouses((h ?? []) as House[]);
-    setReports((r ?? []) as Report[]);
-    setDefects((d ?? []) as Defect[]);
-    setInstallments((inst ?? []) as Installment[]);
-    setInspections((insp ?? []) as Inspection[]);
-    setInstTemplates((tmpl ?? []) as InstTemplate[]);
-    setInstTasks((tasks ?? []) as InstTask[]);
-    setLoading(false);
-  }
-
-  async function handlePhotoUpload(file: File, field: "photo_url"): Promise<string | null> {
-    setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `construction/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("photos").upload(path, file, { upsert: true });
-    if (error) { setUploading(false); return null; }
-    const { data: urlData } = supabase.storage.from("photos").getPublicUrl(path);
-    setUploading(false);
-    return urlData.publicUrl;
-  }
-
-  async function submitReport() {
-    if (!selectedHouse || !form.work_detail) return;
-    const docNo = makeLocalDocNo("CON");
-    const { error } = await supabase.from("construction_reports").insert({
-      house_id: selectedHouse.id,
-      project_id: PROJECT_ID,
-      work_detail: form.work_detail,
-      work_type: form.work_type || null,
-      progress: form.progress,
-      issue: form.issue,
-      photo_url: form.photo_url,
-      reported_by: form.reported_by || user?.full_name || null,
-      doc_number: docNo,
+  const fetchData = (limit = rptLimit) => {
+    let rptQ = supabase.from("construction_reports").select("*");
+    if (rptStart) rptQ = rptQ.gte("created_at", rptStart);
+    if (rptEnd) rptQ = rptQ.lte("created_at", rptEnd + "T23:59:59");
+    Promise.all([
+      supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number"),
+      rptQ.order("created_at", { ascending: false }).limit(limit),
+      supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
+      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Loan Process", "Closed Deal"]),
+    ]).then(([hRes, rRes, dRes, leadRes]) => {
+      setHouses((hRes.data as House[]) ?? []);
+      setReports((rRes.data as Report[]) ?? []);
+      setDefects((dRes.data as Defect[]) ?? []);
+      const plots = new Set<number>((leadRes.data ?? []).filter((d: { plot_number: number | null }) => d.plot_number != null).map((d: { plot_number: number }) => d.plot_number));
+      setCustomerPlots(plots);
+      setLoading(false);
     });
-    if (!error) {
-      await supabase.from("houses").update({ progress: form.progress }).eq("id", selectedHouse.id);
-      await createNotification({
-        type: "info",
-        title: `รายงานงานก่อสร้าง ${selectedHouse.house_number}`,
-        message: form.work_detail,
-      });
-      setForm({ work_detail: "", work_type: "", progress: 0, issue: "", photo_url: null, reported_by: "" });
-      setShowForm(false);
-      setToast({ msg: "บันทึกรายงานเรียบร้อยแล้ว", type: "success" });
-      fetchAll();
-    }
-  }
-
-  async function submitDefect() {
-    if (!form.work_detail && !defectForm.description) return;
-    const docNo = makeLocalDocNo("DEF");
-    const slaAt = calcSlaDueAt("defect");
-    const { error } = await supabase.from("defects").insert({
-      house_id: selectedHouse?.id ?? null,
-      project_id: PROJECT_ID,
-      defect_category: defectForm.defect_category,
-      description: defectForm.description,
-      severity: defectForm.severity,
-      assigned_to: defectForm.assigned_to,
-      due_date: defectForm.due_date || slaAt || null,
-      status: "open",
-      doc_number: docNo,
-    });
-    if (!error) {
-      await createNotification({
-        type: "claim",
-        title: `พบ Defect${selectedHouse ? ` บ้านเลขที่ ${selectedHouse.house_number}` : ""}`,
-        message: defectForm.description,
-      });
-      setDefectForm({ defect_category: "", description: "", severity: "medium", assigned_to: "", due_date: "" });
-      setShowDefectForm(false);
-      setToast({ msg: "บันทึก Defect เรียบร้อยแล้ว", type: "success" });
-      fetchAll();
-    }
-  }
-
-  async function doAdvanceInst(inst: Installment) {
-    const nextStatus: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
-    const next = nextStatus[inst.status];
-    if (!next) return;
-    const docNo = makeLocalDocNo("INS");
-    const slaAt = calcSlaDueAt("installment");
-    await supabase.from("contractor_installments").update({ status: next, doc_number: docNo, sla_due_at: slaAt }).eq("id", inst.id);
-    await supabase.from("approval_logs").insert({
-      project_id: PROJECT_ID,
-      doc_type: "installment",
-      doc_id: inst.id,
-      action: next,
-      actor_id: user?.id ?? null,
-      actor_name: user?.full_name ?? "ไม่ระบุ",
-      note: `เปลี่ยนสถานะ ${instStatusConfig[inst.status]?.label} → ${instStatusConfig[next]?.label}`,
-    });
-    await createNotification({
-      type: "approval",
-      title: `งวดงาน ${inst.name} — ${instStatusConfig[next]?.label}`,
-      message: `อัปเดตสถานะงวดงานเรียบร้อยแล้ว`,
-    });
-    setConfirmInst(null);
-    setToast({ msg: `อัปเดตงวดงานเป็น "${instStatusConfig[next]?.label}" เรียบร้อยแล้ว`, type: "success" });
-    fetchAll();
-  }
-
-  async function doRejectInst(inst: Installment, reason: string) {
-    await supabase.from("contractor_installments").update({
-      status: "rejected",
-      rejection_reason: reason,
-      rejection_count: (inst.rejection_count ?? 0) + 1,
-    }).eq("id", inst.id);
-    await supabase.from("approval_logs").insert({
-      project_id: PROJECT_ID,
-      doc_type: "installment",
-      doc_id: inst.id,
-      action: "rejected",
-      actor_id: user?.id ?? null,
-      actor_name: user?.full_name ?? "ไม่ระบุ",
-      note: reason,
-    });
-    setShowRejectModal(null);
-    setToast({ msg: "ปฏิเสธงวดงานเรียบร้อยแล้ว", type: "error" });
-    fetchAll();
-  }
-
-  async function toggleInstTask(task: InstTask) {
-    await supabase.from("installment_tasks").update({ is_complete: !task.is_complete }).eq("id", task.id);
-    fetchAll();
-  }
-
-  const filteredHouses = houses.filter(h => {
-    if (filterStatus === "all") return true;
-    if (filterStatus === "building") return h.status === "on-track" || h.status === "delayed";
-    return h.status === filterStatus;
-  });
-
-  const houseReports = selectedHouse ? reports.filter(r => r.house_id === selectedHouse.id) : [];
-  const houseDefects = selectedHouse ? defects.filter(d => d.house_id === selectedHouse.id) : [];
-  const houseInsts = selectedHouse ? installments.filter(i => i.house_id === selectedHouse.id) : [];
-
-  const stats = {
-    total: houses.length,
-    complete: houses.filter(h => h.status === "complete").length,
-    onTrack: houses.filter(h => h.status === "on-track").length,
-    delayed: houses.filter(h => h.status === "delayed").length,
-    openDefects: defects.filter(d => d.status === "open").length,
-    pendingInst: installments.filter(i => i.status === "pending" || i.status === "in_review").length,
   };
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="animate-spin text-aviva-gold" size={32} />
-    </div>
-  );
+  useEffect(() => { setRptLimit(50); fetchData(50); }, [rptStart, rptEnd]);
+
+  const fetchInstallments = async (house: House) => {
+    setInstHouse(house);
+    setHouseCustomer(null);
+    setLoadingInst(true);
+    setExpandedInst(null);
+    setInspections([]);
+    // Fetch customer info for this plot (construction staff needs to know who the customer is)
+    if (house.plot_number) {
+      const { data: cust } = await supabase.from("leads")
+        .select("customer_name,phone,status,notes,loan_approved_date,delivery_date")
+        .eq("project_id", PROJECT_ID)
+        .eq("plot_number", house.plot_number)
+        .in("status", ["Booking", "Loan Process", "Closed Deal"])
+        .maybeSingle();
+      if (cust) setHouseCustomer(cust as { customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null });
+    }
+
+    const { data: templates } = await supabase.from("installment_templates")
+      .select("id,installment_number,name,description")
+      .eq("project_id", PROJECT_ID)
+      .order("installment_number");
+    const tmplList = (templates as InstTemplate[]) ?? [];
+    setInstTemplates(tmplList);
+
+    const tmplIds = tmplList.map(t => t.id);
+    let wiList: WorkItem[] = [];
+    if (tmplIds.length > 0) {
+      const { data: wis } = await supabase.from("installment_work_items")
+        .select("id,template_id,item_name,seq_order")
+        .in("template_id", tmplIds)
+        .order("seq_order");
+      wiList = (wis as WorkItem[]) ?? [];
+    }
+    setInstWorkItems(wiList);
+
+    const { data: existing, error: fetchErr } = await supabase.from("contractor_installments")
+      .select("*").eq("house_id", house.id).order("installment_no");
+    let insts = (existing as Installment[]) ?? [];
+    if (!fetchErr && insts.length === 0 && tmplList.length > 0) {
+      const rows = tmplList.map(t => ({ house_id: house.id, installment_no: t.installment_number, name: t.name, status: "pending", amount: 0 }));
+      const { data: created } = await supabase.from("contractor_installments").insert(rows).select();
+      insts = (created as Installment[]) ?? [];
+    } else if (!fetchErr && insts.length === 0) {
+      const rows = INSTALLMENT_NAMES.map((name, i) => ({ house_id: house.id, installment_no: i + 1, name, status: "pending", amount: 0 }));
+      const { data: created } = await supabase.from("contractor_installments").insert(rows).select();
+      insts = (created as Installment[]) ?? [];
+    }
+    setInstallments(insts);
+
+    if (insts.length > 0) {
+      const { data: insps } = await supabase.from("installment_inspections")
+        .select("*").in("contractor_installment_id", insts.map(i => i.id));
+      setInspections((insps as Inspection[]) ?? []);
+    }
+
+    const { data: tasks } = await supabase.from("installment_tasks")
+      .select("*").in("installment_id", insts.map(i => i.id)).order("task_no");
+    setInstTasks((tasks as InstTask[]) ?? []);
+
+    setLoadingInst(false);
+    setTimeout(() => instPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  };
+
+  const ensureInspections = async (inst: Installment): Promise<Inspection[]> => {
+    const tmpl = instTemplates.find(t => t.installment_number === inst.installment_no);
+    if (!tmpl) return [];
+    const wis = instWorkItems.filter(w => w.template_id === tmpl.id);
+    const existing = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const missingWis = wis.filter(wi => !existing.some(e => e.work_item_id === wi.id));
+    if (missingWis.length > 0) {
+      const rows = missingWis.map(wi => ({ contractor_installment_id: inst.id, work_item_id: wi.id, work_item_name: wi.item_name, result: 'pending' }));
+      const { data: created } = await supabase.from("installment_inspections").insert(rows).select();
+      const newInsps = (created as Inspection[]) ?? [];
+      setInspections(prev => [...prev, ...newInsps]);
+      return [...existing, ...newInsps];
+    }
+    return existing;
+  };
+
+  const saveInspectionResult = async (insp: Inspection, result: 'pass' | 'fail', note: string, subContractor: string) => {
+    setSavingInsp(true);
+    const updates = { result, note: note || null, sub_contractor_name: subContractor || null, inspected_by: user?.full_name ?? user?.email ?? null, inspected_at: new Date().toISOString() };
+    await supabase.from("installment_inspections").update(updates).eq("id", insp.id);
+    setInspections(prev => prev.map(i => i.id === insp.id ? { ...i, ...updates } : i));
+    setSavingInsp(false);
+  };
+
+  const uploadInspectionPhoto = async (insp: Inspection, file: File) => {
+    setUploadingInsp(insp.id);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `inspections/${insp.id}.${ext}`;
+    const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
+    if (error) { setUploadingInsp(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
+    await supabase.from("installment_inspections").update({ photo_url: publicUrl }).eq("id", insp.id);
+    setInspections(prev => prev.map(i => i.id === insp.id ? { ...i, photo_url: publicUrl } : i));
+    setUploadingInsp(null);
+    setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+  };
+
+  const toggleTask = async (task: InstTask) => {
+    const updated = !task.is_complete;
+    await supabase.from("installment_tasks").update({ is_complete: updated, verified_at: updated ? new Date().toISOString() : null }).eq("id", task.id);
+    setInstTasks(prev => prev.map(t => t.id === task.id ? { ...t, is_complete: updated } : t));
+  };
+
+  const doAdvanceInst = async (inst: Installment) => {
+    const next: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
+    const newStatus = next[inst.status] ?? inst.status;
+    if (newStatus === inst.status) return;
+    if (inst.status === "pending") {
+      const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+      if (instInsps.length > 0 && !instInsps.every(i => i.result === 'pass')) {
+        setToast({ msg: "ต้องตรวจผ่านทุกรายการงานก่อนส่งตรวจสอบ", type: "error" });
+        setConfirmInst(null); return;
+      }
+      if (instHouse) {
+        const openDefs = defects.filter(d => d.house_id === instHouse.id && d.status === "Open");
+        if (openDefs.length > 0) {
+          setToast({ msg: `มี Defect เปิดอยู่ ${openDefs.length} รายการ — ต้องแก้ไขให้ครบก่อนส่งตรวจสอบ`, type: "error" });
+          setConfirmInst(null); return;
+        }
+      }
+    }
+    if (inst.status === "in_review" && !user?.isManager) {
+      setToast({ msg: "ต้องรออนุมัติจากผู้จัดการผ่านหน้าระบบอนุมัติ", type: "error" });
+      setConfirmInst(null); return;
+    }
+    if (inst.status === "approved") {
+      const { data: approvedLogs } = await supabase.from("approval_logs")
+        .select("approval_id").eq("source_record_id", inst.id)
+        .eq("workflow_type", "Installment_Review").eq("action_taken", "Approved").limit(1);
+      if (!approvedLogs || approvedLogs.length === 0) {
+        setToast({ msg: "ยังไม่มีบันทึกการอนุมัติ — กรุณาอนุมัติจากหน้าระบบอนุมัติก่อน", type: "error" });
+        setConfirmInst(null); return;
+      }
+    }
+    await supabase.from("contractor_installments").update({ status: newStatus }).eq("id", inst.id);
+    setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus } : i));
+    const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
+    const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
+    if (newStatus === "in_review") {
+      const docNum = await generateDocNumber("INST");
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Installment_Review",
+        source_doc_index: `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_record_id: inst.id,
+        current_approver_role: user?.isAdmin ? "admin" : "manager",
+        action_taken: "Pending",
+        amount: inst.amount ?? null,
+        sla_due_at: calcSlaDueAt("Installment_Review"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+    }
+    await createNotification({
+      type: notifType[newStatus] ?? "info",
+      title: `${inst.name} — ${statusLabels[newStatus] ?? newStatus}`,
+      message: instHouse ? `ยูนิต ${instHouse.house_number}` : "",
+      from_dept: "ฝ่ายก่อสร้าง",
+    });
+    setToast({ msg: statusLabels[newStatus] ?? newStatus, type: "success" });
+    setConfirmInst(null);
+  };
+
+  const rejectInstallment = async (inst: Installment, reason: string) => {
+    await supabase.from("contractor_installments").update({
+      status: "rejected", rejection_reason: reason, rejected_at: new Date().toISOString(), rejection_count: (inst.rejection_count ?? 0) + 1,
+    }).eq("id", inst.id);
+    await supabase.from("approval_logs").update({ action_taken: "Rejected" })
+      .eq("source_record_id", inst.id).eq("action_taken", "Pending");
+    setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected", rejection_reason: reason } : i));
+    await createNotification({ type: "info", title: `${inst.name} — ถูกปฏิเสธ`, message: reason || "กรุณาตรวจสอบและแก้ไขก่อนส่งใหม่", from_dept: "ผู้บริหาร" });
+    setToast({ msg: "ปฏิเสธงวดงานแล้ว — แจ้งวิศวกรแล้ว", type: "success" });
+  };
+
+  const advanceInstStatus = (inst: Installment) => {
+    const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved", approved: "paid" };
+    if (!next[inst.status] || next[inst.status] === inst.status) return;
+    setConfirmInst(inst);
+  };
+
+  const printDailyReport = () => {
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const uniqueHouseIds = new Set(reports.map(r => r.house_id)).size;
+    const avgProgress = reports.length > 0 ? Math.round(reports.reduce((s, r) => s + r.progress, 0) / reports.length) : 0;
+    const rows = reports.map(r => {
+      const house = houses.find(h => h.id === r.house_id);
+      const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+      const t = new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+      const photo = r.photo_url ? `<img src="${r.photo_url}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid #ddd;" />` : "—";
+      return `<tr><td style="white-space:nowrap">${d}<br><span style="color:#888;font-size:10px">${t}</span></td><td style="font-weight:600">${house?.house_number ?? "—"}</td><td>${r.work_type ?? "—"}</td><td>${r.work_detail ?? "—"}</td><td style="text-align:center;font-weight:700">${r.progress ?? 0}%</td><td style="color:#c0392b">${r.issue || "—"}</td><td style="text-align:center">${r.reported_by ?? "—"}</td><td style="text-align:center">${photo}</td></tr>`;
+    }).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}.summary{display:flex;gap:12px;margin:12px 0 16px}.sb{background:#f5f5f5;border-radius:8px;padding:10px 14px;flex:1;border-left:3px solid #1E4A35}.sb .num{font-size:20px;font-weight:900;color:#1E4A35}.sb .lbl{font-size:10px;color:#666;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:11px}thead tr{background:#1E4A35}th{color:#D4AF37;padding:7px 8px;text-align:left;font-size:11px;font-weight:600}td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end}.sig{text-align:center;width:200px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่พิมพ์: ${dateStr}</div></div><div class="summary"><div class="sb"><div class="num">${reports.length}</div><div class="lbl">รายการทั้งหมด</div></div><div class="sb"><div class="num">${uniqueHouseIds}</div><div class="lbl">ยูนิตที่รายงาน</div></div><div class="sb"><div class="num">${avgProgress}%</div><div class="lbl">เฉลี่ยความคืบหน้า</div></div></div><table><thead><tr><th>วันที่/เวลา</th><th>ยูนิต</th><th>ประเภทงาน</th><th>รายละเอียดงาน</th><th style="text-align:center">คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th style="text-align:center">ผู้รายงาน</th><th style="text-align:center">รูป</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">ผู้จัดทำรายงาน</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
+    w.document.close();
+  };
+
+  const printInstReport = () => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const rows = installments.map(inst => {
+      const tasks = instTasks.filter(t => t.installment_id === inst.id);
+      const done = tasks.filter(t => t.is_complete).length;
+      const statusTh: Record<string,string> = { pending: "รอดำเนินการ", in_review: "รออนุมัติ", approved: "อนุมัติแล้ว", paid: "เบิกแล้ว", rejected: "ปฏิเสธ" };
+      return `<tr><td>${inst.installment_no}</td><td>${inst.name}</td><td>${done}/${tasks.length}</td><td>฿${inst.amount.toLocaleString("th-TH")}</td><td>${statusTh[inst.status] ?? inst.status}</td></tr>`;
+    }).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานงวดงาน — ${instHouse.house_number}</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}.logo{font-size:18px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:14px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}thead tr{background:#1E4A35}th{color:#D4AF37;padding:7px 8px;text-align:left;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #eee}tr:nth-child(even) td{background:#fafafa}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานงวดงาน — ${instHouse.house_number}</h2><div class="meta">วันที่พิมพ์: ${dateStr} · ผู้รับเหมา: ${instHouse.contractor ?? "—"} · วิศวกร: ${instHouse.site_engineer ?? "—"}</div></div><table><thead><tr><th>งวดที่</th><th>ชื่องวด</th><th>เช็คลิสต์</th><th>มูลค่า</th><th>สถานะ</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    w.document.close();
+  };
+
+  const uploadTaskPhoto = async (task: InstTask, file: File) => {
+    setUploadingTask(task.id);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `tasks/${task.id}.${ext}`;
+    const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
+    if (error) { setUploadingTask(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
+    await supabase.from("installment_tasks").update({ photo_url: publicUrl }).eq("id", task.id);
+    setInstTasks(prev => prev.map(t => t.id === task.id ? { ...t, photo_url: publicUrl } : t));
+    setUploadingTask(null);
+    setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+  };
+
+  const counts = {
+    all: houses.length,
+    complete: houses.filter(h => h.status === "complete").length,
+    building: houses.filter(h => h.status !== "complete").length,
+    "on-track": houses.filter(h => h.status === "on-track").length,
+    delayed: houses.filter(h => h.status === "delayed").length,
+  };
+  const overallProgress = houses.length ? Math.round(houses.reduce((s, h) => s + h.progress, 0) / houses.length) : 0;
+  const filtered = filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === filterStatus);
+  const openDefects = defects.filter(d => d.status === "Open").length;
+  const reporterNames = [...new Set(reports.filter(r => r.reported_by).map(r => r.reported_by as string))];
+
+  const addTask = async (inst: Installment, taskName: string) => {
+    if (!taskName.trim()) return;
+    const existing = instTasks.filter(t => t.installment_id === inst.id);
+    const { data } = await supabase.from("installment_tasks").insert({
+      installment_id: inst.id,
+      task_no: existing.length + 1,
+      task_name: taskName.trim(),
+      is_complete: false,
+      photo_url: null,
+      notes: null,
+    }).select().single();
+    if (data) {
+      setInstTasks(prev => [...prev, data as InstTask]);
+      setNewTaskInputs(prev => ({ ...prev, [inst.id]: "" }));
+    }
+  };
+
+  const removeTask = async (taskId: string) => {
+    await supabase.from("installment_tasks").delete().eq("id", taskId);
+    setInstTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const sendAiMessage = async () => {
+    const q = aiInput.trim();
+    if (!q || aiLoading) return;
+    setAiMessages(prev => [...prev, { role: "user", content: q }]);
+    setAiInput("");
+    setAiLoading(true);
+    const ctx = `ข้อมูลฝ่ายก่อสร้าง AVIVA Private: ยูนิตทั้งหมด ${houses.length} หน่วย | เสร็จแล้ว ${counts.complete} | กำลังก่อสร้าง ${counts.building} (ตามแผน ${counts["on-track"]} ล่าช้า ${counts.delayed}) | ความคืบหน้าเฉลี่ย ${overallProgress}% | Defect เปิดอยู่ ${openDefects} รายการ | มีลูกค้าจอง ${customerPlots.size} หน่วย`;
+    try {
+      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, context: ctx }) });
+      const d = await res.json();
+      setAiMessages(prev => [...prev, { role: "assistant", content: d.reply ?? "ขออภัย เกิดข้อผิดพลาด" }]);
+    } catch {
+      setAiMessages(prev => [...prev, { role: "assistant", content: "ขออภัย ไม่สามารถเชื่อมต่อได้ในขณะนี้" }]);
+    }
+    setAiLoading(false);
+  };
+
+  const openEditReport = (report: Report, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingReport(report);
+    setSelectedHouse(null);
+    setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "on-track", reported_by: report.reported_by ?? "", work_type: report.work_type ?? "งานตรวจสอบ" });
+    setDailyPhoto(null);
+    setDailyPhotoPreview(report.photo_url ?? "");
+    setShowModal(true);
+  };
+
+  const openEditHouse = (house: House) => {
+    setEditingHouse(house);
+    setHouseForm({ house_number: house.house_number, contractor: house.contractor ?? "", phase: house.phase ?? "", delayed_days: String(house.delayed_days ?? 0), status: house.status, progress: String(house.progress), planned_completion_date: house.planned_completion_date ?? "", site_engineer: house.site_engineer ?? "" });
+    setShowHouseEditModal(true);
+  };
+
+  const openDefectModal = (house: House) => {
+    setDefectHouse(house);
+    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+    setShowDefectModal(true);
+  };
+
+  const handleSaveHouse = async () => {
+    if (!editingHouse) return;
+    setSaving(true);
+    await supabase.from("houses").update({ house_number: houseForm.house_number, contractor: houseForm.contractor, phase: houseForm.phase, delayed_days: Number(houseForm.delayed_days) || 0, status: houseForm.status, progress: Number(houseForm.progress) || 0, planned_completion_date: houseForm.planned_completion_date || null, site_engineer: houseForm.site_engineer || null, updated_at: new Date().toISOString() }).eq("id", editingHouse.id);
+    setSaving(false);
+    setShowHouseEditModal(false);
+    setEditingHouse(null);
+    fetchData();
+  };
+
+  const handleSave = async () => {
+    if (!form.work_detail) return;
+    setSaving(true);
+    let reportId = editingReport?.id ?? null;
+    if (editingReport) {
+      await supabase.from("construction_reports").update({ work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, updated_at: new Date().toISOString() }).eq("id", editingReport.id);
+      await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", editingReport.house_id);
+    } else {
+      if (!form.house_id) { setSaving(false); return; }
+      const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, reported_by: form.reported_by || null }).select().single();
+      reportId = (inserted as Report | null)?.id ?? null;
+      await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
+    }
+    if (dailyPhoto && reportId) {
+      setUploadingDailyPhoto(true);
+      const ext = dailyPhoto.name.split(".").pop() ?? "jpg";
+      const path = `daily/${reportId}.${ext}`;
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(path, dailyPhoto, { upsert: true });
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(path);
+        await supabase.from("construction_reports").update({ photo_url: publicUrl }).eq("id", reportId);
+        setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+      } else {
+        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      }
+      setUploadingDailyPhoto(false);
+    }
+    setSaving(false);
+    setShowModal(false);
+    setSelectedHouse(null);
+    setEditingReport(null);
+    setDailyPhoto(null);
+    setDailyPhotoPreview("");
+    fetchData();
+  };
+
+  const handleSaveDefect = async () => {
+    if (!defectForm.description || !defectForm.house_id) return;
+    setSaving(true);
+    await supabase.from("defects").insert({ house_id: defectForm.house_id, defect_category: defectForm.defect_category, description: defectForm.description, status: "Open", severity: defectForm.severity, assigned_to: defectForm.assigned_to || null, due_date: defectForm.due_date || null });
+    setSaving(false);
+    setShowDefectModal(false);
+    setDefectHouse(null);
+    setDefectForm({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+    fetchData();
+  };
+
+  const updateDefectStatus = async (id: string, newStatus: string) => {
+    const update: Record<string, string> = { status: newStatus };
+    if (newStatus === "Resolved") update.resolved_at = new Date().toISOString();
+    await supabase.from("defects").update(update).eq("defect_id", id);
+    fetchData();
+  };
 
   return (
-    <div className="min-h-screen pb-24 space-y-6 px-4 pt-4">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <HardHat className="text-aviva-gold" size={22} />
-          <div>
-            <h2 className="text-base font-bold text-aviva-text">ฝ่ายก่อสร้าง</h2>
-            <p className="text-xs text-aviva-secondary mt-0.5">ติดตามความคืบหน้า งวดงาน และ Defect</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <PeriodFilter period={period} onChange={setPeriod} />
-          <button onClick={() => setShowAI(v => !v)} className="p-2 rounded-xl bg-aviva-card border border-aviva-gold/20 text-aviva-gold">
-            <Bot size={18} />
-          </button>
-        </div>
-      </div>
-
-      {showAI && (
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
-          <Bot size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 text-xs text-aviva-text leading-relaxed">
-            <p className="font-semibold text-blue-300 mb-1">ภาพรวมก่อสร้าง</p>
-            <p className="text-aviva-secondary">
-              บ้านทั้งหมด {stats.total} หลัง — เสร็จสมบูรณ์ {stats.complete} หลัง · กำลังดำเนินการ {stats.onTrack} หลัง · ล่าช้า {stats.delayed} หลัง
-            </p>
-            {stats.openDefects > 0 && (
-              <p className="text-orange-400 mt-1">⚠ Defect เปิดอยู่ {stats.openDefects} รายการ · งวดงานรอตรวจ {stats.pendingInst} งวด</p>
-            )}
-          </div>
-          <button onClick={() => setShowAI(false)} className="text-aviva-secondary/40 hover:text-aviva-secondary flex-shrink-0">
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "บ้านทั้งหมด", value: stats.total, color: "text-aviva-text" },
-          { label: "เสร็จแล้ว", value: stats.complete, color: "text-green-400" },
-          { label: "ตามแผน", value: stats.onTrack, color: "text-blue-400" },
-          { label: "ล่าช้า", value: stats.delayed, color: "text-red-400" },
-          { label: "Defect เปิด", value: stats.openDefects, color: "text-orange-400" },
-          { label: "รอเบิกงวด", value: stats.pendingInst, color: "text-yellow-400" },
-        ].map(s => (
-          <GlassCard key={s.label} className="p-3 text-center">
-            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-xs text-aviva-secondary mt-0.5">{s.label}</div>
-          </GlassCard>
-        ))}
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {(["all", "complete", "building", "on-track", "delayed"] as FilterStatus[]).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilterStatus(f)}
-            className={clsx(
-              "flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all",
-              filterStatus === f
-                ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
-                : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-            )}
-          >
-            {f === "all" ? "ทั้งหมด" : f === "complete" ? "เสร็จแล้ว" : f === "building" ? "กำลังก่อสร้าง" : f === "on-track" ? "ตามแผน" : "ล่าช้า"}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {filteredHouses.map(house => {
-          const cfg = statusConfig[house.status] ?? statusConfig["on-track"];
-          const Icon = cfg.icon;
-          return (
-            <GlassCard
-              key={house.id}
-              className={clsx("p-3 cursor-pointer border", cfg.bg, selectedHouse?.id === house.id && "ring-1 ring-aviva-gold")}
-              onClick={() => setSelectedHouse(selectedHouse?.id === house.id ? null : house)}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="text-sm font-bold text-aviva-text">บ้าน {house.house_number}</div>
-                  {house.plot_number && <div className="text-xs text-aviva-secondary">แปลง {house.plot_number}</div>}
-                </div>
-                <Icon size={16} className={cfg.color} />
-              </div>
-              <ProgressBar label="" value={house.progress} showPercent={false} />
-              <div className="flex items-center justify-between">
-                <span className={`text-xs ${cfg.color}`}>{cfg.label}</span>
-                <span className="text-xs text-aviva-secondary">{house.progress}%</span>
-              </div>
-              {house.delayed_days > 0 && (
-                <div className="mt-1 text-xs text-red-400">ล่าช้า {house.delayed_days} วัน</div>
-              )}
-              {house.phase && (
-                <div className="mt-1 text-xs text-aviva-secondary truncate">{house.phase}</div>
-              )}
-            </GlassCard>
-          );
-        })}
-      </div>
-
-      {selectedHouse && (
-        <GlassCard className="space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-base font-bold text-aviva-text">บ้าน {selectedHouse.house_number}</h2>
-              <div className="text-xs text-aviva-secondary space-y-0.5 mt-0.5">
-                {selectedHouse.plot_number && <div>แปลงที่ {selectedHouse.plot_number}</div>}
-                {selectedHouse.house_model && <div>แบบ {selectedHouse.house_model}</div>}
-                {selectedHouse.land_size && <div>ขนาดที่ดิน {selectedHouse.land_size} ตร.ว.</div>}
-                {selectedHouse.contractor && <div>ผู้รับเหมา: {selectedHouse.contractor}</div>}
-                {selectedHouse.site_engineer && <div>วิศวกรสนาม: {selectedHouse.site_engineer}</div>}
-                {selectedHouse.planned_completion_date && (
-                  <div>กำหนดแล้วเสร็จ: {new Date(selectedHouse.planned_completion_date).toLocaleDateString("th-TH")}</div>
-                )}
+    <div className="min-h-screen bg-aviva-bg pb-24">
+      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <HardHat size={20} className="text-aviva-gold" />
+              <div>
+                <h1 className="text-xl font-bold text-aviva-text">ฝ่ายก่อสร้าง</h1>
+                <p className="text-xs text-aviva-secondary">{loading ? "กำลังโหลด..." : `${houses.length} ยูนิต`}</p>
               </div>
             </div>
-            <button onClick={() => setSelectedHouse(null)} className="text-aviva-secondary">
-              <X size={18} />
-            </button>
-          </div>
-
-          <ProgressBar value={selectedHouse.progress} label={`ความคืบหน้า ${selectedHouse.progress}%`} />
-
-          <div className="flex gap-2">
-            {(["reports", "defects"] as Tab[]).map(t => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                className={clsx(
-                  "flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
-                  activeTab === t ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
-                )}
-              >
-                {t === "reports" ? "รายงานงาน" : "Defect"}
+            {part === "inspect" && (
+              <button onClick={() => setShowAI(p => !p)} className={clsx("flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-all", showAI ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/20")}>
+                <Bot size={14} /> AI
               </button>
-            ))}
+            )}
+            {part === "daily" && (
+              <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setShowModal(true); }}
+                className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+                <Plus size={14} /> รายงาน
+              </button>
+            )}
           </div>
+          <div className="flex gap-2">
+            <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={15} /> ตรวจงานผู้รับเหมา</button>
+            <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={15} /> งานรายวัน</button>
+          </div>
+        </div>
+      </div>
 
-          {activeTab === "reports" && (
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                {(["daily", "inspect"] as Part[]).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setActivePart(p)}
-                    className={clsx(
-                      "flex-1 py-1.5 rounded-xl text-xs font-medium border transition-all",
-                      activePart === p ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/30" : "text-aviva-secondary border-aviva-gold/10"
-                    )}
-                  >
-                    {p === "daily" ? "รายงานประจำวัน" : "ตรวจงวดงาน"}
+      <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {counts.delayed > 0 && (
+          <button className="w-full text-left" onClick={() => { setPart("inspect"); setFilterStatus("delayed"); }}>
+            <AIInsightPanel type="alert" priority="high" title={`มี ${counts.delayed} ยูนิตล่าช้ากว่าแผน`} message="กดเพื่อดูรายการยูนิตที่ล่าช้า — ควรตรวจสอบผู้รับเหมาและวางแผนเร่งงาน" />
+          </button>
+        )}
+        {openDefects > 0 && (
+          <button className="w-full text-left" onClick={() => { setPart("daily"); setTab("defects"); }}>
+            <AIInsightPanel type="warning" priority="medium" title={`Defect เปิดอยู่ ${openDefects} รายการ`} message="กดเพื่อดูรายการ — ต้องดำเนินการแก้ไขก่อนส่งมอบบ้านให้ลูกค้า" />
+          </button>
+        )}
+
+        <GlassCard gold className="p-4">
+          <SectionHeader title="ภาพรวมการก่อสร้าง" />
+          {houses.length === 0 ? (
+            <p className="text-aviva-secondary text-sm text-center py-4">ยังไม่มีข้อมูลยูนิต</p>
+          ) : (
+            <>
+              <ProgressBar label="ความคืบหน้าโดยรวม" value={overallProgress} sublabel={`${houses.length} ยูนิต`} />
+              <div className="grid grid-cols-5 gap-1.5 mt-3">
+                {filterBoxes.map(({ key, label, border, numColor }) => (
+                  <button key={key} onClick={() => setFilterStatus(key)} className={clsx("rounded-xl border p-1.5 flex flex-col items-center gap-0.5 transition-all", border, filterStatus === key ? "ring-2 ring-aviva-gold/50 bg-aviva-gold/5" : "bg-aviva-bg/30")}>
+                    <span className={clsx("text-base font-bold leading-none", numColor)}>{loading ? "—" : counts[key]}</span>
+                    <span className="text-[8px] text-aviva-secondary leading-tight text-center">{label}</span>
                   </button>
                 ))}
               </div>
+            </>
+          )}
+        </GlassCard>
 
-              {activePart === "daily" && (
-                <>
-                  <button
-                    onClick={() => setShowForm(v => !v)}
-                    className="w-full py-2.5 rounded-xl bg-aviva-gold/10 border border-aviva-gold/20 text-aviva-gold text-xs font-medium flex items-center justify-center gap-2"
-                  >
-                    <Plus size={14} /> เพิ่มรายงาน
-                  </button>
-
-                  {showForm && (
-                    <div className="space-y-3 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
-                      <div>
-                        <label className="text-xs text-aviva-secondary mb-1 block">ประเภทงาน</label>
-                        <select
-                          value={form.work_type}
-                          onChange={e => setForm(f => ({ ...f, work_type: e.target.value }))}
-                          className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                        >
-                          <option value="">เลือกประเภทงาน</option>
-                          {["งานโครงสร้าง", "งานสถาปัตย์", "งานระบบไฟฟ้า", "งานระบบประปา", "งานระบบสุขาภิบาล", "งานตกแต่ง", "งานภูมิทัศน์", "อื่นๆ"].map(t => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
+        {part === "inspect" && (
+          <>
+            {showAI && (
+              <GlassCard className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Bot size={15} className="text-aviva-gold" />
+                  <p className="text-sm font-semibold text-aviva-text">AI ฝ่ายก่อสร้าง</p>
+                  <p className="text-[10px] text-aviva-secondary ml-auto">ช่วยวิเคราะห์งานก่อสร้าง</p>
+                </div>
+                {aiMessages.length > 0 && (
+                  <div className="space-y-2 max-h-52 overflow-y-auto">
+                    {aiMessages.map((m, i) => (
+                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>
+                        {m.content}
                       </div>
-                      <div>
-                        <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียดงาน *</label>
-                        <textarea
-                          value={form.work_detail}
-                          onChange={e => setForm(f => ({ ...f, work_detail: e.target.value }))}
-                          rows={3}
-                          placeholder="รายละเอียดงานที่ทำวันนี้..."
-                          className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40 resize-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า (%)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={form.progress}
-                          onChange={e => setForm(f => ({ ...f, progress: Number(e.target.value) }))}
-                          className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-aviva-secondary mb-1 block">ปัญหาที่พบ</label>
-                        <textarea
-                          value={form.issue}
-                          onChange={e => setForm(f => ({ ...f, issue: e.target.value }))}
-                          rows={2}
-                          placeholder="ปัญหาหรืออุปสรรค (ถ้ามี)..."
-                          className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40 resize-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-aviva-secondary mb-1 block">ผู้รายงาน</label>
-                        <input
-                          type="text"
-                          value={form.reported_by}
-                          onChange={e => setForm(f => ({ ...f, reported_by: e.target.value }))}
-                          placeholder={user?.full_name ?? "ชื่อผู้รายงาน"}
-                          className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ</label>
-                        <input
-                          ref={photoRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async e => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const url = await handlePhotoUpload(file, "photo_url");
-                            if (url) setForm(f => ({ ...f, photo_url: url }));
-                          }}
-                        />
-                        <button
-                          onClick={() => photoRef.current?.click()}
-                          className="w-full py-2 rounded-xl border border-dashed border-aviva-gold/20 text-aviva-secondary text-xs flex items-center justify-center gap-2"
-                        >
-                          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                          {form.photo_url ? "เปลี่ยนรูป" : "อัปโหลดรูป"}
-                        </button>
-                        {form.photo_url && (
-                          <img src={form.photo_url} alt="preview" className="mt-2 w-full rounded-xl object-cover max-h-40" />
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-xs">ยกเลิก</button>
-                        <button onClick={submitReport} disabled={!form.work_detail} className="flex-1 py-2.5 rounded-xl bg-aviva-gold text-aviva-bg text-xs font-bold disabled:opacity-40">บันทึก</button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    {houseReports.length === 0 ? (
-                      <p className="text-xs text-aviva-secondary text-center py-4">ยังไม่มีรายงาน</p>
-                    ) : (
-                      houseReports.map(r => (
-                        <div key={r.id} className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 space-y-1">
-                          <div className="flex items-start justify-between">
-                            <div className="text-xs font-medium text-aviva-text">{r.work_detail}</div>
-                            <div className="text-xs text-aviva-secondary ml-2 flex-shrink-0">{r.progress}%</div>
-                          </div>
-                          {r.work_type && <div className="text-xs text-aviva-secondary">{r.work_type}</div>}
-                          {r.issue && <div className="text-xs text-red-400">⚠ {r.issue}</div>}
-                          {r.reported_by && <div className="text-xs text-aviva-secondary">โดย: {r.reported_by}</div>}
-                          <div className="text-xs text-aviva-secondary">{new Date(r.created_at).toLocaleDateString("th-TH")}</div>
-                          {r.photo_url && (
-                            <img src={r.photo_url} alt="report" className="w-full rounded-lg object-cover max-h-32 mt-1" />
-                          )}
-                        </div>
-                      ))
-                    )}
+                    ))}
+                    {aiLoading && <div className="bg-aviva-bg rounded-xl px-3 py-2 text-xs text-aviva-secondary mr-8">กำลังประมวลผล...</div>}
                   </div>
-                </>
-              )}
-
-              {activePart === "inspect" && (
-                <div className="space-y-3">
-                  <div className="text-xs text-aviva-secondary">งวดงานทั้งหมด {houseInsts.length} งวด</div>
-                  {houseInsts.map(inst => {
-                    const cfg = instStatusConfig[inst.status] ?? instStatusConfig["pending"];
-                    const isDetail = showInstDetail === inst.id;
-                    const tmpl = instTemplates.find(t => t.installment_number === inst.installment_no);
-                    const tasks = instTasks.filter(t => t.installment_id === inst.id);
-                    const instInspections = inspections.filter(i => i.contractor_installment_id === inst.id);
-                    const canAdvance = inst.status !== "paid" && inst.status !== "rejected";
-                    const nextStatus: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
-                    const nextLabel = instStatusConfig[nextStatus[inst.status]]?.label;
-
+                )}
+                {aiMessages.length === 0 && !aiLoading && (
+                  <div className="text-xs text-aviva-secondary/60 space-y-1">
+                    <p>ตัวอย่างคำถาม:</p>
+                    {["ยูนิตไหนล่าช้าที่สุด?", "สรุปสถานะการก่อสร้างวันนี้", "Defect ที่ต้องแก้ไขด่วนมีอะไรบ้าง?"].map(q => (
+                      <button key={q} onClick={() => setAiInput(q)} className="block text-aviva-gold hover:text-aviva-gold/80 underline text-left">{q}</button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendAiMessage(); }} placeholder="ถามเกี่ยวกับงานก่อสร้าง..." className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50" />
+                  <button onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading} className="px-3 py-2 bg-aviva-gold text-aviva-bg rounded-xl disabled:opacity-40">
+                    <Send size={13} />
+                  </button>
+                </div>
+              </GlassCard>
+            )}
+            <div>
+              <SectionHeader title={`ยูนิต (${filtered.length})`} subtitle="แตะยูนิตเพื่อดูงวดงานผู้รับเหมา" />
+              {loading ? (
+                <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(i => <div key={i} className="h-20 rounded-xl bg-aviva-card/50 animate-pulse" />)}</div>
+              ) : filtered.length === 0 ? (
+                <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {filtered.map(house => {
+                    const isSelected = instHouse?.id === house.id;
+                    const hasCustomer = house.plot_number != null && customerPlots.has(house.plot_number);
+                    const statusBorder = house.status === "complete" ? "border-green-400/80"
+                      : house.status === "delayed" ? "border-red-500/70"
+                      : "border-sky-400/60";
                     return (
-                      <div key={inst.id} className="rounded-xl border border-aviva-gold/10 overflow-hidden">
-                        <div
-                          className="flex items-center justify-between p-3 cursor-pointer bg-aviva-bg"
-                          onClick={() => setShowInstDetail(isDetail ? null : inst.id)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-aviva-text truncate">
-                              {INSTALLMENT_NAMES[inst.installment_no - 1] ?? inst.name}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
-                              {inst.amount > 0 && (
-                                <span className="text-xs text-aviva-secondary">฿{inst.amount.toLocaleString()}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 ml-2">
-                            {isDetail ? <ChevronDown size={16} className="text-aviva-secondary" /> : <ChevronRight size={16} className="text-aviva-secondary" />}
-                          </div>
-                        </div>
-
-                        {isDetail && (
-                          <div className="p-3 space-y-3 border-t border-aviva-gold/10 bg-aviva-card/30">
-                            {inst.rejection_reason && (
-                              <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                                เหตุผลที่ปฏิเสธ: {inst.rejection_reason}
-                                {inst.rejection_count && inst.rejection_count > 1 && ` (ครั้งที่ ${inst.rejection_count})`}
-                              </div>
-                            )}
-
-                            {tmpl?.description && (
-                              <p className="text-xs text-aviva-secondary">{tmpl.description}</p>
-                            )}
-
-                            {tasks.length > 0 && (
-                              <div className="space-y-2">
-                                <div className="text-xs font-medium text-aviva-text">รายการตรวจสอบ</div>
-                                {tasks.map(task => (
-                                  <div key={task.id} className="flex items-start gap-2 p-2 rounded-lg bg-aviva-bg">
-                                    <button
-                                      onClick={() => toggleInstTask(task)}
-                                      className={clsx(
-                                        "mt-0.5 w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border",
-                                        task.is_complete ? "bg-green-500 border-green-500" : "border-aviva-gold/30 bg-transparent"
-                                      )}
-                                    >
-                                      {task.is_complete && <Check size={10} className="text-white" />}
-                                    </button>
-                                    <div className="flex-1 min-w-0">
-                                      <div className={clsx("text-xs", task.is_complete && "line-through text-aviva-secondary")}>
-                                        {task.task_no}. {task.task_name}
-                                      </div>
-                                      {task.notes && <div className="text-xs text-aviva-secondary mt-0.5">{task.notes}</div>}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {instInspections.length > 0 && (
-                              <div className="space-y-2">
-                                <div className="text-xs font-medium text-aviva-text">ผลการตรวจสอบ</div>
-                                {instInspections.map(insp => (
-                                  <div key={insp.id} className={clsx(
-                                    "p-2 rounded-lg text-xs border",
-                                    insp.result === "pass" ? "bg-green-500/10 border-green-500/20" :
-                                    insp.result === "fail" ? "bg-red-500/10 border-red-500/20" :
-                                    "bg-gray-500/10 border-gray-500/20"
-                                  )}>
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">{insp.work_item_name}</span>
-                                      <span className={insp.result === "pass" ? "text-green-400" : insp.result === "fail" ? "text-red-400" : "text-gray-400"}>
-                                        {insp.result === "pass" ? "ผ่าน" : insp.result === "fail" ? "ไม่ผ่าน" : "รอตรวจ"}
-                                      </span>
-                                    </div>
-                                    {insp.note && <div className="text-aviva-secondary mt-1">{insp.note}</div>}
-                                    {insp.inspected_by && <div className="text-aviva-secondary mt-0.5">ตรวจโดย: {insp.inspected_by}</div>}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {canAdvance && (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => setConfirmInst(inst)}
-                                  className="flex-1 py-2 rounded-xl bg-aviva-gold text-aviva-bg text-xs font-bold"
-                                >
-                                  {nextLabel ? `ส่ง: ${nextLabel}` : "ดำเนินการต่อ"}
-                                </button>
-                                {inst.status === "in_review" && (
-                                  <button
-                                    onClick={() => setShowRejectModal({ inst, reason: "" })}
-                                    className="py-2 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs"
-                                  >
-                                    ปฏิเสธ
-                                  </button>
-                                )}
-                              </div>
-                            )}
-
-                            <button
-                              onClick={async () => {
-                                const printContent = `
-                                  <html><head><title>งวดงาน ${inst.name}</title></head><body>
-                                  <h2>${INSTALLMENT_NAMES[inst.installment_no - 1] ?? inst.name}</h2>
-                                  <p>สถานะ: ${instStatusConfig[inst.status]?.label}</p>
-                                  <p>มูลค่า: ฿${inst.amount.toLocaleString()}</p>
-                                  ${tasks.map(t => `<p>${t.is_complete ? "✓" : "○"} ${t.task_no}. ${t.task_name}</p>`).join("")}
-                                  </body></html>
-                                `;
-                                const w = window.open("", "_blank");
-                                if (w) { w.document.write(printContent); w.document.close(); w.print(); }
-                              }}
-                              className="w-full py-2 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-xs flex items-center justify-center gap-2"
-                            >
-                              <Printer size={12} /> พิมพ์ใบงวด
-                            </button>
-                          </div>
+                      <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("relative rounded-xl border-2 p-2 flex flex-col items-center gap-0.5 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : `bg-aviva-card ${statusBorder}`)}>
+                        {hasCustomer && !isSelected && (
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-aviva-gold border border-aviva-bg" />
                         )}
-                      </div>
+                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
+                        <span className={clsx("text-base font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
+                      </button>
                     );
                   })}
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === "defects" && (
-            <div className="space-y-3">
-              <button
-                onClick={() => setShowDefectForm(v => !v)}
-                className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-center justify-center gap-2"
-              >
-                <Bug size={14} /> แจ้ง Defect
-              </button>
-
-              {showDefectForm && (
-                <div className="space-y-3 p-3 rounded-xl bg-aviva-bg border border-red-500/20">
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
-                    <select
-                      value={defectForm.defect_category}
-                      onChange={e => setDefectForm(f => ({ ...f, defect_category: e.target.value }))}
-                      className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                    >
-                      <option value="">เลือกหมวดหมู่</option>
-                      {["งานโครงสร้าง", "งานสถาปัตย์", "งานไฟฟ้า", "งานประปา", "งานสุขาภิบาล", "งานตกแต่ง", "อื่นๆ"].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
-                    <textarea
-                      value={defectForm.description}
-                      onChange={e => setDefectForm(f => ({ ...f, description: e.target.value }))}
-                      rows={3}
-                      placeholder="อธิบายปัญหาที่พบ..."
-                      className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40 resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
-                    <div className="flex gap-2">
-                      {[{ v: "low", l: "ต่ำ" }, { v: "medium", l: "กลาง" }, { v: "high", l: "สูง" }, { v: "critical", l: "วิกฤต" }].map(s => (
-                        <button
-                          key={s.v}
-                          onClick={() => setDefectForm(f => ({ ...f, severity: s.v }))}
-                          className={clsx(
-                            "flex-1 py-1.5 rounded-xl text-xs border transition-all",
-                            defectForm.severity === s.v
-                              ? s.v === "critical" ? "bg-red-500 border-red-500 text-white"
-                                : s.v === "high" ? "bg-orange-500 border-orange-500 text-white"
-                                : s.v === "medium" ? "bg-yellow-500 border-yellow-500 text-aviva-bg"
-                                : "bg-green-500 border-green-500 text-white"
-                              : "border-aviva-gold/10 text-aviva-secondary"
-                          )}
-                        >
-                          {s.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
-                    <input
-                      type="text"
-                      value={defectForm.assigned_to}
-                      onChange={e => setDefectForm(f => ({ ...f, assigned_to: e.target.value }))}
-                      placeholder="ชื่อผู้รับผิดชอบ..."
-                      className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไข</label>
-                    <input
-                      type="date"
-                      value={defectForm.due_date}
-                      onChange={e => setDefectForm(f => ({ ...f, due_date: e.target.value }))}
-                      className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowDefectForm(false)} className="flex-1 py-2.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-xs">ยกเลิก</button>
-                    <button onClick={submitDefect} disabled={!defectForm.description} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-xs font-bold disabled:opacity-40">แจ้ง Defect</button>
-                  </div>
+              {!loading && filtered.length > 0 && (
+                <div className="flex items-center gap-3 mt-2 flex-wrap text-[9px] text-aviva-secondary/60">
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-green-400/80 bg-aviva-card inline-block" />เสร็จแล้ว</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-sky-400/60 bg-aviva-card inline-block" />ตามแผน</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-red-500/70 bg-aviva-card inline-block" />ล่าช้า</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-aviva-gold inline-block" />มีลูกค้า</span>
                 </div>
               )}
+            </div>
 
-              <div className="space-y-2">
-                {houseDefects.length === 0 ? (
-                  <p className="text-xs text-aviva-secondary text-center py-4">ไม่มี Defect</p>
-                ) : (
-                  houseDefects.map(d => (
-                    <div key={d.defect_id} className={clsx(
-                      "p-3 rounded-xl border space-y-1",
-                      d.status === "open" ? "bg-red-500/5 border-red-500/20" :
-                      d.status === "in_progress" ? "bg-yellow-500/5 border-yellow-500/20" :
-                      "bg-green-500/5 border-green-500/20"
-                    )}>
-                      <div className="flex items-start justify-between">
-                        <div className="text-xs font-medium text-aviva-text">{d.description}</div>
-                        <span className={clsx(
-                          "text-xs px-1.5 py-0.5 rounded ml-2 flex-shrink-0",
-                          d.severity === "critical" ? "bg-red-500 text-white" :
-                          d.severity === "high" ? "bg-orange-500 text-white" :
-                          d.severity === "medium" ? "bg-yellow-500 text-aviva-bg" :
-                          "bg-green-500 text-white"
-                        )}>
-                          {d.severity === "critical" ? "วิกฤต" : d.severity === "high" ? "สูง" : d.severity === "medium" ? "กลาง" : "ต่ำ"}
-                        </span>
+            {instHouse && (
+              <div ref={instPanelRef} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-aviva-text">{instHouse.house_number}</p>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => openDefectModal(instHouse)} className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
+                    <button onClick={() => openEditHouse(instHouse)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
+                    <button onClick={printInstReport} className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์</button>
+                    <button onClick={() => { setInstHouse(null); setHouseCustomer(null); }} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
+                  </div>
+                </div>
+
+                {houseCustomer && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-3">
+                    <p className="text-[10px] text-blue-400 font-semibold mb-1.5">ข้อมูลลูกค้า</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-aviva-text">{houseCustomer.customer_name}</p>
+                        <p className="text-xs text-aviva-gold font-medium mt-0.5">{houseCustomer.phone}</p>
                       </div>
-                      {d.defect_category && <div className="text-xs text-aviva-secondary">{d.defect_category}</div>}
-                      {d.assigned_to && <div className="text-xs text-aviva-secondary">มอบหมาย: {d.assigned_to}</div>}
-                      {d.due_date && <div className="text-xs text-aviva-secondary">กำหนด: {new Date(d.due_date).toLocaleDateString("th-TH")}</div>}
-                      <div className="text-xs text-aviva-secondary">{new Date(d.reported_at).toLocaleDateString("th-TH")}</div>
+                      <span className="text-[10px] bg-aviva-bg px-2 py-1 rounded-full text-aviva-secondary">
+                        {({ Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
+                      </span>
                     </div>
-                  ))
+                    {houseCustomer.loan_approved_date && (
+                      <p className="text-[10px] text-green-400 mt-1.5">🏦 กู้ผ่านแล้ว {new Date(houseCustomer.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</p>
+                    )}
+                    {houseCustomer.delivery_date && (
+                      <p className="text-[10px] text-aviva-gold mt-0.5">🏠 นัดส่งมอบ {new Date(houseCustomer.delivery_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    )}
+                    {houseCustomer.notes && (
+                      <p className="text-[10px] text-aviva-secondary/70 mt-1.5 leading-relaxed line-clamp-2">{houseCustomer.notes}</p>
+                    )}
+                  </div>
+                )}
+
+                {loadingInst ? (
+                  [1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse" />)
+                ) : (
+                  installments.map(inst => {
+                    const tasks = instTasks.filter(t => t.installment_id === inst.id);
+                    const doneCount = tasks.filter(t => t.is_complete).length;
+                    const isExpanded = expandedInst === inst.id;
+                    const sc = instStatusConfig[inst.status] ?? instStatusConfig["pending"];
+                    return (
+                      <GlassCard key={inst.id} className="p-3">
+                        <button className="w-full flex items-center justify-between gap-2" onClick={() => setExpandedInst(isExpanded ? null : inst.id)}>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {isExpanded ? <ChevronDown size={14} className="text-aviva-secondary flex-shrink-0" /> : <ChevronRight size={14} className="text-aviva-secondary flex-shrink-0" />}
+                            <span className="text-xs font-semibold text-aviva-text truncate">{inst.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {tasks.length > 0 && <span className="text-[10px] text-aviva-secondary">{doneCount}/{tasks.length}</span>}
+                            {inst.amount > 0 && <span className="text-[10px] text-aviva-gold font-medium">฿{inst.amount.toLocaleString()}</span>}
+                            <span className={clsx("text-[10px] px-2 py-0.5 rounded-full", sc.color)}>{sc.label}</span>
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-3 space-y-3 border-t border-aviva-gold/10 pt-3">
+                            {inst.status === "rejected" && inst.rejection_reason && (
+                              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                                <p className="text-[10px] text-red-400 font-semibold mb-0.5">เหตุผลที่ปฏิเสธ</p>
+                                <p className="text-xs text-red-300">{inst.rejection_reason}</p>
+                                {inst.rejection_count && inst.rejection_count > 0 && (
+                                  <p className="text-[10px] text-red-400/70 mt-0.5">ถูกปฏิเสธ {inst.rejection_count} ครั้ง</p>
+                                )}
+                              </div>
+                            )}
+                            {user?.isAdmin && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
+                                <input type="number" defaultValue={inst.amount}
+                                  onBlur={async e => {
+                                    const v = Number(e.target.value);
+                                    if (!isNaN(v)) {
+                                      await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
+                                      setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
+                                    }
+                                  }}
+                                  className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                              </div>
+                            )}
+                            <button
+                              onClick={() => {
+                                const url = `${window.location.origin}/inspection?id=${inst.id}`;
+                                navigator.clipboard.writeText(url);
+                              }}
+                              className="w-full py-1.5 text-[11px] text-aviva-secondary border border-aviva-gold/20 rounded-xl bg-aviva-bg/50 hover:border-aviva-gold/40 flex items-center justify-center gap-1.5"
+                            >
+                              <FileText size={11} /> สร้างลิงก์ตรวจสอบ
+                            </button>
+                            <InspectionPanel
+                              inst={inst}
+                              inspections={inspections.filter(i => i.contractor_installment_id === inst.id)}
+                              instTemplates={instTemplates}
+                              instWorkItems={instWorkItems}
+                              uploadingInsp={uploadingInsp}
+                              savingInsp={savingInsp}
+                              onEnsure={() => ensureInspections(inst)}
+                              onSave={saveInspectionResult}
+                              onUpload={uploadInspectionPhoto}
+                            />
+                            {/* Dynamic sub-tasks */}
+                            <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
+                              <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
+                              {tasks.map(task => (
+                                <div key={task.id} className="bg-aviva-bg/70 rounded-xl p-2.5 border border-aviva-gold/10 flex items-center gap-2">
+                                  <button onClick={() => toggleTask(task)} className={clsx("w-5 h-5 rounded-md flex-shrink-0 border-2 flex items-center justify-center transition-all", task.is_complete ? "bg-green-500 border-green-500" : "border-aviva-gold/40")}>
+                                    {task.is_complete && <Check size={10} className="text-white" />}
+                                  </button>
+                                  <span className={clsx("text-xs flex-1 text-left", task.is_complete ? "line-through text-aviva-secondary/50" : "text-aviva-text")}>{task.task_name}</span>
+                                  <label className="cursor-pointer flex-shrink-0">
+                                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadTaskPhoto(task, f); }} />
+                                    {uploadingTask === task.id
+                                      ? <Loader2 size={13} className="text-aviva-gold animate-spin" />
+                                      : task.photo_url
+                                        ? <img src={task.photo_url} alt="" className="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
+                                        : <Camera size={13} className="text-aviva-secondary/40" />
+                                    }
+                                  </label>
+                                  <button onClick={() => removeTask(task.id)} className="flex-shrink-0 text-aviva-secondary/30 hover:text-red-400 transition-colors">
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="เพิ่มรายการงาน..."
+                                  value={newTaskInputs[inst.id] ?? ""}
+                                  onChange={e => setNewTaskInputs(prev => ({ ...prev, [inst.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === "Enter") addTask(inst, newTaskInputs[inst.id] ?? ""); }}
+                                  className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50"
+                                />
+                                <button onClick={() => addTask(inst, newTaskInputs[inst.id] ?? "")} className="px-3 py-2 bg-aviva-gold/20 text-aviva-gold rounded-xl border border-aviva-gold/30 active:bg-aviva-gold/40">
+                                  <Plus size={13} />
+                                </button>
+                              </div>
+                            </div>
+                            {inst.status !== "paid" && (
+                              <div className="space-y-2 pt-1">
+                                {inst.status === "in_review" && user?.isManager ? (
+                                  <div className="flex gap-2">
+                                    <button onClick={() => doAdvanceInst(inst)} className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium">✓ อนุมัติ</button>
+                                    <button onClick={() => { const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธ:"); if (reason !== null) rejectInstallment(inst, reason); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
+                                  </div>
+                                ) : inst.status === "in_review" && !user?.isManager ? (
+                                  <div className="w-full py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">รออนุมัติจากผู้จัดการ</div>
+                                ) : inst.status !== "in_review" ? (
+                                  <button onClick={() => advanceInstStatus(inst)} disabled={inst.status === "approved"}
+                                    className={clsx("w-full py-2 rounded-xl text-xs font-medium border", inst.status === "pending" || inst.status === "rejected" ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30")}>
+                                    {inst.status === "pending" ? "ส่งตรวจสอบ" : inst.status === "rejected" ? "ส่งตรวจสอบอีกครั้ง" : "รออนุมัติจากระบบ"}
+                                  </button>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </GlassCard>
+                    );
+                  })
                 )}
               </div>
+            )}
+          </>
+        )}
+
+        {part === "daily" && (
+          <>
+            <div className="flex gap-2">
+              {([["reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
+                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
+              ))}
             </div>
-          )}
-        </GlassCard>
-      )}
 
-      {!selectedHouse && (
-        <GlassCard className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-aviva-text flex items-center gap-2">
-              <Bug size={16} className="text-red-400" /> Defect ทั้งหมด
-            </h3>
-            <button
-              onClick={() => setShowDefectForm(v => !v)}
-              className="text-xs text-aviva-gold flex items-center gap-1"
-            >
-              <Plus size={12} /> แจ้งใหม่
-            </button>
-          </div>
+            {tab === "reports" && (
+              <div className="space-y-3">
+                <PeriodFilter period={rptPeriod} onChange={(p, s, e) => { setRptPeriod(p); setRptStart(s); setRptEnd(e); }} />
+                <div className="flex items-center justify-between">
+                  <SectionHeader title="รายงานประจำวัน" subtitle="กรองตามช่วงเวลา" />
+                  {reports.length > 0 && (
+                    <button onClick={printDailyReport} className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์รายงาน</button>
+                  )}
+                </div>
+                {reports.length === 0 ? (
+                  <GlassCard className="p-8 text-center"><ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" /><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
+                ) : reports.map(r => {
+                  const house = houses.find(h => h.id === r.house_id);
+                  return (
+                    <GlassCard key={r.id} className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
+                            {r.work_type && <span className="text-[10px] bg-aviva-gold/10 text-aviva-gold/80 px-1.5 py-0.5 rounded-full">{r.work_type}</span>}
+                            <span className="text-[10px] text-aviva-secondary">{new Date(r.created_at).toLocaleDateString("th-TH")} {new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                          <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
+                          {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
+                          {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
+                          {r.photo_url && (
+                            <a href={r.photo_url} target="_blank" rel="noreferrer" className="mt-2 block">
+                              <img src={r.photo_url} alt="รูปตรวจงาน" className="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button onClick={e => openEditReport(r, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"><Pencil size={12} className="text-aviva-secondary" /></button>
+                          <div className="text-right"><p className="text-lg font-bold text-aviva-gold">{r.progress}%</p><p className="text-[10px] text-aviva-secondary">ความคืบหน้า</p></div>
+                        </div>
+                      </div>
+                    </GlassCard>
+                  );
+                })}
+                {!loading && reports.length >= rptLimit && (
+                  <button onClick={() => { const next = rptLimit + 50; setRptLimit(next); fetchData(next); }} className="w-full py-2.5 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card hover:border-aviva-gold/30 transition-all">โหลดเพิ่มเติม (แสดง {rptLimit} รายการแล้ว)</button>
+                )}
+              </div>
+            )}
 
-          {showDefectForm && (
-            <div className="space-y-3 p-3 rounded-xl bg-aviva-bg border border-red-500/20">
+            {tab === "defects" && (
+              <div className="space-y-3">
+                <SectionHeader title="Defect Tracking" subtitle="ปัญหาที่ตรวจพบ" />
+                {defects.length === 0 ? (
+                  <GlassCard className="p-8 text-center"><Bug size={28} className="text-aviva-secondary/30 mx-auto mb-2" /><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ Defect</p></GlassCard>
+                ) : defects.map(d => {
+                  const house = houses.find(h => h.id === d.house_id);
+                  const ds = defectStatusConfig[d.status] ?? defectStatusConfig["Open"];
+                  const severityMap: Record<string, { label: string; color: string }> = {
+                    low: { label: "เล็กน้อย", color: "text-blue-400 bg-blue-400/10" },
+                    medium: { label: "ปานกลาง", color: "text-yellow-400 bg-yellow-400/10" },
+                    high: { label: "สูง", color: "text-orange-400 bg-orange-400/10" },
+                    critical: { label: "วิกฤต", color: "text-red-400 bg-red-400/10" },
+                  };
+                  const sev = severityMap[d.severity ?? "medium"] ?? severityMap.medium;
+                  const daysOpen = d.status !== "Resolved" ? Math.floor((Date.now() - new Date(d.reported_at).getTime()) / 86400000) : null;
+                  const overdue = d.due_date && d.status !== "Resolved" && new Date(d.due_date) < new Date();
+                  return (
+                    <GlassCard key={d.defect_id} className={clsx("p-4", overdue && "border border-red-500/40")}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
+                            <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{d.defect_category}</span>
+                            <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", sev.color)}>{sev.label}</span>
+                            {daysOpen !== null && daysOpen > 7 && <span className="text-[10px] text-red-400 font-bold">⚠ {daysOpen} วัน</span>}
+                          </div>
+                          <p className="text-sm text-aviva-text mt-0.5">{d.description}</p>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <p className="text-[10px] text-aviva-secondary">{new Date(d.reported_at).toLocaleDateString("th-TH")}</p>
+                            {d.assigned_to && <p className="text-[10px] text-aviva-secondary">ผู้รับผิดชอบ: {d.assigned_to}</p>}
+                            {d.due_date && <p className={clsx("text-[10px]", overdue ? "text-red-400 font-bold" : "text-aviva-secondary")}>ครบกำหนด: {new Date(d.due_date).toLocaleDateString("th-TH")}</p>}
+                          </div>
+                        </div>
+                        <span className={clsx("text-[10px] px-2 py-0.5 rounded-full flex-shrink-0", ds.color)}>{ds.label}</span>
+                      </div>
+                      {d.status !== "Resolved" && (
+                        <div className="flex gap-2">
+                          {d.status === "Open" && (
+                            <button onClick={() => updateDefectStatus(d.defect_id, "In Progress")} className="flex-1 py-1.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-[10px] font-medium">เริ่มแก้ไข</button>
+                          )}
+                          <button onClick={() => updateDefectStatus(d.defect_id, "Resolved")} className="flex-1 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">แก้ไขแล้ว</button>
+                        </div>
+                      )}
+                    </GlassCard>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {showDefectModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">บันทึก Defect{defectHouse ? ` — ${defectHouse.house_number}` : ""}</h2>
+              <button onClick={() => { setShowDefectModal(false); setDefectHouse(null); }}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              {!defectHouse && (
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
+                  <select value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="">-- เลือกยูนิต --</option>
+                    {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
-                <select
-                  value={defectForm.defect_category}
-                  onChange={e => setDefectForm(f => ({ ...f, defect_category: e.target.value }))}
-                  className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                >
-                  <option value="">เลือกหมวดหมู่</option>
-                  {["งานโครงสร้าง", "งานสถาปัตย์", "งานไฟฟ้า", "งานประปา", "งานสุขาภิบาล", "งานตกแต่ง", "อื่นๆ"].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
+                <select value={defectForm.defect_category} onChange={e => setDefectForm({ ...defectForm, defect_category: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {DEFECT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
-                <textarea
-                  value={defectForm.description}
-                  onChange={e => setDefectForm(f => ({ ...f, description: e.target.value }))}
-                  rows={3}
-                  placeholder="อธิบายปัญหาที่พบ..."
-                  className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40 resize-none"
-                />
+                <textarea value={defectForm.description} onChange={e => setDefectForm({ ...defectForm, description: e.target.value })} placeholder="อธิบายปัญหาที่พบ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
-                <div className="flex gap-2">
-                  {[{ v: "low", l: "ต่ำ" }, { v: "medium", l: "กลาง" }, { v: "high", l: "สูง" }, { v: "critical", l: "วิกฤต" }].map(s => (
-                    <button
-                      key={s.v}
-                      onClick={() => setDefectForm(f => ({ ...f, severity: s.v }))}
-                      className={clsx(
-                        "flex-1 py-1.5 rounded-xl text-xs border transition-all",
-                        defectForm.severity === s.v
-                          ? s.v === "critical" ? "bg-red-500 border-red-500 text-white"
-                            : s.v === "high" ? "bg-orange-500 border-orange-500 text-white"
-                            : s.v === "medium" ? "bg-yellow-500 border-yellow-500 text-aviva-bg"
-                            : "bg-green-500 border-green-500 text-white"
-                          : "border-aviva-gold/10 text-aviva-secondary"
-                      )}
-                    >
-                      {s.l}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
+                  <select value={defectForm.severity} onChange={e => setDefectForm({ ...defectForm, severity: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="low">เล็กน้อย</option><option value="medium">ปานกลาง</option><option value="high">สูง</option><option value="critical">วิกฤต</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไขภายใน</label>
+                  <input type="date" value={defectForm.due_date} onChange={e => setDefectForm({ ...defectForm, due_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
-                <input
-                  type="text"
-                  value={defectForm.assigned_to}
-                  onChange={e => setDefectForm(f => ({ ...f, assigned_to: e.target.value }))}
-                  placeholder="ชื่อผู้รับผิดชอบ..."
-                  className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไข</label>
-                <input
-                  type="date"
-                  value={defectForm.due_date}
-                  onChange={e => setDefectForm(f => ({ ...f, due_date: e.target.value }))}
-                  className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setShowDefectForm(false)} className="flex-1 py-2.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-xs">ยกเลิก</button>
-                <button onClick={submitDefect} disabled={!defectForm.description} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-xs font-bold disabled:opacity-40">แจ้ง Defect</button>
+                <input type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })} placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
-          )}
-
-          <div className="space-y-2">
-            {defects.length === 0 ? (
-              <p className="text-xs text-aviva-secondary text-center py-4">ไม่มี Defect</p>
-            ) : (
-              defects.slice(0, 10).map(d => (
-                <div key={d.defect_id} className={clsx(
-                  "p-3 rounded-xl border space-y-1",
-                  d.status === "open" ? "bg-red-500/5 border-red-500/20" :
-                  d.status === "in_progress" ? "bg-yellow-500/5 border-yellow-500/20" :
-                  "bg-green-500/5 border-green-500/20"
-                )}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-xs font-medium text-aviva-text">{d.description}</div>
-                      {d.house_id && (
-                        <div className="text-xs text-aviva-secondary">
-                          บ้าน {houses.find(h => h.id === d.house_id)?.house_number ?? "—"}
-                        </div>
-                      )}
-                    </div>
-                    <span className={clsx(
-                      "text-xs px-1.5 py-0.5 rounded ml-2 flex-shrink-0",
-                      d.severity === "critical" ? "bg-red-500 text-white" :
-                      d.severity === "high" ? "bg-orange-500 text-white" :
-                      d.severity === "medium" ? "bg-yellow-500 text-aviva-bg" :
-                      "bg-green-500 text-white"
-                    )}>
-                      {d.severity === "critical" ? "วิกฤต" : d.severity === "high" ? "สูง" : d.severity === "medium" ? "กลาง" : "ต่ำ"}
-                    </span>
-                  </div>
-                  {d.defect_category && <div className="text-xs text-aviva-secondary">{d.defect_category}</div>}
-                  {d.assigned_to && <div className="text-xs text-aviva-secondary">มอบหมาย: {d.assigned_to}</div>}
-                  {d.due_date && <div className="text-xs text-aviva-secondary">กำหนด: {new Date(d.due_date).toLocaleDateString("th-TH")}</div>}
-                </div>
-              ))
-            )}
+            <button onClick={handleSaveDefect} disabled={saving || !defectForm.description || (!defectHouse && !defectForm.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึก Defect"}</button>
           </div>
-        </GlassCard>
+        </div>
       )}
 
-      {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">
-            <h2 className="text-base font-bold text-aviva-text">เหตุผลที่ปฏิเสธ</h2>
-            <textarea
-              value={showRejectModal.reason}
-              onChange={e => setShowRejectModal(v => v ? { ...v, reason: e.target.value } : null)}
-              rows={3}
-              placeholder="ระบุเหตุผล..."
-              className="w-full bg-aviva-bg border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder-aviva-secondary/40 resize-none"
-            />
-            <div className="flex gap-3">
-              <button onClick={() => setShowRejectModal(null)} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
-              <button
-                onClick={() => doRejectInst(showRejectModal.inst, showRejectModal.reason)}
-                disabled={!showRejectModal.reason}
-                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm disabled:opacity-40"
-              >
-                ยืนยันปฏิเสธ
-              </button>
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">{editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}</h2>
+              <button onClick={() => { setShowModal(false); setEditingReport(null); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
+            <div className="space-y-3">
+              {!selectedHouse && !editingReport && (
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
+                  <select value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="">-- เลือกยูนิต --</option>
+                    {houses.map(h => <option key={h.id} value={h.id}>{h.house_number} ({h.progress}%)</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทงาน</label>
+                <select value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {WORK_TYPES.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">งานที่ทำวันนี้ *</label>
+                <textarea value={form.work_detail} onChange={e => setForm({ ...form, work_detail: e.target.value })} placeholder="อธิบายงานที่ดำเนินการ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า</label>
+                  <select value={form.progress} onChange={e => setForm({ ...form, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="">-- เลือก --</option>
+                    {[10,20,30,40,50,60,70,80,90,100].map(p => <option key={p} value={String(p)}>{p}%</option>)}
+                  </select>
+                </div>
+                {!editingReport && (
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                    <select value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
+                <input type="text" value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} list="reporter-list" placeholder="ชื่อวิศวกร / ช่างควบคุมงาน" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <datalist id="reporter-list">{reporterNames.map(name => <option key={name} value={name} />)}</datalist>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ปัญหา / ข้อสังเกต</label>
+                <input type="text" value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })} placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน</label>
+                <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setDailyPhoto(f); setDailyPhotoPreview(URL.createObjectURL(f)); } }} />
+                  {uploadingDailyPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
+                  <span className="text-sm text-aviva-secondary/60 flex-1">{dailyPhoto ? dailyPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
+                  {dailyPhotoPreview && <img src={dailyPhotoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
+                </label>
+              </div>
+            </div>
+            <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}</button>
+          </div>
+        </div>
+      )}
+
+      {showHouseEditModal && editingHouse && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">แก้ไขยูนิต — {editingHouse.house_number}</h2>
+              <button onClick={() => { setShowHouseEditModal(false); setEditingHouse(null); }}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">หมายเลขยูนิต</label>
+                  <input type="text" value={houseForm.house_number} onChange={e => setHouseForm({ ...houseForm, house_number: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                  <select value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับเหมา</label>
+                <input type="text" value={houseForm.contractor} onChange={e => setHouseForm({ ...houseForm, contractor: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">เฟส / ขั้นตอน</label>
+                <input type="text" value={houseForm.phase} onChange={e => setHouseForm({ ...houseForm, phase: e.target.value })} placeholder="เช่น งานโครงสร้าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า (%)</label>
+                  <input type="number" min="0" max="100" value={houseForm.progress} onChange={e => setHouseForm({ ...houseForm, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ล่าช้า (วัน)</label>
+                  <input type="number" min="0" value={houseForm.delayed_days} onChange={e => setHouseForm({ ...houseForm, delayed_days: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ</label>
+                  <input type="date" value={houseForm.planned_completion_date} onChange={e => setHouseForm({ ...houseForm, planned_completion_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">วิศวกร/ช่างควบคุม</label>
+                  <input type="text" value={houseForm.site_engineer} onChange={e => setHouseForm({ ...houseForm, site_engineer: e.target.value })} placeholder="ชื่อวิศวกรประจำยูนิต" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+            </div>
+            <button onClick={handleSaveHouse} disabled={saving} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}</button>
           </div>
         </div>
       )}
@@ -1057,34 +1290,6 @@ export default function ConstructionPage() {
           </div>
         </div>
       )}
-
-      <button
-        onClick={async () => {
-          const today = new Date().toISOString().split("T")[0];
-          const items: AutoReportItem[] = [];
-          const { data: rpts } = await supabase
-            .from("construction_reports")
-            .select("work_detail,work_type,issue")
-            .eq("project_id", PROJECT_ID)
-            .gte("created_at", today);
-          (rpts ?? []).forEach((r: { work_detail: string; work_type: string | null; issue: string }) => {
-            items.push({ category: "activity", description: `${r.work_type ?? "งาน"}: ${r.work_detail}${r.issue ? ` — ${r.issue}` : ""}` });
-          });
-          setReportAutoItems(items);
-          setShowReportModal(true);
-        }}
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
-      >
-        <Send size={14} /> ส่งรายงานวัน
-      </button>
-
-      <ReportSubmitModal
-        open={showReportModal}
-        onClose={() => setShowReportModal(false)}
-        department={user?.department ?? "ฝ่ายก่อสร้าง"}
-        autoItems={reportAutoItems}
-        onSubmitted={() => setToast({ msg: "ส่งรายงานประจำวันเรียบร้อยแล้ว", type: "success" })}
-      />
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>

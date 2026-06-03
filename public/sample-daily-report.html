@@ -16,6 +16,7 @@
     font-size: 14px;
   }
 
+  /* ====== PRINT STYLES ====== */
   @media print {
     body { background: white; }
     .no-print { display: none !important; }
@@ -25,6 +26,7 @@
     @page { size: A4; margin: 15mm 15mm 20mm 15mm; }
   }
 
+  /* ====== SCREEN PREVIEW ====== */
   .screen-toolbar {
     position: fixed; top: 0; left: 0; right: 0;
     background: #1a2e23;
@@ -45,6 +47,7 @@
 
   .page-wrapper { padding: 80px 24px 40px; max-width: 840px; margin: 0 auto; }
 
+  /* ====== PAGE ====== */
   .page {
     background: white;
     border-radius: 12px;
@@ -52,6 +55,7 @@
     overflow: hidden;
   }
 
+  /* ====== HEADER ====== */
   .report-header {
     background: linear-gradient(135deg, #1E4A35 0%, #0D2B1E 100%);
     padding: 32px 36px;
@@ -72,7 +76,9 @@
   .report-date {
     font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 4px;
   }
-  .header-stamp { text-align: right; }
+  .header-stamp {
+    text-align: right;
+  }
   .stamp-badge {
     display: inline-block;
     background: rgba(212,175,55,0.15);
@@ -85,6 +91,7 @@
     display: block; font-size: 10px; color: rgba(212,175,55,0.7); margin-top: 2px;
   }
 
+  /* Summary bar */
   .summary-bar {
     display: grid; grid-template-columns: repeat(4, 1fr);
     gap: 16px; margin-top: 20px;
@@ -104,6 +111,7 @@
     margin-top: 4px;
   }
 
+  /* ====== BODY ====== */
   .report-body { padding: 28px 36px 36px; }
 
   .section-card {
@@ -139,6 +147,7 @@
     border-radius: 6px; padding: 2px 10px;
   }
 
+  /* Employee cards */
   .employee-list { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
 
   .employee-card {
@@ -195,6 +204,7 @@
   .activity-text { font-size: 13px; color: #333; margin-top: 2px; line-height: 1.5; }
   .activity-meta { font-size: 11px; color: #999; margin-top: 3px; }
 
+  /* Photo grid */
   .photo-row {
     display: grid; grid-template-columns: repeat(4, 1fr);
     gap: 8px; margin-top: 10px; padding-top: 10px;
@@ -207,7 +217,9 @@
     background: #e8e8e0;
     position: relative;
   }
-  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
   .photo-placeholder {
     width: 100%; height: 100%;
     display: flex; flex-direction: column;
@@ -218,8 +230,12 @@
   .photo-placeholder span {
     font-size: 10px; color: #5a7a68; margin-top: 4px; font-weight: 500;
   }
-  .photo-caption { font-size: 10px; color: #888; text-align: center; margin-top: 4px; }
 
+  .photo-caption {
+    font-size: 10px; color: #888; text-align: center; margin-top: 4px;
+  }
+
+  /* Status badge */
   .status-badge {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 11px; font-weight: 600; border-radius: 4px;
@@ -230,11 +246,19 @@
   .status-pending { background: #fef3c7; color: #ca8a04; }
   .status-done { background: #dbeafe; color: #2563eb; }
 
-  .progress-inline { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-  .progress-bar { flex: 1; height: 6px; background: #e8e8e0; border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; border-radius: 3px; background: #1E4A35; }
+  /* Progress bar inline */
+  .progress-inline {
+    display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  }
+  .progress-bar {
+    flex: 1; height: 6px; background: #e8e8e0; border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px; background: #1E4A35;
+  }
   .progress-pct { font-size: 12px; font-weight: 600; color: #1E4A35; }
 
+  /* ====== FOOTER ====== */
   .report-footer {
     margin: 0 36px 36px;
     padding: 20px;
@@ -247,7 +271,10 @@
     gap: 24px; margin-top: 16px;
   }
   .sig-box { text-align: center; }
-  .sig-line { border-bottom: 1px solid #aaa; margin: 40px 16px 6px; }
+  .sig-line {
+    border-bottom: 1px solid #aaa;
+    margin: 40px 16px 6px;
+  }
   .sig-label { font-size: 12px; color: #555; }
   .sig-role { font-size: 11px; color: #888; margin-top: 2px; }
 
@@ -260,15 +287,20 @@
 </style>
 </head>
 <body>
+
+<!-- Toolbar (screen only) -->
 <div class="screen-toolbar no-print">
   <span class="logo">✦ AVIVA ONE</span>
   <div style="display:flex;gap:10px;align-items:center">
     <span style="color:rgba(255,255,255,0.5);font-size:12px">ตัวอย่างรายงาน — กดพิมพ์เพื่อบันทึก PDF</span>
-    <button class="btn-print" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+    <button class="btn-print" id="btnPrint">&#128424; พิมพ์ / บันทึก PDF</button>
   </div>
 </div>
+
 <div class="page-wrapper">
 <div class="page">
+
+  <!-- ====== HEADER ====== -->
   <div class="report-header">
     <div class="header-top">
       <div>
@@ -277,24 +309,52 @@
         <div class="report-date">วันอังคารที่ 3 มิถุนายน 2569 &nbsp;|&nbsp; โครงการ AVIVA ONE</div>
       </div>
       <div class="header-stamp">
-        <div class="stamp-badge">เอกสารภายใน<span class="ref">AVIVA-RPT-2026-06-03</span></div>
+        <div class="stamp-badge">
+          เอกสารภายใน
+          <span class="ref">AVIVA-RPT-2026-06-03</span>
+        </div>
       </div>
     </div>
     <div class="summary-bar">
-      <div class="summary-item"><div class="val">6</div><div class="lbl">ผู้ปฏิบัติงาน</div></div>
-      <div class="summary-item"><div class="val">3</div><div class="lbl">ฝ่ายงาน</div></div>
-      <div class="summary-item"><div class="val">14</div><div class="lbl">รายการงาน</div></div>
-      <div class="summary-item"><div class="val">7</div><div class="lbl">ภาพประกอบ</div></div>
+      <div class="summary-item">
+        <div class="val">6</div>
+        <div class="lbl">ผู้ปฏิบัติงาน</div>
+      </div>
+      <div class="summary-item">
+        <div class="val">3</div>
+        <div class="lbl">ฝ่ายงาน</div>
+      </div>
+      <div class="summary-item">
+        <div class="val">14</div>
+        <div class="lbl">รายการงาน</div>
+      </div>
+      <div class="summary-item">
+        <div class="val">7</div>
+        <div class="lbl">ภาพประกอบ</div>
+      </div>
     </div>
   </div>
+
+  <!-- ====== BODY ====== -->
   <div class="report-body">
+
+    <!-- CONSTRUCTION -->
     <div class="section-card dept-construction">
-      <div class="section-header"><div class="dept-icon">🏗</div><h2>ฝ่ายก่อสร้าง</h2><span class="dept-count">2 คน · 5 รายการ</span></div>
+      <div class="section-header">
+        <div class="dept-icon">🏗</div>
+        <h2>ฝ่ายก่อสร้าง</h2>
+        <span class="dept-count">2 คน · 5 รายการ</span>
+      </div>
       <div class="employee-list">
+
+        <!-- Employee 1 -->
         <div class="employee-card">
           <div class="employee-header">
             <div class="avatar avatar-green">ก</div>
-            <div class="employee-info"><div class="employee-name">นายกฤษฎา มั่นคง</div><div class="employee-role">วิศวกรโครงการ · ฝ่ายก่อสร้าง</div></div>
+            <div class="employee-info">
+              <div class="employee-name">นายกฤษฎา มั่นคง</div>
+              <div class="employee-role">วิศวกรโครงการ · ฝ่ายก่อสร้าง</div>
+            </div>
             <div class="employee-time">เริ่มงาน 08:00 น.</div>
           </div>
           <div class="employee-body">
@@ -306,74 +366,279 @@
                 <div class="activity-text" style="margin-top:6px">แปลง 9: เทปูนฐานรากเสร็จสมบูรณ์ &nbsp;<span class="status-badge status-pass">✓ ผ่าน</span></div>
                 <div class="activity-text" style="margin-top:6px">แปลง 12: งานก่ออิฐมวลเบา — พบรอยแตกร้าวมุม &nbsp;<span class="status-badge status-fail">✗ ไม่ผ่าน</span></div>
                 <div class="activity-meta">หมายเหตุ: แปลง 12 ให้ผู้รับเหมาแก้ไขภายใน 3 วัน ก่อนตรวจซ้ำ</div>
-                <div class="progress-inline"><span style="font-size:11px;color:#888;width:80px">ความคืบหน้า</span><div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div><span class="progress-pct">62%</span></div>
+                <div class="progress-inline">
+                  <span style="font-size:11px;color:#888;width:80px">ความคืบหน้า</span>
+                  <div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div>
+                  <span class="progress-pct">62%</span>
+                </div>
               </div>
             </div>
             <div class="photo-row">
-              <div><div class="photo-thumb"><div class="photo-placeholder">📸<span>แปลง 7</span></div></div><div class="photo-caption">โครงสร้างเสา</div></div>
-              <div><div class="photo-thumb"><div class="photo-placeholder">📸<span>แปลง 9</span></div></div><div class="photo-caption">เทปูนเสร็จ</div></div>
-              <div><div class="photo-thumb"><div class="photo-placeholder">📸<span>แปลง 12</span></div></div><div class="photo-caption">รอยแตกร้าว</div></div>
-              <div><div class="photo-thumb"><div class="photo-placeholder" style="background:linear-gradient(135deg,#f0f0f0,#e0e0e0);color:#aaa">➕<span style="color:#bbb">เพิ่มรูป</span></div></div></div>
+              <div>
+                <div class="photo-thumb">
+                  <div class="photo-placeholder">📸<span>แปลง 7</span></div>
+                </div>
+                <div class="photo-caption">โครงสร้างเสา</div>
+              </div>
+              <div>
+                <div class="photo-thumb">
+                  <div class="photo-placeholder">📸<span>แปลง 9</span></div>
+                </div>
+                <div class="photo-caption">เทปูนเสร็จ</div>
+              </div>
+              <div>
+                <div class="photo-thumb">
+                  <div class="photo-placeholder">📸<span>แปลง 12</span></div>
+                </div>
+                <div class="photo-caption">รอยแตกร้าว</div>
+              </div>
+              <div>
+                <div class="photo-thumb">
+                  <div class="photo-placeholder" style="background:linear-gradient(135deg,#f0f0f0,#e0e0e0);color:#aaa">➕<span style="color:#bbb">เพิ่มรูป</span></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- Employee 2 -->
         <div class="employee-card">
           <div class="employee-header">
             <div class="avatar avatar-teal">ส</div>
-            <div class="employee-info"><div class="employee-name">นายสมชาย ก่อสร้าง</div><div class="employee-role">ช่างควบคุมงาน · ฝ่ายก่อสร้าง</div></div>
+            <div class="employee-info">
+              <div class="employee-name">นายสมชาย ก่อสร้าง</div>
+              <div class="employee-role">ช่างควบคุมงาน · ฝ่ายก่อสร้าง</div>
+            </div>
             <div class="employee-time">เริ่มงาน 07:30 น.</div>
           </div>
           <div class="employee-body">
-            <div class="activity-row"><div class="activity-dot dot-blue"></div><div class="activity-content"><div class="activity-label">งานรายวัน</div><div class="activity-text">ดูแลการเทปูนฐานราก แปลง 13-15 ร่วมกับผู้รับเหมา บริษัท ABC Construction</div><div class="activity-meta">ปริมาณคอนกรีต: 12 คิว · เสร็จ 80% · คาดเสร็จพรุ่งนี้</div></div></div>
-            <div class="activity-row"><div class="activity-dot dot-yellow"></div><div class="activity-content"><div class="activity-label">ปัญหา/อุปสรรค</div><div class="activity-text">รถเทปูนมาสาย 1 ชั่วโมง ทำให้งานล่าช้า — ประสานผู้รับเหมาให้แก้ไขตารางการส่งคอนกรีต</div></div></div>
+            <div class="activity-row">
+              <div class="activity-dot dot-blue"></div>
+              <div class="activity-content">
+                <div class="activity-label">งานรายวัน</div>
+                <div class="activity-text">ดูแลการเทปูนฐานราก แปลง 13-15 ร่วมกับผู้รับเหมา บริษัท ABC Construction</div>
+                <div class="activity-meta">ปริมาณคอนกรีต: 12 คิว · เสร็จ 80% · คาดเสร็จพรุ่งนี้</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-dot dot-yellow"></div>
+              <div class="activity-content">
+                <div class="activity-label">ปัญหา/อุปสรรค</div>
+                <div class="activity-text">รถเทปูนมาสาย 1 ชั่วโมง ทำให้งานล่าช้า — ประสานผู้รับเหมาให้แก้ไขตารางการส่งคอนกรีต</div>
+              </div>
+            </div>
+            <div class="photo-row">
+              <div>
+                <div class="photo-thumb">
+                  <div class="photo-placeholder">📸<span>แปลง 13</span></div>
+                </div>
+                <div class="photo-caption">เทปูนฐานราก</div>
+              </div>
+              <div>
+                <div class="photo-thumb">
+                  <div class="photo-placeholder">📸<span>แปลง 15</span></div>
+                </div>
+                <div class="photo-caption">สถานะงาน</div>
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
+
+    <!-- SALES -->
     <div class="section-card dept-sales">
-      <div class="section-header"><div class="dept-icon">🏠</div><h2>ฝ่ายขาย (CRM)</h2><span class="dept-count">2 คน · 6 รายการ</span></div>
+      <div class="section-header">
+        <div class="dept-icon">🏠</div>
+        <h2>ฝ่ายขาย (CRM)</h2>
+        <span class="dept-count">2 คน · 6 รายการ</span>
+      </div>
       <div class="employee-list">
+
         <div class="employee-card">
-          <div class="employee-header"><div class="avatar avatar-blue">ป</div><div class="employee-info"><div class="employee-name">น.ส.ปาริชาต รักขาย</div><div class="employee-role">เจ้าหน้าที่ขาย · ฝ่ายขาย</div></div><div class="employee-time">08:30 น.</div></div>
+          <div class="employee-header">
+            <div class="avatar avatar-blue">ป</div>
+            <div class="employee-info">
+              <div class="employee-name">น.ส.ปาริชาต รักขาย</div>
+              <div class="employee-role">เจ้าหน้าที่ขาย · ฝ่ายขาย</div>
+            </div>
+            <div class="employee-time">08:30 น.</div>
+          </div>
           <div class="employee-body">
-            <div class="activity-row"><div class="activity-dot dot-green"></div><div class="activity-content"><div class="activity-label">ปิดการขาย</div><div class="activity-text">คุณวีระ สุขใจ — แปลง 15 (VIVA) ราคา 3,850,000 บาท &nbsp;<span class="status-badge status-pass">✓ Booking</span></div><div class="activity-meta">ชำระมัดจำ 50,000 บาท · นัดทำสัญญา 10 มิ.ย.</div></div></div>
-            <div class="activity-row"><div class="activity-dot dot-blue"></div><div class="activity-content"><div class="activity-label">นำชมโครงการ</div><div class="activity-text">คุณมานะ-คุณมานี พาครอบครัว (4 คน) ชมแปลง 20-22 &nbsp;<span class="status-badge status-pending">⏳ ติดตาม</span></div></div></div>
+            <div class="activity-row">
+              <div class="activity-dot dot-green"></div>
+              <div class="activity-content">
+                <div class="activity-label">ปิดการขาย</div>
+                <div class="activity-text">คุณวีระ สุขใจ — แปลง 15 (VIVA) ราคา 3,850,000 บาท &nbsp;<span class="status-badge status-pass">✓ Booking</span></div>
+                <div class="activity-meta">ชำระมัดจำ 50,000 บาท · นัดทำสัญญา 10 มิ.ย.</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-dot dot-blue"></div>
+              <div class="activity-content">
+                <div class="activity-label">นำชมโครงการ</div>
+                <div class="activity-text">คุณมานะ-คุณมานี พาครอบครัว (4 คน) ชมแปลง 20-22 สนใจแปลง 21 &nbsp;<span class="status-badge status-pending">⏳ ติดตาม</span></div>
+                <div class="activity-meta">นัดโทรติดตาม 5 มิ.ย. 10:00 น.</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-dot dot-blue"></div>
+              <div class="activity-content">
+                <div class="activity-label">โทรติดตาม (5 ราย)</div>
+                <div class="activity-text">คุณสุดา — ยังพิจารณาอยู่ · คุณวิชัย — สนใจต้องขอสินเชื่อ · คุณเกษร — ไม่รับสาย (×3)</div>
+              </div>
+            </div>
           </div>
         </div>
+
         <div class="employee-card">
-          <div class="employee-header"><div class="avatar avatar-orange">น</div><div class="employee-info"><div class="employee-name">นายนพดล ชาญขาย</div><div class="employee-role">เจ้าหน้าที่ขาย · ฝ่ายขาย</div></div><div class="employee-time">08:30 น.</div></div>
+          <div class="employee-header">
+            <div class="avatar avatar-orange">น</div>
+            <div class="employee-info">
+              <div class="employee-name">นายนพดล ชาญขาย</div>
+              <div class="employee-role">เจ้าหน้าที่ขาย · ฝ่ายขาย</div>
+            </div>
+            <div class="employee-time">08:30 น.</div>
+          </div>
           <div class="employee-body">
-            <div class="activity-row"><div class="activity-dot dot-purple"></div><div class="activity-content"><div class="activity-label">งานการตลาด</div><div class="activity-text">ลง Facebook Ads แคมเปญ "มิถุนายนนี้ ราคาพิเศษ" · ยอดเข้าชม 1,240 ครั้ง</div></div></div>
-            <div class="activity-row"><div class="activity-dot dot-blue"></div><div class="activity-content"><div class="activity-label">Lead ใหม่จาก Online</div><div class="activity-text">รับ Lead ใหม่ 3 ราย จาก Facebook — บันทึกในระบบ CRM แล้ว</div></div></div>
+            <div class="activity-row">
+              <div class="activity-dot dot-purple"></div>
+              <div class="activity-content">
+                <div class="activity-label">งานการตลาด</div>
+                <div class="activity-text">ลง Facebook Ads แคมเปญ "มิถุนายนนี้ ราคาพิเศษ" · ยอดเข้าชมโพสต์ 1,240 ครั้งใน 4 ชั่วโมง</div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-dot dot-blue"></div>
+              <div class="activity-content">
+                <div class="activity-label">Lead ใหม่จาก Online</div>
+                <div class="activity-text">รับ Lead ใหม่ 3 ราย จาก Facebook — บันทึกในระบบ CRM เรียบร้อย</div>
+                <div class="activity-meta">คุณอนันต์ · คุณภัทรา · คุณสุรชัย</div>
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
+
+    <!-- OFFICE -->
     <div class="section-card dept-office">
-      <div class="section-header"><div class="dept-icon">📋</div><h2>ฝ่ายออฟฟิศ / การเงิน</h2><span class="dept-count">2 คน · 3 รายการ</span></div>
+      <div class="section-header">
+        <div class="dept-icon">📋</div>
+        <h2>ฝ่ายออฟฟิศ / การเงิน</h2>
+        <span class="dept-count">2 คน · 3 รายการ</span>
+      </div>
       <div class="employee-list">
+
         <div class="employee-card">
-          <div class="employee-header"><div class="avatar avatar-purple">จ</div><div class="employee-info"><div class="employee-name">น.ส.จิราพร บัญชีเก่ง</div><div class="employee-role">นักบัญชี · ฝ่ายการเงิน</div></div><div class="employee-time">09:00 น.</div></div>
+          <div class="employee-header">
+            <div class="avatar avatar-purple">จ</div>
+            <div class="employee-info">
+              <div class="employee-name">น.ส.จิราพร บัญชีเก่ง</div>
+              <div class="employee-role">นักบัญชี · ฝ่ายการเงิน</div>
+            </div>
+            <div class="employee-time">09:00 น.</div>
+          </div>
           <div class="employee-body">
-            <div class="activity-row"><div class="activity-dot dot-green"></div><div class="activity-content"><div class="activity-label">อนุมัติเอกสาร</div><div class="activity-text">FIN-2026-0087 วัสดุก่อสร้าง 45,000 บาท &nbsp;<span class="status-badge status-done">✓ อนุมัติ</span></div><div class="activity-text" style="margin-top:6px">PO-2026-0043 อุปกรณ์ไฟฟ้า 28,500 บาท &nbsp;<span class="status-badge status-done">✓ อนุมัติ</span></div></div></div>
+            <div class="activity-row">
+              <div class="activity-dot dot-green"></div>
+              <div class="activity-content">
+                <div class="activity-label">อนุมัติเอกสาร</div>
+                <div class="activity-text">ใบเบิกค่าใช้จ่าย FIN-2026-0087 (วัสดุก่อสร้าง 45,000 บาท) &nbsp;<span class="status-badge status-done">✓ อนุมัติ</span></div>
+                <div class="activity-text" style="margin-top:6px">ใบสั่งซื้อ PO-2026-0043 (อุปกรณ์ไฟฟ้า 28,500 บาท) &nbsp;<span class="status-badge status-done">✓ อนุมัติ</span></div>
+              </div>
+            </div>
+            <div class="activity-row">
+              <div class="activity-dot dot-yellow"></div>
+              <div class="activity-content">
+                <div class="activity-label">รอดำเนินการ</div>
+                <div class="activity-text">ใบแจ้งหนี้ค่าสาธารณูปโภค ก.ย. 2 ฉบับ — รอตรวจสอบยอด</div>
+              </div>
+            </div>
           </div>
         </div>
+
+        <div class="employee-card">
+          <div class="employee-header">
+            <div class="avatar avatar-blue">ร</div>
+            <div class="employee-info">
+              <div class="employee-name">น.ส.รัตนา เอกสาร</div>
+              <div class="employee-role">เจ้าหน้าที่ธุรการ · ฝ่ายออฟฟิศ</div>
+            </div>
+            <div class="employee-time">08:30 น.</div>
+          </div>
+          <div class="employee-body">
+            <div class="activity-row">
+              <div class="activity-dot dot-blue"></div>
+              <div class="activity-content">
+                <div class="activity-label">งานเอกสาร</div>
+                <div class="activity-text">จัดทำสัญญาจะซื้อจะขาย แปลง 15 (คุณวีระ) — ส่งให้ทนายตรวจ</div>
+                <div class="activity-meta">WR-2026-0031 · ส่งทางอีเมล 14:30 น.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
-  </div>
+
+  </div><!-- end report-body -->
+
+  <!-- ====== FOOTER ====== -->
   <div class="report-footer">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><div style="font-size:13px;font-weight:700;color:#1a2e23">สรุปภาพรวม</div><div style="font-size:12px;color:#555;margin-top:4px">รายงานฉบับนี้รวบรวมจากระบบ AVIVA ONE อัตโนมัติ · พิมพ์เมื่อ 3 มิ.ย. 2569 เวลา 17:00 น.</div></div>
-      <div style="text-align:right;font-size:12px;color:#888"><div>ยูนิตขายแล้ว: <strong style="color:#1E4A35">14 / 31</strong></div><div style="margin-top:2px">รายงานวันนี้: <strong style="color:#1E4A35">14 รายการ</strong></div></div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#1a2e23">สรุปภาพรวม</div>
+        <div style="font-size:12px;color:#555;margin-top:4px">รายงานฉบับนี้รวบรวมจากระบบ AVIVA ONE อัตโนมัติ · พิมพ์เมื่อ 3 มิ.ย. 2569 เวลา 17:00 น.</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#888">
+        <div>ยูนิตขายแล้ว: <strong style="color:#1E4A35">14 / 31</strong></div>
+        <div style="margin-top:2px">รายงานวันนี้: <strong style="color:#1E4A35">14 รายการ</strong></div>
+      </div>
     </div>
     <div class="signature-grid">
-      <div class="sig-box"><div class="sig-line"></div><div class="sig-label">นายกฤษฎา มั่นคง</div><div class="sig-role">วิศวกรโครงการ (ผู้จัดทำ)</div></div>
-      <div class="sig-box"><div class="sig-line"></div><div class="sig-label">.....................................</div><div class="sig-role">ผู้จัดการโครงการ (ผู้ตรวจสอบ)</div></div>
-      <div class="sig-box"><div class="sig-line"></div><div class="sig-label">.....................................</div><div class="sig-role">กรรมการผู้จัดการ (รับทราบ)</div></div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">นายกฤษฎา มั่นคง</div>
+        <div class="sig-role">วิศวกรโครงการ (ผู้จัดทำ)</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">.....................................</div>
+        <div class="sig-role">ผู้จัดการโครงการ (ผู้ตรวจสอบ)</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">.....................................</div>
+        <div class="sig-role">กรรมการผู้จัดการ (รับทราบ)</div>
+      </div>
     </div>
   </div>
-  <div class="footer-note"><span class="footer-brand">AVIVA ONE</span> &nbsp;·&nbsp; ระบบบริหารจัดการอสังหาริมทรัพย์ &nbsp;·&nbsp; เอกสารนี้สร้างโดยระบบอัตโนมัติ ห้ามแก้ไขโดยไม่ได้รับอนุญาต</div>
-</div>
-</div>
+
+  <div class="footer-note">
+    <span class="footer-brand">AVIVA ONE</span> &nbsp;·&nbsp; ระบบบริหารจัดการอสังหาริมทรัพย์ &nbsp;·&nbsp; เอกสารนี้สร้างโดยระบบอัตโนมัติ ห้ามแก้ไขโดยไม่ได้รับอนุญาต
+  </div>
+
+</div><!-- end page -->
+</div><!-- end page-wrapper -->
+
+<script>
+  (function() {
+    var btn = document.getElementById('btnPrint');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (window.self !== window.top) {
+        var w = window.open(location.href, '_blank');
+        if (w) { w.onload = function() { w.focus(); w.print(); }; }
+        else { alert('กรุณาเปิดไฟล์นี้ในเบราว์เซอร์โดยตรง แล้วกด Ctrl+P (หรือ Cmd+P บน Mac)'); }
+      } else {
+        window.focus();
+        window.print();
+      }
+    });
+  })();
+</script>
 </body>
 </html>

@@ -300,7 +300,7 @@
 <!-- Toolbar -->
 <div class="toolbar">
   <div class="toolbar-title">AVIVA ONE &nbsp;|&nbsp; รายงานประจำวัน ฝ่ายขาย</div>
-  <button class="btn-print" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+  <button class="btn-print" id="btnPrint">&#128424; พิมพ์ / บันทึก PDF</button>
 </div>
 
 <div class="page-wrapper">
@@ -424,7 +424,7 @@
           </tr>
           <tr>
             <td class="center">13:00</td>
-            <td><strong>คุณสุภาพร & คุณสามี</strong></td>
+            <td><strong>คุณสุภาพร &amp; คุณสามี</strong></td>
             <td class="center"><span class="badge badge-tour">นำชม</span></td>
             <td class="center">C-05</td>
             <td>นำชมแบบบ้านและแปลงจริง ชอบมาก ขอเวลาตัดสินใจ</td>
@@ -588,5 +588,21 @@
 
 </div><!-- /page-wrapper -->
 
+<script>
+  (function() {
+    var btn = document.getElementById('btnPrint');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (window.self !== window.top) {
+        var w = window.open(location.href, '_blank');
+        if (w) { w.onload = function() { w.focus(); w.print(); }; }
+        else { alert('กรุณาเปิดไฟล์นี้ในเบราว์เซอร์โดยตรง แล้วกด Ctrl+P (หรือ Cmd+P บน Mac)'); }
+      } else {
+        window.focus();
+        window.print();
+      }
+    });
+  })();
+</script>
 </body>
 </html>

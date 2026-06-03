@@ -34,6 +34,9 @@ interface WReport {
   status: "draft" | "submitted" | "late";
   late_reason?: string;
   submitted_at?: string;
+  acknowledged_by?: string;
+  acknowledged_at?: string;
+  manager_comment?: string;
 }
 
 interface WItem {
@@ -415,12 +418,30 @@ export default function ReportsPage() {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-3 p-4 bg-green-500/10 rounded-2xl border border-green-500/20">
-            <CheckCircle size={20} className="text-green-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-green-400">ส่งรายงานแล้ว</p>
-              <p className="text-xs text-aviva-secondary/70 mt-0.5">รายงานวันนี้ถูกบันทึกและส่งให้หัวหน้าเรียบร้อย</p>
+          <div className="bg-green-500/10 rounded-2xl border border-green-500/20 p-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle size={20} className="text-green-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-green-400">ส่งรายงานแล้ว</p>
+                <p className="text-xs text-aviva-secondary/70 mt-0.5">รายงานวันนี้ถูกบันทึกและส่งให้หัวหน้าเรียบร้อย</p>
+              </div>
             </div>
+            {report?.acknowledged_by && (
+              <div className="mt-3 pt-3 border-t border-green-500/20">
+                <p className="text-xs text-green-400 font-semibold">
+                  ✓ ผู้จัดการรับทราบแล้ว — {report.acknowledged_by}
+                </p>
+                {report.manager_comment && (
+                  <div className="mt-2 bg-aviva-bg/50 rounded-xl px-3 py-2 border border-aviva-gold/15">
+                    <p className="text-[10px] text-aviva-secondary mb-0.5 uppercase tracking-wider">ความเห็น</p>
+                    <p className="text-xs text-aviva-text leading-relaxed">{report.manager_comment}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {!report?.acknowledged_by && (
+              <p className="text-[10px] text-aviva-secondary/50 mt-2 ml-8">รอผู้จัดการรับทราบ...</p>
+            )}
           </div>
         )}
 

@@ -314,6 +314,14 @@ export default function ConstructionPage() {
   const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [rptLimit, setRptLimit] = useState(50);
 
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryForm, setSummaryForm] = useState({ reporter: "", contractor_summary: "", daily_summary: "", problems: "", date: "" });
+  const [summaryPhoto, setSummaryPhoto] = useState<File | null>(null);
+  const [summaryPhotoPreview, setSummaryPhotoPreview] = useState("");
+  const [uploadingSummaryPhoto, setUploadingSummaryPhoto] = useState(false);
+  const [sendingSummary, setSendingSummary] = useState(false);
+
   const instPanelRef = useRef<HTMLDivElement>(null);
 
   const fetchData = (limit = rptLimit) => {
@@ -700,6 +708,77 @@ export default function ConstructionPage() {
     fetchData();
   };
 
+  const openSummaryModal = async () => {
+    setLoadingSummary(true);
+    const today = new Date().toISOString().split("T")[0];
+    const { data: todayRpts } = await supabase
+      .from("construction_reports")
+      .select("*")
+      .gte("created_at", `${today}T00:00:00`)
+      .lte("created_at", `${today}T23:59:59`)
+      .neq("work_type", "สรุปประจำวัน")
+      .order("created_at");
+    const rpts = (todayRpts as Report[]) ?? [];
+    const dailyText = rpts.length > 0
+      ? rpts.map(r => {
+          const h = houses.find(hh => hh.id === r.house_id);
+          return `• ${h?.house_number ?? "—"}: ${r.work_detail}${r.work_type ? ` [${r.work_type}]` : ""} — ${r.progress}%${r.issue ? `\n  ⚠ ${r.issue}` : ""}`;
+        }).join("\n")
+      : "ไม่มีรายงานงานรายวันในวันนี้";
+    const todayInsps = inspections.filter(i => i.inspected_at?.startsWith(today) && i.result !== "pending");
+    const contractorText = todayInsps.length > 0
+      ? installments.filter(inst => inspections.some(i => i.contractor_installment_id === inst.id && i.inspected_at?.startsWith(today))).map(inst => {
+          const h = houses.find(hh => hh.id === inst.house_id);
+          const ii = inspections.filter(i => i.contractor_installment_id === inst.id && i.inspected_at?.startsWith(today));
+          const pass = ii.filter(i => i.result === "pass").length;
+          const fail = ii.filter(i => i.result === "fail").length;
+          return `• ${h?.house_number ?? "—"} ${inst.name}: ผ่าน ${pass}/${ii.length}${fail > 0 ? ` (ไม่ผ่าน ${fail})` : ""}`;
+        }).join("\n")
+      : "ไม่มีการบันทึกตรวจงานผู้รับเหมาในวันนี้\n(กรุณาเพิ่มรายละเอียดในช่องด้านล่าง)";
+    const openDefs = defects.filter(d => d.status === "Open");
+    const problemsText = openDefs.length > 0
+      ? `Defect เปิดอยู่ ${openDefs.length} รายการ:\n` + openDefs.slice(0, 5).map(d => {
+          const h = houses.find(hh => hh.id === d.house_id);
+          return `• ${h?.house_number ?? "—"}: ${d.description}`;
+        }).join("\n") + (openDefs.length > 5 ? `\n... และอีก ${openDefs.length - 5} รายการ` : "")
+      : "";
+    setSummaryForm({ reporter: user?.full_name ?? "", contractor_summary: contractorText, daily_summary: dailyText, problems: problemsText, date: today });
+    setSummaryPhoto(null);
+    setSummaryPhotoPreview("");
+    setLoadingSummary(false);
+    setShowSummaryModal(true);
+  };
+
+  const printSummaryReport = () => {
+    const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const photoHtml = summaryPhotoPreview ? `<div style="margin:16px 0"><img src="${summaryPhotoPreview}" style="max-width:100%;max-height:280px;border-radius:8px;border:1px solid #ddd;display:block" /></div>` : "";
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:6px}.summary-bar{display:flex;gap:12px;background:#f9f9f9;border-radius:8px;padding:10px 14px;margin-bottom:20px;border-left:3px solid #1E4A35}.sb-item{flex:1}.sb-num{font-size:18px;font-weight:900;color:#1E4A35}.sb-lbl{font-size:10px;color:#888;margin-top:2px}section{margin-bottom:20px}h3{font-size:13px;font-weight:700;color:#1E4A35;border-bottom:1px solid #e0e0e0;padding-bottom:6px;margin-bottom:10px}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.8;color:#333;margin:0;background:#fafafa;border-radius:6px;padding:10px}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ddd;padding-top:16px}.sig{text-align:center;width:180px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่: ${dateStr} &nbsp;·&nbsp; ผู้จัดทำ: ${summaryForm.reporter || "—"} &nbsp;·&nbsp; ความคืบหน้าเฉลี่ย: ${overallProgress}%</div></div><div class="summary-bar"><div class="sb-item"><div class="sb-num">${houses.length}</div><div class="sb-lbl">ยูนิตทั้งหมด</div></div><div class="sb-item"><div class="sb-num">${overallProgress}%</div><div class="sb-lbl">คืบหน้าเฉลี่ย</div></div><div class="sb-item"><div class="sb-num">${counts.complete}</div><div class="sb-lbl">เสร็จแล้ว</div></div><div class="sb-item"><div class="sb-num">${defects.filter(d=>d.status==="Open").length}</div><div class="sb-lbl">Defect เปิด</div></div></div><section><h3>งานตรวจผู้รับเหมา</h3><pre>${summaryForm.contractor_summary}</pre></section><section><h3>งานรายวัน</h3><pre>${summaryForm.daily_summary}</pre></section>${summaryForm.problems ? `<section><h3>ปัญหา / ข้อสังเกต</h3><pre>${summaryForm.problems}</pre></section>` : ""}${photoHtml}<div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">${summaryForm.reporter || "ผู้จัดทำรายงาน"}</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
+    w.document.close();
+  };
+
+  const submitSummaryReport = async () => {
+    setSendingSummary(true);
+    if (summaryPhoto) {
+      setUploadingSummaryPhoto(true);
+      const ext = summaryPhoto.name.split(".").pop() ?? "jpg";
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(`daily/summary-${Date.now()}.${ext}`, summaryPhoto, { upsert: true });
+      if (error) setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      setUploadingSummaryPhoto(false);
+    }
+    const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+    await createNotification({
+      type: "info",
+      title: "รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง",
+      message: `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · คืบหน้าเฉลี่ย ${overallProgress}%`,
+      from_dept: "ฝ่ายก่อสร้าง",
+    });
+    setSendingSummary(false);
+    setShowSummaryModal(false);
+    setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว", type: "success" });
+  };
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
@@ -712,17 +791,24 @@ export default function ConstructionPage() {
                 <p className="text-xs text-aviva-secondary">{loading ? "กำลังโหลด..." : `${houses.length} ยูนิต`}</p>
               </div>
             </div>
-            {part === "inspect" && (
-              <button onClick={() => setShowAI(p => !p)} className={clsx("flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-all", showAI ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/20")}>
-                <Bot size={14} /> AI
+            <div className="flex items-center gap-1.5">
+              <button onClick={openSummaryModal} disabled={loadingSummary}
+                className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl bg-aviva-gold/5 hover:bg-aviva-gold/10 transition-all disabled:opacity-50">
+                {loadingSummary ? <Loader2 size={11} className="animate-spin" /> : <ClipboardList size={11} />}
+                สรุปรายงาน
               </button>
-            )}
-            {part === "daily" && (
-              <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setShowModal(true); }}
-                className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-                <Plus size={14} /> รายงาน
-              </button>
-            )}
+              {part === "inspect" && (
+                <button onClick={() => setShowAI(p => !p)} className={clsx("flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-all", showAI ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/20")}>
+                  <Bot size={14} /> AI
+                </button>
+              )}
+              {part === "daily" && (
+                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setShowModal(true); }}
+                  className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+                  <Plus size={14} /> รายงาน
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={15} /> ตรวจงานผู้รับเหมา</button>
@@ -1106,6 +1192,84 @@ export default function ConstructionPage() {
           </>
         )}
       </div>
+
+      {showSummaryModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">สรุปรายงานประจำวัน</h2>
+                <p className="text-[11px] text-aviva-secondary mt-0.5">รวบรวมงานทั้งวัน — แก้ไขได้ก่อนส่ง/พิมพ์</p>
+              </div>
+              <button onClick={() => setShowSummaryModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">วันที่รายงาน</label>
+                <input type="date" value={summaryForm.date} onChange={e => setSummaryForm(p => ({ ...p, date: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
+                <input type="text" value={summaryForm.reporter} onChange={e => setSummaryForm(p => ({ ...p, reporter: e.target.value }))}
+                  placeholder="ชื่อวิศวกร / หัวหน้าทีม"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+              </div>
+            </div>
+            <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-secondary flex gap-4">
+              <span className="text-aviva-gold font-semibold">ภาพรวมวันนี้</span>
+              <span>ยูนิต: <strong className="text-aviva-text">{houses.length}</strong></span>
+              <span>คืบหน้า: <strong className="text-aviva-gold">{overallProgress}%</strong></span>
+              <span>Defect: <strong className={defects.filter(d => d.status === "Open").length > 0 ? "text-red-400" : "text-green-400"}>{defects.filter(d => d.status === "Open").length}</strong></span>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">งานตรวจผู้รับเหมา</label>
+              <textarea value={summaryForm.contractor_summary}
+                onChange={e => setSummaryForm(p => ({ ...p, contractor_summary: e.target.value }))}
+                rows={4}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">งานรายวัน</label>
+              <textarea value={summaryForm.daily_summary}
+                onChange={e => setSummaryForm(p => ({ ...p, daily_summary: e.target.value }))}
+                rows={4}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">ปัญหา / ข้อสังเกตพิเศษ</label>
+              <textarea value={summaryForm.problems}
+                onChange={e => setSummaryForm(p => ({ ...p, problems: e.target.value }))}
+                rows={3}
+                placeholder="ระบุปัญหาเพิ่มเติม หรือข้อสังเกตสำหรับผู้บริหาร..."
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">แนบรูปภาพเพิ่มเติม</label>
+              <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 hover:border-aviva-gold/40 transition-all">
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) { setSummaryPhoto(f); setSummaryPhotoPreview(URL.createObjectURL(f)); } }} />
+                <Camera size={15} className="text-aviva-secondary/60 flex-shrink-0" />
+                <span className="text-xs text-aviva-secondary/60 flex-1">{summaryPhoto ? summaryPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
+                {summaryPhotoPreview && (
+                  <img src={summaryPhotoPreview} alt="preview" className="w-14 h-14 rounded-lg object-cover border border-aviva-gold/20 flex-shrink-0" />
+                )}
+              </label>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={printSummaryReport}
+                className="flex-1 py-3 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold rounded-xl text-sm font-medium hover:bg-aviva-gold/5 transition-all">
+                <Printer size={14} /> พิมพ์รายงาน
+              </button>
+              <button onClick={submitSummaryReport}
+                disabled={sendingSummary || uploadingSummaryPhoto}
+                className="flex-1 py-3 bg-aviva-gold text-aviva-bg font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                {sendingSummary || uploadingSummaryPhoto ? <><Loader2 size={14} className="animate-spin" /> กำลังส่ง...</> : <><Send size={14} /> ส่งรายงาน</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDefectModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">

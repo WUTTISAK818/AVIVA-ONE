@@ -6,14 +6,18 @@ import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
-import AIInsightPanel from "@/components/AIInsightPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
-import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
+
+function makeLocalDocNo(prefix: string): string {
+  const now = new Date();
+  const yymm = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return `${prefix}-${yymm}-${now.getTime().toString().slice(-4)}`;
+}
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -138,7 +142,7 @@ const INSTALLMENT_NAMES = [
 ];
 
 export default function ConstructionPage() {
-  const { user } = useCurrentUser();
+  const user = useCurrentUser();
   const [houses, setHouses] = useState<House[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [defects, setDefects] = useState<Defect[]>([]);
@@ -221,7 +225,7 @@ export default function ConstructionPage() {
 
   async function submitReport() {
     if (!selectedHouse || !form.work_detail) return;
-    const docNo = await generateDocNumber("CON", PROJECT_ID);
+    const docNo = makeLocalDocNo("CON");
     const { error } = await supabase.from("construction_reports").insert({
       house_id: selectedHouse.id,
       project_id: PROJECT_ID,
@@ -236,11 +240,9 @@ export default function ConstructionPage() {
     if (!error) {
       await supabase.from("houses").update({ progress: form.progress }).eq("id", selectedHouse.id);
       await createNotification({
-        project_id: PROJECT_ID,
-        type: "construction",
+        type: "info",
         title: `รายงานงานก่อสร้าง ${selectedHouse.house_number}`,
         message: form.work_detail,
-        link: "/construction",
       });
       setForm({ work_detail: "", work_type: "", progress: 0, issue: "", photo_url: null, reported_by: "" });
       setShowForm(false);
@@ -251,8 +253,8 @@ export default function ConstructionPage() {
 
   async function submitDefect() {
     if (!form.work_detail && !defectForm.description) return;
-    const docNo = await generateDocNumber("DEF", PROJECT_ID);
-    const slaAt = calcSlaDueAt("defect", defectForm.severity);
+    const docNo = makeLocalDocNo("DEF");
+    const slaAt = calcSlaDueAt("defect");
     const { error } = await supabase.from("defects").insert({
       house_id: selectedHouse?.id ?? null,
       project_id: PROJECT_ID,
@@ -266,11 +268,9 @@ export default function ConstructionPage() {
     });
     if (!error) {
       await createNotification({
-        project_id: PROJECT_ID,
-        type: "defect",
+        type: "claim",
         title: `พบ Defect${selectedHouse ? ` บ้านเลขที่ ${selectedHouse.house_number}` : ""}`,
         message: defectForm.description,
-        link: "/construction",
       });
       setDefectForm({ defect_category: "", description: "", severity: "medium", assigned_to: "", due_date: "" });
       setShowDefectForm(false);
@@ -283,8 +283,8 @@ export default function ConstructionPage() {
     const nextStatus: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
     const next = nextStatus[inst.status];
     if (!next) return;
-    const docNo = await generateDocNumber("INS", PROJECT_ID);
-    const slaAt = calcSlaDueAt("installment", inst.status);
+    const docNo = makeLocalDocNo("INS");
+    const slaAt = calcSlaDueAt("installment");
     await supabase.from("contractor_installments").update({ status: next, doc_number: docNo, sla_due_at: slaAt }).eq("id", inst.id);
     await supabase.from("approval_logs").insert({
       project_id: PROJECT_ID,
@@ -296,11 +296,9 @@ export default function ConstructionPage() {
       note: `เปลี่ยนสถานะ ${instStatusConfig[inst.status]?.label} → ${instStatusConfig[next]?.label}`,
     });
     await createNotification({
-      project_id: PROJECT_ID,
-      type: "installment",
+      type: "approval",
       title: `งวดงาน ${inst.name} — ${instStatusConfig[next]?.label}`,
       message: `อัปเดตสถานะงวดงานเรียบร้อยแล้ว`,
-      link: "/construction",
     });
     setConfirmInst(null);
     setToast({ msg: `อัปเดตงวดงานเป็น "${instStatusConfig[next]?.label}" เรียบร้อยแล้ว`, type: "success" });
@@ -359,26 +357,38 @@ export default function ConstructionPage() {
 
   return (
     <div className="min-h-screen pb-24 space-y-6 px-4 pt-4">
-      <SectionHeader
-        icon={<HardHat className="text-aviva-gold" size={22} />}
-        title="ฝ่ายก่อสร้าง"
-        subtitle="ติดตามความคืบหน้า งวดงาน และ Defect"
-        right={
-          <div className="flex items-center gap-2">
-            <PeriodFilter value={period} onChange={setPeriod} />
-            <button onClick={() => setShowAI(v => !v)} className="p-2 rounded-xl bg-aviva-card border border-aviva-gold/20 text-aviva-gold">
-              <Bot size={18} />
-            </button>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <HardHat className="text-aviva-gold" size={22} />
+          <div>
+            <h2 className="text-base font-bold text-aviva-text">ฝ่ายก่อสร้าง</h2>
+            <p className="text-xs text-aviva-secondary mt-0.5">ติดตามความคืบหน้า งวดงาน และ Defect</p>
           </div>
-        }
-      />
+        </div>
+        <div className="flex items-center gap-2">
+          <PeriodFilter period={period} onChange={setPeriod} />
+          <button onClick={() => setShowAI(v => !v)} className="p-2 rounded-xl bg-aviva-card border border-aviva-gold/20 text-aviva-gold">
+            <Bot size={18} />
+          </button>
+        </div>
+      </div>
 
       {showAI && (
-        <AIInsightPanel
-          department="construction"
-          contextData={{ stats, recentReports: reports.slice(0, 5), recentDefects: defects.slice(0, 5) }}
-          onClose={() => setShowAI(false)}
-        />
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
+          <Bot size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs text-aviva-text leading-relaxed">
+            <p className="font-semibold text-blue-300 mb-1">ภาพรวมก่อสร้าง</p>
+            <p className="text-aviva-secondary">
+              บ้านทั้งหมด {stats.total} หลัง — เสร็จสมบูรณ์ {stats.complete} หลัง · กำลังดำเนินการ {stats.onTrack} หลัง · ล่าช้า {stats.delayed} หลัง
+            </p>
+            {stats.openDefects > 0 && (
+              <p className="text-orange-400 mt-1">⚠ Defect เปิดอยู่ {stats.openDefects} รายการ · งวดงานรอตรวจ {stats.pendingInst} งวด</p>
+            )}
+          </div>
+          <button onClick={() => setShowAI(false)} className="text-aviva-secondary/40 hover:text-aviva-secondary flex-shrink-0">
+            <X size={14} />
+          </button>
+        </div>
       )}
 
       <div className="grid grid-cols-3 gap-3">
@@ -431,7 +441,7 @@ export default function ConstructionPage() {
                 </div>
                 <Icon size={16} className={cfg.color} />
               </div>
-              <ProgressBar value={house.progress} className="mb-1" />
+              <ProgressBar label="" value={house.progress} showPercent={false} />
               <div className="flex items-center justify-between">
                 <span className={`text-xs ${cfg.color}`}>{cfg.label}</span>
                 <span className="text-xs text-aviva-secondary">{house.progress}%</span>

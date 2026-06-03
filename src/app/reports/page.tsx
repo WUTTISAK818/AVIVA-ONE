@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -64,6 +65,7 @@ const STATUS_CFG = {
 
 export default function ReportsPage() {
   const user = useCurrentUser();
+  const router = useRouter();
   const today = new Date().toISOString().split("T")[0];
   const todayThai = new Date().toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
@@ -82,8 +84,16 @@ export default function ReportsPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [toast, setToast]             = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  useEffect(() => {
+    if (user?.isManager || user?.isAdmin) {
+      router.replace("/reports/review");
+    }
+  }, [user, router]);
+
   const isLate      = new Date().getHours() >= 18;
   const isSubmitted = report?.status === "submitted" || report?.status === "late";
+
+  if (user?.isManager || user?.isAdmin) return null;
 
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToast({ msg, type });

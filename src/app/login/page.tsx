@@ -6,6 +6,7 @@ import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "
 import { supabase } from "@/lib/supabase";
 
 const DEMO_ACCOUNTS = [
+  { email: "ceo.test@aviva.th",           label: "CEO",         dept: "ฝ่ายบริหาร",      color: "text-yellow-300   bg-yellow-500/10   border-yellow-500/20" },
   { email: "demo.admin@aviva.th",        label: "Admin",       dept: "ฝ่ายบริหาร",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
   { email: "demo.sales@aviva.th",         label: "นายหน้า",     dept: "ฝ่ายขาย",          color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
   { email: "demo.finance@aviva.th",       label: "การเงิน",     dept: "ฝ่ายการเงิน",      color: "text-green-400    bg-green-500/10    border-green-500/20" },

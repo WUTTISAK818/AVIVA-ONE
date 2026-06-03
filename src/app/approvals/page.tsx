@@ -540,23 +540,40 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
   }).length;
 
   const cascadeApprove = async (log: ApprovalLog): Promise<string | null> => {
-    if (!log.source_record_id) return null;
+    const now = new Date().toISOString();
+    const approverEmail = user?.email ?? "system";
+    const approverName = user?.full_name ?? approverEmail;
     try {
       if (log.workflow_type === "Installment_Review") {
-        const { error } = await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
-        if (error) return error.message;
+        if (log.source_record_id) {
+          const { error } = await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
+          if (error) return error.message;
+        }
       } else if (log.workflow_type === "Material_Purchase") {
-        const { error } = await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-        if (error) return error.message;
+        if (log.source_record_id) {
+          const { error } = await supabase.from("purchase_orders").update({ status: "approved", approved_by: approverName, approved_at: now }).eq("id", log.source_record_id);
+          if (error) return error.message;
+        }
       } else if (log.workflow_type === "Document_Approval") {
-        const { error } = await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
-        if (error) return error.message;
+        if (log.source_record_id) {
+          const { error } = await supabase.from("documents").update({ status: "approved", approved_by: approverEmail }).eq("id", log.source_record_id);
+          if (error) return error.message;
+        }
       } else if (log.workflow_type === "Booking_Deposit") {
-        const { error } = await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
-        if (error) return error.message;
+        if (log.source_record_id) {
+          const { error } = await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
+          if (error) return error.message;
+        }
+      } else if (log.workflow_type === "Contract_Approval") {
+        if (log.source_record_id) {
+          const { error } = await supabase.from("leads").update({ status: "Closed Deal" }).eq("id", log.source_record_id);
+          if (error) return error.message;
+        }
       } else if (log.workflow_type === "Finance_Approval") {
-        const { error: e1 } = await supabase.from("approvals").update({ status: "approved", approved_by: user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-        if (e1) return e1.message;
+        if (log.source_record_id) {
+          const { error: e1 } = await supabase.from("approvals").update({ status: "approved", approved_by: approverEmail, approved_at: now }).eq("id", log.source_record_id);
+          if (e1) return e1.message;
+        }
         if (log.amount && log.amount > 0) {
           const desc = log.source_doc_index.split(" | ")[1] ?? "รายจ่ายที่อนุมัติ";
           const { data: existing } = await supabase.from("finance_transactions").select("id").eq("description", desc).eq("amount", -Math.abs(log.amount)).limit(1);
@@ -566,8 +583,39 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
           }
         }
       } else if (log.workflow_type === "Leave_Request") {
-        const { error } = await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-        if (error) return error.message;
+        if (log.source_record_id) {
+          const { error } = await supabase.from("leave_requests").update({ status: "approved", approved_by: approverEmail, approved_at: now }).eq("id", log.source_record_id);
+          if (error) return error.message;
+        }
+      }
+
+      // Auto-issue official document record for all types except Document_Approval (already has its own document)
+      if (log.workflow_type !== "Document_Approval") {
+        const { docNum, desc } = parseDocParts(log.source_doc_index);
+        const WORKFLOW_TO_CATEGORY: Record<string, string> = {
+          Installment_Review: "งวดงานก่อสร้าง",
+          Material_Purchase:  "จัดซื้อวัสดุ",
+          Finance_Approval:   "ขออนุมัติรายจ่าย",
+          Leave_Request:      "ทรัพยากรบุคคล",
+          Booking_Deposit:    "จอง",
+          Contract_Approval:  "สัญญาซื้อขาย",
+          Marketing_Budget:   "งบการตลาด",
+          Warranty_Claim:     "ซ่อมแซม",
+        };
+        const category = WORKFLOW_TO_CATEGORY[log.workflow_type] ?? "ทั่วไป";
+        const { data: existingDoc } = await supabase.from("documents").select("id").eq("doc_number", docNum).limit(1);
+        if (!existingDoc || existingDoc.length === 0) {
+          await supabase.from("documents").insert({
+            project_id: "aaaaaaaa-0000-0000-0000-000000000001",
+            doc_number: docNum,
+            name: desc || WORKFLOW_LABEL[log.workflow_type] || log.workflow_type,
+            category,
+            status: "approved",
+            approved_by: approverEmail,
+            uploaded_by: log.source_doc_index.split("โดย ")[1]?.trim() ?? "ระบบ",
+            description: `อนุมัติโดย ${approverName} · ${new Date().toLocaleDateString("th-TH")}`,
+          });
+        }
       }
     } catch (e) { return String(e); }
     return null;

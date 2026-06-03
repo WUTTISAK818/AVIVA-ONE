@@ -27,6 +27,13 @@ interface WReport {
   acknowledged_at?: string;
 }
 
+interface WeekStat {
+  date: string;
+  submitted: number;
+  late: number;
+  total: number;
+}
+
 interface WItem {
   id: string;
   category: string;
@@ -66,6 +73,7 @@ export default function ReportsReviewPage() {
   const [selItems, setSelItems]         = useState<WItem[]>([]);
   const [loading, setLoading]           = useState(false);
   const [acknowledging, setAcknowledging] = useState(false);
+  const [weekStats, setWeekStats]       = useState<WeekStat[]>([]);
 
   const canAccess = user?.isManager || user?.isAdmin;
 
@@ -84,6 +92,32 @@ export default function ReportsReviewPage() {
         setLoading(false);
       });
   }, [canAccess, selectedDate]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    const sevenDaysAgo = addDays(today, -6);
+    supabase
+      .from("work_reports")
+      .select("report_date, status")
+      .gte("report_date", sevenDaysAgo)
+      .lte("report_date", today)
+      .eq("report_type", "daily")
+      .then(({ data }) => {
+        const byDate: Record<string, { submitted: number; late: number; total: number }> = {};
+        (data ?? []).forEach((r: { report_date: string; status: string }) => {
+          if (!byDate[r.report_date]) byDate[r.report_date] = { submitted: 0, late: 0, total: 0 };
+          byDate[r.report_date].total++;
+          if (r.status === "submitted") byDate[r.report_date].submitted++;
+          if (r.status === "late") { byDate[r.report_date].submitted++; byDate[r.report_date].late++; }
+        });
+        const result: WeekStat[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = addDays(today, -i);
+          result.push({ date: d, ...(byDate[d] ?? { submitted: 0, late: 0, total: 0 }) });
+        }
+        setWeekStats(result);
+      });
+  }, [canAccess]);
 
   async function openReport(r: WReport) {
     setSelected(r);
@@ -142,6 +176,42 @@ export default function ReportsReviewPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
+
+        {weekStats.length > 0 && (
+          <GlassCard className="p-3">
+            <p className="text-[10px] text-aviva-secondary/70 uppercase tracking-wider mb-2">ภาพรวม 7 วันย้อนหลัง</p>
+            <div className="grid grid-cols-7 gap-1">
+              {weekStats.map(ws => {
+                const isSelected = ws.date === selectedDate;
+                const dayLabel = new Date(ws.date).toLocaleDateString("th-TH", { weekday: "short" }).slice(0, 2);
+                const dayNum   = new Date(ws.date).getDate();
+                const allGood  = ws.total > 0 && ws.submitted === ws.total && ws.late === 0;
+                const hasLate  = ws.late > 0;
+                const hasMiss  = ws.total > 0 && ws.submitted < ws.total;
+                const noData   = ws.total === 0;
+                const dotColor = noData ? "bg-aviva-secondary/20" : allGood ? "bg-green-500" : hasLate ? "bg-orange-400" : hasMiss ? "bg-red-400" : "bg-green-500";
+                return (
+                  <button key={ws.date} onClick={() => setSelectedDate(ws.date)}
+                    className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl transition-all ${isSelected ? "bg-aviva-gold/15 border border-aviva-gold" : "border border-transparent hover:bg-aviva-bg/50"}`}>
+                    <span className={`text-[9px] font-semibold ${isSelected ? "text-aviva-gold" : "text-aviva-secondary/60"}`}>{dayLabel}</span>
+                    <span className={`text-xs font-bold ${isSelected ? "text-aviva-gold" : "text-aviva-text"}`}>{dayNum}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                    {ws.total > 0 && (
+                      <span className={`text-[8px] font-semibold ${isSelected ? "text-aviva-gold/70" : "text-aviva-secondary/50"}`}>
+                        {ws.submitted}/{ws.total}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-3 mt-2 pt-2 border-t border-aviva-gold/10">
+              <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /><span className="text-[9px] text-aviva-secondary/50">ส่งครบ</span></div>
+              <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /><span className="text-[9px] text-aviva-secondary/50">มีล่าช้า</span></div>
+              <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" /><span className="text-[9px] text-aviva-secondary/50">ยังไม่ส่ง</span></div>
+            </div>
+          </GlassCard>
+        )}
 
         <GlassCard className="p-3">
           <div className="flex items-center gap-2">

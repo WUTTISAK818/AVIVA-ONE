@@ -77,6 +77,23 @@ export default function ReportsReviewPage() {
 
   const canAccess = user?.isManager || user?.isAdmin;
 
+  // Auto-navigate to most recent date with data when page loads
+  useEffect(() => {
+    if (!canAccess) return;
+    supabase
+      .from("work_reports")
+      .select("report_date")
+      .eq("report_type", "daily")
+      .in("status", ["submitted", "late"])
+      .order("report_date", { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setSelectedDate(data[0].report_date);
+        }
+      });
+  }, [canAccess]);
+
   useEffect(() => {
     if (!canAccess) return;
     setLoading(true);
@@ -95,12 +112,13 @@ export default function ReportsReviewPage() {
 
   useEffect(() => {
     if (!canAccess) return;
-    const sevenDaysAgo = addDays(today, -6);
+    const endD = selectedDate <= today ? selectedDate : today;
+    const sevenDaysAgo = addDays(endD, -6);
     supabase
       .from("work_reports")
       .select("report_date, status")
       .gte("report_date", sevenDaysAgo)
-      .lte("report_date", today)
+      .lte("report_date", endD)
       .eq("report_type", "daily")
       .then(({ data }) => {
         const byDate: Record<string, { submitted: number; late: number; total: number }> = {};
@@ -112,12 +130,12 @@ export default function ReportsReviewPage() {
         });
         const result: WeekStat[] = [];
         for (let i = 6; i >= 0; i--) {
-          const d = addDays(today, -i);
+          const d = addDays(endD, -i);
           result.push({ date: d, ...(byDate[d] ?? { submitted: 0, late: 0, total: 0 }) });
         }
         setWeekStats(result);
       });
-  }, [canAccess]);
+  }, [canAccess, selectedDate]);
 
   async function openReport(r: WReport) {
     setSelected(r);

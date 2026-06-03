@@ -161,6 +161,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (user.isManager || user.isAdmin) return;
 
     supabase.from("work_reports")
       .select("*")

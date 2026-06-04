@@ -71,6 +71,7 @@ interface Installment {
   amount: number;
   rejection_reason?: string | null;
   rejection_count?: number | null;
+  created_by_name?: string | null;
 }
 
 interface WorkItem {
@@ -482,15 +483,18 @@ export default function ConstructionPage() {
         setConfirmInst(null); return;
       }
     }
-    await supabase.from("contractor_installments").update({ status: newStatus }).eq("id", inst.id);
-    setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus } : i));
+    const byName = user?.full_name ?? user?.email ?? "Unknown";
+    const updatePayload: Record<string, string | null> = { status: newStatus };
+    if (newStatus === "in_review") updatePayload.created_by_name = byName;
+    await supabase.from("contractor_installments").update(updatePayload).eq("id", inst.id);
+    setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus, ...(newStatus === "in_review" ? { created_by_name: byName } : {}) } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
     const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
     if (newStatus === "in_review") {
       const docNum = await generateDocNumber("INST");
       await supabase.from("approval_logs").insert({
         workflow_type: "Installment_Review",
-        source_doc_index: `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_doc_index: `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${byName}`,
         source_record_id: inst.id,
         current_approver_role: user?.isAdmin ? "admin" : "manager",
         action_taken: "Pending",
@@ -502,8 +506,9 @@ export default function ConstructionPage() {
     await createNotification({
       type: notifType[newStatus] ?? "info",
       title: `${inst.name} — ${statusLabels[newStatus] ?? newStatus}`,
-      message: instHouse ? `ยูนิต ${instHouse.house_number}` : "",
+      message: `${instHouse ? `ยูนิต ${instHouse.house_number} · ` : ""}โดย ${byName}`,
       from_dept: "ฝ่ายก่อสร้าง",
+      to_dept: newStatus === "in_review" ? "ผู้บริหาร" : undefined,
     });
     setToast({ msg: statusLabels[newStatus] ?? newStatus, type: "success" });
     setConfirmInst(null);
@@ -979,6 +984,9 @@ export default function ConstructionPage() {
                         </button>
                         {isExpanded && (
                           <div className="mt-3 space-y-3 border-t border-aviva-gold/10 pt-3">
+                            {inst.created_by_name && (
+                              <p className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-2 py-1 rounded-lg inline-block">ส่งตรวจโดย {inst.created_by_name}</p>
+                            )}
                             {inst.status === "rejected" && inst.rejection_reason && (
                               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
                                 <p className="text-[10px] text-red-400 font-semibold mb-0.5">เหตุผลที่ปฏิเสธ</p>
@@ -1090,7 +1098,7 @@ export default function ConstructionPage() {
         {part === "daily" && (
           <>
             <div className="flex gap-2">
-              {([["reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
+              {([[ "reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
                 <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
               ))}
             </div>

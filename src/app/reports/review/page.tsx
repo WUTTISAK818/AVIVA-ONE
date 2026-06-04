@@ -47,6 +47,16 @@ interface WItem {
   source: string;
 }
 
+interface ConstructionReport {
+  house_number: string;
+  contractor: string;
+  work_detail: string;
+  work_type: string | null;
+  progress: number;
+  issue: string;
+  photo_url: string | null;
+}
+
 interface Employee {
   id: string;
   full_name: string;
@@ -94,7 +104,6 @@ export default function ReportsReviewPage() {
 
   const canAccess = user?.isManager || user?.isAdmin;
 
-  // Auto-navigate to most recent date with data when page loads
   useEffect(() => {
     if (!canAccess) return;
     supabase
@@ -109,7 +118,6 @@ export default function ReportsReviewPage() {
       });
   }, [canAccess]);
 
-  // Load active employees for missing-report tracking
   useEffect(() => {
     if (!canAccess) return;
     supabase
@@ -121,7 +129,6 @@ export default function ReportsReviewPage() {
       .then(({ data }) => setEmployees((data ?? []) as Employee[]));
   }, [canAccess]);
 
-  // Load reports for selected date
   useEffect(() => {
     if (!canAccess) return;
     setLoading(true);
@@ -138,7 +145,6 @@ export default function ReportsReviewPage() {
       });
   }, [canAccess, selectedDate]);
 
-  // 7-day stats centered on selectedDate
   useEffect(() => {
     if (!canAccess) return;
     const endD = selectedDate <= today ? selectedDate : today;
@@ -197,7 +203,6 @@ export default function ReportsReviewPage() {
     setAcknowledging(false);
   }
 
-  // Derived stats
   const submittedEmails = new Set(
     reports.filter(r => r.status === "submitted" || r.status === "late").map(r => r.user_email)
   );
@@ -220,7 +225,20 @@ export default function ReportsReviewPage() {
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Tahoma','Arial',sans-serif;font-size:13px;color:#111;background:#fff}
     @page{size:A4;margin:15mm 18mm}
+    .toolbar{position:fixed;top:0;left:0;right:0;background:#0D2B1E;padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.35);z-index:99}
+    .toolbar-title{color:#D4AF37;font-weight:700;font-size:14px;flex:1}
+    .btn-print{background:#D4AF37;color:#0D2B1E;border:none;padding:7px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-close{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:7px 16px;border-radius:6px;font-size:13px;cursor:pointer}
+    .content{margin-top:52px;padding:12px 0}
+    @media print{.toolbar{display:none!important}.content{margin-top:0!important;padding:0!important}}
   `;
+
+  function popupWrite(win: Window, title: string, bodyHtml: string) {
+    const toolbar = `<div class="toolbar"><span class="toolbar-title">AVIVA ONE — ${title}</span><button class="btn-print" onclick="window.print()">🖨️ พิมพ์</button><button class="btn-close" onclick="window.close()">✕ ปิด</button></div>`;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${A4_BASE_CSS}</style></head><body>${toolbar}<div class="content">${bodyHtml}</div></body></html>`);
+    win.document.close();
+    win.focus();
+  }
 
   function printSummary() {
     const win = window.open("", "_blank");
@@ -242,42 +260,26 @@ export default function ReportsReviewPage() {
         <td style="color:red">ยังไม่ส่ง</td>
         <td>-</td><td>-</td><td>-</td>
       </tr>`).join("");
-    win.document.write(`<!DOCTYPE html><html><head>
-      <meta charset="utf-8">
-      <title>รายงานประจำวัน ${selectedDate}</title>
-      <style>
-        ${A4_BASE_CSS}
-        body{padding:28px}
-        h1{font-size:17px;font-weight:700;margin-bottom:2px}
-        .sub{color:#666;font-size:11px;margin-bottom:18px}
-        .kpi{display:flex;gap:14px;margin-bottom:18px}
-        .kpi-card{flex:1;background:#f6f6f6;border-radius:8px;padding:10px 14px;text-align:center}
-        .kpi-num{font-size:22px;font-weight:700}
-        table{width:100%;border-collapse:collapse;font-size:12px}
-        th{background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px}
-        td{padding:6px 9px;border-bottom:1px solid #eee}
-        .footer{margin-top:18px;font-size:10px;color:#aaa}
-      </style></head><body>
-      <h1>รายงานการปฏิบัติงานประจำวัน — โครงการ AVIVA ONE</h1>
-      <div class="sub">${displayDate}</div>
-      <div class="kpi">
-        <div class="kpi-card"><div class="kpi-num">${totalActive}</div><div>พนักงานทั้งหมด</div></div>
-        <div class="kpi-card" style="color:green"><div class="kpi-num">${submitted.length}</div><div>ส่งแล้ว (${submitPct}%)</div></div>
-        <div class="kpi-card" style="color:orange"><div class="kpi-num">${late.length}</div><div>ส่งล่าช้า</div></div>
-        <div class="kpi-card" style="color:red"><div class="kpi-num">${missingEmployees.length}</div><div>ยังไม่ส่ง</div></div>
-      </div>
-      <table>
-        <thead><tr><th>ชื่อพนักงาน</th><th>ฝ่าย</th><th>สถานะ</th><th>เวลาส่ง</th><th>สรุปงาน</th><th>รับทราบโดย</th></tr></thead>
-        <tbody>${rows}${missingRows}</tbody>
-      </table>
-      <div class="footer">พิมพ์โดย: ${user?.full_name ?? ""} · ${new Date().toLocaleString("th-TH")}</div>
-      </body></html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 600);
+    const body = `
+      <div style="padding:28px">
+        <h1 style="font-size:17px;font-weight:700;margin-bottom:2px">รายงานการปฏิบัติงานประจำวัน — โครงการ AVIVA ONE</h1>
+        <div style="color:#666;font-size:11px;margin-bottom:18px">${displayDate}</div>
+        <div style="display:flex;gap:14px;margin-bottom:18px">
+          <div style="flex:1;background:#f6f6f6;border-radius:8px;padding:10px 14px;text-align:center"><div style="font-size:22px;font-weight:700">${totalActive}</div><div>พนักงานทั้งหมด</div></div>
+          <div style="flex:1;background:#f6f6f6;border-radius:8px;padding:10px 14px;text-align:center;color:green"><div style="font-size:22px;font-weight:700">${submitted.length}</div><div>ส่งแล้ว (${submitPct}%)</div></div>
+          <div style="flex:1;background:#f6f6f6;border-radius:8px;padding:10px 14px;text-align:center;color:orange"><div style="font-size:22px;font-weight:700">${late.length}</div><div>ส่งล่าช้า</div></div>
+          <div style="flex:1;background:#f6f6f6;border-radius:8px;padding:10px 14px;text-align:center;color:red"><div style="font-size:22px;font-weight:700">${missingEmployees.length}</div><div>ยังไม่ส่ง</div></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr><th style="background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px">ชื่อพนักงาน</th><th style="background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px">ฝ่าย</th><th style="background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px">สถานะ</th><th style="background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px">เวลาส่ง</th><th style="background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px">สรุปงาน</th><th style="background:#0D2B1E;color:#D4AF37;padding:7px 9px;text-align:left;font-size:11px">รับทราบโดย</th></tr></thead>
+          <tbody>${rows}${missingRows}</tbody>
+        </table>
+        <div style="margin-top:18px;font-size:10px;color:#aaa">พิมพ์โดย: ${user?.full_name ?? ""} · ${new Date().toLocaleString("th-TH")}</div>
+      </div>`;
+    popupWrite(win, `รายงานประจำวัน ${selectedDate}`, body);
   }
 
-  function buildA4PageHTML(r: WReport, items: WItem[], dateLabel: string): string {
+  function buildA4PageHTML(r: WReport, items: WItem[], dateLabel: string, constRpts?: ConstructionReport[]): string {
     const CAT_MAP: Record<string, { label: string; bg: string; color: string }> = {
       activity:    { label: "กิจกรรม",        bg: "#dbeafe", color: "#1d4ed8" },
       achievement: { label: "ผลสำเร็จ",       bg: "#dcfce7", color: "#166534" },
@@ -317,6 +319,23 @@ export default function ReportsReviewPage() {
       ${r.summary ? `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">สรุปภาพรวม</div><p style="font-size:13px;line-height:1.8">${r.summary}</p></div>` : ""}
       ${catSections ? `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">รายการกิจกรรม</div>${catSections}</div>` : `<p style="font-size:12px;color:#aaa;font-style:italic;margin-bottom:14px">ไม่มีรายการกิจกรรม</p>`}
       ${r.late_reason ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 12px;font-size:12px;color:#9a3412;margin-bottom:12px">เหตุผลที่ส่งล่าช้า: ${r.late_reason}</div>` : ""}
+      ${(constRpts && constRpts.length > 0) ? `
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">รายงานการตรวจงานก่อสร้าง (${constRpts.length} รายการ)</div>
+          ${constRpts.map(cr => `
+            <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin-bottom:8px;page-break-inside:avoid">
+              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
+                <span style="font-size:13px;font-weight:700;color:#111">${cr.house_number}</span>
+                <span style="font-size:11px;color:#555">ผู้รับเหมา: <strong style="color:#1d4ed8">${cr.contractor || "ไม่ระบุ"}</strong></span>
+              </div>
+              ${cr.work_type ? `<div style="font-size:11px;color:#666;margin-bottom:3px">ประเภทงาน: ${cr.work_type}</div>` : ""}
+              <div style="font-size:12.5px;color:#111;line-height:1.6;margin-bottom:4px">${cr.work_detail}</div>
+              <div style="font-size:11px;color:#555">ความคืบหน้า: <strong>${cr.progress}%</strong></div>
+              ${cr.issue ? `<div style="font-size:11px;color:#c0392b;margin-top:4px">⚠ ${cr.issue}</div>` : ""}
+              ${cr.photo_url ? `<div style="margin-top:8px"><img src="${cr.photo_url}" style="max-width:240px;max-height:160px;width:100%;object-fit:cover;border-radius:6px;border:1px solid #ddd;display:block" /></div>` : ""}
+            </div>
+          `).join("")}
+        </div>` : ""}
       <div style="display:flex;gap:30px;margin-top:30px;margin-bottom:12px">
         <div style="flex:1;text-align:center;font-size:11px;color:#555">
           <div style="height:1px;background:#999;margin-bottom:5px"></div>
@@ -326,7 +345,7 @@ export default function ReportsReviewPage() {
         <div style="flex:1;text-align:center;font-size:11px;color:#555">
           <div style="height:1px;background:#999;margin-bottom:5px"></div>
           <div>ลายมือชื่อผู้บังคับบัญชา</div>
-          <div style="color:#444;margin-top:3px">${r.acknowledged_by ? `(${r.acknowledged_by})` : "(..................................)"}</div>
+          <div style="color:#444;margin-top:3px">${r.acknowledged_by ? `(${r.acknowledged_by})` : "(..................................)"}` + `</div>
         </div>
       </div>
       ${r.acknowledged_by ? `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 12px;font-size:11px;color:#166534;text-align:center">✓ ผู้บริหารรับทราบแล้ว: ${r.acknowledged_by}</div>` : ""}
@@ -342,31 +361,67 @@ export default function ReportsReviewPage() {
     const itemsByReport: Record<string, WItem[]> = {};
     (allItems ?? []).forEach((item: WItem) => { (itemsByReport[item.report_id!] ??= []).push(item); });
 
+    const constByName: Record<string, ConstructionReport[]> = {};
+    const hasConstruction = reportsToShow.some(r => r.department === "ฝ่ายก่อสร้าง");
+    if (hasConstruction) {
+      const { data: constRaw } = await supabase
+        .from("construction_reports")
+        .select("work_detail, work_type, progress, issue, photo_url, reported_by, houses!inner(house_number, contractor)")
+        .gte("created_at", selectedDate + "T00:00:00")
+        .lte("created_at", selectedDate + "T23:59:59");
+      (constRaw ?? []).forEach((cr: Record<string, unknown>) => {
+        const name = cr.reported_by as string | null;
+        if (!name) return;
+        const houses = cr.houses as { house_number: string; contractor: string } | null;
+        (constByName[name] ??= []).push({
+          house_number: houses?.house_number ?? "—",
+          contractor: houses?.contractor ?? "",
+          work_detail: String(cr.work_detail ?? ""),
+          work_type: cr.work_type as string | null,
+          progress: Number(cr.progress ?? 0),
+          issue: String(cr.issue ?? ""),
+          photo_url: cr.photo_url as string | null,
+        });
+      });
+    }
+
     const win = window.open("", "_blank");
     if (!win) return;
-    const pages = reportsToShow.map((r, idx) =>
-      `<div ${idx > 0 ? 'style="page-break-before:always"' : ""}>${buildA4PageHTML(r, itemsByReport[r.id] ?? [], displayDate)}</div>`
-    ).join("");
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>รายงาน A4 รายบุคคล — ${selectedDate}</title>
-      <style>${A4_BASE_CSS}</style>
-    </head><body>${pages}</body></html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 600);
+    const pages = reportsToShow.map((r, idx) => {
+      const constRpts = r.department === "ฝ่ายก่อสร้าง" ? (constByName[r.employee_name] ?? []) : undefined;
+      return `<div ${idx > 0 ? 'style="page-break-before:always"' : ""}>${buildA4PageHTML(r, itemsByReport[r.id] ?? [], displayDate, constRpts)}</div>`;
+    }).join("");
+    popupWrite(win, `รายงาน A4 รายบุคคล — ${selectedDate}`, pages);
   }
 
-  function printSingleA4() {
+  async function printSingleA4() {
     if (!selected) return;
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>รายงาน — ${selected.employee_name}</title>
-      <style>${A4_BASE_CSS}</style>
-    </head><body>${buildA4PageHTML(selected, selItems, displayDate)}</body></html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 600);
+
+    let constRpts: ConstructionReport[] | undefined;
+    if (selected.department === "ฝ่ายก่อสร้าง") {
+      const { data: constRaw } = await supabase
+        .from("construction_reports")
+        .select("work_detail, work_type, progress, issue, photo_url, reported_by, houses!inner(house_number, contractor)")
+        .eq("reported_by", selected.employee_name)
+        .gte("created_at", selected.report_date + "T00:00:00")
+        .lte("created_at", selected.report_date + "T23:59:59");
+      constRpts = (constRaw ?? []).map((cr: Record<string, unknown>) => {
+        const houses = cr.houses as { house_number: string; contractor: string } | null;
+        return {
+          house_number: houses?.house_number ?? "—",
+          contractor: houses?.contractor ?? "",
+          work_detail: String(cr.work_detail ?? ""),
+          work_type: cr.work_type as string | null,
+          progress: Number(cr.progress ?? 0),
+          issue: String(cr.issue ?? ""),
+          photo_url: cr.photo_url as string | null,
+        };
+      });
+    }
+
+    popupWrite(win, `รายงาน — ${selected.employee_name}`, buildA4PageHTML(selected, selItems, displayDate, constRpts));
   }
 
   if (!canAccess) {
@@ -382,7 +437,6 @@ export default function ReportsReviewPage() {
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
 
-      {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -409,7 +463,6 @@ export default function ReportsReviewPage() {
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
 
-        {/* 7-day mini chart */}
         {weekStats.length > 0 && (
           <GlassCard className="p-3">
             <p className="text-[10px] text-aviva-secondary/70 uppercase tracking-wider mb-2">ภาพรวม 7 วันย้อนหลัง</p>
@@ -446,7 +499,6 @@ export default function ReportsReviewPage() {
           </GlassCard>
         )}
 
-        {/* Date navigator */}
         <GlassCard className="p-3">
           <div className="flex items-center gap-2">
             <button onClick={() => setSelectedDate(addDays(selectedDate, -1))}
@@ -465,7 +517,6 @@ export default function ReportsReviewPage() {
           </div>
         </GlassCard>
 
-        {/* Executive summary — 4 KPIs */}
         <div className="grid grid-cols-4 gap-2">
           <GlassCard className="p-3 text-center">
             <p className="text-xl font-bold text-aviva-text">{totalActive}</p>
@@ -488,7 +539,6 @@ export default function ReportsReviewPage() {
           </GlassCard>
         </div>
 
-        {/* Department filter pills */}
         {departments.length > 2 && (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {departments.map(dept => (
@@ -504,7 +554,6 @@ export default function ReportsReviewPage() {
           </div>
         )}
 
-        {/* Missing employees — collapsible */}
         {missingEmployees.length > 0 && (
           <GlassCard className="overflow-hidden border-red-500/15">
             <button onClick={() => setShowMissing(m => !m)}
@@ -537,7 +586,6 @@ export default function ReportsReviewPage() {
           </GlassCard>
         )}
 
-        {/* Report list */}
         {loading ? (
           [1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card animate-pulse" />)
         ) : filteredReports.length === 0 ? (
@@ -577,12 +625,10 @@ export default function ReportsReviewPage() {
         )}
       </div>
 
-      {/* Report detail modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[90vh] flex flex-col">
 
-            {/* Modal header */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -625,7 +671,6 @@ export default function ReportsReviewPage() {
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-0.5">
 
-              {/* Work location */}
               {selected.work_location && (
                 <div className="flex items-center gap-2 bg-aviva-gold/5 rounded-xl px-3 py-2 border border-aviva-gold/15">
                   <MapPin size={12} className="text-aviva-gold flex-shrink-0" />
@@ -633,7 +678,6 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {/* Summary */}
               {selected.summary && (
                 <div className="bg-aviva-bg/50 rounded-xl p-3">
                   <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-1.5">สรุปภาพรวม</p>
@@ -641,7 +685,6 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {/* Late reason */}
               {selected.late_reason && (
                 <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
                   <p className="text-[10px] text-orange-400 font-bold uppercase tracking-wider mb-1">เหตุผลที่ส่งล่าช้า</p>
@@ -649,7 +692,6 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {/* Activity items grouped by category */}
               {(["activity", "achievement", "issue", "plan"] as const).map(cat => {
                 const catItems = selItems.filter(i => i.category === cat);
                 if (catItems.length === 0) return null;
@@ -674,7 +716,6 @@ export default function ReportsReviewPage() {
                 <p className="text-xs text-aviva-secondary/50 text-center py-4">ยังไม่มีรายการกิจกรรม</p>
               )}
 
-              {/* Existing acknowledgment + comment */}
               {selected.acknowledged_by && (
                 <div className="bg-green-500/10 rounded-xl p-3 border border-green-500/20">
                   <div className="flex items-center gap-2 mb-1">
@@ -696,7 +737,6 @@ export default function ReportsReviewPage() {
               )}
             </div>
 
-            {/* Acknowledge + comment section */}
             {!selected.acknowledged_by && (selected.status === "submitted" || selected.status === "late") && (
               <div className="mt-4 pt-4 border-t border-aviva-gold/10 space-y-3">
                 <div>

@@ -41,6 +41,7 @@ function getNotifHref(n: Notification): string | null {
   if (n.type === "approval") return "/approvals";
   if (n.type === "claim") return "/office";
   if (n.type === "document") return "/office";
+  if (n.from_dept === "ฝ่ายก่อสร้าง") return "/construction";
   if (n.from_dept === "ฝ่ายขาย") return "/crm";
   if (n.type === "success" || n.type === "info") return "/crm";
   return null;

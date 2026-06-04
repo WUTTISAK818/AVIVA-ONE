@@ -14,6 +14,7 @@ import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
+import AttachDocButton from "@/components/AttachDocButton";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -865,9 +866,7 @@ export default function ConstructionPage() {
                 {aiMessages.length > 0 && (
                   <div className="space-y-2 max-h-52 overflow-y-auto">
                     {aiMessages.map((m, i) => (
-                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>
-                        {m.content}
-                      </div>
+                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>{m.content}</div>
                     ))}
                     {aiLoading && <div className="bg-aviva-bg rounded-xl px-3 py-2 text-xs text-aviva-secondary mr-8">กำลังประมวลผล...</div>}
                   </div>
@@ -1030,6 +1029,9 @@ export default function ConstructionPage() {
                               onSave={saveInspectionResult}
                               onUpload={uploadInspectionPhoto}
                             />
+                            <div>
+                              <AttachDocButton entityType="contractor_installment" entityId={inst.id} attachedBy={user?.full_name ?? ""} />
+                            </div>
                             {/* Dynamic sub-tasks */}
                             <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
                               <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
@@ -1098,7 +1100,7 @@ export default function ConstructionPage() {
         {part === "daily" && (
           <>
             <div className="flex gap-2">
-              {([[ "reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
+              {([[“reports”, `รายงาน (${reports.length})`], [“defects”, `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
                 <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
               ))}
             </div>

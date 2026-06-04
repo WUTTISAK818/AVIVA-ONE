@@ -127,7 +127,7 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
 };
 
 const INSTALLMENT_NAMES = [
-  "งวด 1 — งานฐานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
+  "งวด 1 — งานฝานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
   "งวด 4 — งานผนังชั้น 1", "งวด 5 — งานโครงหลังคา", "งวด 6 — งานหลังคา",
   "งวด 7 — งานผนังภายนอก", "งวด 8 — งานระบบน้ำ-ไฟ", "งวด 9 — งานตกแต่งภายใน",
   "งวด 10 — งานส่งมอบ",
@@ -353,7 +353,6 @@ export default function ConstructionPage() {
     setLoadingInst(true);
     setExpandedInst(null);
     setInspections([]);
-    // Fetch customer info for this plot (construction staff needs to know who the customer is)
     if (house.plot_number) {
       const { data: cust } = await supabase.from("leads")
         .select("customer_name,phone,status,notes,loan_approved_date,delivery_date")
@@ -894,7 +893,7 @@ export default function ConstructionPage() {
               ) : filtered.length === 0 ? (
                 <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-1.5">
                   {filtered.map(house => {
                     const isSelected = instHouse?.id === house.id;
                     const hasCustomer = house.plot_number != null && customerPlots.has(house.plot_number);
@@ -906,8 +905,7 @@ export default function ConstructionPage() {
                         {hasCustomer && !isSelected && (
                           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-aviva-gold border border-aviva-bg" />
                         )}
-                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
-                        <span className={clsx("text-base font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{(house.house_model ?? "A").charAt(0)}{house.plot_number ?? 0}</span>
                         <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
                       </button>
                     );
@@ -1032,7 +1030,6 @@ export default function ConstructionPage() {
                             <div>
                               <AttachDocButton entityType="contractor_installment" entityId={inst.id} attachedBy={user?.full_name ?? ""} />
                             </div>
-                            {/* Dynamic sub-tasks */}
                             <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
                               <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
                               {tasks.map(task => (
@@ -1100,8 +1097,10 @@ export default function ConstructionPage() {
         {part === "daily" && (
           <>
             <div className="flex gap-2">
-              {([[“reports”, `รายงาน (${reports.length})`], [“defects”, `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
-                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
+              {(["reports", "defects"] as Tab[]).map(k => (
+                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+                  {k === "reports" ? `รายงาน (${reports.length})` : openDefects ? `Defects (${openDefects})` : "Defects"}
+                </button>
               ))}
             </div>
 

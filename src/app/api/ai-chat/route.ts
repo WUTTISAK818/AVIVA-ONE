@@ -1,95 +1,282 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProject, getLeads, getHouses, getTransactions } from "@/lib/db";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT = 10;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const recent = (rateLimitMap.get(ip) ?? []).filter(t => now - t < RATE_WINDOW);
+  if (recent.length >= RATE_LIMIT) return false;
+  rateLimitMap.set(ip, [...recent, now]);
+  if (rateLimitMap.size > 5_000) {
+    for (const [key, ts] of rateLimitMap) {
+      if (ts.every(t => now - t >= RATE_WINDOW)) rateLimitMap.delete(key);
+    }
+  }
+  return true;
+}
+
+type HouseRow = { house_number: string; status: string; delayed_days?: number };
+type CampaignRow = { name: string; platform: string; status: string; leads_generated: number };
+type ProjectRow = { total_units: number; sold_units: number; construction_progress: number; sellout_forecast: string; revenue_target: number };
+
+// Build limited context for regular employees — no financial data
+function buildStaffContext(
+  userName: string,
+  userDept: string,
+  d: {
+    project: ProjectRow;
+    houses: HouseRow[];
+    leads: { status: string }[];
+    installments: unknown[];
+    pendingClaims: unknown[];
+    campaigns: CampaignRow[];
+    employees: { department: string }[];
+    empByDept: Record<string, number>;
+    newLeads: unknown[];
+    bookingLeads: unknown[];
+    closedLeads: unknown[];
+    delayedHouses: HouseRow[];
+    activeCampaigns: CampaignRow[];
+    totalLeadsCampaign: number;
+  },
+  now: Date
+): string {
+  const dept = userDept.toLowerCase();
+  const totalUnits = d.project.total_units ?? 0;
+  const soldUnits = d.project.sold_units ?? 0;
+
+  let deptSection = "";
+
+  if (dept.includes("ขาย") || dept.includes("sale") || dept.includes("crm")) {
+    const closeRate = d.leads.length > 0 ? Math.round((d.closedLeads.length / d.leads.length) * 100) : 0;
+    deptSection = `
+👥 ข้อมูล CRM (ฝ่ายขาย):
+- Leads ทั้งหมด: ${d.leads.length} ราย | New: ${d.newLeads.length} | Booking/Loan: ${d.bookingLeads.length} | ปิดแล้ว: ${d.closedLeads.length}
+- ยูนิตว่าง: ${totalUnits - soldUnits} / ทั้งหมด ${totalUnits}
+- อัตราปิดการขาย: ${closeRate}%`;
+  } else if (dept.includes("ก่อสร้าง") || dept.includes("construction")) {
+    const complete = d.houses.filter(h => h.status === "complete").length;
+    const onTrack = d.houses.filter(h => h.status === "on-track").length;
+    deptSection = `
+🏠 ข้อมูลก่อสร้าง:
+- ยูนิตทั้งหมด: ${totalUnits} | เสร็จแล้ว: ${complete} | ตามแผน: ${onTrack} | ล่าช้า: ${d.delayedHouses.length}
+- ยูนิตล่าช้า: ${d.delayedHouses.length > 0 ? d.delayedHouses.map(h => h.house_number).join(", ") : "ไม่มี"}
+- งวดงานรอตรวจสอบ: ${d.installments.length} งวด
+- แจ้งซ่อมรอดำเนินการ: ${d.pendingClaims.length} เรื่อง`;
+  } else if (dept.includes("ออฟฟิศ") || dept.includes("office") || dept.includes("hr") || dept.includes("บุคคล")) {
+    deptSection = `
+📋 ข้อมูลบุคลากร:
+- พนักงาน Active: ${d.employees.length} คน
+- แบ่งตามแผนก: ${Object.entries(d.empByDept).map(([k, v]) => `${k}: ${v}`).join(", ")}`;
+  } else if (dept.includes("หลังการขาย") || dept.includes("after") || dept.includes("warranty") || dept.includes("ซ่อม")) {
+    deptSection = `
+🔧 ข้อมูลหลังการขาย:
+- แจ้งซ่อมรอดำเนินการ: ${d.pendingClaims.length} เรื่อง`;
+  } else if (dept.includes("การตลาด") || dept.includes("marketing")) {
+    deptSection = `
+📣 ข้อมูลการตลาด:
+- แคมเปญ Active: ${d.activeCampaigns.length} แคมเปญ
+- แคมเปญ: ${d.activeCampaigns.map(c => `${c.name} (${c.platform})`).join(", ") || "ไม่มี"}
+- Leads จากแคมเปญ: ${d.totalLeadsCampaign} ราย`;
+  } else {
+    deptSection = `
+📊 ข้อมูลโครงการ:
+- ยูนิตทั้งหมด: ${totalUnits} | ขายแล้ว: ${soldUnits} | ว่าง: ${totalUnits - soldUnits}
+- ความคืบหน้าก่อสร้าง: ${d.project.construction_progress ?? 0}%`;
+  }
+
+  return `คุณคือ AVIVA AI ผู้ช่วยสำหรับพนักงาน AVIVA ONE
+ผู้ใช้: ${userName} | ฝ่าย: ${userDept}
+วันนี้: ${now.toLocaleDateString("th-TH")}
+${deptSection}
+
+⚠️ ข้อจำกัด: คุณไม่มีข้อมูลทางการเงิน รายรับ รายจ่าย งบประมาณ หรือข้อมูลระดับผู้บริหาร
+หากถูกถามเรื่องการเงินหรือข้อมูลเชิงกลยุทธ์ ให้ตอบว่า "ข้อมูลนี้สงวนสำหรับผู้บริหาร กรุณาติดต่อผู้จัดการโครงการ"
+ตอบเป็นภาษาไทย กระชับ เป็นประโยชน์`;
+}
 
 export async function POST(req: NextRequest) {
-  const { message } = await req.json();
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
 
-  if (!message) {
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const userRole: string = user.user_metadata?.role ?? "user";
+  const userDept: string = user.user_metadata?.department ?? "";
+  const userName: string = user.user_metadata?.full_name ?? "พนักงาน";
+  const isManager = ["admin", "ceo", "manager", "director", "project_manager"].includes(userRole);
+
+  let message: string;
+  let history: { role: string; content: string }[] = [];
+  try {
+    const body = await req.json();
+    message = body.message;
+    if (Array.isArray(body.history)) history = body.history.slice(-5);
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  if (!message || typeof message !== "string" || message.trim().length === 0 || message.length > 2000) {
     return NextResponse.json({ error: "No message provided" }, { status: 400 });
   }
 
-  // Fetch live data from Supabase
-  const [project, leads, houses, transactions] = await Promise.all([
-    getProject(),
-    getLeads(),
-    getHouses(),
-    getTransactions(),
-  ]);
+  const now = new Date();
+  const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  const soldUnits = project?.sold_units ?? 0;
-  const totalUnits = project?.total_units ?? 0;
-  const delayedHouses = houses.filter((h: { status: string }) => h.status === "delayed");
-  const bookingLeads = leads.filter((l: { status: string }) => l.status === "Booking" || l.status === "Loan Process");
-  const totalIncome = transactions
-    .filter((t: { transaction_type: string }) => t.transaction_type === "income")
-    .reduce((s: number, t: { amount: number }) => s + Number(t.amount), 0);
-  const totalExpenses = transactions
-    .filter((t: { transaction_type: string }) => t.transaction_type === "expense")
-    .reduce((s: number, t: { amount: number }) => s + Math.abs(Number(t.amount)), 0);
+  const results = await Promise.all([
+    supabase.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
+    supabase.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
+    supabase.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
+    supabase.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+  ]).catch(() => null);
 
-  const systemContext = `คุณคือ AVIVA AI Executive Assistant ระบบ AI วิเคราะห์ธุรกิจอสังหาริมทรัพย์หรู
-ข้อมูลโครงการ AVIVA ONE ปัจจุบัน (ข้อมูล real-time จากฐานข้อมูล):
-- ยูนิตทั้งหมด: ${totalUnits} | ขายแล้ว: ${soldUnits} | ว่าง: ${totalUnits - soldUnits}
-- รายได้รวม: ฿${(project?.revenue_actual ?? 0).toLocaleString()} | เป้า: ฿${(project?.revenue_target ?? 0).toLocaleString()}
-- ความคืบหน้าการก่อสร้าง: ${project?.construction_progress ?? 0}%
-- คาดว่าจะขายหมด: ${project?.sellout_forecast ?? "ไม่ทราบ"}
-- ยูนิตล่าช้า: ${delayedHouses.length} หน่วย (${delayedHouses.map((h: { house_number: string }) => h.house_number).join(", ")})
-- Lead ใน Booking/Loan: ${bookingLeads.length} ราย
-- รายรับล่าสุด: ฿${totalIncome.toLocaleString()} | รายจ่าย: ฿${totalExpenses.toLocaleString()}
-
-ตอบเป็นภาษาไทย กระชับ เป็นมืออาชีพ ให้คำแนะนำเชิงกลยุทธ์`;
-
-  // If no OpenAI key, return smart fallback
-  if (!OPENAI_API_KEY) {
-    return NextResponse.json({
-      response: generateFallback(message, { soldUnits, totalUnits, delayedHouses, bookingLeads }),
-    });
+  if (!results) {
+    return NextResponse.json({ response: "ไม่สามารถดึงข้อมูลโครงการได้ในขณะนี้ กรุณาลองใหม่ค่ะ" });
   }
+
+  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments] = results;
+
+  if (!project) {
+    return NextResponse.json({ response: "ไม่พบข้อมูลโครงการ กรุณาตรวจสอบการตั้งค่าค่ะ" });
+  }
+
+  const delayedHouses = (houses as HouseRow[]).filter(h => (h.delayed_days ?? 0) > 0);
+  const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Loan Process","Closed Deal"].includes(l.status));
+  const closedLeads  = (leads as {status:string}[]).filter(l => l.status === "Closed Deal");
+  const newLeads     = (leads as {status:string}[]).filter(l => l.status === "New Lead");
+
+  const allTxns = txns as {amount:number;created_at:string;transaction_type:string}[];
+  const thisMonthTxns = allTxns.filter(r => r.created_at?.startsWith(monthStr));
+  const monthIncome  = thisMonthTxns.filter(r => r.transaction_type === "income").reduce((s,r) => s + Number(r.amount), 0);
+  const monthExpense = thisMonthTxns.filter(r => r.transaction_type === "expense").reduce((s,r) => s + Math.abs(Number(r.amount)), 0);
+  const totalRevenue = allTxns.filter(r => r.transaction_type === "income").reduce((s,r) => s + Number(r.amount), 0);
+
+  const activeCampaigns = (campaigns as CampaignRow[]).filter(c => c.status === "active");
+  const totalLeadsCampaign = (campaigns as CampaignRow[]).reduce((s,c) => s + (c.leads_generated ?? 0), 0);
+  const empByDept = (employees as {department:string}[]).reduce((acc: Record<string,number>, e) => {
+    acc[e.department] = (acc[e.department] ?? 0) + 1; return acc;
+  }, {});
+
+  const systemContext = isManager
+    ? `คุณคือ AVIVA AI Executive Assistant ผู้ช่วยวิเคราะห์ธุรกิจอสังหาริมทรัพย์โครงการ AVIVA ONE
+ข้อมูล Real-time ณ วันนี้ (${now.toLocaleDateString("th-TH")}):
+
+📊 ภาพรวมโครงการ:
+- ยูนิตทั้งหมด: ${project?.total_units ?? 0} | ขายแล้ว: ${project?.sold_units ?? 0} | ว่าง: ${(project?.total_units ?? 0) - (project?.sold_units ?? 0)}
+- ความคืบหน้าก่อสร้าง: ${project?.construction_progress ?? 0}%
+- คาดขายหมด: ${project?.sellout_forecast ?? "ไม่ระบุ"}
+
+💰 การเงิน (จาก finance_transactions):
+- รายรับสะสม: ฿${totalRevenue.toLocaleString()} / เป้า ฿${(project?.revenue_target ?? 0).toLocaleString()}
+- รายรับเดือนนี้: ฿${monthIncome.toLocaleString()} | รายจ่ายเดือนนี้: ฿${monthExpense.toLocaleString()}
+- กำไรสุทธิเดือนนี้: ฿${(monthIncome - monthExpense).toLocaleString()}
+
+🏠 ก่อสร้าง:
+- ยูนิตล่าช้า: ${delayedHouses.length} หน่วย (${delayedHouses.map(h => h.house_number).join(", ") || "ไม่มี"})
+- งวดงานรออนุมัติ: ${Array.isArray(installments) ? installments.length : installments} งวด
+- แจ้งซ่อมรอดำเนินการ: ${pendingClaims.length} เรื่อง
+
+👥 CRM:
+- Leads ทั้งหมด: ${leads.length} ราย | New Lead: ${newLeads.length} | Booking+Loan: ${bookingLeads.length} | ปิดการขาย: ${closedLeads.length}
+- อัตราปิดการขาย: ${leads.length > 0 ? Math.round((closedLeads.length / leads.length) * 100) : 0}%
+
+📣 การตลาด:
+- แคมเปญ Active: ${activeCampaigns.length} แคมเปญ (${activeCampaigns.map(c => c.platform).join(", ") || "ไม่มี"})
+- Leads จากแคมเปญรวม: ${totalLeadsCampaign} ราย
+
+👔 พนักงาน:
+- พนักงาน Active: ${employees.length} คน · รออนุมัติทั้งระบบ: ${pendingApprovals.length} รายการ
+- แบ่งตามแผนก: ${Object.entries(empByDept).map(([k,v]) => `${k}: ${v}`).join(", ")}
+
+ตอบเป็นภาษาไทย กระชับ มืออาชีพ ให้คำแนะนำเชิงกลยุทธ์ที่นำไปใช้ได้จริง`
+    : buildStaffContext(userName, userDept, {
+        project: project as ProjectRow,
+        houses: houses as HouseRow[],
+        leads: leads as {status:string}[],
+        installments: installments as unknown[],
+        pendingClaims: pendingClaims as unknown[],
+        campaigns: campaigns as CampaignRow[],
+        employees: employees as {department:string}[],
+        empByDept,
+        newLeads,
+        bookingLeads,
+        closedLeads,
+        delayedHouses,
+        activeCampaigns,
+        totalLeadsCampaign,
+      }, now);
+
+  const fallbackData = { soldUnits: project?.sold_units ?? 0, totalUnits: project?.total_units ?? 0, delayedHouses, bookingLeads, monthIncome, monthExpense, pendingApprovals: pendingApprovals.length, employees: employees.length, empByDept, pendingClaims: pendingClaims.length, pendingInstallments: (installments as unknown[]).length };
+
+  if (!OPENAI_API_KEY) {
+    return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemContext },
+          ...history,
           { role: "user", content: message },
         ],
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 500,
       }),
     });
-
+    clearTimeout(timeoutId);
     const data = await res.json();
-    const response = data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่";
-    return NextResponse.json({ response });
+    return NextResponse.json({ response: data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่" });
   } catch {
-    return NextResponse.json({
-      response: generateFallback(message, { soldUnits, totalUnits, delayedHouses, bookingLeads }),
-    });
+    clearTimeout(timeoutId);
+    return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
 }
 
-function generateFallback(
-  message: string,
-  data: { soldUnits: number; totalUnits: number; delayedHouses: { house_number: string }[]; bookingLeads: unknown[] }
-) {
-  const { soldUnits, totalUnits, delayedHouses, bookingLeads } = data;
-  const pct = Math.round((soldUnits / (totalUnits || 1)) * 100);
-
-  if (message.includes("ขาย") || message.includes("Sellout") || message.includes("หมด"))
-    return `จากข้อมูลล่าสุด ขายไปแล้ว ${soldUnits}/${totalUnits} ยูนิต (${pct}%) มี ${bookingLeads.length} ราย อยู่ใน Booking/Loan Process คาดว่าจะขายหมดภายใน Q3 2026 ครับ`;
-  if (message.includes("ล่าช้า") || message.includes("ก่อสร้าง"))
-    return `มียูนิตล่าช้า ${delayedHouses.length} หน่วย: ${delayedHouses.map((h) => h.house_number).join(", ")} แนะนำส่ง Engineer เข้าตรวจสอบและเร่งงานด่วนครับ`;
-  if (message.includes("การเงิน") || message.includes("Cashflow") || message.includes("เงิน"))
-    return `รายรับมากกว่ารายจ่ายในทุกเดือนที่ผ่านมา Cashflow ยังแข็งแกร่ง แนะนำเร่งปิดการขาย ${bookingLeads.length} ราย ที่อยู่ใน pipeline เพื่อเพิ่ม Cashflow เดือนหน้าครับ`;
-  if (message.includes("ROI") || message.includes("แคมเปญ") || message.includes("การตลาด"))
-    return `แคมเปญ Facebook มี ROI สูงสุด 340% ตามด้วย Google 280% และ TikTok 215% แนะนำเพิ่มงบ Facebook อีก 20% และทดสอบ Creative ใหม่ในสัปดาห์หน้าครับ`;
-  return `จากข้อมูล AVIVA ONE ล่าสุด: ขายแล้ว ${soldUnits}/${totalUnits} ยูนิต (${pct}%), ยูนิตล่าช้า ${delayedHouses.length} หน่วย, Lead ใน pipeline ${bookingLeads.length} ราย กรุณาระบุคำถามให้ชัดเจนขึ้นเพื่อให้วิเคราะห์ได้แม่นยำกว่านี้ครับ`;
+function generateFallback(message: string, d: { soldUnits: number; totalUnits: number; delayedHouses: {house_number:string}[]; bookingLeads: unknown[]; monthIncome: number; monthExpense: number; pendingApprovals: number; employees: number; empByDept: Record<string,number>; pendingClaims: number; pendingInstallments: number; }, isManager: boolean) {
+  if (!isManager) {
+    return "ขออภัยค่ะ ไม่สามารถเชื่อมต่อกับระบบ AI ได้ในขณะนี้ กรุณาลองใหม่อีกครั้งค่ะ";
+  }
+  const pct = Math.round((d.soldUnits / (d.totalUnits || 1)) * 100);
+  const net = d.monthIncome - d.monthExpense;
+  const msg = message.toLowerCase();
+  if (msg.includes("ขาย") || msg.includes("lead") || msg.includes("ลูกค้า") || msg.includes("crm"))
+    return `ยอดขาย: ${d.soldUnits}/${d.totalUnits} ยูนิต (${pct}%) · อยู่ใน Booking/Loan/ปิดแล้ว: ${d.bookingLeads.length} ราย · แนะนำเร่งติดตาม pipeline ก่อนสิ้นเดือนค่ะ`;
+  if (msg.includes("ล่าช้า") || msg.includes("ก่อสร้าง") || msg.includes("construction"))
+    return `ยูนิตล่าช้า: ${d.delayedHouses.length} หน่วย${d.delayedHouses.length > 0 ? ` (${d.delayedHouses.map(h => h.house_number).slice(0,3).join(", ")})` : " ✅"} · งวดงานรอตรวจสอบ: ${d.pendingInstallments} งวด`;
+  if (msg.includes("การเงิน") || msg.includes("เงิน") || msg.includes("cashflow") || msg.includes("รายรับ") || msg.includes("รายจ่าย"))
+    return `เดือนนี้: รายรับ ฿${d.monthIncome.toLocaleString()} — รายจ่าย ฿${d.monthExpense.toLocaleString()} — ${net >= 0 ? "กำไร" : "ขาดทุน"} ฿${Math.abs(net).toLocaleString()} ${net >= 0 ? "✅" : "⚠️"}`;
+  if (msg.includes("อนุมัติ") || msg.includes("approval"))
+    return `รออนุมัติ: ${d.pendingApprovals} รายการ · แจ้งซ่อมรอดำเนินการ: ${d.pendingClaims} เรื่อง กรุณาตรวจสอบค่ะ`;
+  if (msg.includes("พนักงาน") || msg.includes("บุคลากร") || msg.includes("hr") || msg.includes("staff"))
+    return `พนักงาน Active: ${d.employees} คน · ${Object.entries(d.empByDept).map(([k,v]) => `${k}: ${v}`).join(", ")}`;
+  if (msg.includes("ซ่อม") || msg.includes("warranty") || msg.includes("claim"))
+    return `แจ้งซ่อมรอดำเนินการ: ${d.pendingClaims} เรื่อง แนะนำตรวจสอบและมอบหมายช่างค่ะ`;
+  return `ภาพรวม AVIVA ONE: ขาย ${pct}% (${d.soldUnits}/${d.totalUnits}) · Cashflow ${net >= 0 ? "+" : ""}฿${net.toLocaleString()} · รออนุมัติ ${d.pendingApprovals} · แจ้งซ่อม ${d.pendingClaims} เรื่อง — สอบถามเพิ่มเติมได้เลยค่ะ`;
 }

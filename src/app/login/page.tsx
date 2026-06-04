@@ -11,6 +11,7 @@ const IS_PLUS = TARGET === "plus";
 const POST_LOGIN_PATH = IS_PLUS ? "/community/announcements" : "/dashboard";
 
 const DEMO_ACCOUNTS = [
+  { email: "ceo.test@aviva.th",           label: "CEO",         dept: "ฝ่ายบริหาร",      color: "text-yellow-300   bg-yellow-500/10   border-yellow-500/20" },
   { email: "demo.admin@aviva.th",        label: "Admin",       dept: "ฝ่ายบริหาร",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
   { email: "demo.sales@aviva.th",         label: "นายหน้า",     dept: "ฝ่ายขาย",          color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
   { email: "demo.finance@aviva.th",       label: "การเงิน",     dept: "ฝ่ายการเงิน",      color: "text-green-400    bg-green-500/10    border-green-500/20" },
@@ -146,7 +147,7 @@ export default function LoginPage() {
         {showDemo && (
           <div className="mt-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl p-3 space-y-2">
             <p className="text-[10px] text-aviva-secondary/60 text-center pb-1">
-              รหัสผ่านทุกบัญชี: <span className="font-bold text-aviva-secondary">Demo1234</span>
+              กดเพื่อเข้าสู่ระบบด้วยบัญชีทดสอบ
             </p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_ACCOUNTS.map((acc) => (

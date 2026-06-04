@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, X, CheckCheck, AlertCircle, Info, CheckCircle, FileText } from "lucide-react";
+import { Bell, X, CheckCheck, AlertCircle, Info, CheckCircle, FileText, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
+import { useCurrentUser } from "@/lib/user-context";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -13,6 +15,7 @@ interface Notification {
   title: string;
   message: string;
   from_dept: string | null;
+  to_dept: string | null;
   is_read: boolean;
   created_at: string;
 }
@@ -34,10 +37,23 @@ function timeAgo(ts: string): string {
   return `${Math.floor(hrs / 24)} วันที่แล้ว`;
 }
 
+function getNotifHref(n: Notification): string | null {
+  if (n.type === "approval") return "/approvals";
+  if (n.type === "claim") return "/office";
+  if (n.type === "document") return "/office";
+  if (n.from_dept === "ฝ่ายก่อสร้าง") return "/construction";
+  if (n.from_dept === "ฝ่ายขาย") return "/crm";
+  if (n.type === "success" || n.type === "info") return "/crm";
+  return null;
+}
+
 export default function NotificationBell() {
+  const router = useRouter();
+  const currentUser = useCurrentUser();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = async () => {
@@ -47,8 +63,13 @@ export default function NotificationBell() {
       .select("*")
       .eq("project_id", PROJECT_ID)
       .order("created_at", { ascending: false })
-      .limit(30);
-    setNotifications((data as Notification[]) ?? []);
+      .limit(50);
+    const all = (data as Notification[]) ?? [];
+    // Non-managers only see notifications for their own department or system-wide
+    const visible = currentUser && !currentUser.isManager
+      ? all.filter(n => !n.to_dept || n.to_dept === currentUser.department || n.from_dept === currentUser.department)
+      : all;
+    setNotifications(visible.slice(0, 30));
     setLoading(false);
   };
 
@@ -61,7 +82,7 @@ export default function NotificationBell() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -85,12 +106,23 @@ export default function NotificationBell() {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
   };
 
+  const handleNotifClick = async (n: Notification) => {
+    if (!n.is_read) await markRead(n.id);
+    const href = getNotifHref(n);
+    if (href) { setOpen(false); router.push(href); }
+  };
+
+  const clearRead = async () => {
+    await supabase.from("notifications").delete()
+      .eq("project_id", PROJECT_ID).eq("is_read", true);
+    setNotifications((prev) => prev.filter((n) => !n.is_read));
+    setConfirmClear(false);
+  };
+
   return (
     <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10 transition-all hover:border-aviva-gold/30"
-      >
+      <button onClick={() => setOpen((o) => !o)}
+        className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10 transition-all hover:border-aviva-gold/30">
         <Bell size={18} className="text-aviva-secondary" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
@@ -98,16 +130,13 @@ export default function NotificationBell() {
           </span>
         )}
       </button>
-
       {open && (
-        <div className="absolute right-0 top-12 w-80 bg-aviva-card border border-aviva-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-12 w-80 max-w-[min(320px,calc(100vw-16px))] bg-aviva-card border border-aviva-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-aviva-gold/10">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-aviva-text">การแจ้งเตือน</h3>
               {unreadCount > 0 && (
-                <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-bold">
-                  {unreadCount} ใหม่
-                </span>
+                <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-bold">{unreadCount} ใหม่</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -116,15 +145,26 @@ export default function NotificationBell() {
                   <CheckCheck size={11} /> อ่านทั้งหมด
                 </button>
               )}
-              <button onClick={() => setOpen(false)}>
-                <X size={14} className="text-aviva-secondary" />
-              </button>
+              {notifications.some(n => n.is_read) && (
+                <button onClick={() => setConfirmClear(true)} className="flex items-center gap-1 text-[10px] text-aviva-secondary hover:text-red-400 transition-colors">
+                  <Trash2 size={11} /> ลบที่อ่านแล้ว
+                </button>
+              )}
+              <button onClick={() => setOpen(false)}><X size={14} className="text-aviva-secondary" /></button>
             </div>
           </div>
-
-          <div className="max-h-96 overflow-y-auto divide-y divide-aviva-gold/5">
+          {confirmClear && (
+            <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between gap-2">
+              <p className="text-xs text-red-400">ยืนยันลบการแจ้งเตือนที่อ่านแล้วทั้งหมด?</p>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => setConfirmClear(false)} className="text-[10px] px-2 py-1 rounded-lg bg-aviva-bg border border-aviva-gold/10 text-aviva-secondary">ยกเลิก</button>
+                <button onClick={clearRead} className="text-[10px] px-2 py-1 rounded-lg bg-red-500 text-white font-bold">ลบ</button>
+              </div>
+            </div>
+          )}
+          <div className="max-h-[min(384px,60vh)] overflow-y-auto divide-y divide-aviva-gold/5">
             {loading ? (
-              [1, 2, 3].map((i) => (
+              [1,2,3].map(i => (
                 <div key={i} className="px-4 py-3 flex items-start gap-3 animate-pulse">
                   <div className="w-7 h-7 rounded-full bg-aviva-bg/50 flex-shrink-0" />
                   <div className="flex-1 space-y-1.5">
@@ -139,32 +179,24 @@ export default function NotificationBell() {
                 <p className="text-xs text-aviva-secondary">ยังไม่มีการแจ้งเตือน</p>
               </div>
             ) : (
-              notifications.map((n) => {
+              notifications.map(n => {
                 const tc = TYPE_CONFIG[n.type] ?? TYPE_CONFIG["info"];
                 const { Icon } = tc;
+                const hasLink = !!getNotifHref(n);
                 return (
-                  <button
-                    key={n.id}
-                    onClick={() => markRead(n.id)}
-                    className={clsx(
-                      "w-full text-left px-4 py-3 flex items-start gap-3 transition-all hover:bg-aviva-gold/5",
-                      !n.is_read && "bg-aviva-gold/5 border-l-2 border-aviva-gold"
-                    )}
-                  >
+                  <button key={n.id} onClick={() => handleNotifClick(n)}
+                    className={clsx("w-full text-left px-4 py-3 flex items-start gap-3 transition-all hover:bg-aviva-gold/5",
+                      !n.is_read && "bg-aviva-gold/5 border-l-2 border-aviva-gold",
+                      hasLink && "cursor-pointer"
+                    )}>
                     <div className={clsx("w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5", tc.bg)}>
                       <Icon size={13} className={tc.color} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx("text-xs font-semibold truncate", !n.is_read ? "text-aviva-text" : "text-aviva-secondary")}>
-                        {n.title}
-                      </p>
+                      <p className={clsx("text-xs font-semibold truncate", !n.is_read ? "text-aviva-text" : "text-aviva-secondary")}>{n.title}</p>
                       <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{n.message}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        {n.from_dept && (
-                          <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">
-                            {n.from_dept}
-                          </span>
-                        )}
+                        {n.from_dept && <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{n.from_dept}</span>}
                         <span className="text-[9px] text-aviva-secondary/50">{timeAgo(n.created_at)}</span>
                       </div>
                     </div>

@@ -181,9 +181,9 @@ export default function CRMPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const [houses, setHouses] = useState<HouseSlot[]>([]);
-  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null }[]>([]);
+  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]>([]);
   const [showActModal, setShowActModal] = useState(false);
-  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "" });
+  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "", onBehalfOf: "" });
   const [savingAct, setSavingAct] = useState(false);
   const [uploadingActPhoto, setUploadingActPhoto] = useState(false);
   const [uploadingLogPhoto, setUploadingLogPhoto] = useState(false);
@@ -234,9 +234,9 @@ export default function CRMPage() {
   }, [selectedLead]);
 
   const fetchSalesActs = () => {
-    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url")
+    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url,created_by_name")
       .order("activity_date", { ascending: false }).limit(30)
-      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null }[]));
+      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]));
   };
 
   const handleAddActivity = async () => {
@@ -253,16 +253,25 @@ export default function CRMPage() {
       }
       setUploadingActPhoto(false);
     }
+    const byName = actForm.onBehalfOf.trim() || user?.full_name || user?.email || null;
     await supabase.from("sales_activities").insert({
       activity_type: actForm.activity_type,
       note: actForm.note || null,
       activity_date: actForm.activity_date,
       photo_url: photoUrl,
+      created_by_name: byName,
+    });
+    await createNotification({
+      type: "info",
+      title: `กิจกรรมฝ่ายขาย: ${actForm.activity_type}`,
+      message: `${byName ?? "ทีมขาย"} · ${new Date(actForm.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}${actForm.note ? ` — ${actForm.note}` : ""}`,
+      from_dept: "ฝ่ายขาย",
+      to_dept: "ผู้บริหาร",
     });
     if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
     setSavingAct(false);
     setShowActModal(false);
-    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "" });
+    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "", onBehalfOf: "" });
     fetchSalesActs();
   };
 
@@ -484,6 +493,13 @@ export default function CRMPage() {
     }
     await supabase.from("crm_logs").insert({ lead_id: crmLogLead.id, contact_channel: crmLogForm.channel, call_status: crmLogForm.callStatus, call_note: crmLogForm.note, photo_url: photoUrl });
     await supabase.from("leads").update({ last_contact_date: new Date().toISOString().split("T")[0] }).eq("id", crmLogLead.id);
+    await createNotification({
+      type: "info",
+      title: `ติดต่อลูกค้า: ${crmLogLead.customer_name}`,
+      message: `${crmLogForm.channel} · ${crmLogForm.callStatus}${crmLogForm.note ? ` — ${crmLogForm.note}` : ""} โดย ${user?.full_name ?? user?.email ?? "ทีมขาย"}`,
+      from_dept: "ฝ่ายขาย",
+      to_dept: "ผู้บริหาร",
+    });
     if (crmLogForm.photoPreview) URL.revokeObjectURL(crmLogForm.photoPreview);
     setSavingLog(false);
     setCrmLogLead(null);
@@ -933,13 +949,16 @@ export default function CRMPage() {
                     <div key={a.id} className="flex items-start gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0 mt-1.5" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <span className="text-xs text-aviva-text">{a.activity_type}</span>
                           {a.note && <span className="text-[10px] text-aviva-secondary truncate">— {a.note}</span>}
                           <span className="text-[10px] text-aviva-secondary/50 ml-auto flex-shrink-0">
                             {new Date(a.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
                           </span>
                         </div>
+                        {a.created_by_name && (
+                          <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">โดย {a.created_by_name}</span>
+                        )}
                         {a.photo_url && (
                           <a href={a.photo_url} target="_blank" rel="noreferrer">
                             <img src={a.photo_url} alt="รูปกิจกรรม" className="w-16 h-16 rounded-lg object-cover mt-1 border border-aviva-gold/20" />
@@ -1037,6 +1056,15 @@ export default function CRMPage() {
                   {actForm.photoPreview && <img src={actForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover ml-auto border border-aviva-gold/20" />}
                 </label>
               </div>
+              {user?.isManager && (
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">บันทึกแทน (ชื่อพนักงาน)</label>
+                  <input value={actForm.onBehalfOf}
+                    onChange={e => setActForm(f => ({ ...f, onBehalfOf: e.target.value }))}
+                    placeholder={`เว้นว่างเพื่อใช้ชื่อคุณ (${user.full_name})`}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 placeholder:text-aviva-secondary/40" />
+                </div>
+              )}
             </div>
             <button onClick={handleAddActivity} disabled={savingAct || uploadingActPhoto}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">

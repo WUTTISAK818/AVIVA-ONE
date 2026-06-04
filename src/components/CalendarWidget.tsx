@@ -158,9 +158,19 @@ export default function CalendarWidget() {
           <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronLeft size={16} className="text-aviva-secondary" />
           </button>
-          <h3 className="text-sm font-semibold text-aviva-text">
-            {MONTHS_TH[month]} {year + 543}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-aviva-text">
+              {MONTHS_TH[month]} {year + 543}
+            </h3>
+            {(year !== now.getFullYear() || month !== now.getMonth()) && (
+              <button
+                onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }}
+                className="text-[9px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-full font-bold hover:bg-aviva-gold/30 transition-colors"
+              >
+                วันนี้
+              </button>
+            )}
+          </div>
           <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronRight size={16} className="text-aviva-secondary" />
           </button>

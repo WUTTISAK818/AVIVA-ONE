@@ -858,6 +858,9 @@ function AccountingContent() {
                       <p className="text-xs text-aviva-secondary mt-0.5 truncate">{r.description}</p>
                     )}
                     <p className="text-[10px] text-aviva-secondary/60 mt-0.5">{r.receipt_date} · {r.receipt_number}</p>
+                    <div className="mt-1.5">
+                      <AttachDocButton entityType="receipt" entityId={r.id} attachedBy={user?.full_name ?? ""} />
+                    </div>
                   </div>
                   <p className={clsx("text-sm font-bold flex-shrink-0",
                     r.receipt_type === "expense" ? "text-red-400" : "text-green-400")}>
@@ -1452,6 +1455,7 @@ const emptyEmployeeForm = {
 };
 
 function HRContent() {
+  const user = useCurrentUser();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -1611,15 +1615,20 @@ function HRContent() {
           {leaveLoading ? <div className="h-12 rounded-xl bg-aviva-card/50 animate-pulse" /> : leaveList.length === 0 ? (
             <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีคำขอลา</p></GlassCard>
           ) : leaveList.map(l => (
-            <GlassCard key={l.id} className="p-3 flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
-                <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
+            <GlassCard key={l.id} className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
+                  <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
+                </div>
+                <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0",
+                  l.status === "approved" ? "bg-green-500/20 text-green-400" :
+                  l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
+                )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
               </div>
-              <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0",
-                l.status === "approved" ? "bg-green-500/20 text-green-400" :
-                l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
-              )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
+              <div className="mt-1.5">
+                <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} />
+              </div>
             </GlassCard>
           ))}
         </div>
@@ -2773,6 +2782,9 @@ function MaterialsContent() {
                     ))}
                   </div>
                 )}
+                <div className="mt-0.5">
+                  <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} />
+                </div>
                 {po.status === "pending_approval" && (user?.isManager || user?.isAdmin) && (
                   <button onClick={() => handlePOApprove(po.id)}
                     className="w-full py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">

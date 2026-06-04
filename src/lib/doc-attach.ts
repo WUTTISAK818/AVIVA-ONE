@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-export type EntityType = 'approval_log' | 'accounting_entry' | 'lead' | 'contractor_installment' | 'customer_installment' | 'leave_request';
+export type EntityType = 'approval_log' | 'accounting_entry' | 'lead' | 'contractor_installment' | 'customer_installment' | 'leave_request' | 'receipt' | 'purchase_order';
 
 export async function attachDocumentToEntity(
   entityType: EntityType,

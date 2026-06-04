@@ -391,7 +391,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.9</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.10</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -747,7 +747,7 @@ export default function DashboardPage() {
               {kpiLoading ? (
                 [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
               ) : kpiItems.length === 0 ? (
-                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้อมูล</p>
+                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้ฯมูล</p>
               ) : kpiModal === "revenue" ? (
                 kpiItems.map((item, i) => (
                   <div key={i} className="flex items-center justify-between bg-aviva-bg rounded-xl px-4 py-3">

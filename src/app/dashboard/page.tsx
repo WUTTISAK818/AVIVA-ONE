@@ -113,6 +113,7 @@ export default function DashboardPage() {
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
+  const [kpiError, setKpiError] = useState(false);
   const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number }[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
@@ -182,18 +183,27 @@ export default function DashboardPage() {
     setKpiModal(type);
     setKpiLoading(true);
     setKpiItems([]);
-    if (type === "units") {
-      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("plot_number");
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
-    } else if (type === "sold") {
-      const { data } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
-    } else if (type === "available") {
-      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("plot_number");
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
-    } else if (type === "revenue") {
-      const { data } = await supabase.from("receipts").select("amount,receipt_date,description").eq("project_id", PROJECT_ID).order("receipt_date", { ascending: false }).limit(20);
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
+    setKpiError(false);
+    try {
+      if (type === "units") {
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("plot_number");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "sold") {
+        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "available") {
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("plot_number");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "revenue") {
+        const { data, error } = await supabase.from("receipts").select("amount,receipt_date,description").eq("project_id", PROJECT_ID).order("receipt_date", { ascending: false }).limit(20);
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      }
+    } catch {
+      setKpiError(true);
     }
     setKpiLoading(false);
   };
@@ -260,7 +270,7 @@ export default function DashboardPage() {
         revenue: +((incMap[i] ?? 0).toFixed(1)),
         expense: +((expMap[i] ?? 0).toFixed(1)),
       })));
-      if (receiptsR.status === "rejected" && approvalsR.status === "rejected") setLoadError(true);
+      if (receiptsR.status === "rejected" || approvalsR.status === "rejected") setLoadError(true);
     });
 
     fetchPendingBreakdown();
@@ -324,7 +334,7 @@ export default function DashboardPage() {
           visitCount: leads.filter(l => rank(l.status) >= 2).length,
           bookedCount: leads.filter(l => rank(l.status) >= 3).length,
           loanCount: leads.filter(l => rank(l.status) >= 4).length,
-          loanApprovedCount: leads.filter(l => rank(l.status) >= 5 || l.loan_approved_date != null).length,
+          loanApprovedCount: leads.filter(l => l.loan_approved_date != null).length,
           transferCount: leads.filter(l => rank(l.status) >= 6).length,
           hot: leads.filter(l => (l.ai_score ?? 0) >= 80).length,
           warm: leads.filter(l => (l.ai_score ?? 0) >= 60 && (l.ai_score ?? 0) < 80).length,
@@ -499,7 +509,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.21</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.22</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -507,7 +517,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            {ctxUser?.isAdmin && (
+            {ctxUser?.isManager && (
               <Link href="/approvals" className="p-2 rounded-full bg-aviva-gold/10 border border-aviva-gold/30">
                 <BadgeCheck size={18} className="text-aviva-gold" />
               </Link>
@@ -948,6 +958,11 @@ export default function DashboardPage() {
             <div className="flex-1 overflow-y-auto space-y-2">
               {kpiLoading ? (
                 [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
+              ) : kpiError ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-red-400 mb-2">โหลดข้อมูลไม่สำเร็จ</p>
+                  <button onClick={() => openKpi(kpiModal!)} className="text-xs text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-3 py-1.5 rounded-lg">ลองใหม่</button>
+                </div>
               ) : kpiItems.length === 0 ? (
                 <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้อมูล</p>
               ) : kpiModal === "revenue" ? (

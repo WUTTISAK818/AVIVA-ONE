@@ -43,18 +43,21 @@ function getNotifHref(n: Notification): string | null {
   if (n.type === "document") return "/office";
   if (n.from_dept === "ฝ่ายก่อสร้าง") return "/construction";
   if (n.from_dept === "ฝ่ายขาย") return "/crm";
-  if (n.type === "success" || n.type === "info") return "/crm";
+  if (n.from_dept === "ฝ่ายการเงิน" || n.from_dept === "ฝ่ายบัญชี" || n.from_dept === "ฝ่ายออฟฟิศ") return "/office";
   return null;
 }
 
 export default function NotificationBell() {
   const router = useRouter();
   const currentUser = useCurrentUser();
+  const currentUserRef = useRef(currentUser);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
 
   const fetchNotifications = async () => {
     setLoading(true);
@@ -65,9 +68,9 @@ export default function NotificationBell() {
       .order("created_at", { ascending: false })
       .limit(50);
     const all = (data as Notification[]) ?? [];
-    // Non-managers only see notifications for their own department or system-wide
-    const visible = currentUser && !currentUser.isManager
-      ? all.filter(n => !n.to_dept || n.to_dept === currentUser.department || n.from_dept === currentUser.department)
+    const user = currentUserRef.current;
+    const visible = user && !user.isManager
+      ? all.filter(n => !n.to_dept || n.to_dept === user.department || n.from_dept === user.department)
       : all;
     setNotifications(visible.slice(0, 30));
     setLoading(false);
@@ -86,18 +89,26 @@ export default function NotificationBell() {
 
   useEffect(() => {
     if (!open) return;
-    const handle = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [open]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const markAllRead = async () => {
-    await supabase.from("notifications").update({ is_read: true })
-      .eq("project_id", PROJECT_ID).eq("is_read", false);
+    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+    await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
@@ -113,8 +124,9 @@ export default function NotificationBell() {
   };
 
   const clearRead = async () => {
-    await supabase.from("notifications").delete()
-      .eq("project_id", PROJECT_ID).eq("is_read", true);
+    const readIds = notifications.filter(n => n.is_read).map(n => n.id);
+    if (readIds.length === 0) { setConfirmClear(false); return; }
+    await supabase.from("notifications").delete().in("id", readIds);
     setNotifications((prev) => prev.filter((n) => !n.is_read));
     setConfirmClear(false);
   };
@@ -122,6 +134,8 @@ export default function NotificationBell() {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)}
+        aria-label="การแจ้งเตือน"
+        aria-expanded={open}
         className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10 transition-all hover:border-aviva-gold/30">
         <Bell size={18} className="text-aviva-secondary" />
         {unreadCount > 0 && (

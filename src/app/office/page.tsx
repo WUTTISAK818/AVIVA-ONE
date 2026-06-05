@@ -260,7 +260,7 @@ function FinanceContent() {
     if (!approval) return;
     await supabase.from("approvals").update({
       status: approved ? "approved" : "rejected",
-      approved_by: "Admin",
+      approved_by: user?.full_name ?? user?.email ?? "Admin",
       approved_at: new Date().toISOString(),
     }).eq("id", id);
     if (approved) {
@@ -1094,6 +1094,8 @@ function MarketingContent() {
   const [form, setForm] = useState(emptyCampaignForm);
   const [budgetForm, setBudgetForm] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1, budget_amount: "", executive_name: "", notes: "" });
   const [saving, setSaving] = useState(false);
+  const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
+  const [editCampForm, setEditCampForm] = useState({ spent: "", leads_generated: "", impressions: "", clicks: "", conversions: "", status: "active" });
   const [mktPeriod, setMktPeriod] = useState<Period>("month");
   const [mktStart, setMktStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [mktEnd, setMktEnd] = useState(() => new Date().toISOString().split("T")[0]);
@@ -1113,6 +1115,27 @@ function MarketingContent() {
   };
 
   useEffect(() => { fetchCampaigns(); fetchBudgets(); }, [mktStart, mktEnd]);
+
+  const openEditCampaign = (c: Campaign) => {
+    setEditCampaign(c);
+    setEditCampForm({ spent: String(c.spent), leads_generated: String(c.leads_generated), impressions: String(c.impressions ?? 0), clicks: String(c.clicks ?? 0), conversions: String(c.conversions), status: c.status });
+  };
+
+  const handleUpdateCampaign = async () => {
+    if (!editCampaign) return;
+    setSaving(true);
+    await supabase.from("campaigns").update({
+      spent: Number(editCampForm.spent) || 0,
+      leads_generated: Number(editCampForm.leads_generated) || 0,
+      impressions: Number(editCampForm.impressions) || 0,
+      clicks: Number(editCampForm.clicks) || 0,
+      conversions: Number(editCampForm.conversions) || 0,
+      status: editCampForm.status,
+    }).eq("id", editCampaign.id);
+    setSaving(false);
+    setEditCampaign(null);
+    fetchCampaigns();
+  };
 
   const filtered = filter === "all" ? campaigns : campaigns.filter(c => c.platform === filter);
   const totalLeads = campaigns.reduce((s, c) => s + c.leads_generated, 0);
@@ -1161,7 +1184,15 @@ function MarketingContent() {
     }, { onConflict: "project_id,year,month" });
     setSaving(false);
     setShowBudgetModal(false);
+    setBudgetForm({ year: new Date().getFullYear(), month: new Date().getMonth() + 1, budget_amount: "", executive_name: "", notes: "" });
     fetchBudgets();
+  };
+
+  const exportCampaignsCSV = () => {
+    const rows = [["ชื่อแคมเปญ", "Platform", "งบ", "ใช้ไป", "Leads", "Conversion", "ROI%", "สถานะ"]];
+    campaigns.forEach(c => rows.push([c.name, c.platform, String(c.budget), String(c.spent), String(c.leads_generated), String(c.conversions), String(roi(c)), c.status]));
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(csv); a.download = "campaigns.csv"; a.click();
   };
 
   return (
@@ -1218,10 +1249,16 @@ function MarketingContent() {
             title="AI: Facebook ROI สูงสุด"
             message="แคมเปญ Facebook มี ROI เฉลี่ยสูงสุด แนะนำเพิ่มงบอีก 20% และทดสอบ Creative ใหม่ในกลุ่มเป้าหมาย 35-50 ปีครับ" />
           <PeriodFilter period={mktPeriod} onChange={(p, s, e) => { setMktPeriod(p); setMktStart(s); setMktEnd(e); }} />
-          <button onClick={() => setShowModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
-            <Plus size={16} /> สร้างแคมเปญ
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setShowModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
+              <Plus size={16} /> สร้างแคมเปญ
+            </button>
+            <button onClick={exportCampaignsCSV}
+              className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary px-3 py-3 rounded-2xl text-xs">
+              <Download size={14} /> CSV
+            </button>
+          </div>
           <div>
             <SectionHeader title="แคมเปญ" subtitle="กรองตาม Platform" />
             <div className="flex gap-2 mb-4">
@@ -1257,9 +1294,13 @@ function MarketingContent() {
                                 className="text-[10px] text-blue-400 underline mt-0.5 inline-block">ดูข้อมูลแคมเปญ</a>
                             )}
                           </div>
-                          <div className="text-right flex-shrink-0">
+                          <div className="text-right flex-shrink-0 space-y-1">
                             <p className="text-lg font-bold text-aviva-gold">{roi(c)}%</p>
                             <p className="text-[10px] text-aviva-secondary">ROI</p>
+                            <button onClick={() => openEditCampaign(c)}
+                              className="text-[10px] bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 px-2 py-0.5 rounded-lg">
+                              แก้ไข
+                            </button>
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-3">
@@ -1442,6 +1483,63 @@ function MarketingContent() {
           </div>
         </div>
       )}
+
+      {/* Edit Campaign Modal */}
+      {editCampaign && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">อัปเดตแคมเปญ</h2>
+                <p className="text-xs text-aviva-secondary">{editCampaign.name}</p>
+              </div>
+              <button onClick={() => setEditCampaign(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                <select value={editCampForm.status} onChange={e => setEditCampForm(p => ({ ...p, status: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="active">กำลังทำงาน</option>
+                  <option value="paused">หยุดชั่วคราว</option>
+                  <option value="ended">สิ้นสุดแล้ว</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ยอดใช้จ่าย (฿)</label>
+                  <input type="number" value={editCampForm.spent} onChange={e => setEditCampForm(p => ({ ...p, spent: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Leads ที่ได้</label>
+                  <input type="number" value={editCampForm.leads_generated} onChange={e => setEditCampForm(p => ({ ...p, leads_generated: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Impressions</label>
+                  <input type="number" value={editCampForm.impressions} onChange={e => setEditCampForm(p => ({ ...p, impressions: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Clicks</label>
+                  <input type="number" value={editCampForm.clicks} onChange={e => setEditCampForm(p => ({ ...p, clicks: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Conversions</label>
+                  <input type="number" value={editCampForm.conversions} onChange={e => setEditCampForm(p => ({ ...p, conversions: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+            </div>
+            <button onClick={handleUpdateCampaign} disabled={saving}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : "บันทึกข้อมูลแคมเปญ"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1540,7 +1638,7 @@ function HRContent() {
     }
     const days = Math.max(1, Math.ceil((new Date(leaveForm.date_to).getTime() - new Date(leaveForm.date_from).getTime()) / 86400000) + 1);
     const docNum = await generateDocNumber("LEAVE");
-    await supabase.from("leave_requests").insert({
+    const { data: leaveData } = await supabase.from("leave_requests").insert({
       doc_number: docNum,
       employee_name: leaveForm.employee_name,
       leave_type: leaveForm.leave_type,
@@ -1549,7 +1647,19 @@ function HRContent() {
       days_count: days,
       reason: leaveForm.reason || null,
       status: "pending",
-    });
+    }).select("id").single();
+    if (leaveData?.id) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Leave_Request",
+        source_doc_index: `${docNum} | ขอ${leaveForm.leave_type} ${days} วัน (${leaveForm.date_from} – ${leaveForm.date_to}) | โดย ${leaveForm.employee_name}`,
+        source_record_id: leaveData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: 0,
+        sla_due_at: calcSlaDueAt("Leave_Request"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+    }
     await createNotification({ type: "info", title: `คำขอลาใหม่ — ${docNum}`, message: `${leaveForm.employee_name} ขอ${leaveForm.leave_type} ${days} วัน`, from_dept: "ฝ่ายบุคคล" });
     setLeaveSaving(false);
     setLeaveForm({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
@@ -1609,9 +1719,13 @@ function HRContent() {
             <p className="text-sm font-semibold text-aviva-text">ยื่นคำขอลา</p>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ชื่อพนักงาน *</label>
-              <input type="text" value={leaveForm.employee_name} onChange={e => setLeaveForm({...leaveForm, employee_name: e.target.value})}
-                placeholder="ชื่อ-นามสกุล"
-                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              <select value={leaveForm.employee_name} onChange={e => setLeaveForm({...leaveForm, employee_name: e.target.value})}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <option value="">— เลือกพนักงาน —</option>
+                {employees.filter(e => e.status === "active").map(e => (
+                  <option key={e.id} value={e.full_name}>{e.full_name} ({e.department})</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา</label>
@@ -1720,13 +1834,21 @@ function HRContent() {
         </GlassCard>
       )}
 
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> เพิ่มพนักงาน
-      </button>
+      {/* Add button + Export */}
+      <div className="flex gap-2">
+        <button onClick={() => setShowModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
+          <Plus size={16} /> เพิ่มพนักงาน
+        </button>
+        <button onClick={() => {
+          const rows = [["ชื่อ","ฝ่าย","ตำแหน่ง","เงินเดือน","สถานะ","วันเริ่มงาน"]];
+          employees.forEach(e => rows.push([e.full_name, e.department, e.position, String(e.base_salary), e.status, e.start_date]));
+          const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+          const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(csv); a.download = "employees.csv"; a.click();
+        }} className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary px-3 py-3 rounded-2xl text-xs">
+          <Download size={14} /> CSV
+        </button>
+      </div>
 
       {/* Dept Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
@@ -2013,6 +2135,7 @@ function AfterSalesContent() {
   const [saving, setSaving] = useState(false);
   const [kpiModalAS, setKpiModalAS] = useState<"all" | "pending" | "in_progress" | "resolved" | null>(null);
   const [asToast, setAsToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [resolveScore, setResolveScore] = useState<number | null>(null);
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
@@ -2065,7 +2188,9 @@ function AfterSalesContent() {
 
   const handleUpdateStatus = async (id: string, newStatus: Claim["status"]) => {
     const claim = claims.find(c => c.id === id);
-    await supabase.from("warranty_claims").update({ status: newStatus }).eq("id", id);
+    const updateData: Record<string, unknown> = { status: newStatus };
+    if (newStatus === "resolved" && resolveScore) updateData.satisfaction_score = resolveScore;
+    await supabase.from("warranty_claims").update(updateData).eq("id", id);
     const statusTh: Record<string, string> = { pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ", resolved: "แก้ไขแล้ว" };
     if (claim) {
       await createNotification({
@@ -2077,6 +2202,7 @@ function AfterSalesContent() {
       });
     }
     setSelectedClaim(null);
+    setResolveScore(null);
     fetchClaims();
   };
 
@@ -2274,6 +2400,19 @@ function AfterSalesContent() {
                   {statusConfig[s].label}
                 </button>
               ))}
+            </div>
+            <div>
+              <p className="text-xs text-aviva-secondary mb-2">คะแนนความพึงพอใจลูกค้า (ถ้ามี):</p>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setResolveScore(resolveScore === n ? null : n)}
+                    className={clsx("flex-1 py-1.5 rounded-lg text-sm font-bold border transition-all",
+                      resolveScore === n ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                    )}>
+                    {n}⭐
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -2625,7 +2764,8 @@ function MaterialsContent() {
   const [activeView, setActiveView] = useState<"stock" | "po">("stock");
   const [loading, setLoading] = useState(true);
   const [showPOModal, setShowPOModal] = useState(false);
-  const [poForm, setPoForm] = useState({ supplier_name: "", items: "", notes: "", delivery_date: "" });
+  const [poForm, setPoForm] = useState({ supplier_name: "", notes: "", delivery_date: "" });
+  const [poItemRows, setPoItemRows] = useState([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
   const [saving, setSaving] = useState(false);
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
@@ -2659,14 +2799,14 @@ function MaterialsContent() {
   };
 
   const handleCreatePO = async () => {
-    if (!poForm.supplier_name || !poForm.items) return;
+    if (!poForm.supplier_name || poItemRows.every(r => !r.name)) return;
     setSaving(true);
     const poDocNum = await generateDocNumber("PO");
-    let parsedItems = [];
-    try { parsedItems = JSON.parse(poForm.items); } catch { parsedItems = [{ name: poForm.items, qty: 1, unit: "ชิ้น", unit_price: 0 }]; }
-    const total = parsedItems.reduce((s: number, i: { qty: number; unit_price: number }) => s + (i.qty * i.unit_price), 0);
+    const parsedItems = poItemRows.filter(r => r.name).map(r => ({ name: r.name, qty: Number(r.qty) || 1, unit: r.unit || "ชิ้น", unit_price: Number(r.unit_price) || 0 }));
+    const total = parsedItems.reduce((s, i) => s + (i.qty * i.unit_price), 0);
     const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
       project_id: PROJECT_ID,
+      po_number: poDocNum,
       supplier_name: poForm.supplier_name,
       items: parsedItems,
       total_amount: total,
@@ -2696,7 +2836,8 @@ function MaterialsContent() {
     });
     setSaving(false);
     setShowPOModal(false);
-    setPoForm({ supplier_name: "", items: "", notes: "", delivery_date: "" });
+    setPoForm({ supplier_name: "", notes: "", delivery_date: "" });
+    setPoItemRows([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
     fetchMaterialsData();
   };
 
@@ -2845,9 +2986,27 @@ function MaterialsContent() {
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
-                <textarea value={poForm.items} onChange={e => setPoForm(p => ({ ...p, items: e.target.value }))}
-                  placeholder={'{"name":"เหล็กเส้น 12mm","qty":100,"unit":"เส้น","unit_price":85}'}
-                  rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 resize-none" />
+                <div className="space-y-2">
+                  {poItemRows.map((row, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-1.5 items-center">
+                      <input value={row.name} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                        placeholder="ชื่อวัสดุ" className="col-span-4 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <input type="number" value={row.qty} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
+                        placeholder="จำนวน" className="col-span-2 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <input value={row.unit} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, unit: e.target.value } : x))}
+                        placeholder="หน่วย" className="col-span-2 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <input type="number" value={row.unit_price} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, unit_price: e.target.value } : x))}
+                        placeholder="ราคา/หน่วย" className="col-span-3 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <button onClick={() => setPoItemRows(r => r.filter((_, i) => i !== idx))} disabled={poItemRows.length === 1}
+                        className="col-span-1 text-red-400/60 disabled:opacity-20 flex items-center justify-center"><X size={12} /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => setPoItemRows(r => [...r, { name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }])}
+                    className="text-xs text-aviva-gold/70 flex items-center gap-1 mt-1"><Plus size={12} /> เพิ่มรายการ</button>
+                  {poItemRows.some(r => r.name) && (
+                    <p className="text-xs text-aviva-secondary text-right">รวม: ฿{poItemRows.filter(r => r.name).reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.unit_price) || 0), 0).toLocaleString("th-TH")}</p>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">กำหนดส่งของ</label>
@@ -2860,7 +3019,7 @@ function MaterialsContent() {
                   placeholder="หมายเหตุเพิ่มเติม" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
-            <button onClick={handleCreatePO} disabled={saving || !poForm.supplier_name}
+            <button onClick={handleCreatePO} disabled={saving || !poForm.supplier_name || poItemRows.every(r => !r.name)}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
               {saving ? "กำลังบันทึก..." : "สร้าง PO"}
             </button>
@@ -2895,14 +3054,32 @@ function PayrollContent() {
   }, []);
 
   const calcSSO = (base: number) => Math.min(base * 0.05, 750);
-  const calcCommission = (emp: Employee) => 0;
+  const calcCommission = (emp: Employee) => Math.round((emp.base_salary * (emp.commission_rate ?? 0)) / 100);
+
+  const calcIncomeTax = (annual: number): number => {
+    if (annual <= 150000) return 0;
+    let tax = 0;
+    const brackets: [number, number, number][] = [
+      [150001, 300000, 0.05],
+      [300001, 500000, 0.10],
+      [500001, 750000, 0.15],
+      [750001, 1000000, 0.20],
+      [1000001, 2000000, 0.25],
+      [2000001, Infinity, 0.35],
+    ];
+    for (const [lo, hi, rate] of brackets) {
+      if (annual < lo) break;
+      tax += (Math.min(annual, hi) - lo + 1) * rate;
+    }
+    return Math.round(tax / 12);
+  };
 
   const calcPayroll = (emp: Employee): PayrollEmployee => {
     const special = parseFloat(specialIncomes[emp.id] ?? "0") || 0;
     const commission = calcCommission(emp);
     const sso = calcSSO(emp.base_salary);
     const gross = emp.base_salary + commission + special;
-    const tax = gross > 26000 ? Math.round((gross - 26000) * 0.05) : 0;
+    const tax = calcIncomeTax(gross * 12);
     return { ...emp, commission_amount: commission, sso, net: gross - sso - tax };
   };
 
@@ -3125,6 +3302,7 @@ function CommunityContent() {
       owner_name: form.owner_name,
       owner_phone: form.owner_phone,
       area_sqw: Number(form.area_sqw),
+      annual_fee: Number(form.area_sqw) * 30,
       fee_status: "Unpaid",
     });
     setSaving(false);
@@ -3133,8 +3311,12 @@ function CommunityContent() {
     fetchMembers();
   };
 
-  const handleMarkPaid = async (id: string) => {
-    await supabase.from("community_members").update({ fee_status: "Paid" }).eq("member_id", id);
+  const handleMarkPaid = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "Paid" ? "Unpaid" : "Paid";
+    await supabase.from("community_members").update({
+      fee_status: newStatus,
+      transferred_at: newStatus === "Paid" ? new Date().toISOString() : null,
+    }).eq("member_id", id);
     fetchMembers();
   };
 
@@ -3206,7 +3388,7 @@ function CommunityContent() {
                     {m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ"}
                   </span>
                   {m.fee_status === "Unpaid" && (
-                    <button onClick={() => handleMarkPaid(m.member_id)}
+                    <button onClick={() => handleMarkPaid(m.member_id, m.fee_status)}
                       className="text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg">
                       บันทึกรับชำระ
                     </button>
@@ -3306,7 +3488,7 @@ function DocumentsContent() {
   const [filter, setFilter] = useState<DocFilterCat>("all");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
+  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "", file_url: "", description: "" });
   const [saving, setSaving] = useState(false);
 
   const fetchDocs = () => {
@@ -3334,7 +3516,7 @@ function DocumentsContent() {
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
-      uploaded_by: form.uploaded_by,
+      uploaded_by: form.uploaded_by || user?.full_name || user?.email || "ไม่ทราบ",
       file_url: form.file_url || null,
       description: form.description || null,
       status: "pending",
@@ -3359,7 +3541,7 @@ function DocumentsContent() {
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
+    setForm({ name: "", category: "Contract", uploaded_by: "", file_url: "", description: "" });
     fetchDocs();
   };
 

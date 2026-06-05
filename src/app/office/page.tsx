@@ -6,8 +6,9 @@ import {
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
-  FolderOpen, Upload, Search, Home,
+  FolderOpen, Upload, Search, Home, BookOpen,
 } from "lucide-react";
+import Link from "next/link";
 import clsx from "clsx";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
@@ -775,6 +776,18 @@ function AccountingContent() {
         title="AI: รายรับสูงขึ้น"
         message="ยอดรับเงินเดือนนี้เพิ่มขึ้นจากเดือนก่อน แนะนำตรวจสอบการจับคู่ใบเสร็จกับสัญญาให้ครบถ้วน"
       />
+
+      {/* Full accounting system link */}
+      <Link
+        href="/office/accounting"
+        className="flex items-center justify-between w-full bg-aviva-gold/10 border border-aviva-gold/30 text-aviva-gold px-4 py-3 rounded-2xl text-sm font-semibold"
+      >
+        <span className="flex items-center gap-2">
+          <BookOpen size={16} />
+          ระบบบัญชีเต็มรูปแบบ (JV · AR · AP · ภาษี · TFRS15)
+        </span>
+        <span className="text-aviva-gold/60">→</span>
+      </Link>
 
       <PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} />
 

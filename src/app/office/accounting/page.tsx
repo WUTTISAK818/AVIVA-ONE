@@ -421,7 +421,7 @@ function ARTab() {
   invoices.filter(i => ["pending", "partial", "overdue"].includes(i.status)).forEach(inv => {
     const days = Math.ceil((now.getTime() - new Date(inv.due_date).getTime()) / 86400000);
     const bal = Number(inv.total_amount) - Number(inv.paid_amount);
-    if (days < 0) return; // ยังไม่ถึงกำหนด ไม่นับใน Aging
+    if (days < 0) return;
     if (days <= 30) aging.a0_30 += bal;
     else if (days <= 60) aging.a31_60 += bal;
     else if (days <= 90) aging.a61_90 += bal;
@@ -715,7 +715,7 @@ function TaxTab() {
         <GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-secondary mb-2">อัตรา WHT อ้างอิง</p><div className="grid grid-cols-2 gap-1.5 text-[11px]">{[["ค่าจ้าง (บุคคล)","3% — ภ.ง.ด.3"],["ค่าจ้าง (นิติ)","3% — ภ.ง.ด.53"],["ค่าเช่า","5% — ภ.ง.ด.3/53"],["ค่าโฆษณา","2% — ภ.ง.ด.3/53"],["เงินเดือน","ตามสูตร — ภ.ง.ด.1"],["ดอกเบี้ย","1% — ภ.ง.ด.3/53"]].map(([k,v])=>(<div key={k} className="flex justify-between"><span className="text-aviva-secondary">{k}</span><span className="text-aviva-gold">{v}</span></div>))}</div></GlassCard>
       </div>)}
       {sub==="sbt"&&(<div className="space-y-3"><GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีธุรกิจเฉพาะ (ภ.ธ.40)</p><p className="text-[11px] text-aviva-secondary">อัตรา 3.3% (ภ.ธ.40 3% + ภาษีท้องถิ่น 10% ของ 3%) ต่อยอดขายบ้านทุกรายการโอน</p></GlassCard>
-        {sbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ ภ.ธ.40</p></GlassCard>:sbtEntries.map(s=>(<GlassCard key={s.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">Period {s.period}</p><p className="text-[10px] text-aviva-secondary">โอน: {s.transfer_date??"- "} · ฐาน: ฿{fmtM(Number(s.base_amount))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(s.total_tax))}</p><StatusBadge status={s.status}/></div></div></GlassCard>))}
+        {sbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ ภ.ธ.40</p></GlassCard>:sbtEntries.map(s=>(<GlassCard key={s.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">Period {s.period}</p><p className="text-[10px] text-aviva-secondary">โอน: {s.transfer_date??"-"} · ฐาน: ฿{fmtM(Number(s.base_amount))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(s.total_tax))}</p><StatusBadge status={s.status}/></div></div></GlassCard>))}
       </div>)}
       {sub==="lbt"&&(<div className="space-y-3"><GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีที่ดินและสิ่งปลูกสร้าง (พ.ร.บ.2562)</p><p className="text-[11px] text-aviva-secondary">อัตราที่ดินเพื่อการขาย 0.3% ต่อปี ของราคาประเมิน</p></GlassCard>
         {lbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการภาษีที่ดิน</p></GlassCard>:lbtEntries.map(l=>(<GlassCard key={l.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">ปี {l.tax_year}</p><p className="text-[10px] text-aviva-secondary">ประเมิน: ฿{fmtM(Number(l.appraised_value))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(l.tax_amount))}</p><StatusBadge status={l.status}/></div></div></GlassCard>))}
@@ -783,7 +783,7 @@ function LotCostTab() {
       {loading?[1,2].map(i=><div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse"/>):
        infra.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการต้นทุน</p></GlassCard>:
        infra.map(ic=>(
-        <GlassCard key={ic.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><p className="text-sm font-medium text-aviva-text">{ic.cost_type}</p><p className="text-[10px] text-aviva-secondary">{ic.phase??"- "} · {ic.description??""}</p></div><div className="text-right flex-shrink-0"><p className="text-sm font-bold text-aviva-gold">฿{fmtM(Number(ic.total_cost))}</p><span className={clsx("text-[10px] px-2 py-0.5 rounded-full",ic.is_allocated?"bg-green-500/20 text-green-300":"bg-yellow-500/20 text-yellow-300")}>{ic.is_allocated?"ปันส่วนแล้ว":"รอปันส่วน"}</span></div></div></GlassCard>
+        <GlassCard key={ic.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><p className="text-sm font-medium text-aviva-text">{ic.cost_type}</p><p className="text-[10px] text-aviva-secondary">{ic.phase??"-"} · {ic.description??""}</p></div><div className="text-right flex-shrink-0"><p className="text-sm font-bold text-aviva-gold">฿{fmtM(Number(ic.total_cost))}</p><span className={clsx("text-[10px] px-2 py-0.5 rounded-full",ic.is_allocated?"bg-green-500/20 text-green-300":"bg-yellow-500/20 text-yellow-300")}>{ic.is_allocated?"ปันส่วนแล้ว":"รอปันส่วน"}</span></div></div></GlassCard>
       ))}
       {showModal&&(
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4"><div className="bg-aviva-card rounded-3xl w-full max-w-lg">
@@ -859,7 +859,7 @@ function TFRS15Tab() {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5"><p className="text-sm font-medium text-aviva-text">{r.house_number}</p><StatusBadge status={r.status}/></div>
-              <p className="text-[11px] text-aviva-secondary">สัญญา: {r.contract_date??"- "} · โอน: {r.transfer_date??"ยังไม่โอน"}</p>
+              <p className="text-[11px] text-aviva-secondary">สัญญา: {r.contract_date??"-"} · โอน: {r.transfer_date??"ยังไม่โอน"}</p>
               <p className="text-[11px] text-aviva-secondary">มูลค่า: ฿{fmtM(Number(r.contract_value))}</p>
             </div>
             {r.status==="pending"&&(recognizingId===r.id?(
@@ -915,7 +915,7 @@ function ScannerTab() {
 
   const saveResult = async () => {
     if (!result) return;
-    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*0.07*100)/100, total_amount: Math.round(result.amount*1.07*100)/100, period: (()=>{ const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"00")}`; })(), etax_status: "pending", project_id: PROJECT_ID });
+    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*0.07*100)/100, total_amount: Math.round(result.amount*1.07*100)/100, period: (()=>{ const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })(), etax_status: "pending", project_id: PROJECT_ID });
     setSaved(true);
   };
 
@@ -1022,7 +1022,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.22</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.24</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">

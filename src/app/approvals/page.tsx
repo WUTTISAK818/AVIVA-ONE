@@ -134,6 +134,9 @@ function renderDetailFields(workflow: string, data: Record<string, unknown>) {
         <FieldBox label="สถานะ" value={String(data.status ?? "")} />
         <FieldBox label="ผู้รับเหมา" value={String(house?.contractor ?? "")} />
         <FieldBox label="วิศวกร" value={String(house?.site_engineer ?? "")} />
+        {!!data.contractor_ack_name && <div className="col-span-2"><FieldBox label="✍ ผู้รับเหมาลงชื่อรับทราบ" value={String(data.contractor_ack_name)} /></div>}
+        {!!data.labor_cost && <FieldBox label="ค่าแรง" value={`฿${Number(data.labor_cost).toLocaleString()}`} />}
+        {!!data.material_cost && <FieldBox label="ค่าวัสดุ" value={`฿${Number(data.material_cost).toLocaleString()}`} />}
         {!!data.rejection_reason && <div className="col-span-2"><FieldBox label="เหตุผลที่ปฏิเสธ" value={String(data.rejection_reason)} /></div>}
       </div>
     );
@@ -548,6 +551,13 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
         if (log.source_record_id) {
           const { error } = await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
           if (error) return error.message;
+          await createNotification({
+            type: "approval",
+            title: "งวดงานอนุมัติแล้ว — รอเบิกจ่าย",
+            message: `${log.source_doc_index.split(" | ")[1] ?? ""} ฿${log.amount ? Number(log.amount).toLocaleString() : "—"} — กรุณาดำเนินการเบิกจ่ายในหน้าการเงิน`,
+            from_dept: "ผู้บริหาร",
+            to_dept: "ฝ่ายการเงิน",
+          });
         }
       } else if (log.workflow_type === "Material_Purchase") {
         if (log.source_record_id) {

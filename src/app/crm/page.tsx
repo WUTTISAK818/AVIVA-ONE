@@ -888,7 +888,7 @@ export default function CRMPage() {
                 <span key={lbl} className={clsx("px-2 py-0.5 rounded-full border",cls)}>{lbl}</span>
               ))}
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-1.5">
               {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map((n) => {
                 const house = houses.find(h => h.plot_number === n);
                 const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
@@ -907,9 +907,8 @@ export default function CRMPage() {
                 return (
                   <button key={n} onClick={() => setMapPlotModal(n)}
                     className={clsx("border rounded-xl p-2 text-center cursor-pointer active:scale-95 transition-all", cellCls)}>
-                    <p className="text-xl font-black leading-none">{n}</p>
-                    <p className="text-xs font-semibold leading-tight mt-0.5">{house?.house_model ?? "—"}</p>
-                    <p className="text-[10px] leading-tight opacity-80">{house ? `${house.land_size ?? "—"}ตร.ว.` : "—"}</p>
+                    <p className="text-base font-black leading-none">{house?.house_model ? `${house.house_model.charAt(0)}${n}` : String(n)}</p>
+                    <p className="text-[10px] leading-tight opacity-80 mt-0.5">{house ? `${house.land_size ?? "—"}ตร.ว.` : "—"}</p>
                     {isBooked && <p className="text-[9px] mt-0.5 truncate font-medium">{bookedLead!.customer_name.split(" ")[0]}</p>}
                     {isSold && <p className="text-[9px] mt-0.5 font-medium">โอนแล้ว</p>}
                     {interestedCount > 0 && <p className="text-[9px] mt-0.5 opacity-70">{interestedCount} สนใจ</p>}
@@ -1590,7 +1589,7 @@ export default function CRMPage() {
                   </div>
                   <button onClick={() => { setSelectedLead(displayLead); setMapPlotModal(null); }}
                     className="w-full py-2.5 bg-aviva-gold/10 border border-aviva-gold/30 rounded-xl text-xs text-aviva-gold font-medium">
-                    ดูข้อมูลเต็ม / เปลี่ยนสถานะ →
+                    ดูข้อมูลเต็ม / เปลี่ยนสถานะ &rarr;
                   </button>
                 </div>
               ) : (

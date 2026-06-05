@@ -14,6 +14,7 @@ import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
+import AttachDocButton from "@/components/AttachDocButton";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -60,6 +61,7 @@ interface Defect {
   severity: string;
   assigned_to: string;
   due_date: string | null;
+  installment_no?: number | null;
 }
 
 interface Installment {
@@ -72,6 +74,12 @@ interface Installment {
   rejection_reason?: string | null;
   rejection_count?: number | null;
   created_by_name?: string | null;
+  contractor_ack_name?: string | null;
+  contractor_acknowledged_at?: string | null;
+  paid_by?: string | null;
+  paid_at?: string | null;
+  labor_cost?: number | null;
+  material_cost?: number | null;
 }
 
 interface WorkItem {
@@ -126,7 +134,7 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
 };
 
 const INSTALLMENT_NAMES = [
-  "งวด 1 — งานฐานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
+  "งวด 1 — งานฝานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
   "งวด 4 — งานผนังชั้น 1", "งวด 5 — งานโครงหลังคา", "งวด 6 — งานหลังคา",
   "งวด 7 — งานผนังภายนอก", "งวด 8 — งานระบบน้ำ-ไฟ", "งวด 9 — งานตกแต่งภายใน",
   "งวด 10 — งานส่งมอบ",
@@ -295,11 +303,14 @@ export default function ConstructionPage() {
 
   const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "", planned_completion_date: "", site_engineer: "" });
   const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus, reported_by: "", work_type: "งานตรวจสอบ" });
-  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
 
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [uploadingTask, setUploadingTask] = useState<string | null>(null);
   const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+  const [showAckModal, setShowAckModal] = useState(false);
+  const [ackName, setAckName] = useState("");
+  const [ackInst, setAckInst] = useState<Installment | null>(null);
   const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
   const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
   const [showAI, setShowAI] = useState(false);
@@ -352,7 +363,6 @@ export default function ConstructionPage() {
     setLoadingInst(true);
     setExpandedInst(null);
     setInspections([]);
-    // Fetch customer info for this plot (construction staff needs to know who the customer is)
     if (house.plot_number) {
       const { data: cust } = await supabase.from("leads")
         .select("customer_name,phone,status,notes,loan_approved_date,delivery_date")
@@ -463,9 +473,9 @@ export default function ConstructionPage() {
         setConfirmInst(null); return;
       }
       if (instHouse) {
-        const openDefs = defects.filter(d => d.house_id === instHouse.id && d.status === "Open");
+        const openDefs = defects.filter(d => d.house_id === instHouse.id && (d.status === "Open" || d.status === "In Progress"));
         if (openDefs.length > 0) {
-          setToast({ msg: `มี Defect เปิดอยู่ ${openDefs.length} รายการ — ต้องแก้ไขให้ครบก่อนส่งตรวจสอบ`, type: "error" });
+          setToast({ msg: `มี Defect ที่ยังไม่แก้ไข ${openDefs.length} รายการ — ต้องแก้ไขให้ครบ (Resolved) ก่อนส่งตรวจสอบ`, type: "error" });
           setConfirmInst(null); return;
         }
       }
@@ -486,6 +496,7 @@ export default function ConstructionPage() {
     const byName = user?.full_name ?? user?.email ?? "Unknown";
     const updatePayload: Record<string, string | null> = { status: newStatus };
     if (newStatus === "in_review") updatePayload.created_by_name = byName;
+    if (newStatus === "paid") { updatePayload.paid_by = byName; updatePayload.paid_at = new Date().toISOString(); }
     await supabase.from("contractor_installments").update(updatePayload).eq("id", inst.id);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus, ...(newStatus === "in_review" ? { created_by_name: byName } : {}) } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
@@ -528,7 +539,55 @@ export default function ConstructionPage() {
   const advanceInstStatus = (inst: Installment) => {
     const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved", approved: "paid" };
     if (!next[inst.status] || next[inst.status] === inst.status) return;
+    if (inst.status === "pending" || inst.status === "rejected") {
+      setAckInst(inst);
+      setAckName(instHouse?.contractor ?? "");
+      setShowAckModal(true);
+      return;
+    }
     setConfirmInst(inst);
+  };
+
+  const handleAckAndSubmit = async () => {
+    if (!ackInst || !ackName.trim()) return;
+    const now = new Date().toISOString();
+    await supabase.from("contractor_installments").update({
+      contractor_ack_name: ackName.trim(),
+      contractor_acknowledged_at: now,
+    }).eq("id", ackInst.id);
+    setInstallments(prev => prev.map(i => i.id === ackInst.id ? { ...i, contractor_ack_name: ackName.trim(), contractor_acknowledged_at: now } : i));
+    const inst = ackInst;
+    setShowAckModal(false);
+    setAckInst(null);
+    setAckName("");
+    setConfirmInst(inst);
+  };
+
+  const printCertificate = (inst: Installment) => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const passCount = instInsps.filter(i => i.result === "pass").length;
+    const rows = instInsps.map(i => `<tr><td>${i.work_item_name}</td><td style="color:${i.result === "pass" ? "#1E4A35" : "#c0392b"};font-weight:bold">${i.result === "pass" ? "✓ ผ่าน" : "✗ ไม่ผ่าน"}</td><td>${i.note ?? ""}</td><td>${i.inspected_by ?? ""}</td></tr>`).join("");
+    const ackDate = inst.contractor_acknowledged_at ? new Date(inst.contractor_acknowledged_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
+    const paidDate = inst.paid_at ? new Date(inst.paid_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
+    const laborLine = (inst.labor_cost || inst.material_cost) ? `<div><b>ค่าแรง:</b> ฿${(inst.labor_cost ?? 0).toLocaleString("th-TH")}</div><div><b>ค่าวัสดุ:</b> ฿${(inst.material_cost ?? 0).toLocaleString("th-TH")}</div>` : "";
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบรับรองผลงาน — ${inst.name}</title><style>*{box-sizing:border-box}body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:16px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:6px 0 0}.meta{font-size:11px;color:#666;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}th{background:#1E4A35;color:#D4AF37;padding:8px;text-align:left;font-size:11px}td{padding:7px 8px;border-bottom:1px solid #eee}tr:nth-child(even) td{background:#fafafa}.box{background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}.box-green{background:#f0f7f3;border-color:#1E4A35}.sig-row{display:flex;gap:32px;margin-top:48px;padding-top:16px;border-top:1px solid #eee}.sig{flex:1;text-align:center}.sig-line{border-top:1px solid #555;margin:40px 0 6px}.sig-role{font-size:11px;color:#444;font-weight:600}.sig-name{font-size:10px;color:#888;margin-top:2px}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>ใบรับรองผลงาน (Certificate of Completion)</h2><div class="meta">โครงการ AVIVA Private &nbsp;·&nbsp; วันที่พิมพ์: ${dateStr}</div></div><div class="box"><div><b>ยูนิต:</b> ${instHouse.house_number}</div><div><b>ผู้รับเหมา:</b> ${instHouse.contractor ?? "—"}</div><div><b>งวดงาน:</b> ${inst.name}</div><div><b>มูลค่างวด:</b> ฿${inst.amount.toLocaleString("th-TH")}</div><div><b>วิศวกรควบคุม:</b> ${instHouse.site_engineer ?? "—"}</div><div><b>สถานะ:</b> <span style="color:#1E4A35;font-weight:bold">จ่ายแล้ว ✓</span></div>${laborLine}</div><p style="font-size:12px;margin:8px 0">ผลการตรวจงาน: ผ่าน <b style="color:#1E4A35">${passCount}</b> / ${instInsps.length} รายการ</p><table><thead><tr><th>รายการงาน</th><th>ผล</th><th>หมายเหตุ</th><th>ตรวจโดย</th></tr></thead><tbody>${rows || "<tr><td colspan='4' style='text-align:center;color:#999'>ยังไม่มีรายการตรวจ</td></tr>"}</tbody></table><div class="box box-green"><div><b>ผู้รับเหมาลงชื่อรับทราบ:</b> ${inst.contractor_ack_name ?? "—"}</div><div><b>วันที่รับทราบ:</b> ${ackDate}</div><div><b>อนุมัติจ่ายโดย:</b> ${inst.paid_by ?? "—"}</div><div><b>วันที่จ่าย:</b> ${paidDate}</div></div><div class="sig-row"><div class="sig"><div class="sig-line"></div><div class="sig-role">วิศวกรควบคุมงาน</div><div class="sig-name">(${instHouse.site_engineer ?? "..................................."})</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้จัดการโครงการ</div><div class="sig-name">(...................................)</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้รับเหมา</div><div class="sig-name">(${inst.contractor_ack_name ?? "..................................."})</div></div></div><p style="margin-top:20px;font-size:10px;color:#bbb;text-align:center">จัดทำโดยระบบ AVIVA ONE &nbsp;·&nbsp; เอกสารนี้ออกโดยระบบอัตโนมัติหลังอนุมัติงวดงาน</p></body></html>`);
+    w.document.close();
+  };
+
+  const printRejectionNotice = (inst: Installment) => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const failItems = instInsps.filter(i => i.result === "fail");
+    const rows = failItems.map(i => `<tr><td>${i.work_item_name}</td><td style="color:#c0392b;font-weight:bold">✗ ไม่ผ่าน</td><td>${i.note ?? "—"}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>หนังสือแจ้งข้อบกพร่อง — ${inst.name}</title><style>*{box-sizing:border-box}body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #c0392b;padding-bottom:16px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:6px 0 0;color:#c0392b}.meta{font-size:11px;color:#666;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}th{background:#c0392b;color:#fff;padding:8px;text-align:left;font-size:11px}td{padding:7px 8px;border-bottom:1px solid #eee}.box{background:#fff5f5;border:1px solid #f5c6c6;border-radius:8px;padding:12px;margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}.reason-box{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;margin:10px 0}.sig-row{display:flex;gap:32px;margin-top:48px;padding-top:16px;border-top:1px solid #eee}.sig{flex:1;text-align:center}.sig-line{border-top:1px solid #555;margin:40px 0 6px}.sig-role{font-size:11px;color:#444;font-weight:600}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#c0392b;color:#fff}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>หนังสือแจ้งข้อบกพร่อง (Defect Notice)</h2><div class="meta">โครงการ AVIVA Private &nbsp;·&nbsp; วันที่: ${dateStr}</div></div><div class="box"><div><b>ยูนิต:</b> ${instHouse.house_number}</div><div><b>ผู้รับเหมา:</b> ${instHouse.contractor ?? "—"}</div><div><b>งวดงาน:</b> ${inst.name}</div><div><b>มูลค่างวด:</b> ฿${inst.amount.toLocaleString("th-TH")}</div></div>${inst.rejection_reason ? `<div class="reason-box"><b>เหตุผลที่ปฏิเสธ:</b><p style="margin:6px 0 0;color:#795548">${inst.rejection_reason}</p></div>` : ""}<p style="font-size:12px;margin:16px 0 4px;font-weight:700">รายการงานที่ไม่ผ่านการตรวจ (${failItems.length} รายการ)</p><table><thead><tr><th>รายการงาน</th><th>ผล</th><th>หมายเหตุ/เหตุผล</th></tr></thead><tbody>${rows || "<tr><td colspan='3' style='text-align:center;color:#999'>ไม่มีรายการที่ระบุ</td></tr>"}</tbody></table><p style="font-size:12px;color:#555;margin:16px 0">กรุณาแก้ไขรายการข้างต้นให้เรียบร้อยแล้วส่งตรวจซ้ำอีกครั้ง ภายใน 7 วันทำงาน นับจากวันที่ได้รับหนังสือฉบับนี้</p><div class="sig-row"><div class="sig"><div class="sig-line"></div><div class="sig-role">วิศวกรควบคุมงาน</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้จัดการโครงการ</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้รับเหมา (รับทราบ)</div></div></div><p style="margin-top:20px;font-size:10px;color:#bbb;text-align:center">จัดทำโดยระบบ AVIVA ONE</p></body></html>`);
+    w.document.close();
   };
 
   const printDailyReport = () => {
@@ -645,7 +704,7 @@ export default function ConstructionPage() {
 
   const openDefectModal = (house: House) => {
     setDefectHouse(house);
-    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
     setShowDefectModal(true);
   };
 
@@ -698,11 +757,11 @@ export default function ConstructionPage() {
   const handleSaveDefect = async () => {
     if (!defectForm.description || !defectForm.house_id) return;
     setSaving(true);
-    await supabase.from("defects").insert({ house_id: defectForm.house_id, defect_category: defectForm.defect_category, description: defectForm.description, status: "Open", severity: defectForm.severity, assigned_to: defectForm.assigned_to || null, due_date: defectForm.due_date || null });
+    await supabase.from("defects").insert({ house_id: defectForm.house_id, defect_category: defectForm.defect_category, description: defectForm.description, status: "Open", severity: defectForm.severity, assigned_to: defectForm.assigned_to || null, due_date: defectForm.due_date || null, installment_no: defectForm.installment_no ? Number(defectForm.installment_no) : null });
     setSaving(false);
     setShowDefectModal(false);
     setDefectHouse(null);
-    setDefectForm({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+    setDefectForm({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
     fetchData();
   };
 
@@ -865,9 +924,7 @@ export default function ConstructionPage() {
                 {aiMessages.length > 0 && (
                   <div className="space-y-2 max-h-52 overflow-y-auto">
                     {aiMessages.map((m, i) => (
-                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>
-                        {m.content}
-                      </div>
+                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>{m.content}</div>
                     ))}
                     {aiLoading && <div className="bg-aviva-bg rounded-xl px-3 py-2 text-xs text-aviva-secondary mr-8">กำลังประมวลผล...</div>}
                   </div>
@@ -895,7 +952,7 @@ export default function ConstructionPage() {
               ) : filtered.length === 0 ? (
                 <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-1.5">
                   {filtered.map(house => {
                     const isSelected = instHouse?.id === house.id;
                     const hasCustomer = house.plot_number != null && customerPlots.has(house.plot_number);
@@ -907,8 +964,7 @@ export default function ConstructionPage() {
                         {hasCustomer && !isSelected && (
                           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-aviva-gold border border-aviva-bg" />
                         )}
-                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
-                        <span className={clsx("text-base font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{(house.house_model ?? "A").charAt(0)}{house.plot_number ?? 0}</span>
                         <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
                       </button>
                     );
@@ -987,9 +1043,35 @@ export default function ConstructionPage() {
                             {inst.created_by_name && (
                               <p className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-2 py-1 rounded-lg inline-block">ส่งตรวจโดย {inst.created_by_name}</p>
                             )}
+                            {inst.contractor_ack_name && (
+                              <p className="text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-lg inline-flex items-center gap-1">
+                                ✍ ผู้รับเหมารับทราบ: <span className="font-semibold">{inst.contractor_ack_name}</span>
+                                {inst.contractor_acknowledged_at && (
+                                  <span className="text-green-400/60 ml-1">({new Date(inst.contractor_acknowledged_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })})</span>
+                                )}
+                              </p>
+                            )}
+                            {inst.paid_by && (
+                              <p className="text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-lg inline-flex items-center gap-1">
+                                💰 จ่ายโดย: <span className="font-semibold">{inst.paid_by}</span>
+                                {inst.paid_at && (
+                                  <span className="text-blue-400/60 ml-1">({new Date(inst.paid_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })})</span>
+                                )}
+                              </p>
+                            )}
+                            {inst.status === "paid" && (
+                              <button onClick={() => printCertificate(inst)} className="flex items-center gap-1 text-[11px] text-green-400 border border-green-500/30 px-2 py-1.5 rounded-xl bg-green-500/5 hover:bg-green-500/10 transition-all">
+                                <Printer size={11} /> ใบรับรองผลงาน
+                              </button>
+                            )}
                             {inst.status === "rejected" && inst.rejection_reason && (
                               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
-                                <p className="text-[10px] text-red-400 font-semibold mb-0.5">เหตุผลที่ปฏิเสธ</p>
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <p className="text-[10px] text-red-400 font-semibold">เหตุผลที่ปฏิเสธ</p>
+                                  <button onClick={() => printRejectionNotice(inst)} className="flex items-center gap-1 text-[10px] text-red-400/80 border border-red-500/20 px-1.5 py-0.5 rounded-lg hover:bg-red-500/10">
+                                    <Printer size={9} /> แจ้งผู้รับเหมา
+                                  </button>
+                                </div>
                                 <p className="text-xs text-red-300">{inst.rejection_reason}</p>
                                 {inst.rejection_count && inst.rejection_count > 0 && (
                                   <p className="text-[10px] text-red-400/70 mt-0.5">ถูกปฏิเสธ {inst.rejection_count} ครั้ง</p>
@@ -997,18 +1079,49 @@ export default function ConstructionPage() {
                               </div>
                             )}
                             {user?.isAdmin && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
-                                <input type="number" defaultValue={inst.amount}
-                                  onBlur={async e => {
-                                    const v = Number(e.target.value);
-                                    if (!isNaN(v)) {
-                                      await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
-                                      setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
-                                    }
-                                  }}
-                                  className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
+                                  <input type="number" defaultValue={inst.amount}
+                                    onBlur={async e => {
+                                      const v = Number(e.target.value);
+                                      if (!isNaN(v)) {
+                                        await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
+                                        setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
+                                      }
+                                    }}
+                                    className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <p className="text-[10px] text-aviva-secondary mb-0.5">ค่าแรง (บาท)</p>
+                                    <input type="number" defaultValue={inst.labor_cost ?? 0}
+                                      onBlur={async e => {
+                                        const v = Number(e.target.value);
+                                        if (!isNaN(v)) {
+                                          await supabase.from("contractor_installments").update({ labor_cost: v }).eq("id", inst.id);
+                                          setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, labor_cost: v } : i));
+                                        }
+                                      }}
+                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] text-aviva-secondary mb-0.5">ค่าวัสดุ (บาท)</p>
+                                    <input type="number" defaultValue={inst.material_cost ?? 0}
+                                      onBlur={async e => {
+                                        const v = Number(e.target.value);
+                                        if (!isNaN(v)) {
+                                          await supabase.from("contractor_installments").update({ material_cost: v }).eq("id", inst.id);
+                                          setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, material_cost: v } : i));
+                                        }
+                                      }}
+                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                  </div>
+                                </div>
                               </div>
+                            )}
+                            {((inst.labor_cost ?? 0) > 0 || (inst.material_cost ?? 0) > 0) && (
+                              <p className="text-[10px] text-aviva-secondary/70">ค่าแรง ฿{(inst.labor_cost ?? 0).toLocaleString("th-TH")} · ค่าวัสดุ ฿{(inst.material_cost ?? 0).toLocaleString("th-TH")}</p>
                             )}
                             <button
                               onClick={() => {
@@ -1030,7 +1143,9 @@ export default function ConstructionPage() {
                               onSave={saveInspectionResult}
                               onUpload={uploadInspectionPhoto}
                             />
-                            {/* Dynamic sub-tasks */}
+                            <div>
+                              <AttachDocButton entityType="contractor_installment" entityId={inst.id} attachedBy={user?.full_name ?? ""} />
+                            </div>
                             <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
                               <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
                               {tasks.map(task => (
@@ -1098,8 +1213,10 @@ export default function ConstructionPage() {
         {part === "daily" && (
           <>
             <div className="flex gap-2">
-              {([["reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
-                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
+              {(["reports", "defects"] as Tab[]).map(k => (
+                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+                  {k === "reports" ? `รายงาน (${reports.length})` : openDefects ? `Defects (${openDefects})` : "Defects"}
+                </button>
               ))}
             </div>
 
@@ -1319,6 +1436,13 @@ export default function ConstructionPage() {
                 </div>
               </div>
               <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">งวดงานที่เกี่ยวข้อง</label>
+                <select value={defectForm.installment_no} onChange={e => setDefectForm({ ...defectForm, installment_no: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="">— ไม่ระบุ —</option>
+                  {INSTALLMENT_NAMES.map((n, i) => <option key={i + 1} value={String(i + 1)}>{n}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
                 <input type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })} placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
@@ -1446,6 +1570,47 @@ export default function ConstructionPage() {
               </div>
             </div>
             <button onClick={handleSaveHouse} disabled={saving} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}</button>
+          </div>
+        </div>
+      )}
+
+      {showAckModal && ackInst && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-aviva-text">ผู้รับเหมาลงชื่อรับทราบ</h2>
+                <p className="text-xs text-aviva-secondary mt-0.5">{ackInst.name} — {instHouse?.house_number}</p>
+              </div>
+              <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl p-3 space-y-1 text-[11px] text-aviva-secondary">
+              <p className="font-semibold text-aviva-gold mb-1">ผลการตรวจงาน</p>
+              {(() => {
+                const instInsps = inspections.filter(i => i.contractor_installment_id === ackInst.id);
+                const pass = instInsps.filter(i => i.result === "pass").length;
+                const total = instInsps.length;
+                return total > 0
+                  ? <p>ผ่าน <span className="text-green-400 font-bold">{pass}</span> / {total} รายการ {pass === total ? "✓ ครบทุกรายการ" : ""}</p>
+                  : <p className="text-aviva-secondary/60">ยังไม่มีรายการตรวจ</p>;
+              })()}
+              <p>มูลค่างวด: <span className="text-aviva-gold font-semibold">฿{ackInst.amount.toLocaleString("th-TH")}</span></p>
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1.5 block font-medium">ชื่อผู้รับเหมา (ลงชื่อรับทราบผลการตรวจ) *</label>
+              <input
+                type="text"
+                value={ackName}
+                onChange={e => setAckName(e.target.value)}
+                placeholder="กรอกชื่อ-นามสกุลผู้รับเหมา"
+                className="w-full bg-aviva-bg border border-aviva-gold/30 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/70"
+              />
+              <p className="text-[10px] text-aviva-secondary/60 mt-1">การกรอกชื่อและกด &quot;ยืนยันและส่งตรวจสอบ&quot; ถือเป็นการลงชื่อรับทราบผลการตรวจงานของผู้รับเหมา</p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
+              <button onClick={handleAckAndSubmit} disabled={!ackName.trim()} className="flex-1 py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">ยืนยันและส่งตรวจสอบ</button>
+            </div>
           </div>
         </div>
       )}

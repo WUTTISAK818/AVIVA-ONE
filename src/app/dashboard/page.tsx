@@ -50,6 +50,26 @@ interface PendingBreakdown {
   count: number;
 }
 
+interface SalesFunnelMonth {
+  totalNew: number;
+  visitCount: number;
+  bookedCount: number;
+  loanCount: number;
+  loanApprovedCount: number;
+  transferCount: number;
+  hot: number;
+  warm: number;
+  cool: number;
+}
+
+interface ActiveHouseInfo {
+  house_number: string;
+  plot_number: number | null;
+  progress: number;
+  status: string;
+  contractor: string;
+}
+
 function formatMillions(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   return `${(n / 1_000).toFixed(0)}K`;
@@ -98,6 +118,9 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
+  const [salesFunnel, setSalesFunnel] = useState<SalesFunnelMonth | null>(null);
+  const [activeHouses, setActiveHouses] = useState<ActiveHouseInfo[]>([]);
+  const [pendingPayouts, setPendingPayouts] = useState(0);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -248,6 +271,52 @@ export default function DashboardPage() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  useEffect(() => {
+    const ORDER_MAP: Record<string, number> = {
+      "New Lead": 0, "Contacted": 1, "Site Visit": 2,
+      "Booking": 3, "Loan Process": 4, "Transfer": 5, "Closed Deal": 6,
+    };
+    const now2 = new Date();
+    const monthStart = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, "0")}-01`;
+
+    supabase.from("leads")
+      .select("id,status,ai_score,loan_approved_date")
+      .eq("project_id", PROJECT_ID)
+      .gte("created_at", monthStart + "T00:00:00")
+      .then(({ data }) => {
+        const leads = (data ?? []) as { id: string; status: string; ai_score: number; loan_approved_date: string | null }[];
+        const rank = (s: string) => ORDER_MAP[s] ?? 0;
+        setSalesFunnel({
+          totalNew: leads.length,
+          visitCount: leads.filter(l => rank(l.status) >= 2).length,
+          bookedCount: leads.filter(l => rank(l.status) >= 3).length,
+          loanCount: leads.filter(l => rank(l.status) >= 4).length,
+          loanApprovedCount: leads.filter(l => rank(l.status) >= 5 || l.loan_approved_date != null).length,
+          transferCount: leads.filter(l => rank(l.status) >= 6).length,
+          hot: leads.filter(l => (l.ai_score ?? 0) >= 80).length,
+          warm: leads.filter(l => (l.ai_score ?? 0) >= 60 && (l.ai_score ?? 0) < 80).length,
+          cool: leads.filter(l => (l.ai_score ?? 0) < 60).length,
+        });
+      });
+
+    supabase.from("houses")
+      .select("house_number,plot_number,progress,status,contractor")
+      .eq("project_id", PROJECT_ID)
+      .neq("status", "complete")
+      .order("plot_number")
+      .limit(15)
+      .then(({ data }) => setActiveHouses((data ?? []) as ActiveHouseInfo[]));
+
+    supabase.from("contractor_installments")
+      .select("amount,status")
+      .eq("project_id", PROJECT_ID)
+      .eq("status", "approved")
+      .then(({ data }) => {
+        const total = ((data ?? []) as { amount: number }[]).reduce((s, i) => s + Number(i.amount), 0);
+        setPendingPayouts(total);
+      });
+  }, []);
+
   const totalUnits = project?.total_units ?? 0;
   const soldUnits = project?.sold_units ?? 0;
   const available = project?.available_units ?? 0;
@@ -391,7 +460,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.10</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.19</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -576,10 +645,54 @@ export default function DashboardPage() {
 
             {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
-                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
+                <div>
+                  <SectionHeader title="ฝ่ายขาย — เดือนนี้" subtitle={(() => { const n = new Date(); return `1–${n.getDate()} ${["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][n.getMonth()]} ${n.getFullYear() + 543}`; })()} />
+                </div>
+                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
               </div>
-              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
+              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต (คาดขายหมด: ${selloutForecast})`} value={selloutPct} />
+              {salesFunnel ? (
+                <>
+                  <div className="grid grid-cols-5 gap-1 mt-3">
+                    {([
+                      { label: "เยี่ยมชม", count: salesFunnel.visitCount, color: "text-blue-400" },
+                      { label: "จอง", count: salesFunnel.bookedCount, color: "text-yellow-400" },
+                      { label: "ยื่นกู้", count: salesFunnel.loanCount, color: "text-orange-400" },
+                      { label: "อนุมัติกู้", count: salesFunnel.loanApprovedCount, color: "text-green-400" },
+                      { label: "โอน", count: salesFunnel.transferCount, color: "text-aviva-gold" },
+                    ] as const).map(({ label, count, color }) => (
+                      <div key={label} className="bg-aviva-bg/60 rounded-xl p-2 text-center">
+                        <p className={`text-lg font-bold ${color}`}>{count}</p>
+                        <p className="text-[9px] text-aviva-secondary leading-tight mt-0.5">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-aviva-bg/40 rounded-xl p-3 mt-2">
+                    <p className="text-[10px] text-aviva-secondary/70 mb-2">ระดับความสนใจ ({salesFunnel.totalNew} ราย เดือนนี้)</p>
+                    <div className="space-y-1.5">
+                      {([
+                        { label: "Hot", count: salesFunnel.hot, bar: "bg-red-400", text: "text-red-400" },
+                        { label: "Warm", count: salesFunnel.warm, bar: "bg-yellow-400", text: "text-yellow-400" },
+                        { label: "Cool", count: salesFunnel.cool, bar: "bg-blue-400", text: "text-blue-400" },
+                      ] as const).map(({ label, count, bar, text }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold ${text} w-7`}>{label}</span>
+                          <div className="flex-1 h-1.5 bg-aviva-bg rounded-full overflow-hidden">
+                            <div className={`h-full ${bar} rounded-full transition-all`}
+                              style={{ width: salesFunnel.totalNew > 0 ? `${Math.round((count / salesFunnel.totalNew) * 100)}%` : "0%" }} />
+                          </div>
+                          <span className={`text-[10px] font-bold ${text} w-4 text-right`}>{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2 mt-3">
+                  <div className="h-14 rounded-xl bg-aviva-bg/40 animate-pulse" />
+                  <div className="h-20 rounded-xl bg-aviva-bg/40 animate-pulse" />
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-2 mt-3">
                 <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
                   <p className="text-xl font-bold text-aviva-gold">{selloutPct}%</p>
@@ -677,6 +790,29 @@ export default function DashboardPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              <div className="mt-3 bg-aviva-bg/50 rounded-xl p-3">
+                <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wide mb-2">กระแสเงินสด &amp; ภาระผูกพัน</p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="bg-aviva-bg rounded-xl p-2.5">
+                    <p className="text-[10px] text-aviva-secondary">คงเหลือสุทธิ</p>
+                    <p className={`text-sm font-bold mt-0.5 ${netPL >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
+                    </p>
+                  </div>
+                  <div className="bg-aviva-bg rounded-xl p-2.5">
+                    <p className="text-[10px] text-aviva-secondary">งวดงานค้างจ่าย</p>
+                    <p className="text-sm font-bold text-orange-400 mt-0.5">฿{formatMillions(pendingPayouts)}</p>
+                  </div>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold ${netPL >= pendingPayouts ? "bg-green-500/10 border border-green-500/20 text-green-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                  {netPL >= pendingPayouts ? "✓ กระแสเงินสดเพียงพอสำหรับงวดค้าง" : "⚠ กระแสเงินสดอาจไม่เพียงพอสำหรับงวดค้าง"}
+                  <span className="ml-auto text-aviva-secondary/60 font-normal">
+                    {netPL >= pendingPayouts
+                      ? `เหลือ ฿${formatMillions(netPL - pendingPayouts)}`
+                      : `ขาด ฿${formatMillions(pendingPayouts - netPL)}`}
+                  </span>
+                </div>
+              </div>
             </GlassCard>}
 
             {canSeeConstruction && <GlassCard className="p-4">
@@ -725,6 +861,33 @@ export default function DashboardPage() {
                     <p className="text-[10px] text-aviva-secondary">เบิกจ่ายแล้ว</p>
                   </div>
                 </div>
+                {activeHouses.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] text-aviva-secondary/70 font-semibold uppercase tracking-wider mb-2">
+                      กำลังก่อสร้าง {activeHouses.length} หลัง
+                    </p>
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                      {activeHouses.map(h => (
+                        <div key={h.house_number} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl ${h.status === "delayed" ? "bg-red-500/10 border border-red-500/15" : "bg-aviva-bg/50"}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-[11px] font-bold text-aviva-text truncate">{h.house_number}</p>
+                              {h.status === "delayed" && <span className="text-[9px] text-red-400 flex-shrink-0 font-medium">ล่าช้า</span>}
+                            </div>
+                            <p className="text-[9px] text-aviva-secondary/60 truncate">{h.contractor || "ไม่ระบุผู้รัปเหมา"}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="w-14 h-1.5 bg-aviva-bg rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${h.progress >= 80 ? "bg-green-400" : h.progress >= 40 ? "bg-yellow-400" : "bg-orange-400"}`}
+                                style={{ width: `${h.progress}%` }} />
+                            </div>
+                            <span className="text-[9px] text-aviva-secondary w-6 text-right">{h.progress}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </GlassCard>}
           </>
@@ -747,7 +910,7 @@ export default function DashboardPage() {
               {kpiLoading ? (
                 [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
               ) : kpiItems.length === 0 ? (
-                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้อมูล</p>
+                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้ฏมูล</p>
               ) : kpiModal === "revenue" ? (
                 kpiItems.map((item, i) => (
                   <div key={i} className="flex items-center justify-between bg-aviva-bg rounded-xl px-4 py-3">

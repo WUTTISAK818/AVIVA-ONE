@@ -2846,7 +2846,7 @@ function MaterialsContent() {
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
                 <textarea value={poForm.items} onChange={e => setPoForm(p => ({ ...p, items: e.target.value }))}
-                  placeholder={'[{"name":"เหล็กเส้น 12mm","qty":100,"unit":"เส้น","unit_price":85}]'}
+                  placeholder={'{"name":"เหล็กเส้น 12mm","qty":100,"unit":"เส้น","unit_price":85}'}
                   rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div>

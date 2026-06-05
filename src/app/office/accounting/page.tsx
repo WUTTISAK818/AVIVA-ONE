@@ -586,7 +586,7 @@ function APTab() {
     if (!form.vendor_name || !form.base_amount || !form.due_date) return;
     setSaving(true);
     const d = new Date();
-    const billNo = `PV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "00")}-${Date.now().toString().slice(-4)}`;
+    const billNo = `PV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
     await supabase.from("ap_bills").insert({
       bill_number: billNo, vendor_name: form.vendor_name, vendor_tax_id: form.vendor_tax_id || null,
       bill_date: form.bill_date, due_date: form.due_date, base_amount: base, vat_amount: vat,
@@ -915,7 +915,7 @@ function ScannerTab() {
 
   const saveResult = async () => {
     if (!result) return;
-    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*0.07*100)/100, total_amount: Math.round(result.amount*1.07*100)/100, period: (()=>{ const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })(), etax_status: "pending", project_id: PROJECT_ID });
+    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*0.07*100)/100, total_amount: Math.round(result.amount*1.07*100)/100, period: (()=>{ const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"00")}`; })(), etax_status: "pending", project_id: PROJECT_ID });
     setSaved(true);
   };
 

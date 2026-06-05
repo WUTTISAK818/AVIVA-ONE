@@ -39,7 +39,6 @@ const TABS: { key: AccTab; label: string; icon: React.ElementType }[] = [
   { key: "matching", label: "จับคู่สลิป", icon: GitMerge },
 ];
 
-// ─── Interfaces ───────────────────────────────────────────────
 interface ChartAccount { code: string; name_th: string; account_type: string; }
 interface JvEntry { id: string; jv_number: string; jv_date: string; description: string; status: string; total_debit: number; total_credit: number; ref_number?: string; }
 interface JvLine { account_code: string; account_name: string; debit: number; credit: number; description: string; }
@@ -53,7 +52,6 @@ interface InfraCost { id: string; cost_type: string; total_cost: number; phase?:
 interface RevenueRec { id: string; house_number: string; contract_value: number; recognized_amount: number; deferred_amount: number; received_total: number; status: string; transfer_date?: string; contract_date?: string; }
 interface House { id: string; house_number: string; plot_number: number; house_model: string; sale_price?: number; }
 
-// ─── Status Badge ─────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     draft: "bg-yellow-500/20 text-yellow-300",
@@ -79,7 +77,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Dashboard Tab ────────────────────────────────────────────
 function DashboardTab() {
   const [stats, setStats] = useState({ jvCount: 0, arOutstanding: 0, apOverdue: 0, vatDue: 0, whtDue: 0 });
 
@@ -136,13 +133,11 @@ function DashboardTab() {
   );
 }
 
-// ─── Journal Tab ──────────────────────────────────────────────
 function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
   const [entries, setEntries] = useState<JvEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [lines, setLines] = useState<JvEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ jv_date: today(), description: "", ref_number: "" });
   const [jvLines, setJvLines] = useState<JvLine[]>([
@@ -292,7 +287,6 @@ function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
               </div>
-
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] font-semibold text-aviva-secondary">รายการ Dr/Cr</p>
@@ -337,7 +331,6 @@ function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
                     </div>
                   ))}
                 </div>
-
                 <div className="mt-3 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10">
                   <div className="flex justify-between text-xs">
                     <span className="text-aviva-secondary">รวม Dr:</span>
@@ -357,7 +350,6 @@ function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
                   {balanced && <p className="text-[10px] text-green-400 mt-1">✓ Dr = Cr สมดุล</p>}
                 </div>
               </div>
-
               <div className="flex gap-2 pt-2">
                 <button onClick={() => handleSave(false)} disabled={!form.description || totalDr === 0 || saving}
                   className="flex-1 py-3 rounded-2xl border border-aviva-gold/30 text-aviva-gold text-sm font-semibold disabled:opacity-40">
@@ -408,7 +400,6 @@ function JvLinesView({ jvId }: { jvId: string }) {
   );
 }
 
-// ─── AR Tab ───────────────────────────────────────────────────
 function ARTab() {
   const [invoices, setInvoices] = useState<ArInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -418,7 +409,7 @@ function ARTab() {
 
   const fetch = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("ar_invoices").select("*").order("invoice_date", { ascending: false }).limit(50);
+    const { data } = await supabase.from("ar_invoices").select("*").eq("project_id", PROJECT_ID).order("invoice_date", { ascending: false }).limit(50);
     setInvoices((data ?? []) as ArInvoice[]);
     setLoading(false);
   }, []);
@@ -428,8 +419,9 @@ function ARTab() {
   const aging = { a0_30: 0, a31_60: 0, a61_90: 0, a90p: 0 };
   const now = new Date();
   invoices.filter(i => ["pending", "partial", "overdue"].includes(i.status)).forEach(inv => {
-    const days = Math.floor((now.getTime() - new Date(inv.due_date).getTime()) / 86400000);
+    const days = Math.ceil((now.getTime() - new Date(inv.due_date).getTime()) / 86400000);
     const bal = Number(inv.total_amount) - Number(inv.paid_amount);
+    if (days < 0) return; // ยังไม่ถึงกำหนด ไม่นับใน Aging
     if (days <= 30) aging.a0_30 += bal;
     else if (days <= 60) aging.a31_60 += bal;
     else if (days <= 90) aging.a61_90 += bal;
@@ -471,8 +463,6 @@ function ARTab() {
           <Plus size={14} /> ออกใบแจ้งหนี้
         </button>
       </div>
-
-      {/* Aging */}
       <GlassCard className="p-4">
         <p className="text-xs font-semibold text-aviva-gold mb-3">Aging Analysis (ยอดคงค้าง)</p>
         <div className="grid grid-cols-4 gap-2">
@@ -489,7 +479,6 @@ function ARTab() {
           ))}
         </div>
       </GlassCard>
-
       {loading ? (
         [1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse" />)
       ) : invoices.length === 0 ? (
@@ -503,9 +492,7 @@ function ARTab() {
                 <StatusBadge status={inv.status} />
               </div>
               <p className="text-sm text-aviva-text">{inv.customer_name}</p>
-              <p className="text-[11px] text-aviva-secondary mt-0.5">
-                ออก: {inv.invoice_date} · กำหนด: {inv.due_date}
-              </p>
+              <p className="text-[11px] text-aviva-secondary mt-0.5">ออก: {inv.invoice_date} · กำหนด: {inv.due_date}</p>
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-sm font-bold text-aviva-gold">฿{fmtM(Number(inv.total_amount))}</p>
@@ -514,7 +501,6 @@ function ARTab() {
           </div>
         </GlassCard>
       ))}
-
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
           <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
@@ -532,14 +518,12 @@ function ARTab() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] text-aviva-secondary mb-1 block">วันที่ออก</label>
-                  <input type="date" value={form.invoice_date}
-                    onChange={e => setForm(f => ({ ...f, invoice_date: e.target.value }))}
+                  <input type="date" value={form.invoice_date} onChange={e => setForm(f => ({ ...f, invoice_date: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
                 </div>
                 <div>
                   <label className="text-[11px] text-aviva-secondary mb-1 block">วันครบกำหนด *</label>
-                  <input type="date" value={form.due_date}
-                    onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+                  <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
                 </div>
               </div>
@@ -573,7 +557,6 @@ function ARTab() {
   );
 }
 
-// ─── AP Tab ───────────────────────────────────────────────────
 function APTab() {
   const [bills, setBills] = useState<ApBill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -587,7 +570,7 @@ function APTab() {
 
   const fetch = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("ap_bills").select("*").order("bill_date", { ascending: false }).limit(50);
+    const { data } = await supabase.from("ap_bills").select("*").eq("project_id", PROJECT_ID).order("bill_date", { ascending: false }).limit(50);
     setBills((data ?? []) as ApBill[]);
     setLoading(false);
   }, []);
@@ -603,25 +586,14 @@ function APTab() {
     if (!form.vendor_name || !form.base_amount || !form.due_date) return;
     setSaving(true);
     const d = new Date();
-    const billNo = `PV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
+    const billNo = `PV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "00")}-${Date.now().toString().slice(-4)}`;
     await supabase.from("ap_bills").insert({
-      bill_number: billNo,
-      vendor_name: form.vendor_name,
-      vendor_tax_id: form.vendor_tax_id || null,
-      bill_date: form.bill_date,
-      due_date: form.due_date,
-      base_amount: base,
-      vat_amount: vat,
-      wht_rate: Number(form.wht_rate),
-      wht_amount: whtAmt,
-      total_amount: total,
-      paid_amount: 0,
-      status: "pending",
-      description: form.description || null,
-      project_id: PROJECT_ID,
+      bill_number: billNo, vendor_name: form.vendor_name, vendor_tax_id: form.vendor_tax_id || null,
+      bill_date: form.bill_date, due_date: form.due_date, base_amount: base, vat_amount: vat,
+      wht_rate: Number(form.wht_rate), wht_amount: whtAmt, total_amount: total,
+      paid_amount: 0, status: "pending", description: form.description || null, project_id: PROJECT_ID,
     });
-    setSaving(false);
-    setShowModal(false);
+    setSaving(false); setShowModal(false);
     setForm({ vendor_name: "", vendor_tax_id: "", bill_date: today(), due_date: "", base_amount: "", wht_rate: "0", description: "" });
     fetch();
   };
@@ -630,28 +602,19 @@ function APTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <SectionHeader title="เจ้าหนี้ (AP)" subtitle="ใบแจ้งหนี้และการจ่ายชำระ" />
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-4 py-2 rounded-xl text-sm font-bold">
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-4 py-2 rounded-xl text-sm font-bold">
           <Plus size={14} /> บันทึกใบแจ้งหนี้
         </button>
       </div>
-
-      {loading ? (
-        [1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse" />)
-      ) : bills.length === 0 ? (
-        <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีใบแจ้งหนี้เจ้าหนี้</p></GlassCard>
-      ) : bills.map(b => (
+      {loading ? [1,2,3].map(i=><div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse"/>) :
+       bills.length===0 ? <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีใบแจ้งหนี้เจ้าหนี้</p></GlassCard> :
+       bills.map(b=>(
         <GlassCard key={b.id} className="p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="text-xs font-mono text-aviva-gold">{b.bill_number}</p>
-                <StatusBadge status={b.status} />
-              </div>
+              <div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{b.bill_number}</p><StatusBadge status={b.status}/></div>
               <p className="text-sm text-aviva-text">{b.vendor_name}</p>
-              <p className="text-[11px] text-aviva-secondary mt-0.5">
-                {b.bill_date} · WHT {b.wht_rate}% = ฿{fmt(Number(b.wht_amount))}
-              </p>
+              <p className="text-[11px] text-aviva-secondary mt-0.5">{b.bill_date} · WHT {b.wht_rate}% = ฿{fmt(Number(b.wht_amount))}</p>
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-sm font-bold text-red-400">฿{fmtM(Number(b.total_amount))}</p>
@@ -660,7 +623,6 @@ function APTab() {
           </div>
         </GlassCard>
       ))}
-
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
           <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
@@ -669,62 +631,34 @@ function APTab() {
               <button onClick={() => setShowModal(false)}><X size={18} className="text-aviva-secondary" /></button>
             </div>
             <div className="p-5 space-y-3">
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">ชื่อผู้ขาย / ผู้รับจ้าง *</label>
-                <input type="text" value={form.vendor_name} onChange={e => setForm(f => ({ ...f, vendor_name: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
-                <input type="text" maxLength={13} placeholder="0000000000000" value={form.vendor_tax_id}
-                  onChange={e => setForm(f => ({ ...f, vendor_tax_id: e.target.value.replace(/\D/g, "") }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ชื่อผู้ขาย / ผู้รับจ้าง *</label>
+                <input type="text" value={form.vendor_name} onChange={e=>setForm(f=>({...f,vendor_name:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
+                <input type="text" maxLength={13} placeholder="0000000000000" value={form.vendor_tax_id} onChange={e=>setForm(f=>({...f,vendor_tax_id:e.target.value.replace(/\D/g,"")}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-aviva-secondary mb-1 block">วันที่บิล</label>
-                  <input type="date" value={form.bill_date} onChange={e => setForm(f => ({ ...f, bill_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-aviva-secondary mb-1 block">วันครบกำหนด *</label>
-                  <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
-                </div>
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่บิล</label>
+                  <input type="date" value={form.bill_date} onChange={e=>setForm(f=>({...f,bill_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันครบกำหนด *</label>
+                  <input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
               </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label>
-                <input type="number" min="0" placeholder="0.00" value={form.base_amount}
-                  onChange={e => setForm(f => ({ ...f, base_amount: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">อัตรา WHT (%)</label>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label>
+                <input type="number" min="0" placeholder="0.00" value={form.base_amount} onChange={e=>setForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">อัตรา WHT (%)</label>
                 <div className="flex gap-2 flex-wrap">
-                  {WHT_RATES.map(r => (
-                    <button key={r} onClick={() => setForm(f => ({ ...f, wht_rate: String(r) }))}
-                      className={clsx("px-3 py-1.5 rounded-lg text-xs border transition-all",
-                        form.wht_rate === String(r) ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg border-aviva-gold/20 text-aviva-secondary"
-                      )}>
-                      {r}%
-                    </button>
+                  {WHT_RATES.map(r=>(
+                    <button key={r} onClick={()=>setForm(f=>({...f,wht_rate:String(r)}))} className={clsx("px-3 py-1.5 rounded-lg text-xs border transition-all",form.wht_rate===String(r)?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>{r}%</button>
                   ))}
                 </div>
               </div>
-              {form.base_amount && (
+              {form.base_amount&&(
                 <div className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs space-y-1">
                   <div className="flex justify-between"><span className="text-aviva-secondary">ยอดก่อน VAT</span><span className="text-aviva-text">฿{fmt(base)}</span></div>
                   <div className="flex justify-between"><span className="text-aviva-secondary">VAT 7%</span><span className="text-aviva-text">฿{fmt(vat)}</span></div>
                   <div className="flex justify-between"><span className="text-aviva-secondary">หัก WHT {form.wht_rate}%</span><span className="text-red-400">-฿{fmt(whtAmt)}</span></div>
-                  <div className="flex justify-between font-bold border-t border-aviva-gold/10 pt-1 mt-1">
-                    <span className="text-aviva-text">ยอดสุทธิที่จ่าย</span><span className="text-aviva-gold">฿{fmt(total)}</span>
-                  </div>
+                  <div className="flex justify-between font-bold border-t border-aviva-gold/10 pt-1 mt-1"><span className="text-aviva-text">ยอดสุทธิที่จ่าย</span><span className="text-aviva-gold">฿{fmt(total)}</span></div>
                 </div>
               )}
-              <button onClick={handleSave} disabled={!form.vendor_name || !form.base_amount || !form.due_date || saving}
-                className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">
-                {saving ? "กำลังบันทึก..." : "บันทึก"}
-              </button>
+              <button onClick={handleSave} disabled={!form.vendor_name||!form.base_amount||!form.due_date||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...": "บันทึก"}</button>
             </div>
           </div>
         </div>
@@ -733,7 +667,6 @@ function APTab() {
   );
 }
 
-// ─── Tax Tab ──────────────────────────────────────────────────
 function TaxTab() {
   const [sub, setSub] = useState<TaxSubTab>("vat");
   const [vatEntries, setVatEntries] = useState<VatEntry[]>([]);
@@ -742,246 +675,62 @@ function TaxTab() {
   const [lbtEntries, setLbtEntries] = useState<LbtEntry[]>([]);
   const [showVatModal, setShowVatModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [vatForm, setVatForm] = useState({
-    vat_type: "output", invoice_no: "", invoice_date: today(), party_name: "", party_tax_id: "", base_amount: "",
-  });
-
-  const period = (() => {
-    const d = new Date();
-    return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}`;
-  })();
+  const [vatForm, setVatForm] = useState({ vat_type: "output", invoice_no: "", invoice_date: today(), party_name: "", party_tax_id: "", base_amount: "" });
+  const period = (() => { const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })();
 
   useEffect(() => {
-    supabase.from("vat_register").select("*").order("invoice_date", { ascending: false }).limit(50)
-      .then(({ data }) => setVatEntries((data ?? []) as VatEntry[]));
-    supabase.from("wht_certificates").select("*").order("cert_date", { ascending: false }).limit(50)
-      .then(({ data }) => setWhtCerts((data ?? []) as WhtCert[]));
-    supabase.from("sbt_register").select("*").order("created_at", { ascending: false }).limit(20)
-      .then(({ data }) => setSbtEntries((data ?? []) as SbtEntry[]));
-    supabase.from("land_building_tax").select("*").order("tax_year", { ascending: false }).limit(10)
-      .then(({ data }) => setLbtEntries((data ?? []) as LbtEntry[]));
+    supabase.from("vat_register").select("*").order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
+    supabase.from("wht_certificates").select("*").order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
+    supabase.from("sbt_register").select("*").order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
+    supabase.from("land_building_tax").select("*").order("tax_year",{ascending:false}).limit(10).then(({data})=>setLbtEntries((data??[]) as LbtEntry[]));
   }, []);
 
   const saveVat = async () => {
-    if (!vatForm.invoice_no || !vatForm.party_name || !vatForm.base_amount) return;
+    if (!vatForm.invoice_no||!vatForm.party_name||!vatForm.base_amount) return;
     setSaving(true);
-    const base = Number(vatForm.base_amount);
-    const vat = Math.round(base * 0.07 * 100) / 100;
-    await supabase.from("vat_register").insert({
-      vat_type: vatForm.vat_type,
-      invoice_no: vatForm.invoice_no,
-      invoice_date: vatForm.invoice_date,
-      party_name: vatForm.party_name,
-      party_tax_id: vatForm.party_tax_id || null,
-      base_amount: base,
-      vat_amount: vat,
-      total_amount: base + vat,
-      period,
-      etax_status: "pending",
-      project_id: PROJECT_ID,
-    });
-    setSaving(false);
-    setShowVatModal(false);
-    setVatForm({ vat_type: "output", invoice_no: "", invoice_date: today(), party_name: "", party_tax_id: "", base_amount: "" });
-    supabase.from("vat_register").select("*").order("invoice_date", { ascending: false }).limit(50)
-      .then(({ data }) => setVatEntries((data ?? []) as VatEntry[]));
+    const base=Number(vatForm.base_amount); const vat=Math.round(base*0.07*100)/100;
+    await supabase.from("vat_register").insert({ vat_type:vatForm.vat_type, invoice_no:vatForm.invoice_no, invoice_date:vatForm.invoice_date, party_name:vatForm.party_name, party_tax_id:vatForm.party_tax_id||null, base_amount:base, vat_amount:vat, total_amount:base+vat, period, etax_status:"pending", project_id:PROJECT_ID });
+    setSaving(false); setShowVatModal(false);
+    setVatForm({vat_type:"output",invoice_no:"",invoice_date:today(),party_name:"",party_tax_id:"",base_amount:""});
+    supabase.from("vat_register").select("*").order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
   };
 
-  const subTabs: { key: TaxSubTab; label: string }[] = [
-    { key: "vat", label: "VAT" },
-    { key: "wht", label: "WHT ภ.ง.ด." },
-    { key: "sbt", label: "ภ.ธ.40" },
-    { key: "lbt", label: "ภาษีที่ดิน" },
-  ];
+  const subTabs: { key: TaxSubTab; label: string }[] = [{key:"vat",label:"VAT"},{key:"wht",label:"WHT ภ.ง.ด."},{key:"sbt",label:"ภ.ธ.40"},{key:"lbt",label:"ภาษีที่ดิน"}];
 
   return (
     <div className="space-y-4">
       <SectionHeader title="ภาษี" subtitle="VAT · WHT · ภ.ธ.40 · ภาษีที่ดิน" />
       <div className="flex gap-2">
-        {subTabs.map(t => (
-          <button key={t.key} onClick={() => setSub(t.key)}
-            className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
-              sub === t.key ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-            )}>{t.label}</button>
-        ))}
+        {subTabs.map(t=>(<button key={t.key} onClick={()=>setSub(t.key)} className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",sub===t.key?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{t.label}</button>))}
       </div>
-
-      {sub === "vat" && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-aviva-secondary">ทะเบียน VAT · Period {period}</p>
-            <button onClick={() => setShowVatModal(true)}
-              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold">
-              <Plus size={12} /> เพิ่ม
-            </button>
-          </div>
-          {vatEntries.length === 0 ? (
-            <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p></GlassCard>
-          ) : vatEntries.map(v => (
-            <GlassCard key={v.id} className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
-                      v.vat_type === "output" ? "bg-green-500/20 text-green-300" : "bg-blue-500/20 text-blue-300"
-                    )}>
-                      {v.vat_type === "output" ? "ขาออก" : "ขาเข้า"}
-                    </span>
-                    <p className="text-xs font-mono text-aviva-text">{v.invoice_no}</p>
-                  </div>
-                  <p className="text-xs text-aviva-secondary">{v.party_name} · {v.invoice_date}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(v.vat_amount))}</p>
-                  <p className="text-[10px] text-aviva-secondary">VAT</p>
-                </div>
-              </div>
-            </GlassCard>
-          ))}
-        </div>
-      )}
-
-      {sub === "wht" && (
-        <div className="space-y-3">
-          {whtCerts.length === 0 ? (
-            <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีหนังสือรับรอง WHT</p></GlassCard>
-          ) : whtCerts.map(w => (
-            <GlassCard key={w.id} className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-xs font-mono text-aviva-gold">{w.cert_number}</p>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">ภ.ง.ด.{w.tax_form}</span>
-                  </div>
-                  <p className="text-xs text-aviva-text">{w.payee_name}</p>
-                  <p className="text-[10px] text-aviva-secondary">{w.cert_date} · {w.wht_rate}%</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-bold text-red-400">-฿{fmt(Number(w.wht_amount))}</p>
-                  <p className="text-[10px] text-aviva-secondary">หัก ณ ที่จ่าย</p>
-                </div>
-              </div>
-            </GlassCard>
-          ))}
-          <GlassCard className="p-4">
-            <p className="text-xs font-semibold text-aviva-secondary mb-2">อัตรา WHT อ้างอิง</p>
-            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-              {[
-                ["ค่าจ้าง (บุคคล)", "3% — ภ.ง.ด.3"],
-                ["ค่าจ้าง (นิติ)", "3% — ภ.ง.ด.53"],
-                ["ค่าเช่า", "5% — ภ.ง.ด.3/53"],
-                ["ค่าโฆษณา", "2% — ภ.ง.ด.3/53"],
-                ["เงินเดือน", "ตามสูตร — ภ.ง.ด.1"],
-                ["ดอกเบี้ย", "1% — ภ.ง.ด.3/53"],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-aviva-secondary">{k}</span>
-                  <span className="text-aviva-gold">{v}</span>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </div>
-      )}
-
-      {sub === "sbt" && (
-        <div className="space-y-3">
-          <GlassCard className="p-4">
-            <p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีธุรกิจเฉพาะ (ภ.ธ.40)</p>
-            <p className="text-[11px] text-aviva-secondary">อัตรา 3.3% (ภ.ธ.40 3% + ภาษีท้องถิ่น 10% ของ 3%) ต่อยอดขายบ้านทุกรายการโอน</p>
-          </GlassCard>
-          {sbtEntries.length === 0 ? (
-            <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ ภ.ธ.40</p></GlassCard>
-          ) : sbtEntries.map(s => (
-            <GlassCard key={s.id} className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-medium text-aviva-text">Period {s.period}</p>
-                  <p className="text-[10px] text-aviva-secondary">โอน: {s.transfer_date ?? "-"} · ฐาน: ฿{fmtM(Number(s.base_amount))}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(s.total_tax))}</p>
-                  <StatusBadge status={s.status} />
-                </div>
-              </div>
-            </GlassCard>
-          ))}
-        </div>
-      )}
-
-      {sub === "lbt" && (
-        <div className="space-y-3">
-          <GlassCard className="p-4">
-            <p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีที่ดินและสิ่งปลูกสร้าง (พ.ร.บ.2562)</p>
-            <p className="text-[11px] text-aviva-secondary">อัตราที่ดินเพื่อการขาย 0.3% ต่อปี ของราคาประเมิน</p>
-          </GlassCard>
-          {lbtEntries.length === 0 ? (
-            <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการภาษีที่ดิน</p></GlassCard>
-          ) : lbtEntries.map(l => (
-            <GlassCard key={l.id} className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-medium text-aviva-text">ปี {l.tax_year}</p>
-                  <p className="text-[10px] text-aviva-secondary">ประเมิน: ฿{fmtM(Number(l.appraised_value))}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(l.tax_amount))}</p>
-                  <StatusBadge status={l.status} />
-                </div>
-              </div>
-            </GlassCard>
-          ))}
-        </div>
-      )}
-
-      {showVatModal && (
+      {sub==="vat"&&(<div className="space-y-3"><div className="flex items-center justify-between"><p className="text-xs text-aviva-secondary">ทะเบียน VAT · Period {period}</p><button onClick={()=>setShowVatModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold"><Plus size={12}/> เพิ่ม</button></div>
+        {vatEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p></GlassCard>:vatEntries.map(v=>(
+          <GlassCard key={v.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><span className={clsx("text-[10px] px-2 py-0.5 rounded-full",v.vat_type==="output"?"bg-green-500/20 text-green-300":"bg-blue-500/20 text-blue-300")}>{v.vat_type==="output"?"ขาออก":"ขาเข้า"}</span><p className="text-xs font-mono text-aviva-text">{v.invoice_no}</p></div><p className="text-xs text-aviva-secondary">{v.party_name} · {v.invoice_date}</p></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(v.vat_amount))}</p><p className="text-[10px] text-aviva-secondary">VAT</p></div></div></GlassCard>
+        ))}
+      </div>)}
+      {sub==="wht"&&(<div className="space-y-3">
+        {whtCerts.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีหนังสือรับรอง WHT</p></GlassCard>:whtCerts.map(w=>(
+          <GlassCard key={w.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{w.cert_number}</p><span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">ภ.ง.ด.{w.tax_form}</span></div><p className="text-xs text-aviva-text">{w.payee_name}</p><p className="text-[10px] text-aviva-secondary">{w.cert_date} · {w.wht_rate}%</p></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-red-400">-฿{fmt(Number(w.wht_amount))}</p><p className="text-[10px] text-aviva-secondary">หัก ณ ที่จ่าย</p></div></div></GlassCard>
+        ))}
+        <GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-secondary mb-2">อัตรา WHT อ้างอิง</p><div className="grid grid-cols-2 gap-1.5 text-[11px]">{[["ค่าจ้าง (บุคคล)","3% — ภ.ง.ด.3"],["ค่าจ้าง (นิติ)","3% — ภ.ง.ด.53"],["ค่าเช่า","5% — ภ.ง.ด.3/53"],["ค่าโฆษณา","2% — ภ.ง.ด.3/53"],["เงินเดือน","ตามสูตร — ภ.ง.ด.1"],["ดอกเบี้ย","1% — ภ.ง.ด.3/53"]].map(([k,v])=>(<div key={k} className="flex justify-between"><span className="text-aviva-secondary">{k}</span><span className="text-aviva-gold">{v}</span></div>))}</div></GlassCard>
+      </div>)}
+      {sub==="sbt"&&(<div className="space-y-3"><GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีธุรกิจเฉพาะ (ภ.ธ.40)</p><p className="text-[11px] text-aviva-secondary">อัตรา 3.3% (ภ.ธ.40 3% + ภาษีท้องถิ่น 10% ของ 3%) ต่อยอดขายบ้านทุกรายการโอน</p></GlassCard>
+        {sbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ ภ.ธ.40</p></GlassCard>:sbtEntries.map(s=>(<GlassCard key={s.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">Period {s.period}</p><p className="text-[10px] text-aviva-secondary">โอน: {s.transfer_date??"- "} · ฐาน: ฿{fmtM(Number(s.base_amount))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(s.total_tax))}</p><StatusBadge status={s.status}/></div></div></GlassCard>))}
+      </div>)}
+      {sub==="lbt"&&(<div className="space-y-3"><GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีที่ดินและสิ่งปลูกสร้าง (พ.ร.บ.2562)</p><p className="text-[11px] text-aviva-secondary">อัตราที่ดินเพื่อการขาย 0.3% ต่อปี ของราคาประเมิน</p></GlassCard>
+        {lbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการภาษีที่ดิน</p></GlassCard>:lbtEntries.map(l=>(<GlassCard key={l.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">ปี {l.tax_year}</p><p className="text-[10px] text-aviva-secondary">ประเมิน: ฿{fmtM(Number(l.appraised_value))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(l.tax_amount))}</p><StatusBadge status={l.status}/></div></div></GlassCard>))}
+      </div>)}
+      {showVatModal&&(
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
           <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
-            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10">
-              <h2 className="font-bold text-aviva-text">เพิ่มรายการ VAT</h2>
-              <button onClick={() => setShowVatModal(false)}><X size={18} className="text-aviva-secondary" /></button>
-            </div>
+            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">เพิ่มรายการ VAT</h2><button onClick={()=>setShowVatModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
             <div className="p-5 space-y-3">
-              <div className="flex gap-2">
-                {[{ v: "output", l: "ขาออก (ขาย)" }, { v: "input", l: "ขาเข้า (ซื้อ)" }].map(t => (
-                  <button key={t.v} onClick={() => setVatForm(f => ({ ...f, vat_type: t.v }))}
-                    className={clsx("flex-1 py-2 rounded-xl text-xs border font-medium transition-all",
-                      vatForm.vat_type === t.v ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg border-aviva-gold/20 text-aviva-secondary"
-                    )}>{t.l}</button>
-                ))}
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">เลขที่ใบกำกับ *</label>
-                <input type="text" placeholder={vatForm.vat_type === "output" ? "TINV-2601-001" : "VINV-2601-001"}
-                  value={vatForm.invoice_no} onChange={e => setVatForm(f => ({ ...f, invoice_no: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">ชื่อ บริษัท / บุคคล *</label>
-                <input type="text" value={vatForm.party_name} onChange={e => setVatForm(f => ({ ...f, party_name: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี</label>
-                <input type="text" maxLength={13} placeholder="0000000000000" value={vatForm.party_tax_id}
-                  onChange={e => setVatForm(f => ({ ...f, party_tax_id: e.target.value.replace(/\D/g, "") }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label>
-                <input type="number" min="0" placeholder="0.00" value={vatForm.base_amount}
-                  onChange={e => setVatForm(f => ({ ...f, base_amount: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-                {vatForm.base_amount && (
-                  <p className="text-[10px] text-aviva-secondary mt-1">
-                    VAT 7%: ฿{fmt(Math.round(Number(vatForm.base_amount) * 0.07 * 100) / 100)}
-                  </p>
-                )}
-              </div>
-              <button onClick={saveVat} disabled={!vatForm.invoice_no || !vatForm.party_name || !vatForm.base_amount || saving}
-                className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">
-                {saving ? "กำลังบันทึก..." : "บันทึก VAT"}
-              </button>
+              <div className="flex gap-2">{[{v:"output",l:"ขาออก (ขาย)"},{v:"input",l:"ขาเข้า (ซื้อ)"}].map(t=>(<button key={t.v} onClick={()=>setVatForm(f=>({...f,vat_type:t.v}))} className={clsx("flex-1 py-2 rounded-xl text-xs border font-medium transition-all",vatForm.vat_type===t.v?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>{t.l}</button>))}</div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขที่ใบกำกับ *</label><input type="text" placeholder={vatForm.vat_type==="output"?"TINV-2601-001":"VINV-2601-001"} value={vatForm.invoice_no} onChange={e=>setVatForm(f=>({...f,invoice_no:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ชื่อ บริษัท / บุคคล *</label><input type="text" value={vatForm.party_name} onChange={e=>setVatForm(f=>({...f,party_name:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี</label><input type="text" maxLength={13} placeholder="0000000000000" value={vatForm.party_tax_id} onChange={e=>setVatForm(f=>({...f,party_tax_id:e.target.value.replace(/\D/g,"")}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label><input type="number" min="0" placeholder="0.00" value={vatForm.base_amount} onChange={e=>setVatForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/>{vatForm.base_amount&&(<p className="text-[10px] text-aviva-secondary mt-1">VAT 7%: ฿{fmt(Math.round(Number(vatForm.base_amount)*0.07*100)/100)}</p>)}</div>
+              <button onClick={saveVat} disabled={!vatForm.invoice_no||!vatForm.party_name||!vatForm.base_amount||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึก VAT"}</button>
             </div>
           </div>
         </div>
@@ -990,7 +739,6 @@ function TaxTab() {
   );
 }
 
-// ─── Lot Cost Tab ─────────────────────────────────────────────
 function LotCostTab() {
   const [infra, setInfra] = useState<InfraCost[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
@@ -1003,11 +751,7 @@ function LotCostTab() {
     Promise.all([
       supabase.from("infrastructure_costs").select("*").order("created_at", { ascending: false }),
       supabase.from("houses").select("id,house_number,plot_number,house_model,sale_price").eq("project_id", PROJECT_ID).order("plot_number").limit(31),
-    ]).then(([ic, h]) => {
-      setInfra((ic.data ?? []) as InfraCost[]);
-      setHouses((h.data ?? []) as House[]);
-      setLoading(false);
-    });
+    ]).then(([ic, h]) => { setInfra((ic.data??[]) as InfraCost[]); setHouses((h.data??[]) as House[]); setLoading(false); });
   }, []);
 
   const totalInfra = infra.reduce((s, i) => s + Number(i.total_cost), 0);
@@ -1016,121 +760,47 @@ function LotCostTab() {
   const saveInfra = async () => {
     if (!form.cost_type || !form.total_cost) return;
     setSaving(true);
-    await supabase.from("infrastructure_costs").insert({
-      cost_type: form.cost_type,
-      total_cost: Number(form.total_cost),
-      phase: form.phase,
-      description: form.description || null,
-      allocation_method: "by_size",
-      is_allocated: false,
-      project_id: PROJECT_ID,
-    });
-    setSaving(false);
-    setShowModal(false);
+    await supabase.from("infrastructure_costs").insert({ cost_type: form.cost_type, total_cost: Number(form.total_cost), phase: form.phase, description: form.description || null, allocation_method: "by_size", is_allocated: false, project_id: PROJECT_ID });
+    setSaving(false); setShowModal(false);
     setForm({ cost_type: "", total_cost: "", phase: "Phase 1", description: "" });
-    supabase.from("infrastructure_costs").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => setInfra((data ?? []) as InfraCost[]));
+    supabase.from("infrastructure_costs").select("*").order("created_at",{ascending:false}).then(({data})=>setInfra((data??[]) as InfraCost[]));
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <SectionHeader title="ต้นทุนแปลง" subtitle="โครงสร้างพื้นฐาน + ปันส่วน" />
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold">
-          <Plus size={14} /> เพิ่มต้นทุน
-        </button>
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold"><Plus size={14} /> เพิ่มต้นทุน</button>
       </div>
-
       <GlassCard className="p-4">
         <div className="grid grid-cols-3 gap-3 text-center">
-          <div>
-            <p className="text-lg font-bold text-aviva-gold">฿{fmtM(totalInfra)}</p>
-            <p className="text-[10px] text-aviva-secondary">ต้นทุนโครงสร้างรวม</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold text-blue-300">{houses.length}</p>
-            <p className="text-[10px] text-aviva-secondary">แปลงทั้งหมด</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold text-green-400">฿{fmtM(perLot)}</p>
-            <p className="text-[10px] text-aviva-secondary">เฉลี่ยต่อแปลง</p>
-          </div>
+          <div><p className="text-lg font-bold text-aviva-gold">฿{fmtM(totalInfra)}</p><p className="text-[10px] text-aviva-secondary">ต้นทุนโครงสร้างรวม</p></div>
+          <div><p className="text-lg font-bold text-blue-300">{houses.length}</p><p className="text-[10px] text-aviva-secondary">แปลงทั้งหมด</p></div>
+          <div><p className="text-lg font-bold text-green-400">฿{fmtM(perLot)}</p><p className="text-[10px] text-aviva-secondary">เฉลี่ยต่อแปลง</p></div>
         </div>
       </GlassCard>
-
       <SectionHeader title="รายการต้นทุนโครงสร้างพื้นฐาน" />
-      {loading ? (
-        [1, 2].map(i => <div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse" />)
-      ) : infra.length === 0 ? (
-        <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการต้นทุน</p></GlassCard>
-      ) : infra.map(ic => (
-        <GlassCard key={ic.id} className="p-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-aviva-text">{ic.cost_type}</p>
-              <p className="text-[10px] text-aviva-secondary">{ic.phase ?? "-"} · {ic.description ?? ""}</p>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-sm font-bold text-aviva-gold">฿{fmtM(Number(ic.total_cost))}</p>
-              <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
-                ic.is_allocated ? "bg-green-500/20 text-green-300" : "bg-yellow-500/20 text-yellow-300"
-              )}>
-                {ic.is_allocated ? "ปันส่วนแล้ว" : "รอปันส่วน"}
-              </span>
-            </div>
-          </div>
-        </GlassCard>
+      {loading?[1,2].map(i=><div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse"/>):
+       infra.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการต้นทุน</p></GlassCard>:
+       infra.map(ic=>(
+        <GlassCard key={ic.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><p className="text-sm font-medium text-aviva-text">{ic.cost_type}</p><p className="text-[10px] text-aviva-secondary">{ic.phase??"- "} · {ic.description??""}</p></div><div className="text-right flex-shrink-0"><p className="text-sm font-bold text-aviva-gold">฿{fmtM(Number(ic.total_cost))}</p><span className={clsx("text-[10px] px-2 py-0.5 rounded-full",ic.is_allocated?"bg-green-500/20 text-green-300":"bg-yellow-500/20 text-yellow-300")}>{ic.is_allocated?"ปันส่วนแล้ว":"รอปันส่วน"}</span></div></div></GlassCard>
       ))}
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
-          <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
-            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10">
-              <h2 className="font-bold text-aviva-text">เพิ่มต้นทุนโครงสร้างพื้นฐาน</h2>
-              <button onClick={() => setShowModal(false)}><X size={18} className="text-aviva-secondary" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">ประเภทต้นทุน *</label>
-                <input type="text" placeholder="เช่น ถนนและระบบไฟฟ้า Phase 1" value={form.cost_type}
-                  onChange={e => setForm(f => ({ ...f, cost_type: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">มูลค่า (บาท) *</label>
-                <input type="number" min="0" placeholder="0.00" value={form.total_cost}
-                  onChange={e => setForm(f => ({ ...f, total_cost: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">Phase</label>
-                <select value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text">
-                  <option>Phase 1</option>
-                  <option>Phase 2</option>
-                  <option>รวมทั้งโครงการ</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <input type="text" placeholder="รายละเอียดเพิ่มเติม" value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <button onClick={saveInfra} disabled={!form.cost_type || !form.total_cost || saving}
-                className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">
-                {saving ? "กำลังบันทึก..." : "บันทึก"}
-              </button>
-            </div>
+      {showModal&&(
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4"><div className="bg-aviva-card rounded-3xl w-full max-w-lg">
+          <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">เพิ่มต้นทุนโครงสร้างพื้นฐาน</h2><button onClick={()=>setShowModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
+          <div className="p-5 space-y-3">
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">ประเภทต้นทุน *</label><input type="text" placeholder="เช่น ถนนและระบบไฟฟ้า Phase 1" value={form.cost_type} onChange={e=>setForm(f=>({...f,cost_type:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">มูลค่า (บาท) *</label><input type="number" min="0" placeholder="0.00" value={form.total_cost} onChange={e=>setForm(f=>({...f,total_cost:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">Phase</label><select value={form.phase} onChange={e=>setForm(f=>({...f,phase:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"><option>Phase 1</option><option>Phase 2</option><option>รวมทั้งโครงการ</option></select></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">หมายเหตุ</label><input type="text" placeholder="รายละเอียดเพิ่มเติม" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <button onClick={saveInfra} disabled={!form.cost_type||!form.total_cost||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึก"}</button>
           </div>
-        </div>
+        </div></div>
       )}
     </div>
   );
 }
 
-// ─── TFRS 15 Tab ──────────────────────────────────────────────
 function TFRS15Tab() {
   const [rows, setRows] = useState<RevenueRec[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1138,6 +808,8 @@ function TFRS15Tab() {
   const [saving, setSaving] = useState(false);
   const [houses, setHouses] = useState<House[]>([]);
   const [form, setForm] = useState({ house_id: "", house_number: "", contract_date: today(), contract_value: "", transfer_date: "", notes: "" });
+  const [recognizingId, setRecognizingId] = useState<string | null>(null);
+  const [recognizeDate, setRecognizeDate] = useState(today());
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -1145,25 +817,17 @@ function TFRS15Tab() {
       supabase.from("revenue_recognition").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("houses").select("id,house_number,plot_number,sale_price").eq("project_id", PROJECT_ID).order("plot_number").limit(31),
     ]);
-    setRows((rr.data ?? []) as RevenueRec[]);
-    setHouses((h.data ?? []) as House[]);
-    setLoading(false);
+    setRows((rr.data ?? []) as RevenueRec[]); setHouses((h.data ?? []) as House[]); setLoading(false);
   }, []);
-
   useEffect(() => { fetch(); }, [fetch]);
 
   const totalContract = rows.reduce((s, r) => s + Number(r.contract_value), 0);
   const totalRecognized = rows.reduce((s, r) => s + Number(r.recognized_amount), 0);
   const totalDeferred = rows.reduce((s, r) => s + Number(r.deferred_amount), 0);
 
-  const recognize = async (id: string, contractValue: number) => {
-    await supabase.from("revenue_recognition").update({
-      recognized_amount: contractValue,
-      deferred_amount: 0,
-      status: "recognized",
-      transfer_date: today(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", id);
+  const recognize = async (id: string, contractValue: number, transferDate: string) => {
+    await supabase.from("revenue_recognition").update({ recognized_amount: contractValue, deferred_amount: 0, status: "recognized", transfer_date: transferDate, updated_at: new Date().toISOString() }).eq("id", id);
+    setRecognizingId(null);
     fetch();
   };
 
@@ -1171,21 +835,8 @@ function TFRS15Tab() {
     if (!form.house_number || !form.contract_value) return;
     setSaving(true);
     const cv = Number(form.contract_value);
-    await supabase.from("revenue_recognition").insert({
-      house_id: form.house_id || null,
-      house_number: form.house_number,
-      contract_date: form.contract_date,
-      contract_value: cv,
-      transfer_date: form.transfer_date || null,
-      recognized_amount: form.transfer_date ? cv : 0,
-      deferred_amount: form.transfer_date ? 0 : cv,
-      received_total: 0,
-      status: form.transfer_date ? "recognized" : "pending",
-      project_id: PROJECT_ID,
-      notes: form.notes || null,
-    });
-    setSaving(false);
-    setShowModal(false);
+    await supabase.from("revenue_recognition").insert({ house_id: form.house_id || null, house_number: form.house_number, contract_date: form.contract_date, contract_value: cv, transfer_date: form.transfer_date || null, recognized_amount: form.transfer_date ? cv : 0, deferred_amount: form.transfer_date ? 0 : cv, received_total: 0, status: form.transfer_date ? "recognized" : "pending", project_id: PROJECT_ID, notes: form.notes || null });
+    setSaving(false); setShowModal(false);
     setForm({ house_id: "", house_number: "", contract_date: today(), contract_value: "", transfer_date: "", notes: "" });
     fetch();
   };
@@ -1194,245 +845,104 @@ function TFRS15Tab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <SectionHeader title="TFRS 15 — รับรู้รายได้" subtitle="รับรู้เมื่อโอนกรรมสิทธิ์" />
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold">
-          <Plus size={14} /> เพิ่ม
-        </button>
+        <button onClick={()=>setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold"><Plus size={14}/> เพิ่ม</button>
       </div>
-
       <div className="grid grid-cols-3 gap-3">
-        <GlassCard className="p-3 text-center">
-          <p className="text-base font-bold text-aviva-gold">฿{fmtM(totalContract)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">มูลค่าสัญญา</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <p className="text-base font-bold text-green-400">฿{fmtM(totalRecognized)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รับรู้รายได้แล้ว</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <p className="text-base font-bold text-yellow-400">฿{fmtM(totalDeferred)}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รอรับรู้</p>
-        </GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-base font-bold text-aviva-gold">฿{fmtM(totalContract)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">มูลค่าสัญญา</p></GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-base font-bold text-green-400">฿{fmtM(totalRecognized)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">รับรู้รายได้แล้ว</p></GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-base font-bold text-yellow-400">฿{fmtM(totalDeferred)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">รอรับรู้</p></GlassCard>
       </div>
-
-      {loading ? (
-        [1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse" />)
-      ) : rows.length === 0 ? (
-        <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการรับรู้รายได้</p></GlassCard>
-      ) : rows.map(r => (
+      {loading?[1,2,3].map(i=><div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse"/>):
+       rows.length===0?<GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการรับรู้รายได้</p></GlassCard>:
+       rows.map(r=>(
         <GlassCard key={r.id} className="p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="text-sm font-medium text-aviva-text">{r.house_number}</p>
-                <StatusBadge status={r.status} />
-              </div>
-              <p className="text-[11px] text-aviva-secondary">สัญญา: {r.contract_date ?? "-"} · โอน: {r.transfer_date ?? "ยังไม่โอน"}</p>
+              <div className="flex items-center gap-2 mb-0.5"><p className="text-sm font-medium text-aviva-text">{r.house_number}</p><StatusBadge status={r.status}/></div>
+              <p className="text-[11px] text-aviva-secondary">สัญญา: {r.contract_date??"- "} · โอน: {r.transfer_date??"ยังไม่โอน"}</p>
               <p className="text-[11px] text-aviva-secondary">มูลค่า: ฿{fmtM(Number(r.contract_value))}</p>
             </div>
-            {r.status === "pending" && (
-              <button onClick={() => recognize(r.id, Number(r.contract_value))}
-                className="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1">
-                <Check size={11} /> รับรู้รายได้
-              </button>
-            )}
+            {r.status==="pending"&&(recognizingId===r.id?(
+              <div className="flex-shrink-0 flex items-center gap-1">
+                <input type="date" value={recognizeDate} onChange={e=>setRecognizeDate(e.target.value)} className="bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text w-32"/>
+                <button onClick={()=>recognize(r.id,Number(r.contract_value),recognizeDate)} className="text-[11px] px-2 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1"><Check size={11}/> ยืนยัน</button>
+                <button onClick={()=>setRecognizingId(null)} className="text-[11px] px-2 py-1.5 rounded-lg bg-gray-500/20 text-gray-400"><X size={11}/></button>
+              </div>
+            ):(
+              <button onClick={()=>{setRecognizingId(r.id);setRecognizeDate(today());}} className="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1"><Check size={11}/> รับรู้รายได้</button>
+            ))}
           </div>
         </GlassCard>
       ))}
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
-          <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
-            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10">
-              <h2 className="font-bold text-aviva-text">เพิ่มรายการรับรู้รายได้</h2>
-              <button onClick={() => setShowModal(false)}><X size={18} className="text-aviva-secondary" /></button>
+      {showModal&&(
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4"><div className="bg-aviva-card rounded-3xl w-full max-w-lg">
+          <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">เพิ่มรายการรับรู้รายได้</h2><button onClick={()=>setShowModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
+          <div className="p-5 space-y-3">
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">แปลงบ้าน *</label><select value={form.house_id} onChange={e=>{ const h=houses.find(h=>h.id===e.target.value); setForm(f=>({...f,house_id:e.target.value,house_number:h?.house_number??""})); }} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"><option value="">-- เลือกแปลง --</option>{houses.map(h=>(<option key={h.id} value={h.id}>{h.house_number}</option>))}</select></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">มูลค่าตามสัญญา (บาท) *</label><input type="number" min="0" placeholder="0.00" value={form.contract_value} onChange={e=>setForm(f=>({...f,contract_value:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่ทำสัญญา</label><input type="date" value={form.contract_date} onChange={e=>setForm(f=>({...f,contract_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันโอนกรรมสิทธิ์</label><input type="date" value={form.transfer_date} onChange={e=>setForm(f=>({...f,transfer_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/><p className="text-[10px] text-aviva-secondary mt-0.5">ถ้าระบุ = รับรู้รายได้ทันที</p></div>
             </div>
-            <div className="p-5 space-y-3">
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">แปลงบ้าน *</label>
-                <select value={form.house_id}
-                  onChange={e => {
-                    const h = houses.find(h => h.id === e.target.value);
-                    setForm(f => ({ ...f, house_id: e.target.value, house_number: h?.house_number ?? "" }));
-                  }}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text">
-                  <option value="">-- เลือกแปลง --</option>
-                  {houses.map(h => (
-                    <option key={h.id} value={h.id}>{h.house_number}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">มูลค่าตามสัญญา (บาท) *</label>
-                <input type="number" min="0" placeholder="0.00" value={form.contract_value}
-                  onChange={e => setForm(f => ({ ...f, contract_value: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-aviva-secondary mb-1 block">วันที่ทำสัญญา</label>
-                  <input type="date" value={form.contract_date}
-                    onChange={e => setForm(f => ({ ...f, contract_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-aviva-secondary mb-1 block">วันโอนกรรมสิทธิ์</label>
-                  <input type="date" value={form.transfer_date}
-                    onChange={e => setForm(f => ({ ...f, transfer_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
-                  <p className="text-[10px] text-aviva-secondary mt-0.5">ถ้าระบุ = รับรู้รายได้ทันที</p>
-                </div>
-              </div>
-              <button onClick={handleSave} disabled={!form.house_number || !form.contract_value || saving}
-                className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">
-                {saving ? "กำลังบันทึก..." : "บันทึก"}
-              </button>
-            </div>
+            <button onClick={handleSave} disabled={!form.house_number||!form.contract_value||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึก"}</button>
           </div>
-        </div>
+        </div></div>
       )}
     </div>
   );
 }
 
-// ─── Receipt Scanner Tab ──────────────────────────────────────
 function ScannerTab() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<{
-    doc_kind: string; vendor: string; amount: number; date: string;
-    account_code: string; wht_amount: number; confidence: number;
-  } | null>(null);
+  const [result, setResult] = useState<{ doc_kind: string; vendor: string; amount: number; date: string; account_code: string; wht_amount: number; confidence: number; } | null>(null);
   const [saved, setSaved] = useState(false);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { alert("ไฟล์ต้องไม่เกิน 10MB"); return; }
-    setFile(f);
-    setResult(null);
-    setSaved(false);
-    const reader = new FileReader();
-    reader.onload = ev => setPreview(ev.target?.result as string);
-    reader.readAsDataURL(f);
+    const f = e.target.files?.[0]; if (!f) return;
+    if (f.size > 10*1024*1024) { alert("ไฟล์ต้องไม่เกิน 10MB"); return; }
+    setFile(f); setResult(null); setSaved(false);
+    const reader = new FileReader(); reader.onload = ev => setPreview(ev.target?.result as string); reader.readAsDataURL(f);
   };
 
   const scan = async () => {
-    if (!file) return;
-    setScanning(true);
+    if (!file) return; setScanning(true);
     await new Promise(r => setTimeout(r, 1500));
-    setResult({
-      doc_kind: file.name.toLowerCase().includes("receipt") ? "receipt" : "slip",
-      vendor: "บจก. ตัวอย่างผู้รับเหมา",
-      amount: 150000,
-      date: today(),
-      account_code: "7200",
-      wht_amount: 4500,
-      confidence: 94,
-    });
+    setResult({ doc_kind: file.name.toLowerCase().includes("receipt") ? "receipt" : "slip", vendor: "บจก. ตัวอย่างผู้รับเหมา", amount: 150000, date: today(), account_code: "7200", wht_amount: 4500, confidence: 94 });
     setScanning(false);
   };
 
   const saveResult = async () => {
     if (!result) return;
-    await supabase.from("vat_register").insert({
-      vat_type: "input",
-      invoice_no: `SCAN-${Date.now().toString().slice(-6)}`,
-      invoice_date: result.date,
-      party_name: result.vendor,
-      base_amount: result.amount,
-      vat_amount: Math.round(result.amount * 0.07 * 100) / 100,
-      total_amount: Math.round(result.amount * 1.07 * 100) / 100,
-      period: (() => { const d = new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}`; })(),
-      etax_status: "pending",
-      project_id: PROJECT_ID,
-    });
+    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*0.07*100)/100, total_amount: Math.round(result.amount*1.07*100)/100, period: (()=>{ const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })(), etax_status: "pending", project_id: PROJECT_ID });
     setSaved(true);
   };
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="สแกนใบเสร็จ / สลิป" subtitle="AI วิเคราะห์เอกสารอัตโนมัติ" />
-
+      <div className="flex items-center justify-between">
+        <SectionHeader title="สแกนใบเสร็จ / สลิป" subtitle="AI วิเคราะห์เอกสารอัตโนมัติ" />
+        <span className="text-[10px] px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">Demo</span>
+      </div>
       <GlassCard className="p-5">
         <label className="flex flex-col items-center gap-3 cursor-pointer">
-          <div className="w-16 h-16 rounded-2xl bg-aviva-gold/10 flex items-center justify-center">
-            <Scan size={28} className="text-aviva-gold" />
-          </div>
+          <div className="w-16 h-16 rounded-2xl bg-aviva-gold/10 flex items-center justify-center"><Scan size={28} className="text-aviva-gold"/></div>
           <p className="text-sm text-aviva-text font-medium">แตะเพื่ออัปโหลดรูป</p>
           <p className="text-xs text-aviva-secondary">JPG / PNG / PDF · ไม่เกิน 10MB</p>
           <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFile} capture="environment" />
         </label>
       </GlassCard>
-
-      {preview && (
-        <GlassCard className="p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="preview" className="w-full max-h-48 object-contain rounded-xl" />
-        </GlassCard>
-      )}
-
-      {file && !result && (
-        <button onClick={scan} disabled={scanning}
-          className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-          {scanning ? (
-            <><RefreshCw size={16} className="animate-spin" /> AI กำลังวิเคราะห์...</>
-          ) : (
-            <><Scan size={16} /> วิเคราะห์ด้วย AI</>
-          )}
-        </button>
-      )}
-
-      {result && (
-        <GlassCard className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-aviva-gold">ผลการวิเคราะห์</p>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">
-              ความมั่นใจ {result.confidence}%
-            </span>
-          </div>
-          <div className="space-y-2 text-sm">
-            {[
-              ["ประเภทเอกสาร", result.doc_kind === "receipt" ? "ใบเสร็จ" : "สลิป"],
-              ["ผู้ขาย / ผู้รับเหมา", result.vendor],
-              ["จำนวนเงิน", `฿${fmt(result.amount)}`],
-              ["วันที่", result.date],
-              ["รหัสบัญชี", result.account_code],
-              ["WHT หัก ณ ที่จ่าย", `฿${fmt(result.wht_amount)}`],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between">
-                <span className="text-aviva-secondary">{k}</span>
-                <span className="text-aviva-text font-medium">{v}</span>
-              </div>
-            ))}
-          </div>
-          <button onClick={saveResult} disabled={saved}
-            className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-            {saved ? <><Check size={16} /> บันทึกแล้ว</> : <><Download size={16} /> บันทึกเข้าระบบ</>}
-          </button>
-        </GlassCard>
-      )}
-
-      <GlassCard className="p-4">
-        <p className="text-xs font-semibold text-aviva-gold mb-2">วิธีใช้งาน</p>
-        <div className="space-y-1.5 text-[11px] text-aviva-secondary">
-          <p>1. กดเลือกรูปจากกล้องหรือแกลเลอรี</p>
-          <p>2. กด "วิเคราะห์ด้วย AI" — ระบบอ่านข้อมูล</p>
-          <p>3. ตรวจสอบผลลัพธ์ แล้วกด "บันทึกเข้าระบบ"</p>
-          <p>4. ระบบสร้างรายการ VAT ขาเข้าให้อัตโนมัติ</p>
-        </div>
-      </GlassCard>
+      {preview&&(<GlassCard className="p-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={preview} alt="preview" className="w-full max-h-48 object-contain rounded-xl"/></GlassCard>)}
+      {file&&!result&&(<button onClick={scan} disabled={scanning} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">{scanning?(<><RefreshCw size={16} className="animate-spin"/> AI กำลังวิเคราะห์...</>):(<><Scan size={16}/> วิเคราะห์ด้วย AI</>)}</button>)}
+      {result&&(<GlassCard className="p-4 space-y-3"><div className="flex items-center justify-between"><p className="text-sm font-bold text-aviva-gold">ผลการวิเคราะห์</p><span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">ความมั่นใจ {result.confidence}%</span></div><div className="space-y-2 text-sm">{[["ประเภทเอกสาร",result.doc_kind==="receipt"?"ใบเสร็จ":"สลิป"],["ผู้ขาย / ผู้รับเหมา",result.vendor],["จำนวนเงิน",`฿${fmt(result.amount)}`],["วันที่",result.date],["รหัสบัญชี",result.account_code],["WHT หัก ณ ที่จ่าย",`฿${fmt(result.wht_amount)}`]].map(([k,v])=>(<div key={k} className="flex justify-between"><span className="text-aviva-secondary">{k}</span><span className="text-aviva-text font-medium">{v}</span></div>))}</div><button onClick={saveResult} disabled={saved} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2">{saved?(<><Check size={16}/> บันทึกแล้ว</>):(<><Download size={16}/> บันทึกเข้าระบบ</>)}</button></GlassCard>)}
+      <GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">วิธีใช้งาน</p><div className="space-y-1.5 text-[11px] text-aviva-secondary"><p>1. กดเลือกรูปจากกล้องหรือแกลเลอรี่</p><p>2. กด "วิเคราะห์ด้วย AI" — ระบบอ่านข้อมูล</p><p>3. ตรวจสอบผลลัพธ์ แล้วกด "บันทึกเข้าระบบ"</p><p>4. ระบบสร้างรายการ VAT ขาเข้าให้อัตโนมัติ</p></div></GlassCard>
     </div>
   );
 }
 
-// ─── Payment Matching Tab ─────────────────────────────────────
 function MatchingTab() {
-  const [items, setItems] = useState<{
-    id: string; payment_date: string; amount: number; payment_method: string;
-    reference_number: string; note: string; match_status?: string;
-  }[]>([]);
+  const [items, setItems] = useState<{ id: string; payment_date: string; amount: number; payment_method: string; reference_number: string; note: string; match_status?: string; }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1441,10 +951,8 @@ function MatchingTab() {
   const fetch = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from("payments").select("*").order("created_at", { ascending: false }).limit(30);
-    setItems((data ?? []) as typeof items);
-    setLoading(false);
+    setItems((data ?? []) as typeof items); setLoading(false);
   }, []);
-
   useEffect(() => { fetch(); }, [fetch]);
 
   const pending = items.filter(i => !i.match_status || i.match_status === "slip_only").length;
@@ -1452,141 +960,50 @@ function MatchingTab() {
   const complete = items.filter(i => i.match_status === "complete").length;
 
   const handleSave = async () => {
-    if (!form.amount) return;
-    setSaving(true);
-    await supabase.from("payments").insert({
-      payment_date: form.payment_date,
-      amount: Number(form.amount),
-      payment_method: form.payment_method,
-      reference_number: form.reference_number || null,
-      note: form.note || null,
-    });
-    setSaving(false);
-    setShowModal(false);
+    if (!form.amount) return; setSaving(true);
+    await supabase.from("payments").insert({ payment_date: form.payment_date, amount: Number(form.amount), payment_method: form.payment_method, reference_number: form.reference_number || null, note: form.note || null, project_id: PROJECT_ID });
+    setSaving(false); setShowModal(false);
     setForm({ payment_date: today(), amount: "", payment_method: "โอน", reference_number: "", note: "" });
     fetch();
   };
 
-  const matchStatusLabel: Record<string, string> = {
-    slip_only: "มีสลิป รอใบเสร็จ",
-    matched: "จับคู่แล้ว",
-    complete: "ครบถ้วน",
-  };
+  const matchStatusLabel: Record<string, string> = { slip_only: "มีสลิป รอใบเสร็จ", matched: "จับคู่แล้ว", complete: "ครบถ้วน" };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <SectionHeader title="จับคู่สลิป + ใบเสร็จ" subtitle="Payment Matching" />
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold">
-          <Plus size={14} /> บันทึกสลิป
-        </button>
+        <button onClick={()=>setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold"><Plus size={14}/> บันทึกสลิป</button>
       </div>
-
       <div className="grid grid-cols-3 gap-3">
-        <GlassCard className="p-3 text-center">
-          <p className="text-lg font-bold text-yellow-400">{pending}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">รอใบเสร็จ</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <p className="text-lg font-bold text-blue-400">{matched}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">จับคู่แล้ว</p>
-        </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <p className="text-lg font-bold text-green-400">{complete}</p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">ครบถ้วน</p>
-        </GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-lg font-bold text-yellow-400">{pending}</p><p className="text-[10px] text-aviva-secondary mt-0.5">รอใบเสร็จ</p></GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-lg font-bold text-blue-400">{matched}</p><p className="text-[10px] text-aviva-secondary mt-0.5">จับคู่แล้ว</p></GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-lg font-bold text-green-400">{complete}</p><p className="text-[10px] text-aviva-secondary mt-0.5">ครบถ้วน</p></GlassCard>
       </div>
-
-      {loading ? (
-        [1, 2, 3].map(i => <div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse" />)
-      ) : items.length === 0 ? (
-        <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p></GlassCard>
-      ) : items.map(it => (
-        <GlassCard key={it.id} className="p-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <GitMerge size={12} className="text-aviva-gold flex-shrink-0" />
-                <p className="text-xs text-aviva-text">{it.payment_date} · {it.payment_method}</p>
-                {it.match_status && (
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
-                    it.match_status === "complete" ? "bg-green-500/20 text-green-300" :
-                    it.match_status === "matched" ? "bg-blue-500/20 text-blue-300" :
-                    "bg-yellow-500/20 text-yellow-300"
-                  )}>
-                    {matchStatusLabel[it.match_status] ?? it.match_status}
-                  </span>
-                )}
-              </div>
-              {it.reference_number && (
-                <p className="text-[10px] text-aviva-secondary">Ref: {it.reference_number}</p>
-              )}
-              {it.note && <p className="text-[10px] text-aviva-secondary">{it.note}</p>}
-            </div>
-            <p className="text-sm font-bold text-aviva-gold flex-shrink-0">฿{fmtM(Number(it.amount))}</p>
-          </div>
-        </GlassCard>
+      {loading?[1,2,3].map(i=><div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse"/>):
+       items.length===0?<GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p></GlassCard>:
+       items.map(it=>(
+        <GlassCard key={it.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><GitMerge size={12} className="text-aviva-gold flex-shrink-0"/><p className="text-xs text-aviva-text">{it.payment_date} · {it.payment_method}</p>{it.match_status&&(<span className={clsx("text-[10px] px-2 py-0.5 rounded-full",it.match_status==="complete"?"bg-green-500/20 text-green-300":it.match_status==="matched"?"bg-blue-500/20 text-blue-300":"bg-yellow-500/20 text-yellow-300")}>{matchStatusLabel[it.match_status]??it.match_status}</span>)}</div>{it.reference_number&&(<p className="text-[10px] text-aviva-secondary">Ref: {it.reference_number}</p>)}{it.note&&<p className="text-[10px] text-aviva-secondary">{it.note}</p>}</div><p className="text-sm font-bold text-aviva-gold flex-shrink-0">฿{fmtM(Number(it.amount))}</p></div></GlassCard>
       ))}
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
-          <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
-            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10">
-              <h2 className="font-bold text-aviva-text">บันทึกสลิปการโอน</h2>
-              <button onClick={() => setShowModal(false)}><X size={18} className="text-aviva-secondary" /></button>
+      {showModal&&(
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4"><div className="bg-aviva-card rounded-3xl w-full max-w-lg">
+          <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">บันทึกสลิปการโอน</h2><button onClick={()=>setShowModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
+          <div className="p-5 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่โอน</label><input type="date" value={form.payment_date} onChange={e=>setForm(f=>({...f,payment_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">จำนวนเงิน *</label><input type="number" min="0" placeholder="0.00" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
             </div>
-            <div className="p-5 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-aviva-secondary mb-1 block">วันที่โอน</label>
-                  <input type="date" value={form.payment_date}
-                    onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-aviva-secondary mb-1 block">จำนวนเงิน *</label>
-                  <input type="number" min="0" placeholder="0.00" value={form.amount}
-                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">ช่องทางการโอน</label>
-                <div className="flex gap-2 flex-wrap">
-                  {["โอน", "เช็ค", "เงินสด", "บัตรเครดิต"].map(m => (
-                    <button key={m} onClick={() => setForm(f => ({ ...f, payment_method: m }))}
-                      className={clsx("px-3 py-1.5 rounded-lg text-xs border transition-all",
-                        form.payment_method === m ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg border-aviva-gold/20 text-aviva-secondary"
-                      )}>{m}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">เลขที่อ้างอิง</label>
-                <input type="text" placeholder="เลขที่โอน / เลขเช็ค" value={form.reference_number}
-                  onChange={e => setForm(f => ({ ...f, reference_number: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <div>
-                <label className="text-[11px] text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <input type="text" placeholder="รายละเอียดการโอน" value={form.note}
-                  onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-              </div>
-              <button onClick={handleSave} disabled={!form.amount || saving}
-                className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">
-                {saving ? "กำลังบันทึก..." : "บันทึกสลิป"}
-              </button>
-            </div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">ช่องทางการโอน</label><div className="flex gap-2 flex-wrap">{["โอน","เช็ค","เงินสด","บัตรเครดิต"].map(m=>(<button key={m} onClick={()=>setForm(f=>({...f,payment_method:m}))} className={clsx("px-3 py-1.5 rounded-lg text-xs border transition-all",form.payment_method===m?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>{m}</button>))}</div></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขที่อ้างอิง</label><input type="text" placeholder="เลขที่โอน / เลขเช็ค" value={form.reference_number} onChange={e=>setForm(f=>({...f,reference_number:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">หมายเหตุ</label><input type="text" placeholder="รายละเอียดการโอน" value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <button onClick={handleSave} disabled={!form.amount||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึกสลิป"}</button>
           </div>
-        </div>
+        </div></div>
       )}
     </div>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────
 export default function AccountingPage() {
   const [tab, setTab] = useState<AccTab>("dashboard");
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
@@ -1598,36 +1015,40 @@ export default function AccountingPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg">
-      {/* Header */}
       <div className="sticky top-0 z-30 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10">
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto">
-          <Link href="/office" className="text-aviva-gold hover:text-aviva-gold/80 transition-colors">
-            <ArrowLeft size={20} />
-          </Link>
+          <Link href="/office" className="text-aviva-gold hover:text-aviva-gold/80 transition-colors"><ArrowLeft size={20}/></Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.21</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.22</span>
         </div>
-        {/* Tab scroll */}
-        <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto scrollbar-none max-w-2xl mx-auto">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={clsx(
-                "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all",
-                tab === t.key
-                  ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
-                  : "bg-aviva-card text-aviva-secondary border-aviva-gold/10 hover:border-aviva-gold/30"
-              )}>
-              <t.icon size={12} />
-              {t.label}
-            </button>
-          ))}
+        <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
+          <div className="grid grid-cols-5 gap-1">
+            {TABS.slice(0, 5).map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={clsx("flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-xl text-[10px] font-medium border transition-all",
+                  tab === t.key ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10 hover:border-aviva-gold/30"
+                )}>
+                <t.icon size={11}/>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {TABS.slice(5).map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={clsx("flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-xl text-[10px] font-medium border transition-all",
+                  tab === t.key ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10 hover:border-aviva-gold/30"
+                )}>
+                <t.icon size={11}/>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-
-      {/* Content */}
       <div className="px-4 py-5 max-w-2xl mx-auto space-y-4">
         {tab === "dashboard"  && <DashboardTab />}
         {tab === "journal"    && <JournalTab accounts={accounts} />}

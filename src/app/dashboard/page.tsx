@@ -318,24 +318,23 @@ export default function DashboardPage() {
       "New Lead": 0, "Contacted": 1, "Site Visit": 2,
       "Booking": 3, "Loan Process": 4, "Transfer": 5, "Closed Deal": 6,
     };
-    const now2 = new Date();
-    const monthStart = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, "0")}-01`;
+    const rank = (s: string) => ORDER_MAP[s] ?? 0;
+    const emptyFunnel = { totalNew: 0, visitCount: 0, bookedCount: 0, loanCount: 0, loanApprovedCount: 0, transferCount: 0, hot: 0, warm: 0, cool: 0 };
 
     supabase.from("leads")
       .select("id,status,ai_score,loan_approved_date")
       .eq("project_id", PROJECT_ID)
-      .gte("created_at", monthStart + "T00:00:00")
       .then(({ data, error }) => {
-        if (!mounted || error) return;
+        if (!mounted) return;
+        if (error) { setSalesFunnel(emptyFunnel); return; }
         const leads = (data ?? []) as { id: string; status: string; ai_score: number; loan_approved_date: string | null }[];
-        const rank = (s: string) => ORDER_MAP[s] ?? 0;
         setSalesFunnel({
           totalNew: leads.length,
           visitCount: leads.filter(l => rank(l.status) >= 2).length,
           bookedCount: leads.filter(l => rank(l.status) >= 3).length,
           loanCount: leads.filter(l => rank(l.status) >= 4).length,
           loanApprovedCount: leads.filter(l => l.loan_approved_date != null).length,
-          transferCount: leads.filter(l => rank(l.status) >= 6).length,
+          transferCount: leads.filter(l => rank(l.status) >= 5).length,
           hot: leads.filter(l => (l.ai_score ?? 0) >= 80).length,
           warm: leads.filter(l => (l.ai_score ?? 0) >= 60 && (l.ai_score ?? 0) < 80).length,
           cool: leads.filter(l => (l.ai_score ?? 0) < 60).length,
@@ -509,7 +508,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.22</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.23</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -695,7 +694,7 @@ export default function DashboardPage() {
             {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <SectionHeader title="ฝ่ายขาย — เดือนนี้" subtitle={(() => { const n = new Date(); return `1–${n.getDate()} ${["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][n.getMonth()]} ${n.getFullYear() + 543}`; })()} />
+                  <SectionHeader title="ฝ่ายขาย — ภาพรวม" subtitle="สถานะ Leads ทั้งหมดในโครงการ" />
                 </div>
                 <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
               </div>
@@ -717,7 +716,7 @@ export default function DashboardPage() {
                     ))}
                   </div>
                   <div className="bg-aviva-bg/40 rounded-xl p-3 mt-2">
-                    <p className="text-[10px] text-aviva-secondary/70 mb-2">ระดับความสนใจ ({salesFunnel.totalNew} ราย เดือนนี้)</p>
+                    <p className="text-[10px] text-aviva-secondary/70 mb-2">ระดับความสนใจ ({salesFunnel.totalNew} ราย ทั้งหมด)</p>
                     <div className="space-y-1.5">
                       {([
                         { label: "Hot", count: salesFunnel.hot, bar: "bg-red-400", text: "text-red-400" },

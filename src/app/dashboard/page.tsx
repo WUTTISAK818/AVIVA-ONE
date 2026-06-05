@@ -5,7 +5,7 @@ import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Setting
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -20,7 +20,6 @@ interface Project {
   total_units: number;
   sold_units: number;
   available_units: number;
-  revenue_actual: number;
   revenue_target: number;
   construction_progress: number;
   sellout_forecast: string;
@@ -125,8 +124,11 @@ export default function DashboardPage() {
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
+  const aiMsgsRef = useRef<AiMsg[]>(aiMsgs);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
+  useEffect(() => { aiMsgsRef.current = aiMsgs; }, [aiMsgs]);
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMsgs]);
 
   useEffect(() => {
@@ -143,20 +145,29 @@ export default function DashboardPage() {
     setAiInput("");
     setAiMsgs(p => [...p, { role: "user", text: msg }]);
     setAiLoading(true);
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const currentMsgs = aiMsgs;
+      if (!session) {
+        setAiMsgs(p => [...p, { role: "assistant", text: "กรุณาเข้าสู่ระบบก่อนค่ะ" }]);
+        setAiLoading(false);
+        return;
+      }
       const res = await fetch("/api/ai-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
         body: JSON.stringify({
           message: msg,
-          history: currentMsgs.slice(-5).map(m => ({ role: m.role, content: m.text })),
+          history: aiMsgsRef.current.slice(-5).map(m => ({ role: m.role, content: m.text })),
         }),
       });
       const data = await res.json();
       setAiMsgs(p => [...p, { role: "assistant", text: data.response ?? "ขออภัย ไม่สามารถตอบได้ค่ะ" }]);
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setAiMsgs(p => [...p, { role: "assistant", text: "ขออภัย เกิดข้อผิดพลาด กรุณาลองใหม่ค่ะ" }]);
     }
     setAiLoading(false);
@@ -178,7 +189,7 @@ export default function DashboardPage() {
       const { data } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
       setKpiItems((data as Record<string, unknown>[]) ?? []);
     } else if (type === "available") {
-      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("house_number");
+      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("plot_number");
       setKpiItems((data as Record<string, unknown>[]) ?? []);
     } else if (type === "revenue") {
       const { data } = await supabase.from("receipts").select("amount,receipt_date,description").eq("project_id", PROJECT_ID).order("receipt_date", { ascending: false }).limit(20);
@@ -193,8 +204,6 @@ export default function DashboardPage() {
     const counts: Record<string, number> = {};
     data.forEach((r: { workflow_type: string }) => { counts[r.workflow_type] = (counts[r.workflow_type] ?? 0) + 1; });
     setPendingBreakdown(Object.entries(counts).map(([workflow_type, count]) => ({ workflow_type, count })));
-    const total = data.length;
-    setStats(prev => ({ ...prev, pendingApprovals: total }));
   };
 
   useEffect(() => {
@@ -202,7 +211,9 @@ export default function DashboardPage() {
       .then(({ data }) => { setProject(data); setLoading(false); }, () => setLoading(false));
 
     const year = new Date().getFullYear();
-    Promise.all([
+    const yearStr = String(year);
+
+    Promise.allSettled([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
       supabase.from("receipts").select("amount,receipt_date,receipt_type").eq("project_id", PROJECT_ID),
       supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
@@ -210,21 +221,26 @@ export default function DashboardPage() {
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("contractor_installments").select("status,amount").eq("project_id", PROJECT_ID),
-    ]).then(([approvals, receipts, employees, claims, leads, docs, installments]) => {
-      const allReceipts = (receipts.data ?? []) as { amount: number; receipt_date: string; receipt_type: string }[];
-      const receiptTotal = allReceipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
-      const expTotal = allReceipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
+    ]).then(([approvalsR, receiptsR, employeesR, claimsR, leadsR, docsR, instsR]) => {
+      const allReceipts = receiptsR.status === "fulfilled"
+        ? (receiptsR.value.data ?? []) as { amount: number; receipt_date: string; receipt_type: string }[]
+        : [];
+      const yearReceipts = allReceipts.filter(r => r.receipt_date?.startsWith(yearStr));
+      const receiptTotal = yearReceipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
+      const expTotal = yearReceipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
       setStats(prev => ({
         ...prev,
-        pendingApprovals: approvals.count ?? 0,
+        pendingApprovals: approvalsR.status === "fulfilled" ? (approvalsR.value.count ?? 0) : prev.pendingApprovals,
         totalReceipts: receiptTotal,
         expenseTotal: expTotal,
-        employeeCount: employees.count ?? 0,
-        pendingClaims: claims.count ?? 0,
-        totalLeads: leads.count ?? 0,
-        pendingDocs: docs.count ?? 0,
+        employeeCount: employeesR.status === "fulfilled" ? (employeesR.value.count ?? 0) : prev.employeeCount,
+        pendingClaims: claimsR.status === "fulfilled" ? (claimsR.value.count ?? 0) : prev.pendingClaims,
+        totalLeads: leadsR.status === "fulfilled" ? (leadsR.value.count ?? 0) : prev.totalLeads,
+        pendingDocs: docsR.status === "fulfilled" ? (docsR.value.count ?? 0) : prev.pendingDocs,
       }));
-      const insts = (installments.data ?? []) as { status: string }[];
+      const insts = instsR.status === "fulfilled"
+        ? (instsR.value.data ?? []) as { status: string }[]
+        : [];
       setConstructionStats({
         total: insts.length,
         inReview: insts.filter(i => i.status === "in_review").length,
@@ -234,7 +250,7 @@ export default function DashboardPage() {
       const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
       const incMap: Record<number, number> = {};
       const expMap: Record<number, number> = {};
-      allReceipts.filter(r => r.receipt_date?.startsWith(String(year))).forEach(r => {
+      yearReceipts.forEach(r => {
         const m = new Date(r.receipt_date).getMonth();
         if (r.receipt_type === "income") incMap[m] = (incMap[m] ?? 0) + Number(r.amount) / 1_000_000;
         else expMap[m] = (expMap[m] ?? 0) + Number(r.amount) / 1_000_000;
@@ -244,7 +260,8 @@ export default function DashboardPage() {
         revenue: +((incMap[i] ?? 0).toFixed(1)),
         expense: +((expMap[i] ?? 0).toFixed(1)),
       })));
-    }).catch(() => { setLoadError(true); });
+      if (receiptsR.status === "rejected" && approvalsR.status === "rejected") setLoadError(true);
+    });
 
     fetchPendingBreakdown();
 
@@ -265,13 +282,28 @@ export default function DashboardPage() {
         }
       });
 
-    const channel = supabase.channel("dashboard_approvals_rt")
+    const refreshInsts = () => {
+      supabase.from("contractor_installments").select("status,amount").eq("project_id", PROJECT_ID)
+        .then(({ data }) => {
+          const insts = (data ?? []) as { status: string }[];
+          setConstructionStats({
+            total: insts.length,
+            inReview: insts.filter(i => i.status === "in_review").length,
+            approved: insts.filter(i => i.status === "approved").length,
+            paid: insts.filter(i => i.status === "paid").length,
+          });
+        });
+    };
+
+    const channel = supabase.channel("dashboard_rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "approval_logs" }, fetchPendingBreakdown)
+      .on("postgres_changes", { event: "*", schema: "public", table: "contractor_installments" }, refreshInsts)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     const ORDER_MAP: Record<string, number> = {
       "New Lead": 0, "Contacted": 1, "Site Visit": 2,
       "Booking": 3, "Loan Process": 4, "Transfer": 5, "Closed Deal": 6,
@@ -283,7 +315,8 @@ export default function DashboardPage() {
       .select("id,status,ai_score,loan_approved_date")
       .eq("project_id", PROJECT_ID)
       .gte("created_at", monthStart + "T00:00:00")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (!mounted || error) return;
         const leads = (data ?? []) as { id: string; status: string; ai_score: number; loan_approved_date: string | null }[];
         const rank = (s: string) => ORDER_MAP[s] ?? 0;
         setSalesFunnel({
@@ -305,16 +338,22 @@ export default function DashboardPage() {
       .neq("status", "complete")
       .order("plot_number")
       .limit(15)
-      .then(({ data }) => setActiveHouses((data ?? []) as ActiveHouseInfo[]));
+      .then(({ data, error }) => {
+        if (!mounted || error) return;
+        setActiveHouses((data ?? []) as ActiveHouseInfo[]);
+      });
 
     supabase.from("contractor_installments")
       .select("amount,status")
       .eq("project_id", PROJECT_ID)
       .eq("status", "approved")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (!mounted || error) return;
         const total = ((data ?? []) as { amount: number }[]).reduce((s, i) => s + Number(i.amount), 0);
         setPendingPayouts(total);
       });
+
+    return () => { mounted = false; };
   }, []);
 
   const totalUnits = project?.total_units ?? 0;
@@ -325,7 +364,7 @@ export default function DashboardPage() {
   const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
   const noProjectData = !loading && project === null;
 
-  const canSeeAll = !ctxUser || ctxUser.isManager || ctxUser.isAdmin;
+  const canSeeAll = ctxUser?.isManager || ctxUser?.isAdmin || false;
   const canSeeFinance = canSeeAll || ctxUser?.department === "ฝ่ายการเงิน" || ctxUser?.department === "ฝ่ายบัญชี";
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
@@ -460,7 +499,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.19</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.20</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -710,7 +749,7 @@ export default function DashboardPage() {
             </GlassCard>}
 
             {canSeeFinance && <GlassCard className="p-4">
-              <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
+              <SectionHeader title="ภาพรวมการเงิน" subtitle={`รายรับ-รายจ่าย ปี ${new Date().getFullYear() + 543}`} />
               {project && project.revenue_target > 0 && (
                 <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-1.5">
@@ -874,7 +913,7 @@ export default function DashboardPage() {
                               <p className="text-[11px] font-bold text-aviva-text truncate">{h.house_number}</p>
                               {h.status === "delayed" && <span className="text-[9px] text-red-400 flex-shrink-0 font-medium">ล่าช้า</span>}
                             </div>
-                            <p className="text-[9px] text-aviva-secondary/60 truncate">{h.contractor || "ไม่ระบุผู้รัปเหมา"}</p>
+                            <p className="text-[9px] text-aviva-secondary/60 truncate">{h.contractor || "ไม่ระบุผู้รับเหมา"}</p>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <div className="w-14 h-1.5 bg-aviva-bg rounded-full overflow-hidden">
@@ -910,7 +949,7 @@ export default function DashboardPage() {
               {kpiLoading ? (
                 [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
               ) : kpiItems.length === 0 ? (
-                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้ฏมูล</p>
+                <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้อมูล</p>
               ) : kpiModal === "revenue" ? (
                 kpiItems.map((item, i) => (
                   <div key={i} className="flex items-center justify-between bg-aviva-bg rounded-xl px-4 py-3">

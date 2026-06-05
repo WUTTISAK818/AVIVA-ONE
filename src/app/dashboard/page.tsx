@@ -198,7 +198,7 @@ export default function DashboardPage() {
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "revenue") {
-        const { data, error } = await supabase.from("receipts").select("amount,receipt_date,description").eq("project_id", PROJECT_ID).order("receipt_date", { ascending: false }).limit(20);
+        const { data, error } = await supabase.from("finance_transactions").select("amount,created_at,description,transaction_type").eq("project_id", PROJECT_ID).eq("transaction_type", "income").order("created_at", { ascending: false }).limit(20);
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       }
@@ -225,19 +225,19 @@ export default function DashboardPage() {
 
     Promise.allSettled([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
-      supabase.from("receipts").select("amount,receipt_date,receipt_type").eq("project_id", PROJECT_ID),
+      supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID),
       supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("contractor_installments").select("status,amount").eq("project_id", PROJECT_ID),
-    ]).then(([approvalsR, receiptsR, employeesR, claimsR, leadsR, docsR, instsR]) => {
-      const allReceipts = receiptsR.status === "fulfilled"
-        ? (receiptsR.value.data ?? []) as { amount: number; receipt_date: string; receipt_type: string }[]
+    ]).then(([approvalsR, txnsR, employeesR, claimsR, leadsR, docsR, instsR]) => {
+      const allTxns = txnsR.status === "fulfilled"
+        ? (txnsR.value.data ?? []) as { amount: number; created_at: string; transaction_type: string }[]
         : [];
-      const yearReceipts = allReceipts.filter(r => r.receipt_date?.startsWith(yearStr));
-      const receiptTotal = yearReceipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
-      const expTotal = yearReceipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
+      const yearTxns = allTxns.filter(r => r.created_at?.startsWith(yearStr));
+      const receiptTotal = yearTxns.filter(r => r.transaction_type === "income").reduce((s, r) => s + Number(r.amount), 0);
+      const expTotal = yearTxns.filter(r => r.transaction_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
       setStats(prev => ({
         ...prev,
         pendingApprovals: approvalsR.status === "fulfilled" ? (approvalsR.value.count ?? 0) : prev.pendingApprovals,
@@ -260,9 +260,9 @@ export default function DashboardPage() {
       const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
       const incMap: Record<number, number> = {};
       const expMap: Record<number, number> = {};
-      yearReceipts.forEach(r => {
-        const m = new Date(r.receipt_date).getMonth();
-        if (r.receipt_type === "income") incMap[m] = (incMap[m] ?? 0) + Number(r.amount) / 1_000_000;
+      yearTxns.forEach(r => {
+        const m = new Date(r.created_at).getMonth();
+        if (r.transaction_type === "income") incMap[m] = (incMap[m] ?? 0) + Number(r.amount) / 1_000_000;
         else expMap[m] = (expMap[m] ?? 0) + Number(r.amount) / 1_000_000;
       });
       setChartData(MONTHS.map((month, i) => ({
@@ -270,7 +270,7 @@ export default function DashboardPage() {
         revenue: +((incMap[i] ?? 0).toFixed(1)),
         expense: +((expMap[i] ?? 0).toFixed(1)),
       })));
-      if (receiptsR.status === "rejected" || approvalsR.status === "rejected") setLoadError(true);
+      if (txnsR.status === "rejected" || approvalsR.status === "rejected") setLoadError(true);
     });
 
     fetchPendingBreakdown();
@@ -378,7 +378,7 @@ export default function DashboardPage() {
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
 
-  const monthsElapsed = new Date().getMonth() + 1;
+  const monthsElapsed = Math.max(new Date().getMonth() + 1, 3);
   const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
   const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
   const netPL = stats.totalReceipts - stats.expenseTotal;
@@ -508,7 +508,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.23</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.24</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

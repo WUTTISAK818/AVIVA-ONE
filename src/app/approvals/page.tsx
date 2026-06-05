@@ -647,7 +647,13 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
         const { error } = await supabase.from("approvals").update({ status: "rejected" }).eq("id", log.source_record_id);
         if (error) return error.message;
       } else if (log.workflow_type === "Leave_Request") {
-        const { error } = await supabase.from("leave_requests").update({ status: "rejected" }).eq("id", log.source_record_id);
+        const { error } = await supabase.from("leave_requests").update({ status: "rejected", approved_by: "ปฏิเสธ" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Booking_Deposit") {
+        const { error } = await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Contract_Approval") {
+        const { error } = await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
         if (error) return error.message;
       }
     } catch (e) { return String(e); }
@@ -1071,6 +1077,7 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>("approvals");
   const slaNotifiedRef = useRef(false);
+  const slaSoonNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -1080,20 +1087,19 @@ export default function ApprovalsPage() {
 
   const fetchLogs = () => {
     supabase.from("approval_logs").select("*")
-      .order("action_timestamp", { ascending: false, nullsFirst: true }).limit(200)
+      .order("action_timestamp", { ascending: false, nullsFirst: true }).limit(500)
       .then(({ data }) => { setLogs((data as ApprovalLog[]) ?? []); setLoading(false); });
   };
 
-  const pendingCount = logs.filter(l => l.action_taken === "Pending").length;
-  const overdueCount = logs.filter(l => {
-    if (l.action_taken !== "Pending") return false;
+  const pending = useMemo(() => logs.filter(l => l.action_taken === "Pending"), [logs]);
+  const pendingCount = pending.length;
+  const overdueCount = useMemo(() => pending.filter(l => {
     const sla = SLA_DAYS[l.workflow_type] ?? 3;
     return Math.floor((Date.now() - new Date(l.created_at).getTime()) / 86_400_000) > sla;
-  }).length;
-
-  const pending = logs.filter(l => l.action_taken === "Pending");
+  }).length, [pending]);
 
   useEffect(() => {
+    if (loading) return;
     const overdue = pending.filter(p => p.sla_due_at && new Date(p.sla_due_at) < new Date());
     if (overdue.length > 0 && !slaNotifiedRef.current) {
       slaNotifiedRef.current = true;
@@ -1105,13 +1111,14 @@ export default function ApprovalsPage() {
       });
     }
     const now = new Date();
-    const soonLogs = logs.filter(l => {
-      if (l.action_taken !== 'Pending' || !l.sla_due_at) return false;
+    const soonLogs = pending.filter(l => {
+      if (!l.sla_due_at) return false;
       const due = new Date(l.sla_due_at);
       const hoursLeft = (due.getTime() - now.getTime()) / 3600000;
       return hoursLeft > 0 && hoursLeft <= 24;
     });
-    if (soonLogs.length > 0) {
+    if (soonLogs.length > 0 && !slaSoonNotifiedRef.current) {
+      slaSoonNotifiedRef.current = true;
       createNotification({
         type: 'info',
         title: `SLA ใกล้ครบกำหนด ${soonLogs.length} รายการ`,

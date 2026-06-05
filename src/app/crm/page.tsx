@@ -224,6 +224,7 @@ export default function CRMPage() {
       .eq("source_record_id", selectedLead.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setLeadApprovals((data ?? []) as ApprovalLog[]); setLoadingApprovals(false); });
+    // Load customer installments
     setLoadingCustInsts(true);
     supabase.from("customer_installments")
       .select("*")
@@ -396,6 +397,72 @@ export default function CRMPage() {
       <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=700");
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
+  const printContract = (lead: Lead) => {
+    const dateStr = lead.contract_signed_date
+      ? new Date(lead.contract_signed_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })
+      : new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+    const plotStr = lead.plot_number ? `แปลงที่ ${lead.plot_number}` : "..........";
+    const price = Number(lead.contract_price ?? lead.budget ?? 0);
+    const deposit = Math.round(price * 0.05);
+    const remaining = price - deposit;
+    const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+      <title>สัญญาจะซื้อจะขาย — ${escapeHtml(lead.customer_name)}</title>
+      <style>
+        body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:40px;color:#222;font-size:14px;line-height:2}
+        .header{text-align:center;margin-bottom:24px}
+        .logo{font-size:26px;font-weight:bold;letter-spacing:4px;color:#1E4A35}
+        .doc-title{font-size:16px;font-weight:bold;text-align:center;margin:16px 0;color:#1E4A35;border:2px solid #D4AF37;display:inline-block;padding:4px 24px;border-radius:4px}
+        .field{display:inline-block;border-bottom:1px solid #333;min-width:160px;text-align:center;padding:0 4px}
+        p{margin:6px 0}
+        .clause{margin:10px 0;padding-left:20px}
+        .clause-num{font-weight:bold;margin-top:14px}
+        .sign{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:50px}
+        .sign-box{text-align:center}
+        .sign-line{border-top:1px solid #999;margin-top:56px;padding-top:8px;font-size:12px;color:#666}
+        .highlight{background:#fff9e6;border:1px solid #D4AF37;border-radius:4px;padding:10px 14px;margin:14px 0}
+        .footer{margin-top:32px;font-size:11px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px}
+        .btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 18px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}
+        @media print{body{padding:20px}.btns{display:none!important}}
+      </style></head><body>
+      <div class="header">
+        <div class="logo">AVIVA Private</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">หมู่บ้านจัดสรร AVIVA Private</div>
+      </div>
+      <div style="text-align:center"><span class="doc-title">สัญญาจะซื้อจะขาย</span></div>
+      <p style="text-align:right">ทำ ณ วันที่ <span class="field">${dateStr}</span></p>
+      <p>สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด</strong> เลขทะเบียน ${COMPANY.tax_id} โทร ${COMPANY.phone} ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะขาย"</strong></p>
+      <p>กับ <span class="field" style="min-width:200px">${escapeHtml(lead.customer_name)}</span> เบอร์โทรศัพท์ <span class="field">${escapeHtml(lead.phone)}</span> ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะซื้อ"</strong></p>
+      <div class="highlight">
+        <p><strong>ทรัพย์สินที่ซื้อขาย:</strong> บ้านพร้อมที่ดิน โครงการ AVIVA Private ${escapeHtml(COMPANY.estate)} หมายเลขแปลง <strong>${escapeHtml(plotStr)}</strong></p>
+        <p><strong>ราคาซื้อขาย:</strong> ฿${price.toLocaleString()} (${numberToThai(price)})</p>
+        <p><strong>เงินมัดจำ (5%):</strong> ฿${deposit.toLocaleString()} ชำระในวันทำสัญญา</p>
+        <p><strong>ส่วนที่เหลือ:</strong> ฿${remaining.toLocaleString()} ชำระตามงวดงานก่อสร้างหรือตามที่ตกลง</p>
+        ${lead.delivery_date ? `<p><strong>กำหนดส่งมอบ:</strong> ${new Date(lead.delivery_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>` : ""}
+        ${lead.financing_type && lead.financing_type !== "ไม่ระบุ" ? `<p><strong>รูปแบบการชำระ:</strong> ${escapeHtml(lead.financing_type)}</p>` : ""}
+      </div>
+      <div class="clause">
+        <p class="clause-num">ข้อ 1. การโอนกรรมสิทธิ์</p>
+        <p>ผู้จะขายตกลงจะโอนกรรมสิทธิ์ในทรัพย์สินที่ระบุข้างต้นให้แก่ผู้จะซื้อ เมื่อผู้จะซื้อชำระราคาครบถ้วนแล้ว</p>
+        <p class="clause-num">ข้อ 2. การชำระราคา</p>
+        <p>ผู้จะซื้อตกลงชำระราคาซื้อขายตามงวดงานก่อสร้าง หรือตามตารางชำระที่บริษัทกำหนด</p>
+        <p class="clause-num">ข้อ 3. ความรับผิดชอบของผู้จะขาย</p>
+        <p>ผู้จะขายรับประกันว่าทรัพย์สินที่ขายปลอดจากภาระผูกพัน และจะดำเนินการให้ครบถ้วนตามแบบมาตรฐาน</p>
+        <p class="clause-num">ข้อ 4. การผิดสัญญา</p>
+        <p>หากฝ่ายใดผิดสัญญา ฝ่ายที่เสียหายมีสิทธิ์บอกเลิกสัญญาและเรียกค่าเสียหายได้ตามกฎหมาย</p>
+        <p class="clause-num">ข้อ 5. การประกัน</p>
+        <p>ผู้จะขายรับประกันงานก่อสร้างเป็นเวลา 1 ปี นับแต่วันที่ส่งมอบ สำหรับโครงสร้าง 5 ปี</p>
+      </div>
+      <div class="sign">
+        <div class="sign-box"><div class="sign-line">ลงชื่อผู้จะซื้อ<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
+        <div class="sign-box"><div class="sign-line">ลงชื่อผู้จะขาย<br>(_________________________)<br>บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด</div></div>
+      </div>
+      <div class="footer">${COMPANY.name} · เลขทะเบียน ${COMPANY.tax_id} · โทร ${COMPANY.phone} · ${COMPANY.estate} · รหัส: ${escapeHtml(lead.lead_code ?? lead.id.slice(0,8))}</div>
+      <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
+      </body></html>`;
+    const w = window.open("", "_blank", "width=800,height=750");
     if (w) { w.document.write(html); w.document.close(); }
   };
 
@@ -584,6 +651,7 @@ export default function CRMPage() {
           setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
         }
       }
+      // Notify when loan is newly approved
       if (form.loan_approved_date && !prevLoanDate) {
         await createNotification({
           type: "success",
@@ -613,11 +681,13 @@ export default function CRMPage() {
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
+    if (lead.plot_number && newStatus === "Booking") {
+      const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", lead.id).maybeSingle();
+      if (existingBook) { setToast({ msg: `แปลง ${lead.plot_number} ถูกจองโดย ${existingBook.customer_name} แล้ว`, type: "error" }); return; }
+    }
     await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
     if (lead.plot_number) {
       if (newStatus === "Booking") {
-        const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", lead.id).maybeSingle();
-        if (existingBook) { setToast({ msg: `แปลง ${lead.plot_number} ถูกจองโดย ${existingBook.customer_name} แล้ว`, type: "error" }); return; }
         await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
       } else if (BOOKING_STATUSES.includes(lead.status as LeadStatus) && !BOOKING_STATUSES.includes(newStatus)) {
         await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
@@ -728,6 +798,7 @@ export default function CRMPage() {
       )}
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {/* KPI row */}
         <div className="grid grid-cols-4 gap-2">
           {[
             { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text", filter: "all" },
@@ -744,6 +815,7 @@ export default function CRMPage() {
           ))}
         </div>
 
+        {/* AI Insight */}
         {leads.length > 0 && closeRate < 20 && (
           <AIInsightPanel type="warning" priority="medium"
             title={`อัตราปิดการขายต่ำ (${closeRate}%)`}
@@ -755,8 +827,9 @@ export default function CRMPage() {
             message={`ยอดขายรวมประมาณ ฿${(leads.filter(l => l.status === "Closed Deal").reduce((s, l) => s + Number(l.budget), 0) / 1_000_000).toFixed(1)}M ในช่วงที่เลือก`} />
         )}
 
+        {/* Main tabs */}
         <div className="flex gap-2">
-          {([["pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
+          {([[ "pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1",
                 mainTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -830,7 +903,7 @@ export default function CRMPage() {
                               <span className={clsx("inline-flex items-center gap-1 mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium",
                                 overdue ? "bg-red-500/20 text-red-400 border border-red-500/30" : isToday ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "bg-aviva-bg text-aviva-secondary border border-aviva-gold/10"
                               )}>
-                                {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้" : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                                {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้"  : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
                               </span>
                             );
                           })()}
@@ -847,6 +920,11 @@ export default function CRMPage() {
                             {BOOKING_STATUSES.includes(lead.status) && (
                               <button onClick={(e) => { e.stopPropagation(); printBookingLetter(lead); }} className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-[10px] font-medium">
                                 <Printer size={10} /> ใบจอง
+                              </button>
+                            )}
+                            {(lead.status === "Booking" || lead.status === "Closed Deal") && (
+                              <button onClick={(e) => { e.stopPropagation(); printContract(lead); }} className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-[10px] font-medium">
+                                <Printer size={10} /> สัญญา
                               </button>
                             )}
                           </div>
@@ -1002,6 +1080,7 @@ export default function CRMPage() {
         )}
       </div>
 
+      {/* Add Activity Modal */}
       {showActModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
@@ -1067,6 +1146,7 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* CRM Log Modal */}
       {crmLogLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
@@ -1130,6 +1210,7 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* Add/Edit Lead Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
@@ -1217,10 +1298,17 @@ export default function CRMPage() {
                 <input type="date" value={form.next_follow_up_date} onChange={(e) => setForm({ ...form, next_follow_up_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
-                <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
+                  <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">📝 วันเซ็นสัญญา</label>
+                  <input type="date" value={form.contract_signed_date} onChange={e => setForm(p => ({ ...p, contract_signed_date: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-purple-500/30 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-purple-500/60" />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1249,6 +1337,7 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* KPI Detail Modal */}
       {kpiModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
@@ -1290,6 +1379,7 @@ export default function CRMPage() {
         </div>
       )}
 
+      {/* Status Update Modal */}
       {selectedLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 max-h-[85vh] overflow-y-auto">
@@ -1320,6 +1410,7 @@ export default function CRMPage() {
               )}>AI {selectedLead.ai_score}%</span>
             </div>
 
+            {/* ข้อมูลเพิ่มเติม */}
             <div className="grid grid-cols-2 gap-2">
               {selectedLead.email && (
                 <div className="col-span-2 bg-aviva-bg rounded-xl px-3 py-2">
@@ -1377,6 +1468,7 @@ export default function CRMPage() {
               <p className="text-xs text-aviva-secondary bg-aviva-bg rounded-xl px-3 py-2 leading-relaxed">{selectedLead.notes}</p>
             )}
 
+            {/* ประวัติการติดต่อ */}
             {loadingLogs ? (
               <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
             ) : leadLogs.length > 0 ? (
@@ -1403,6 +1495,7 @@ export default function CRMPage() {
               <p className="text-xs text-aviva-secondary/50 text-center py-1">ยังไม่มีประวัติการติดต่อ</p>
             )}
 
+            {/* ประวัติเอกสาร/อนุมัติ */}
             {loadingApprovals ? (
               <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
             ) : leadApprovals.length > 0 ? (
@@ -1439,6 +1532,7 @@ export default function CRMPage() {
               </div>
             ) : null}
 
+            {/* ตารางชำระเงินลูกค้า */}
             {(custInsts.length > 0 || BOOKING_STATUSES.includes(selectedLead.status)) && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -1490,6 +1584,7 @@ export default function CRMPage() {
               </div>
             )}
 
+            {/* เอกสารแนบ Lead */}
             <div>
               <AttachDocButton entityType="lead" entityId={selectedLead.id} attachedBy={user?.full_name ?? ""} />
             </div>
@@ -1510,7 +1605,13 @@ export default function CRMPage() {
               {BOOKING_STATUSES.includes(selectedLead.status) && (
                 <button onClick={() => { printBookingLetter(selectedLead); }}
                   className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-orange-500/10 text-orange-400 border-orange-500/20">
-                  <FileText size={12} /> ใบจอง/สัญญา
+                  <FileText size={12} /> ใบจอง
+                </button>
+              )}
+              {(selectedLead.status === "Booking" || selectedLead.status === "Closed Deal") && (
+                <button onClick={() => { printContract(selectedLead); }}
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-purple-500/10 text-purple-400 border-purple-500/20">
+                  <FileText size={12} /> สัญญาซื้อขาย
                 </button>
               )}
             </div>
@@ -1531,6 +1632,7 @@ export default function CRMPage() {
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
+      {/* Map Plot Detail Modal */}
       {mapPlotModal !== null && (() => {
         const n = mapPlotModal;
         const house = houses.find(h => h.plot_number === n);
@@ -1620,26 +1722,25 @@ export default function CRMPage() {
         />
       )}
 
+      {/* Floating report button */}
       <button
         onClick={async () => {
           const today = new Date().toISOString().split("T")[0];
           const items: AutoReportItem[] = [];
           const { data: logs } = await supabase
             .from("crm_logs")
-            .select("log_type,customer_name,note")
-            .eq("project_id", PROJECT_ID)
-            .gte("created_at", today);
-          (logs ?? []).forEach((l: { log_type: string; customer_name: string; note: string }) => {
-            const typeLabel: Record<string, string> = { call: "โทรหา", visit: "รับลูกค้า", followup: "ติดตาม", note: "บันทึก" };
-            items.push({ category: "activity", description: `${typeLabel[l.log_type] ?? l.log_type}: ${l.customer_name}${l.note ? ` — ${l.note}` : ""}` });
+            .select("contact_channel,call_status,call_note,created_at")
+            .gte("created_at", today + "T00:00:00");
+          (logs ?? []).forEach((l: { contact_channel: string; call_status: string; call_note: string | null }) => {
+            items.push({ category: "activity", description: `${l.contact_channel}: ${l.call_status}${l.call_note ? ` — ${l.call_note}` : ""}` });
           });
           const { data: acts } = await supabase
             .from("sales_activities")
-            .select("activity_type,description")
+            .select("activity_type,note,activity_date,created_by_name")
             .eq("project_id", PROJECT_ID)
-            .gte("created_at", today);
-          (acts ?? []).forEach((a: { activity_type: string; description: string }) => {
-            items.push({ category: "activity", description: `${a.activity_type}: ${a.description}` });
+            .gte("created_at", today + "T00:00:00");
+          (acts ?? []).forEach((a: { activity_type: string; note: string | null; created_by_name: string | null }) => {
+            items.push({ category: "activity", description: `${a.activity_type}${a.created_by_name ? ` (${a.created_by_name})` : ""}${a.note ? `: ${a.note}` : ""}` });
           });
           setReportAutoItems(items);
           setShowReportModal(true);

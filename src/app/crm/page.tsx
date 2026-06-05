@@ -224,7 +224,6 @@ export default function CRMPage() {
       .eq("source_record_id", selectedLead.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setLeadApprovals((data ?? []) as ApprovalLog[]); setLoadingApprovals(false); });
-    // Load customer installments
     setLoadingCustInsts(true);
     supabase.from("customer_installments")
       .select("*")
@@ -585,7 +584,6 @@ export default function CRMPage() {
           setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
         }
       }
-      // Notify when loan is newly approved
       if (form.loan_approved_date && !prevLoanDate) {
         await createNotification({
           type: "success",
@@ -730,7 +728,6 @@ export default function CRMPage() {
       )}
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-        {/* KPI row */}
         <div className="grid grid-cols-4 gap-2">
           {[
             { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text", filter: "all" },
@@ -747,7 +744,6 @@ export default function CRMPage() {
           ))}
         </div>
 
-        {/* AI Insight */}
         {leads.length > 0 && closeRate < 20 && (
           <AIInsightPanel type="warning" priority="medium"
             title={`อัตราปิดการขายต่ำ (${closeRate}%)`}
@@ -759,9 +755,8 @@ export default function CRMPage() {
             message={`ยอดขายรวมประมาณ ฿${(leads.filter(l => l.status === "Closed Deal").reduce((s, l) => s + Number(l.budget), 0) / 1_000_000).toFixed(1)}M ในช่วงที่เลือก`} />
         )}
 
-        {/* Main tabs */}
         <div className="flex gap-2">
-          {([[ "pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
+          {([["pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1",
                 mainTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -835,7 +830,7 @@ export default function CRMPage() {
                               <span className={clsx("inline-flex items-center gap-1 mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium",
                                 overdue ? "bg-red-500/20 text-red-400 border border-red-500/30" : isToday ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "bg-aviva-bg text-aviva-secondary border border-aviva-gold/10"
                               )}>
-                                {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้"  : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                                {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้" : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
                               </span>
                             );
                           })()}
@@ -1007,7 +1002,6 @@ export default function CRMPage() {
         )}
       </div>
 
-      {/* Add Activity Modal */}
       {showActModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
@@ -1073,7 +1067,6 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* CRM Log Modal */}
       {crmLogLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
@@ -1137,7 +1130,6 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* Add/Edit Lead Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
@@ -1257,7 +1249,6 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* KPI Detail Modal */}
       {kpiModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
@@ -1299,7 +1290,6 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* Status Update Modal */}
       {selectedLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 max-h-[85vh] overflow-y-auto">
@@ -1330,7 +1320,6 @@ export default function CRMPage() {
               )}>AI {selectedLead.ai_score}%</span>
             </div>
 
-            {/* ข้อมูลเพิ่มเติม */}
             <div className="grid grid-cols-2 gap-2">
               {selectedLead.email && (
                 <div className="col-span-2 bg-aviva-bg rounded-xl px-3 py-2">
@@ -1388,7 +1377,6 @@ export default function CRMPage() {
               <p className="text-xs text-aviva-secondary bg-aviva-bg rounded-xl px-3 py-2 leading-relaxed">{selectedLead.notes}</p>
             )}
 
-            {/* ประวัติการติดต่อ */}
             {loadingLogs ? (
               <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
             ) : leadLogs.length > 0 ? (
@@ -1415,7 +1403,6 @@ export default function CRMPage() {
               <p className="text-xs text-aviva-secondary/50 text-center py-1">ยังไม่มีประวัติการติดต่อ</p>
             )}
 
-            {/* ประวัติเอกสาร/อนุมัติ */}
             {loadingApprovals ? (
               <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
             ) : leadApprovals.length > 0 ? (
@@ -1452,7 +1439,6 @@ export default function CRMPage() {
               </div>
             ) : null}
 
-            {/* ตารางชำระเงินลูกค้า */}
             {(custInsts.length > 0 || BOOKING_STATUSES.includes(selectedLead.status)) && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -1504,7 +1490,6 @@ export default function CRMPage() {
               </div>
             )}
 
-            {/* เอกสารแนบ Lead */}
             <div>
               <AttachDocButton entityType="lead" entityId={selectedLead.id} attachedBy={user?.full_name ?? ""} />
             </div>
@@ -1546,7 +1531,6 @@ export default function CRMPage() {
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Map Plot Detail Modal */}
       {mapPlotModal !== null && (() => {
         const n = mapPlotModal;
         const house = houses.find(h => h.plot_number === n);
@@ -1636,7 +1620,6 @@ export default function CRMPage() {
         />
       )}
 
-      {/* Floating report button */}
       <button
         onClick={async () => {
           const today = new Date().toISOString().split("T")[0];

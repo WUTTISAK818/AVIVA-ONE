@@ -52,6 +52,7 @@ interface Lead {
   source: string;
   ai_score: number;
   notes: string;
+  created_at?: string | null;
   created_at_default: string;
   assigned_to?: string | null;
   plot_number?: number | null;
@@ -884,6 +885,9 @@ export default function CRMPage() {
                           <div className="flex items-center gap-3 mt-1.5">
                             <span className="flex items-center gap-1 text-xs text-aviva-secondary"><Phone size={10} />{lead.phone}</span>
                             <span className="text-xs text-aviva-gold font-medium">{formatBudget(lead.budget)}</span>
+                            {lead.created_at && (
+                              <span className="text-[10px] text-aviva-secondary/70">📅 {new Date(lead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                            )}
                           </div>
                           {lead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>}
                           {lead.plot_number && (
@@ -1224,6 +1228,12 @@ export default function CRMPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
+              {selectedLead.created_at && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 col-span-2">
+                  <p className="text-blue-400 text-[10px] font-semibold">📅 วันที่เยี่ยมชม</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                </div>
+              )}
               <div className="bg-aviva-bg rounded-xl p-3">
                 <p className="text-aviva-secondary">สถานะ</p>
                 <p className="text-aviva-text font-semibold mt-0.5">{STATUS_TH[selectedLead.status] ?? selectedLead.status}</p>
@@ -1399,6 +1409,9 @@ export default function CRMPage() {
                     <p className="text-[10px] text-aviva-secondary mb-1">{isSold ? "โอนกรรมสิทธิ์แล้ว" : "จองแล้ว"}</p>
                     <p className="text-base font-bold text-aviva-text">{displayLead.customer_name}</p>
                     <p className="text-sm text-aviva-gold font-medium mt-0.5">{displayLead.phone}</p>
+                    {displayLead.created_at && (
+                      <p className="text-[10px] text-blue-400 mt-1">📅 เยี่ยมชม {new Date(displayLead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    )}
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       <span className="text-[10px] bg-aviva-bg px-2 py-0.5 rounded-full text-aviva-secondary">{STATUS_TH_MAP[displayLead.status] ?? displayLead.status}</span>
                       <span className="text-[10px] bg-aviva-bg px-2 py-0.5 rounded-full text-aviva-secondary">{displayLead.source}</span>
@@ -1469,8 +1482,13 @@ export default function CRMPage() {
                           <button key={l.id} onClick={() => { setSelectedLead(l); setMapPlotModal(null); }}
                             className="w-full flex items-center justify-between bg-aviva-bg rounded-xl px-3 py-2 text-left hover:bg-aviva-gold/5">
                             <div>
-                              <span className="text-[10px] text-aviva-secondary/50 mr-1.5">#{idx + 1}</span>
-                              <span className="text-xs font-medium text-aviva-text">{l.customer_name}</span>
+                              <div>
+                                <span className="text-[10px] text-aviva-secondary/50 mr-1.5">#{idx + 1}</span>
+                                <span className="text-xs font-medium text-aviva-text">{l.customer_name}</span>
+                              </div>
+                              {l.created_at && (
+                                <span className="block text-[9px] text-blue-400/80 mt-0.5">📅 เยี่ยมชม {new Date(l.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                              )}
                             </div>
                             <span className={`text-[10px] font-bold ${l.ai_score >= 70 ? "text-green-400" : l.ai_score >= 40 ? "text-yellow-400" : "text-red-400"}`}>AI {l.ai_score}%</span>
                           </button>

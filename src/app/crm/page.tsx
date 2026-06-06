@@ -826,7 +826,7 @@ export default function CRMPage() {
 
         {/* Main tabs */}
         <div className="flex gap-2">
-          {([["pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
+          {([[ "pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1",
                 mainTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -1418,6 +1418,33 @@ export default function CRMPage() {
                     className="w-full py-2.5 bg-aviva-gold/10 border border-aviva-gold/30 rounded-xl text-xs text-aviva-gold font-medium">
                     ดูข้อมูลเต็ม / เปลี่ยนสถานะ &rarr;
                   </button>
+                  {(user?.isAdmin || user?.isManager) && (
+                    <button onClick={() => {
+                      setEditingLead(displayLead);
+                      setForm({
+                        customer_name: displayLead.customer_name,
+                        phone: displayLead.phone,
+                        email: displayLead.email ?? "",
+                        budget: String(displayLead.budget),
+                        source: displayLead.source,
+                        status: displayLead.status,
+                        notes: displayLead.notes ?? "",
+                        plot_number: displayLead.plot_number ? String(displayLead.plot_number) : "",
+                        next_follow_up_date: displayLead.next_follow_up_date ?? "",
+                        financing_type: displayLead.financing_type ?? "ไม่ระบุ",
+                        urgency: displayLead.urgency ?? "ปกติ",
+                        delivery_date: displayLead.delivery_date ?? "",
+                        contract_price: displayLead.contract_price ? String(displayLead.contract_price) : "",
+                        contract_signed_date: displayLead.contract_signed_date ?? "",
+                        loan_approved_date: displayLead.loan_approved_date ?? "",
+                      });
+                      setShowModal(true);
+                      setMapPlotModal(null);
+                    }}
+                      className="w-full py-2.5 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary font-medium flex items-center justify-center gap-1.5">
+                      <Pencil size={11} /> แก้ไขข้อมูลลูกค้า
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1427,6 +1454,17 @@ export default function CRMPage() {
                       <p className="text-[10px] text-yellow-400 mt-0.5">อยู่ระหว่างก่อสร้าง</p>
                     ) : null}
                   </div>
+                  {(user?.isAdmin || user?.isManager) && (
+                    <button onClick={() => {
+                      setEditingLead(null);
+                      setForm({ ...emptyForm, plot_number: String(n) });
+                      setShowModal(true);
+                      setMapPlotModal(null);
+                    }}
+                      className="w-full py-2.5 bg-aviva-gold text-aviva-bg rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                      <Plus size={11} /> เพิ่มลูกค้า / จองแปลงนี้
+                    </button>
+                  )}
                   {interestedLeads.length > 0 ? (
                     <div>
                       <p className="text-xs font-semibold text-aviva-secondary mb-2">ผู้สนใจแปลงนี้ ({interestedLeads.length} ราย)</p>

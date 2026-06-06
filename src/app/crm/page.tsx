@@ -159,13 +159,10 @@ export default function CRMPage() {
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
   const [activeStage, setActiveStage] = useState<LeadStatus>("New Lead");
   const [search, setSearch] = useState("");
-  const [period, setPeriod] = useState<Period>("month");
-  const [dateStart, setDateStart] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  });
-  const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
-  const [leadsLimit, setLeadsLimit] = useState(50);
+  const [period, setPeriod] = useState<Period>("all");
+  const [dateStart, setDateStart] = useState("");
+  const [dateEnd, setDateEnd] = useState("");
+  const [leadsLimit, setLeadsLimit] = useState(200);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -829,7 +826,7 @@ export default function CRMPage() {
 
         {/* Main tabs */}
         <div className="flex gap-2">
-          {([[ "pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
+          {([["pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1",
                 mainTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -965,8 +962,9 @@ export default function CRMPage() {
               {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map((n) => {
                 const house = houses.find(h => h.plot_number === n);
                 const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
+                const soldLead = leads.find(l => l.plot_number === n && l.status === "Closed Deal");
                 const st = house?.status ?? "available";
-                const isSold = st === "sold" || st === "completed" || leads.some(l => l.plot_number === n && l.status === "Closed Deal");
+                const isSold = st === "sold" || st === "completed" || !!soldLead;
                 const isBooked = !!bookedLead && !isSold;
                 const isConst = !isSold && !isBooked && (st === "under_construction" || st === "in_progress");
                 const cellCls = isSold
@@ -983,7 +981,7 @@ export default function CRMPage() {
                     <p className="text-base font-black leading-none">{house?.house_model ? `${house.house_model.charAt(0)}${n}` : String(n)}</p>
                     <p className="text-[10px] leading-tight opacity-80 mt-0.5">{house ? `${house.land_size ?? "—"}ตร.ว.` : "—"}</p>
                     {isBooked && <p className="text-[9px] mt-0.5 truncate font-medium">{bookedLead!.customer_name.split(" ")[0]}</p>}
-                    {isSold && <p className="text-[9px] mt-0.5 font-medium">โอนแล้ว</p>}
+                    {isSold && <p className="text-[9px] mt-0.5 font-medium">{soldLead ? soldLead.customer_name.split(" ")[0] : "โอนแล้ว"}</p>}
                     {interestedCount > 0 && <p className="text-[9px] mt-0.5 opacity-70">{interestedCount} สนใจ</p>}
                   </button>
                 );

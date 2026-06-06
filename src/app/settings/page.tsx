@@ -107,7 +107,7 @@ export default function SettingsPage() {
             ))}
           </div>
         </GlassCard>
-        <GlassCard className="p-0 overflow-hidden">
+        <GlassCard className="p0 overflow-hidden">
           <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">ข้อมูลองค์กร</p>
           <Link href="/settings/manual" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
             <div className="w-8 h-8 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center"><BookOpen size={14} className="text-aviva-gold" /></div>
@@ -181,7 +181,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 4.34</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 4.35</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

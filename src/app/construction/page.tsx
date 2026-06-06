@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2, ShoppingCart } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -21,7 +21,7 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 type HouseStatus = "complete" | "on-track" | "delayed";
 type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
 type Tab = "reports" | "defects";
-type Part = "inspect" | "daily";
+type Part = "inspect" | "daily" | "purchase";
 
 interface House {
   id: string;
@@ -117,6 +117,26 @@ interface InstTask {
   is_complete: boolean;
   photo_url: string | null;
   notes: string | null;
+}
+
+interface PurchaseOrder {
+  id: string;
+  po_number: string | null;
+  supplier_name: string;
+  items: { name: string; qty: number; unit: string; unit_price: number }[];
+  total_amount: number | null;
+  status: string;
+  requested_by: string | null;
+  notes: string | null;
+  created_at: string;
+  approved_by?: string | null;
+}
+
+interface PrLineItem {
+  name: string;
+  qty: string;
+  unit: string;
+  unit_price: string;
 }
 
 const statusConfig = {
@@ -314,6 +334,11 @@ export default function ConstructionPage() {
   const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
   const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
   const [showAI, setShowAI] = useState(false);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [savingPR, setSavingPR] = useState(false);
+  const [prForm, setPrForm] = useState({ supplier_name: "", notes: "" });
+  const [prItems, setPrItems] = useState<PrLineItem[]>([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
   const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -356,6 +381,14 @@ export default function ConstructionPage() {
   };
 
   useEffect(() => { setRptLimit(50); fetchData(50); }, [rptStart, rptEnd]);
+
+  useEffect(() => {
+    supabase.from("purchase_orders").select("*")
+      .eq("project_id", PROJECT_ID)
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data }) => setPurchaseOrders((data as PurchaseOrder[]) ?? []));
+  }, []);
 
   const fetchInstallments = async (house: House) => {
     setInstHouse(house);
@@ -772,6 +805,56 @@ export default function ConstructionPage() {
     fetchData();
   };
 
+  const handleSubmitPR = async () => {
+    const validItems = prItems.filter(it => it.name.trim());
+    if (!prForm.supplier_name || validItems.length === 0) return;
+    setSavingPR(true);
+    const itemsData = validItems.map(it => ({
+      name: it.name.trim(),
+      qty: Number(it.qty) || 1,
+      unit: it.unit || "ชิ้น",
+      unit_price: Number(it.unit_price) || 0,
+    }));
+    const totalAmount = itemsData.reduce((s, it) => s + it.qty * it.unit_price, 0);
+    const byName = user?.full_name ?? user?.email ?? "Unknown";
+    const docNum = await generateDocNumber("PO");
+    const { data: po } = await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      po_number: docNum,
+      supplier_name: prForm.supplier_name,
+      items: itemsData,
+      total_amount: totalAmount,
+      status: "pending",
+      requested_by: byName,
+      notes: prForm.notes || null,
+    }).select().single();
+    if (po) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `${docNum} | จัดซื้อจาก ${prForm.supplier_name} | โดย ${byName}`,
+        source_record_id: (po as PurchaseOrder).id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: totalAmount || null,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      await createNotification({
+        type: "approval",
+        title: `ขออนุมัติจัดซื้อ ${docNum}`,
+        message: `${prForm.supplier_name} · ฿${totalAmount.toLocaleString("th-TH")} · โดย ${byName}`,
+        from_dept: "ฝ่ายก่อสร้าง",
+        to_dept: "ผู้บริหาร",
+      });
+      setPurchaseOrders(prev => [po as PurchaseOrder, ...prev]);
+      setToast({ msg: `ส่งขออนุมัติ ${docNum} แล้ว ✓`, type: "success" });
+    }
+    setShowPRModal(false);
+    setPrForm({ supplier_name: "", notes: "" });
+    setPrItems([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
+    setSavingPR(false);
+  };
+
   const openSummaryModal = async () => {
     setLoadingSummary(true);
     const today = new Date().toISOString().split("T")[0];
@@ -892,9 +975,15 @@ export default function ConstructionPage() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={15} /> ตรวจงานผู้รับเหมา</button>
-            <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={15} /> งานรายวัน</button>
+          <div className="flex gap-1.5">
+            <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={13} /> ตรวจงาน</button>
+            <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={13} /> รายวัน</button>
+            <button onClick={() => setPart("purchase")} className={clsx("relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "purchase" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+              <ShoppingCart size={13} /> จัดซื้อ
+              {purchaseOrders.filter(p => p.status === "pending").length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-400 text-[9px] font-bold text-white flex items-center justify-center">{purchaseOrders.filter(p => p.status === "pending").length}</span>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -1334,6 +1423,67 @@ export default function ConstructionPage() {
             )}
           </>
         )}
+
+        {part === "purchase" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <SectionHeader title={`ใบขอสั่งซื้อ (${purchaseOrders.length})`} subtitle="ขออนุมัติจัดซื้อวัสดุ-อุปกรณ์" />
+              <button onClick={() => setShowPRModal(true)}
+                className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+                <Plus size={14} /> ขอสั่งซื้อ
+              </button>
+            </div>
+            {purchaseOrders.length === 0 ? (
+              <GlassCard className="p-8 text-center">
+                <ShoppingCart size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
+                <p className="text-aviva-secondary text-sm">ยังไม่มีใบขอสั่งซื้อ</p>
+                <p className="text-xs text-aviva-secondary/60 mt-1">กด &quot;ขอสั่งซื้อ&quot; เพื่อส่งขออนุมัติ</p>
+              </GlassCard>
+            ) : purchaseOrders.map(po => {
+              const poStatusConfig: Record<string, { label: string; color: string }> = {
+                pending:  { label: "รออนุมัติ",   color: "bg-yellow-500/20 text-yellow-400" },
+                approved: { label: "อนุมัติแล้ว",  color: "bg-green-500/20 text-green-400" },
+                rejected: { label: "ถูกปฏิเสธ",   color: "bg-red-500/20 text-red-400" },
+                draft:    { label: "ร่าง",          color: "bg-gray-500/20 text-gray-400" },
+              };
+              const sc = poStatusConfig[po.status] ?? poStatusConfig.draft;
+              const items = (po.items ?? []) as { name: string; qty: number; unit: string; unit_price: number }[];
+              return (
+                <GlassCard key={po.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-aviva-gold font-mono">{po.po_number ?? "—"}</span>
+                        <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium", sc.color)}>{sc.label}</span>
+                      </div>
+                      <p className="text-sm text-aviva-text mt-0.5">จากบริษัท: {po.supplier_name}</p>
+                      {po.requested_by && <p className="text-[10px] text-aviva-secondary mt-0.5">ขอโดย: {po.requested_by}</p>}
+                      <p className="text-[10px] text-aviva-secondary/60">{new Date(po.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    </div>
+                    {po.total_amount != null && po.total_amount > 0 && (
+                      <p className="text-sm font-bold text-aviva-gold flex-shrink-0">฿{Number(po.total_amount).toLocaleString("th-TH")}</p>
+                    )}
+                  </div>
+                  {items.length > 0 && (
+                    <div className="bg-aviva-bg/50 rounded-xl p-2.5 space-y-1">
+                      {items.map((it, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-aviva-text flex-1 truncate">{it.name}</span>
+                          <span className="text-aviva-secondary">{it.qty} {it.unit}</span>
+                          {it.unit_price > 0 && <span className="text-aviva-gold font-medium">฿{(it.qty * it.unit_price).toLocaleString("th-TH")}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {po.notes && <p className="text-[10px] text-aviva-secondary/70 leading-relaxed">{po.notes}</p>}
+                  {po.status === "approved" && po.approved_by && (
+                    <p className="text-[10px] text-green-400">✓ อนุมัติโดย {po.approved_by}</p>
+                  )}
+                </GlassCard>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {showSummaryModal && (
@@ -1642,6 +1792,98 @@ export default function ConstructionPage() {
               <button onClick={() => setConfirmInst(null)} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
               <button onClick={() => doAdvanceInst(confirmInst)} className="flex-1 py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm">ยืนยัน</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPRModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">ใบขอสั่งซื้อ</h2>
+                <p className="text-[11px] text-aviva-secondary mt-0.5">Purchase Request — ฝ่ายก่อสร้าง</p>
+              </div>
+              <button onClick={() => setShowPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดจำหน่าย / บริษัทที่สั่งซื้อ *</label>
+              <input type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
+                placeholder="ชื่อร้านค้า / บริษัท"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-aviva-secondary font-medium">รายการสั่งซื้อ *</label>
+                <button onClick={() => setPrItems(p => [...p, { name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }])}
+                  className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg bg-aviva-gold/5 hover:bg-aviva-gold/10 transition-all">
+                  <Plus size={11} /> เพิ่มรายการ
+                </button>
+              </div>
+              <div className="space-y-2">
+                {prItems.map((it, i) => (
+                  <div key={i} className="bg-aviva-bg/60 rounded-xl p-3 space-y-2">
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="ชื่อวัสดุ/อุปกรณ์ *" value={it.name}
+                        onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                        className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50" />
+                      {prItems.length > 1 && (
+                        <button onClick={() => setPrItems(p => p.filter((_, j) => j !== i))} className="text-red-400/60 hover:text-red-400 p-1 transition-colors">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <p className="text-[9px] text-aviva-secondary mb-1">จำนวน</p>
+                        <input type="number" min="1" value={it.qty}
+                          onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-aviva-secondary mb-1">หน่วย</p>
+                        <input type="text" value={it.unit}
+                          onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-aviva-secondary mb-1">ราคา/หน่วย</p>
+                        <input type="number" min="0" value={it.unit_price}
+                          onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                      </div>
+                    </div>
+                    {Number(it.qty) > 0 && Number(it.unit_price) > 0 && (
+                      <p className="text-[11px] text-aviva-gold text-right">รวม: ฿{(Number(it.qty) * Number(it.unit_price)).toLocaleString("th-TH")}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {prItems.some(it => it.name.trim() && Number(it.unit_price) > 0) && (
+                <div className="flex justify-between items-center mt-2 px-1">
+                  <span className="text-xs text-aviva-secondary">มูลค่ารวมทั้งสิ้น</span>
+                  <span className="text-sm font-bold text-aviva-gold">
+                    ฿{prItems.filter(it => it.name.trim()).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.unit_price) || 0), 0).toLocaleString("th-TH")}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ / เหตุผลที่ต้องการสั่งซื้อ</label>
+              <textarea value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
+                placeholder="อธิบายความจำเป็นและการใช้งาน..."
+                rows={3}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+            </div>
+            <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl p-3 text-[11px] text-aviva-secondary space-y-0.5">
+              <p>ผู้ขอ: <span className="text-aviva-text font-medium">{user?.full_name ?? user?.email ?? "—"}</span></p>
+              <p>หลังส่งคำขอ ผู้จัดการจะได้รับแจ้งเตือนเพื่ออนุมัติในหน้า &quot;ระบบอนุมัติ&quot;</p>
+            </div>
+            <button onClick={handleSubmitPR}
+              disabled={savingPR || !prForm.supplier_name || !prItems.some(it => it.name.trim())}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              {savingPR ? <><Loader2 size={14} className="animate-spin" /> กำลังส่ง...</> : <><ShoppingCart size={14} /> ส่งขออนุมัติ</>}
+            </button>
           </div>
         </div>
       )}

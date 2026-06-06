@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock, ClipboardList } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
@@ -228,7 +228,10 @@ export default function DashboardPage() {
 
     Promise.allSettled([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
-      supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID),
+      supabase.from("finance_transactions").select("amount,created_at,transaction_type")
+        .eq("project_id", PROJECT_ID)
+        .gte("created_at", `${yearStr}-01-01`)
+        .lt("created_at", `${year + 1}-01-01`),
       supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
@@ -313,7 +316,7 @@ export default function DashboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "approval_logs" }, fetchPendingBreakdown)
       .on("postgres_changes", { event: "*", schema: "public", table: "contractor_installments" }, refreshInsts)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { channel.unsubscribe(); supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
@@ -377,26 +380,31 @@ export default function DashboardPage() {
     return () => { mounted = false; };
   }, []);
 
-  const totalUnits = project?.total_units ?? 0;
-  const soldUnits = project?.sold_units ?? 0;
-  const available = project?.available_units ?? 0;
-  const constructionProgress = project?.construction_progress ?? 0;
-  const selloutForecast = project?.sellout_forecast ?? "-";
-  const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
-  const noProjectData = !loading && project === null;
+  const {
+    totalUnits, soldUnits, available, constructionProgress, selloutForecast,
+    selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct,
+  } = useMemo(() => {
+    const totalUnits = project?.total_units ?? 0;
+    const soldUnits = project?.sold_units ?? 0;
+    const available = project?.available_units ?? 0;
+    const constructionProgress = project?.construction_progress ?? 0;
+    const selloutForecast = project?.sellout_forecast ?? "-";
+    const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
+    const noProjectData = !loading && project === null;
+    const monthsElapsed = Math.max(new Date().getMonth() + 1, 3);
+    const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
+    const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
+    const netPL = stats.totalReceipts - stats.expenseTotal;
+    const revenuePct = project && project.revenue_target > 0
+      ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
+      : null;
+    return { totalUnits, soldUnits, available, constructionProgress, selloutForecast, selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct };
+  }, [project, loading, stats]);
 
   const canSeeAll = ctxUser?.isManager || ctxUser?.isAdmin || false;
   const canSeeFinance = canSeeAll || ctxUser?.department === "ฝ่ายการเงิน" || ctxUser?.department === "ฝ่ายบัญชี";
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
-
-  const monthsElapsed = Math.max(new Date().getMonth() + 1, 3);
-  const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
-  const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
-  const netPL = stats.totalReceipts - stats.expenseTotal;
-  const revenuePct = project && project.revenue_target > 0
-    ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
-    : null;
 
   const isEmployee = !!ctxUser && !ctxUser.isManager && !ctxUser.isAdmin;
 
@@ -520,7 +528,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.33</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.34</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

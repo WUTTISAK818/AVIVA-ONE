@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList } from "lucide-react";
+import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
 
@@ -14,14 +14,16 @@ export default function BottomNav() {
   if (pathname === "/login") return null;
 
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
+  const isAfterSales = user?.department === "ฝ่ายหลังการขาย";
 
   const tabs = [
-    { href: "/dashboard",    label: "หน้าหลัก",  icon: LayoutGrid, show: true },
-    { href: "/crm",          label: "ขาย",        icon: Users,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
-    { href: "/construction", label: "ก่อสร้าง",   icon: HardHat,    show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
-    { href: "/office",       label: "ออฟฟิศ",     icon: Briefcase,  show: !user || user.isAdmin || user.isManager || isOfficeUser },
-    { href: "/reports",      label: "รายงาน",     icon: ClipboardList, show: true },
-    { href: "/settings",     label: "ตั้งค่า",    icon: Settings,   show: true },
+    { href: "/dashboard",    label: "หน้าหลัก",    icon: LayoutGrid,   show: true },
+    { href: "/crm",          label: "ขาย",          icon: Users,        show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
+    { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
+    { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || (isOfficeUser && !isAfterSales) },
+    { href: "/after-sales",  label: "หลังการขาย",  icon: ShieldCheck,  show: !user || user.isAdmin || user.isManager || isAfterSales },
+    { href: "/reports",      label: "รายงาน",       icon: ClipboardList, show: true },
+    { href: "/settings",     label: "ตั้งค่า",      icon: Settings,     show: true },
   ].filter(t => t.show);
 
   return (

@@ -64,6 +64,8 @@ interface SalesFunnelMonth {
 interface ActiveHouseInfo {
   house_number: string;
   plot_number: number | null;
+  house_model: string | null;
+  land_size: number | null;
   progress: number;
   status: string;
   contractor: string;
@@ -114,13 +116,14 @@ export default function DashboardPage() {
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
   const [kpiError, setKpiError] = useState(false);
-  const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number }[]>([]);
+  const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number; profit: number }[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
   const [salesFunnel, setSalesFunnel] = useState<SalesFunnelMonth | null>(null);
   const [activeHouses, setActiveHouses] = useState<ActiveHouseInfo[]>([]);
   const [pendingPayouts, setPendingPayouts] = useState(0);
+  const [salesFunnelRange, setSalesFunnelRange] = useState<{ from: string; to: string } | null>(null);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -269,6 +272,7 @@ export default function DashboardPage() {
         month,
         revenue: +((incMap[i] ?? 0).toFixed(1)),
         expense: +((expMap[i] ?? 0).toFixed(1)),
+        profit: +(((incMap[i] ?? 0) - (expMap[i] ?? 0)).toFixed(1)),
       })));
       if (txnsR.status === "rejected" || approvalsR.status === "rejected") setLoadError(true);
     });
@@ -322,12 +326,12 @@ export default function DashboardPage() {
     const emptyFunnel = { totalNew: 0, visitCount: 0, bookedCount: 0, loanCount: 0, loanApprovedCount: 0, transferCount: 0, hot: 0, warm: 0, cool: 0 };
 
     supabase.from("leads")
-      .select("id,status,ai_score,loan_approved_date")
+      .select("id,status,ai_score,loan_approved_date,created_at")
       .eq("project_id", PROJECT_ID)
       .then(({ data, error }) => {
         if (!mounted) return;
         if (error) { setSalesFunnel(emptyFunnel); return; }
-        const leads = (data ?? []) as { id: string; status: string; ai_score: number; loan_approved_date: string | null }[];
+        const leads = (data ?? []) as { id: string; status: string; ai_score: number; loan_approved_date: string | null; created_at: string }[];
         setSalesFunnel({
           totalNew: leads.length,
           visitCount: leads.filter(l => rank(l.status) >= 2).length,
@@ -339,10 +343,18 @@ export default function DashboardPage() {
           warm: leads.filter(l => (l.ai_score ?? 0) >= 60 && (l.ai_score ?? 0) < 80).length,
           cool: leads.filter(l => (l.ai_score ?? 0) < 60).length,
         });
+        const dates = leads.map(l => l.created_at).filter(Boolean).sort();
+        if (dates.length > 0) {
+          const fmt = { day: "numeric" as const, month: "short" as const };
+          setSalesFunnelRange({
+            from: new Date(dates[0]).toLocaleDateString("th-TH", fmt),
+            to: new Date(dates[dates.length - 1]).toLocaleDateString("th-TH", fmt),
+          });
+        }
       });
 
     supabase.from("houses")
-      .select("house_number,plot_number,progress,status,contractor")
+      .select("house_number,plot_number,progress,status,contractor,house_model,land_size")
       .eq("project_id", PROJECT_ID)
       .neq("status", "complete")
       .order("plot_number")
@@ -508,7 +520,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.24</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.25</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -694,7 +706,10 @@ export default function DashboardPage() {
             {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <SectionHeader title="ฝ่ายขาย — ภาพรวม" subtitle="สถานะ Leads ทั้งหมดในโครงการ" />
+                  <SectionHeader title="ฝ่ายขาย — ภาพรวม"
+                    subtitle={salesFunnelRange
+                      ? `ข้อมูล ${salesFunnelRange.from} – ${salesFunnelRange.to}`
+                      : "สถานะ Leads ทั้งหมดในโครงการ"} />
                 </div>
                 <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
               </div>
@@ -803,14 +818,18 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
+                  <span className="w-4 h-0.5 bg-green-400 rounded inline-block" />
                   <span className="text-[9px] text-aviva-secondary">รายรับ</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-4 h-0.5 bg-red-400 rounded inline-block" />
                   <span className="text-[9px] text-aviva-secondary">รายจ่าย</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">กำไรสุทธิ</span>
                 </div>
                 <span className="text-[9px] text-aviva-secondary/50 ml-auto">ล้านบาท / เดือน</span>
               </div>
@@ -818,9 +837,9 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
+                      <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#4ADE80" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#F87171" stopOpacity={0.25} />
@@ -831,26 +850,27 @@ export default function DashboardPage() {
                     <YAxis tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "11px" }}
-                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : "รายจ่าย"]}
+                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : name === "expense" ? "รายจ่าย" : "กำไรสุทธิ"]}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} fill="url(#goldGrad)" dot={false} />
+                    <Area type="monotone" dataKey="revenue" stroke="#4ADE80" strokeWidth={2} fill="url(#greenGrad)" dot={false} />
                     <Area type="monotone" dataKey="expense" stroke="#F87171" strokeWidth={1.5} fill="url(#redGrad)" dot={false} />
+                    <Area type="monotone" dataKey="profit" stroke="#D4AF37" strokeWidth={1.5} fill="none" dot={false} strokeDasharray="4 2" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
               <div className="mt-3 bg-aviva-bg/50 rounded-xl p-3">
                 <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wide mb-2">กระแสเงินสด &amp; ภาระผูกพัน</p>
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div className="bg-aviva-bg rounded-xl p-2.5">
-                    <p className="text-[10px] text-aviva-secondary">คงเหลือสุทธิ</p>
+                  <Link href="/office" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
+                    <p className="text-[10px] text-aviva-secondary">คงเหลือสุทธิ <span className="text-aviva-gold/50">→</span></p>
                     <p className={`text-sm font-bold mt-0.5 ${netPL >= 0 ? "text-green-400" : "text-red-400"}`}>
                       {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
                     </p>
-                  </div>
-                  <div className="bg-aviva-bg rounded-xl p-2.5">
-                    <p className="text-[10px] text-aviva-secondary">งวดงานค้างจ่าย</p>
+                  </Link>
+                  <Link href="/approvals" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
+                    <p className="text-[10px] text-aviva-secondary">งวดงานค้างจ่าย <span className="text-aviva-gold/50">→</span></p>
                     <p className="text-sm font-bold text-orange-400 mt-0.5">฿{formatMillions(pendingPayouts)}</p>
-                  </div>
+                  </Link>
                 </div>
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold ${netPL >= pendingPayouts ? "bg-green-500/10 border border-green-500/20 text-green-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
                   {netPL >= pendingPayouts ? "✓ กระแสเงินสดเพียงพอสำหรับงวดค้าง" : "⚠ กระแสเงินสดอาจไม่เพียงพอสำหรับงวดค้าง"}
@@ -919,7 +939,9 @@ export default function DashboardPage() {
                         <div key={h.house_number} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl ${h.status === "delayed" ? "bg-red-500/10 border border-red-500/15" : "bg-aviva-bg/50"}`}>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="text-[11px] font-bold text-aviva-text truncate">{h.house_number}</p>
+                              <p className="text-[11px] font-bold text-aviva-text truncate">
+                                {h.plot_number ? `แปลงที่ ${h.plot_number}${h.land_size ? ` / ${h.land_size} ตร.วา` : ""}${h.house_model ? ` / ${h.house_model}` : ""}` : h.house_number}
+                              </p>
                               {h.status === "delayed" && <span className="text-[9px] text-red-400 flex-shrink-0 font-medium">ล่าช้า</span>}
                             </div>
                             <p className="text-[9px] text-aviva-secondary/60 truncate">{h.contractor || "ไม่ระบุผู้รับเหมา"}</p>
@@ -959,7 +981,7 @@ export default function DashboardPage() {
                 [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
               ) : kpiError ? (
                 <div className="text-center py-8">
-                  <p className="text-sm text-red-400 mb-2">โหลดข้ฯไม่สำเร็จ</p>
+                  <p className="text-sm text-red-400 mb-2">โหลดข้อมูลไม่สำเร็จ</p>
                   <button onClick={() => openKpi(kpiModal!)} className="text-xs text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-3 py-1.5 rounded-lg">ลองใหม่</button>
                 </div>
               ) : kpiItems.length === 0 ? (

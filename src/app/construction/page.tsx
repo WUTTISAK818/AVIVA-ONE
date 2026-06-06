@@ -153,7 +153,7 @@ const progressColor = (pct: number): "gold" | "green" | "red" =>
   pct === 100 ? "green" : pct < 50 ? "red" : "gold";
 
 function houseLabel(h: House): string {
-  return `${h.house_model ?? "AVA"} ${String(h.plot_number ?? 0).padStart(2, "0")} / ${h.land_size ?? "—"} ตร.ว.`;
+  return `แปลงที่ ${h.plot_number ?? "—"} / ที่ดิน ${h.land_size ?? "—"} ตร.วา / ${h.house_model ?? "AVA"}`;
 }
 
 const filterBoxes: { key: FilterStatus; label: string; border: string; numColor: string }[] = [
@@ -984,7 +984,7 @@ export default function ConstructionPage() {
             {instHouse && (
               <div ref={instPanelRef} className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-aviva-text">{instHouse.house_number}</p>
+                  <p className="text-sm font-bold text-aviva-text">{houseLabel(instHouse)}</p>
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => openDefectModal(instHouse)} className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
                     <button onClick={() => openEditHouse(instHouse)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
@@ -1238,7 +1238,7 @@ export default function ConstructionPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
+                            <span className="text-xs font-bold text-aviva-gold">{house ? houseLabel(house) : "—"}</span>
                             {r.work_type && <span className="text-[10px] bg-aviva-gold/10 text-aviva-gold/80 px-1.5 py-0.5 rounded-full">{r.work_type}</span>}
                             <span className="text-[10px] text-aviva-secondary">{new Date(r.created_at).toLocaleDateString("th-TH")} {new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
                           </div>
@@ -1287,7 +1287,7 @@ export default function ConstructionPage() {
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
+                            <span className="text-xs font-bold text-aviva-gold">{house ? houseLabel(house) : "—"}</span>
                             <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{d.defect_category}</span>
                             <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", sev.color)}>{sev.label}</span>
                             {daysOpen !== null && daysOpen > 7 && <span className="text-[10px] text-red-400 font-bold">⚠ {daysOpen} วัน</span>}
@@ -1409,7 +1409,7 @@ export default function ConstructionPage() {
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
                   <select value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
-                    {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
+                    {houses.map(h => <option key={h.id} value={h.id}>{houseLabel(h)}</option>)}
                   </select>
                 </div>
               )}
@@ -1465,7 +1465,7 @@ export default function ConstructionPage() {
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
                   <select value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
-                    {houses.map(h => <option key={h.id} value={h.id}>{h.house_number} ({h.progress}%)</option>)}
+                    {houses.map(h => <option key={h.id} value={h.id}>{houseLabel(h)} ({h.progress}%)</option>)}
                   </select>
                 </div>
               )}

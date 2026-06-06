@@ -520,7 +520,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.28</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.29</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -770,6 +770,20 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-aviva-secondary">ยูนิตว่าง</p>
                 </div>
               </div>
+              {salesVelocity > 0 && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-aviva-gold">{salesVelocity.toFixed(1)}</p>
+                    <p className="text-[10px] text-aviva-secondary">ยูนิต/เดือน (ความเร็วขาย)</p>
+                  </div>
+                  <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-blue-400">
+                      {available === 0 ? "ขายหมดแล้ว !" : monthsToSellout ? `~${monthsToSellout} เดือน` : "—"}
+                    </p>
+                    <p className="text-[10px] text-aviva-secondary">คาดขายหมด</p>
+                  </div>
+                </div>
+              )}
             </GlassCard>}
 
             {canSeeFinance && <GlassCard className="p-4">

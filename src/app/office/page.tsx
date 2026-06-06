@@ -21,6 +21,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
+import DeptAIChat from "@/components/DeptAIChat";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 
@@ -171,6 +172,26 @@ function FinanceContent() {
       entered_by: user?.full_name ?? user?.email ?? null,
       notes: payForm.notes || null,
     });
+    // Auto-create JV entry in full accounting system for integration
+    const d = new Date();
+    const jvNumber = `JV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-4)}`;
+    const jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${payingInst.house_number ?? payingInst.house_id}`;
+    const { data: jv } = await supabase.from("jv_entries").insert({
+      jv_number: jvNumber,
+      jv_date: payForm.entry_date,
+      description: jvDesc,
+      ref_number: payForm.reference_number || null,
+      status: "posted",
+      total_debit: payingInst.amount,
+      total_credit: payingInst.amount,
+      project_id: PROJECT_ID,
+    }).select("id").single();
+    if (jv) {
+      await supabase.from("jv_lines").insert([
+        { jv_id: jv.id, account_code: "2100", account_name: "เจ้าหนี้ผู้รับเหมา", debit: payingInst.amount, credit: 0, line_order: 1 },
+        { jv_id: jv.id, account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: payingInst.amount, line_order: 2 },
+      ]);
+    }
     const paidByName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
     await supabase.from("contractor_installments").update({ status: "paid", paid_by: paidByName, paid_at: new Date().toISOString() }).eq("id", payingInst.id);
     await createNotification({
@@ -284,6 +305,7 @@ function FinanceContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptAIChat dept="finance" label="AI ฝ่ายการเงิน" />
       {materialPurchasePending > 0 && (
         <GlassCard className="p-3 border border-orange-500/20 bg-orange-500/5">
           <div className="flex items-center gap-2">
@@ -745,6 +767,7 @@ function AccountingContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptAIChat dept="accounting" label="AI ฝ่ายบัญชี" />
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <button onClick={() => setKpiModalAcct("all")} className="active:scale-[0.96] transition-transform w-full text-left">
@@ -1197,6 +1220,7 @@ function MarketingContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptAIChat dept="marketing" label="AI ฝ่ายการตลาด" />
       {/* KPI Summary */}
       <div className="grid grid-cols-2 gap-3">
         <GlassCard className="p-3">
@@ -1701,7 +1725,8 @@ function HRContent() {
     <>
       {hrToast && <Toast message={hrToast.msg} type={hrToast.type} onClose={() => setHrToast(null)} />}
       <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
-        <div className="flex gap-2">
+        <DeptAIChat dept="hr" label="AI ฝ่ายบุคคล" />
+        <div className="mt-3 flex gap-2">
           {(["บุคคล", "เงินเดือน", "การลา"] as const).map(t => (
             <button key={t} onClick={() => setHrTab(t)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
@@ -2209,6 +2234,7 @@ function AfterSalesContent() {
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       {asToast && <Toast message={asToast.msg} type={asToast.type} onClose={() => setAsToast(null)} />}
+      <DeptAIChat dept="after-sales" label="AI ฝ่ายหลังการขาย" />
       {/* Status Summary */}
       <div className="grid grid-cols-4 gap-2">
         {([

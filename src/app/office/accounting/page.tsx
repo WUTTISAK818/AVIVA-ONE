@@ -11,6 +11,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
+import DeptAIChat from "@/components/DeptAIChat";
 import clsx from "clsx";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -1022,7 +1023,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.24</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.26</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">
@@ -1050,6 +1051,7 @@ export default function AccountingPage() {
         </div>
       </div>
       <div className="px-4 py-5 max-w-2xl mx-auto space-y-4">
+        <DeptAIChat dept="accounting" label="AI ฝ่ายบัญชี" />
         {tab === "dashboard"  && <DashboardTab />}
         {tab === "journal"    && <JournalTab accounts={accounts} />}
         {tab === "ar"         && <ARTab />}

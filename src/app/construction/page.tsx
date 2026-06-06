@@ -921,6 +921,7 @@ export default function ConstructionPage() {
       }
       setUploadingSummaryPhoto(false);
     }
+    // Persist summary report to construction_reports table
     await supabase.from("construction_reports").insert({
       work_type: "สรุปประจำวัน",
       work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,

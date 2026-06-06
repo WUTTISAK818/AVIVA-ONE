@@ -6,6 +6,12 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Admin client for trusted server-side operations (bypasses RLS for role lookup)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -116,9 +122,14 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userRole: string = user.user_metadata?.role ?? "user";
-  const userDept: string = user.user_metadata?.department ?? "";
-  const userName: string = user.user_metadata?.full_name ?? "พนักงาน";
+  const { data: dbUser } = await supabaseAdmin
+    .from("users")
+    .select("role, department, full_name")
+    .eq("id", user.id)
+    .single();
+  const userRole: string = dbUser?.role ?? "user";
+  const userDept: string = dbUser?.department ?? "";
+  const userName: string = dbUser?.full_name ?? "พนักงาน";
   const isManager = ["admin", "ceo", "manager", "director", "project_manager"].includes(userRole);
 
   let message: string;

@@ -193,7 +193,7 @@ export default function DashboardPage() {
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "sold") {
-        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
+        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget,created_at").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "available") {
@@ -528,7 +528,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.37</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.39</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -1024,6 +1024,9 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs text-aviva-text font-medium">{String(item.customer_name ?? "—")}</p>
                       <p className="text-[10px] text-aviva-secondary">{String(item.phone ?? "")}</p>
+                      {item.created_at ? (
+                        <p className="text-[10px] text-blue-400">📅 เยี่ยมชม {new Date(String(item.created_at)).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                      ) : null}
                     </div>
                     <p className="text-sm font-bold text-green-400">฿{(Number(item.budget ?? 0) / 1_000_000).toFixed(1)}M</p>
                   </div>

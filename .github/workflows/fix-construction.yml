@@ -1,6 +1,8 @@
 name: Restore construction page from feature branch
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-construction.yml']
 jobs:
   restore:
     runs-on: ubuntu-latest

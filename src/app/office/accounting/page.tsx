@@ -11,7 +11,6 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
-import DeptAIChat from "@/components/DeptAIChat";
 import clsx from "clsx";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -422,7 +421,7 @@ function ARTab() {
   invoices.filter(i => ["pending", "partial", "overdue"].includes(i.status)).forEach(inv => {
     const days = Math.ceil((now.getTime() - new Date(inv.due_date).getTime()) / 86400000);
     const bal = Number(inv.total_amount) - Number(inv.paid_amount);
-    if (days < 0) return; // ยังไม่ถึงกำหนด ไม่นับใน Aging
+    if (days < 0) return;
     if (days <= 30) aging.a0_30 += bal;
     else if (days <= 60) aging.a31_60 += bal;
     else if (days <= 90) aging.a61_90 += bal;
@@ -1023,7 +1022,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.26</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.24</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">
@@ -1051,7 +1050,6 @@ export default function AccountingPage() {
         </div>
       </div>
       <div className="px-4 py-5 max-w-2xl mx-auto space-y-4">
-        <DeptAIChat dept="accounting" label="AI ฝ่ายบัญชี" />
         {tab === "dashboard"  && <DashboardTab />}
         {tab === "journal"    && <JournalTab accounts={accounts} />}
         {tab === "ar"         && <ARTab />}

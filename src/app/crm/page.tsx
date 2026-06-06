@@ -183,7 +183,7 @@ export default function CRMPage() {
   const [houses, setHouses] = useState<HouseSlot[]>([]);
   const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]>([]);
   const [showActModal, setShowActModal] = useState(false);
-  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "", onBehalfOf: "", leadId: "" as string, leadName: "" as string });
+  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "", onBehalfOf: "" });
   const [savingAct, setSavingAct] = useState(false);
   const [uploadingActPhoto, setUploadingActPhoto] = useState(false);
   const [uploadingLogPhoto, setUploadingLogPhoto] = useState(false);
@@ -191,8 +191,6 @@ export default function CRMPage() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [leadApprovals, setLeadApprovals] = useState<ApprovalLog[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
-  const [leadActivities, setLeadActivities] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]>([]);
-  const [loadingLeadActivities, setLoadingLeadActivities] = useState(false);
   const [custInsts, setCustInsts] = useState<CustomerInstallment[]>([]);
   const [loadingCustInsts, setLoadingCustInsts] = useState(false);
   const [showCustInstModal, setShowCustInstModal] = useState(false);
@@ -212,15 +210,9 @@ export default function CRMPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); setCustInsts([]); setLeadActivities([]); return; }
+    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); setCustInsts([]); return; }
     setLoadingLogs(true);
     setLoadingApprovals(true);
-    setLoadingLeadActivities(true);
-    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url,created_by_name")
-      .eq("lead_id", selectedLead.id)
-      .order("activity_date", { ascending: false })
-      .limit(20)
-      .then(({ data }) => { setLeadActivities((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]); setLoadingLeadActivities(false); });
     supabase.from("crm_logs")
       .select("id,contact_channel,call_status,call_note,created_at,photo_url")
       .eq("lead_id", selectedLead.id)
@@ -268,7 +260,6 @@ export default function CRMPage() {
       activity_date: actForm.activity_date,
       photo_url: photoUrl,
       created_by_name: byName,
-      lead_id: actForm.leadId || null,
     });
     await createNotification({
       type: "info",
@@ -280,7 +271,7 @@ export default function CRMPage() {
     if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
     setSavingAct(false);
     setShowActModal(false);
-    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "", onBehalfOf: "", leadId: "", leadName: "" });
+    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "", onBehalfOf: "" });
     fetchSalesActs();
   };
 
@@ -605,20 +596,6 @@ export default function CRMPage() {
     const ref = payRef[inst.id]?.ref ?? "";
     const date = payRef[inst.id]?.date ?? today;
     await supabase.from("customer_installments").update({ status: 'paid', paid_date: today, transfer_ref: ref || null, transfer_date: date || null }).eq("id", inst.id);
-    // Update AR invoice if one exists for this lead's installment
-    if (selectedLead) {
-      const { data: arRows } = await supabase.from("ar_invoices")
-        .select("id,paid_amount,total_amount")
-        .eq("customer_name", selectedLead.customer_name)
-        .eq("status", "pending")
-        .limit(1)
-        .maybeSingle();
-      if (arRows) {
-        const newPaid = (arRows.paid_amount ?? 0) + inst.amount;
-        const newStatus = newPaid >= arRows.total_amount ? "paid" : "partial";
-        await supabase.from("ar_invoices").update({ paid_amount: newPaid, status: newStatus }).eq("id", arRows.id);
-      }
-    }
     setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, status: 'paid', paid_date: today } : i));
     setPayRef(prev => { const next = { ...prev }; delete next[inst.id]; return next; });
     setToast({ msg: `${inst.name} — บันทึกรับเงินแล้ว`, type: "success" });
@@ -1108,11 +1085,8 @@ export default function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
-                {actForm.leadName && <p className="text-xs text-aviva-gold mt-0.5">ลิงก์กับ: {actForm.leadName}</p>}
-              </div>
-              <button onClick={() => { setShowActModal(false); setActForm(f => ({ ...f, leadId: "", leadName: "" })); }}><X size={20} className="text-aviva-secondary" /></button>
+              <h2 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
+              <button onClick={() => setShowActModal(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1129,45 +1103,42 @@ export default function CRMPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่</label>
-                <input type="date" value={actForm.activity_date}
-                  onChange={e => setActForm(f => ({ ...f, activity_date: e.target.value }))}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                <label className="text-xs text-aviva-secondary mb-1 block">วันที่กิจกรรม</label>
+                <input type="date" value={actForm.activity_date} onChange={e => setActForm(f => ({ ...f, activity_date: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">บันทึกเพิ่มเติม</label>
-                <textarea value={actForm.note}
-                  onChange={e => setActForm(f => ({ ...f, note: e.target.value }))}
-                  placeholder="รายละเอียดกิจกรรม..." rows={2}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+                <label className="text-xs text-aviva-secondary mb-1 block">บันทึกในนามของ (ไม่บังคับ)</label>
+                <input type="text" placeholder={user?.full_name ?? "ชื่อพนักงาน"} value={actForm.onBehalfOf} onChange={e => setActForm(f => ({ ...f, onBehalfOf: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพ (ถ่ายรูปหรือเลือกจากคลัง)</label>
-                <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
-                  <input type="file" accept="image/*" capture="environment" className="hidden"
-                    onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) setActForm(prev => ({ ...prev, photo: f, photoPreview: URL.createObjectURL(f) }));
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea value={actForm.note} onChange={e => setActForm(f => ({ ...f, note: e.target.value }))} rows={2}
+                  placeholder="รายละเอียดเพิ่มเติม..."
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
+                    <Camera size={12} /> เลือกรูป
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
+                        setActForm(f => ({ ...f, photo: file, photoPreview: URL.createObjectURL(file) }));
+                      }
                     }} />
-                  {uploadingActPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
-                  <span className="text-sm text-aviva-secondary/60">{actForm.photo ? actForm.photo.name : "เลือกรูปภาพ..."}</span>
-                  {actForm.photoPreview && <img src={actForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover ml-auto border border-aviva-gold/20" />}
-                </label>
-              </div>
-              {user?.isManager && (
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">บันทึกแทน (ชื่อพนักงาน)</label>
-                  <input value={actForm.onBehalfOf}
-                    onChange={e => setActForm(f => ({ ...f, onBehalfOf: e.target.value }))}
-                    placeholder={`เว้นว่างเพื่อใช้ชื่อคุณ (${user.full_name})`}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 placeholder:text-aviva-secondary/40" />
+                  </label>
+                  {actForm.photoPreview && <img src={actForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
                 </div>
-              )}
+              </div>
+              <button onClick={handleAddActivity} disabled={savingAct || !actForm.activity_type}
+                className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50">
+                {savingAct ? (uploadingActPhoto ? "กำลังอัพโหลดรูป..." : "กำลังบันทึก...") : "บันทึกกิจกรรม"}
+              </button>
             </div>
-            <button onClick={handleAddActivity} disabled={savingAct || uploadingActPhoto}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {savingAct ? "กำลังบันทึก..." : "บันทึกกิจกรรม"}
-            </button>
           </div>
         </div>
       )}
@@ -1179,437 +1150,157 @@ export default function CRMPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
-                <p className="text-xs text-aviva-secondary">{crmLogLead.customer_name} · {crmLogLead.phone}</p>
+                <p className="text-xs text-aviva-secondary mt-0.5">{crmLogLead.customer_name}</p>
               </div>
               <button onClick={() => setCrmLogLead(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
-            {crmLogForm.channel === "Phone" ? (
-              <a href={`tel:${crmLogLead.phone}`} className="flex items-center justify-center gap-2 w-full py-3 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-sm font-medium">
-                <PhoneCall size={16} /> กดโทร {crmLogLead.phone}
-              </a>
-            ) : (
-              <a href={getChatLink(crmLogLead)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl text-sm font-medium">
-                <MessageCircle size={16} /> เปิด {crmLogForm.channel}
-              </a>
-            )}
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ช่องทาง</label>
-                <select value={crmLogForm.channel} onChange={(e) => setCrmLogForm({ ...crmLogForm, channel: e.target.value })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                  {["Phone", "LINE", "Instagram", "TikTok"].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผลการติดต่อ *</label>
-                <select value={crmLogForm.callStatus} onChange={(e) => setCrmLogForm({ ...crmLogForm, callStatus: e.target.value })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                  <option value="">-- เลือกผลการติดต่อ --</option>
-                  {CALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">บันทึกเพิ่มเติม</label>
-                <textarea value={crmLogForm.note} onChange={(e) => setCrmLogForm({ ...crmLogForm, note: e.target.value })}
-                  placeholder="รายละเอียดการพูดคุย..." rows={2}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
-              </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพ (ถ่ายรูปการพบปะ)</label>
-                <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
-                  <input type="file" accept="image/*" capture="environment" className="hidden"
-                    onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) setCrmLogForm(prev => ({ ...prev, photo: f, photoPreview: URL.createObjectURL(f) }));
-                    }} />
-                  {uploadingLogPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
-                  <span className="text-sm text-aviva-secondary/60">{crmLogForm.photo ? crmLogForm.photo.name : "เลือกรูปภาพ..."}</span>
-                  {crmLogForm.photoPreview && <img src={crmLogForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover ml-auto border border-aviva-gold/20" />}
-                </label>
-              </div>
-            </div>
-            <button onClick={saveCrmLog} disabled={savingLog || !crmLogForm.callStatus || uploadingLogPhoto}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {savingLog ? "กำลังบันทึก..." : "บันทึก CRM Log"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Lead Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไข Lead" : "เพิ่ม Lead ใหม่"}</h2>
-              <button onClick={() => { setShowModal(false); setEditingLead(null); }}><X size={20} className="text-aviva-secondary" /></button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
-                <input type="text" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                  placeholder="ชื่อ-นามสกุล"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-              </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร *</label>
-                <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="0XX-XXX-XXXX"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
-                  <input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })}
-                    placeholder="3500000"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-                </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">แหล่งที่มา</label>
-                  <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                <div className="flex gap-2 flex-wrap">
+                  {["Phone", "LINE", "TikTok", "Instagram", "Email", "Walk-in"].map(ch => (
+                    <button key={ch} onClick={() => setCrmLogForm(f => ({ ...f, channel: ch }))}
+                      className={clsx("px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                        crmLogForm.channel === ch ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                      )}>{ch}</button>
+                  ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as LeadStatus })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                  {pipelineStages.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              {BOOKING_STATUSES.includes(form.status as LeadStatus) && (
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">แปลงที่จอง</label>
-                  <select value={form.plot_number} onChange={(e) => setForm({ ...form, plot_number: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="">-- ยังไม่ระบุแปลง --</option>
-                    {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map(n => (
-                      <option key={n} value={n}>แปลงที่ {n}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">อีเมล</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="example@email.com"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">แผนการเงิน</label>
-                  <select value={form.financing_type} onChange={(e) => setForm({ ...form, financing_type: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="ไม่ระบุ">ไม่ระบุ</option>
-                    <option value="กู้แบงก์">กู้ธนาคาร</option>
-                    <option value="เงินสด">เงินสด</option>
-                    <option value="ผ่อนดาวน์">ผ่อนดาวน์</option>
-                    <option value="สินเชื่อบ้านนโยบาย">สินเชื่อนโยบาย</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ความเร่งด่วน</label>
-                  <select value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="ปกติ">ปกติ</option>
-                    <option value="ด่วน">ด่วน (1 เดือน)</option>
-                    <option value="เร่งด่วน">เร่งด่วน (1 สัปดาห์)</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งต่อไป</label>
-                <input type="date" value={form.next_follow_up_date} onChange={(e) => setForm({ ...form, next_follow_up_date: e.target.value })}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
-                  <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
-                </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">📝 วันเซ็นสัญญา</label>
-                  <input type="date" value={form.contract_signed_date} onChange={e => setForm(p => ({ ...p, contract_signed_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-purple-500/30 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-purple-500/60" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">🏦 วันกู้ผ่าน</label>
-                  <input type="date" value={form.loan_approved_date} onChange={e => setForm(p => ({ ...p, loan_approved_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-green-500/30 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-green-500/60" />
-                </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">🏠 วันส่งมอบบ้าน</label>
-                  <input type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                <label className="text-xs text-aviva-secondary mb-1 block">ผลการติดต่อ</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {CALL_STATUSES.map(s => (
+                    <button key={s} onClick={() => setCrmLogForm(f => ({ ...f, callStatus: s }))}
+                      className={clsx("py-2 rounded-xl text-xs font-medium border transition-all",
+                        crmLogForm.callStatus === s ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                      )}>{s}</button>
+                  ))}
                 </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  placeholder="บันทึกเพิ่มเติม..." rows={2}
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+                <textarea value={crmLogForm.note} onChange={e => setCrmLogForm(f => ({ ...f, note: e.target.value }))} rows={2}
+                  placeholder="บันทึกรายละเอียด..."
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
               </div>
-            </div>
-            <button onClick={handleSave} disabled={saving || !form.customer_name || !form.phone}
-              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "บันทึก Lead"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* KPI Detail Modal */}
-      {kpiModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 mb-14 flex flex-col" style={{ maxHeight: "75vh" }}>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-aviva-text">
-                {kpiModal === "all" ? "ลูกค้าทั้งหมด" :
-                 kpiModal === "Booking" ? "สถานะ Booking" :
-                 kpiModal === "Loan Process" ? "สถานะ Loan Process" : "โอนกรรมสิทธิ์แล้ว"}
-                <span className="ml-1.5 text-xs font-normal text-aviva-secondary">
-                  ({(kpiModal === "all" ? leads : leads.filter(l => l.status === kpiModal)).length} ราย)
-                </span>
-              </h2>
-              <button onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>
-            </div>
-            <div className="overflow-y-auto space-y-2 flex-1">
-              {(kpiModal === "all" ? leads : leads.filter(l => l.status === kpiModal)).map(l => (
-                <button key={l.id} onClick={() => { setKpiModal(null); setSelectedLead(l); }}
-                  className="w-full flex items-center gap-2 p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/30 active:scale-[0.98] transition-all text-left">
-                  {l.lead_code && (
-                    <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded border border-aviva-gold/20 flex-shrink-0">
-                      {l.lead_code}
-                    </span>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-aviva-text truncate">{l.customer_name}</p>
-                    <p className="text-[10px] text-aviva-secondary">{l.phone} · {formatBudget(l.budget)}</p>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", sourceColor[l.source] ?? "bg-gray-500/20 text-gray-400")}>{l.source}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-aviva-gold/10 text-aviva-gold">{l.status}</span>
-                  </div>
-                </button>
-              ))}
-              {(kpiModal === "all" ? leads : leads.filter(l => l.status === kpiModal)).length === 0 && (
-                <p className="text-center text-aviva-secondary text-sm py-8">ไม่มีข้อมูล</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Update Modal */}
-      {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
-                  {selectedLead.lead_code && (
-                    <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded border border-aviva-gold/20">{selectedLead.lead_code}</span>
-                  )}
+                <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
+                    <Camera size={12} /> เลือกรูป
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (crmLogForm.photoPreview) URL.revokeObjectURL(crmLogForm.photoPreview);
+                        setCrmLogForm(f => ({ ...f, photo: file, photoPreview: URL.createObjectURL(file) }));
+                      }
+                    }} />
+                  </label>
+                  {crmLogForm.photoPreview && <img src={crmLogForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
                 </div>
-                <p className="text-xs text-aviva-secondary mt-0.5">{selectedLead.phone} · {formatBudget(selectedLead.budget)}</p>
+              </div>
+              <button onClick={saveCrmLog} disabled={savingLog || !crmLogForm.callStatus}
+                className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50">
+                {savingLog ? (uploadingLogPhoto ? "กำลังอัพโหลดรูป..." : "กำลังบันทึก...") : "บันทึกการติดต่อ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lead Detail Modal */}
+      {selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[85vh] overflow-y-auto mb-14 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  {selectedLead.lead_code && (
+                    <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-md border border-aviva-gold/20">{selectedLead.lead_code}</span>
+                  )}
+                  <h2 className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
+                </div>
+                <p className="text-xs text-aviva-secondary mt-0.5">{selectedLead.phone} · {selectedLead.source}</p>
               </div>
               <button onClick={() => setSelectedLead(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <span className={clsx("text-[11px] font-medium px-2 py-1 rounded-full", sourceColor[selectedLead.source] ?? "bg-gray-500/20 text-gray-400")}>
-                {selectedLead.source}
-              </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-aviva-bg rounded-xl p-3">
+                <p className="text-aviva-secondary">สถานะ</p>
+                <p className="text-aviva-text font-semibold mt-0.5">{STATUS_TH[selectedLead.status] ?? selectedLead.status}</p>
+              </div>
+              <div className="bg-aviva-bg rounded-xl p-3">
+                <p className="text-aviva-secondary">งบประมาณ</p>
+                <p className="text-aviva-gold font-semibold mt-0.5">{formatBudget(selectedLead.budget)}</p>
+              </div>
               {selectedLead.plot_number && (
-                <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">แปลงที่ {selectedLead.plot_number}</span>
-              )}
-              <span className={clsx("text-[11px] font-medium px-2 py-1 rounded-full",
-                selectedLead.ai_score >= 70 ? "bg-green-500/20 text-green-400" :
-                selectedLead.ai_score >= 40 ? "bg-yellow-500/20 text-yellow-400" :
-                "bg-red-500/20 text-red-400"
-              )}>AI {selectedLead.ai_score}%</span>
-            </div>
-
-            {/* ข้อมูลเพิ่มเติม */}
-            <div className="grid grid-cols-2 gap-2">
-              {selectedLead.email && (
-                <div className="col-span-2 bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">อีเมล</p>
-                  <p className="text-xs text-aviva-text">{selectedLead.email}</p>
+                <div className="bg-aviva-bg rounded-xl p-3">
+                  <p className="text-aviva-secondary">แปลงที่</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{selectedLead.plot_number}</p>
                 </div>
               )}
               {selectedLead.financing_type && selectedLead.financing_type !== "ไม่ระบุ" && (
-                <div className="bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">การเงิน</p>
-                  <p className="text-xs text-aviva-text">{selectedLead.financing_type}</p>
-                </div>
-              )}
-              {selectedLead.urgency && selectedLead.urgency !== "ปกติ" && (
-                <div className="bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">ความเร่งด่วน</p>
-                  <p className={`text-xs font-medium ${selectedLead.urgency === "เร่งด่วน" ? "text-red-400" : selectedLead.urgency === "สูง" ? "text-orange-400" : "text-aviva-text"}`}>
-                    {selectedLead.urgency}
-                  </p>
+                <div className="bg-aviva-bg rounded-xl p-3">
+                  <p className="text-aviva-secondary">รูปแบบชำระ</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{selectedLead.financing_type}</p>
                 </div>
               )}
               {selectedLead.next_follow_up_date && (
-                <div className="bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">นัดติดตามครั้งถัดไป</p>
-                  <p className="text-xs text-aviva-gold">{new Date(selectedLead.next_follow_up_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
-                </div>
-              )}
-              {selectedLead.last_contact_date && (
-                <div className="bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">ติดต่อล่าสุด</p>
-                  <p className="text-xs text-aviva-text">{new Date(selectedLead.last_contact_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
-                </div>
-              )}
-              {selectedLead.delivery_date && (
-                <div className="bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">วันส่งมอบบ้าน</p>
-                  <p className="text-xs text-aviva-gold font-medium">{new Date(selectedLead.delivery_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
-                </div>
-              )}
-              {selectedLead.contract_price && (
-                <div className="bg-aviva-bg rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-aviva-secondary mb-0.5">ราคาสัญญา</p>
-                  <p className="text-xs text-aviva-gold font-medium">฿{Number(selectedLead.contract_price).toLocaleString()}</p>
+                <div className="bg-aviva-bg rounded-xl p-3 col-span-2">
+                  <p className="text-aviva-secondary">นัดติดตาม</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.next_follow_up_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
                 </div>
               )}
               {selectedLead.loan_approved_date && (
-                <div className="col-span-2 bg-green-500/10 border border-green-500/30 rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-green-400 mb-0.5 font-semibold">🏦 กู้ผ่านแล้ว</p>
-                  <p className="text-xs text-green-300">{new Date(selectedLead.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 col-span-2">
+                  <p className="text-green-400 text-[10px] font-semibold">🏦 กู้ผ่านแล้ว</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                </div>
+              )}
+              {selectedLead.notes && (
+                <div className="bg-aviva-bg rounded-xl p-3 col-span-2">
+                  <p className="text-aviva-secondary">หมายเหตุ</p>
+                  <p className="text-aviva-text mt-0.5 leading-relaxed">{selectedLead.notes}</p>
                 </div>
               )}
             </div>
 
-            {selectedLead.notes && (
-              <p className="text-xs text-aviva-secondary bg-aviva-bg rounded-xl px-3 py-2 leading-relaxed">{selectedLead.notes}</p>
-            )}
-
-            {/* ประวัติการติดต่อ */}
-            {loadingLogs ? (
-              <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
-            ) : leadLogs.length > 0 ? (
+            {/* Customer Installment Section */}
+            {BOOKING_STATUSES.includes(selectedLead.status) && (
               <div>
-                <p className="text-xs font-semibold text-aviva-secondary mb-1.5">ประวัติการติดต่อ ({leadLogs.length})</p>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                  {leadLogs.map(log => (
-                    <div key={log.id} className="bg-aviva-bg rounded-xl px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-aviva-gold font-medium">{log.contact_channel} · {log.call_status}</span>
-                        <span className="text-aviva-secondary/60">{new Date(log.created_at).toLocaleDateString("th-TH")}</span>
-                      </div>
-                      {log.call_note && <p className="text-aviva-secondary leading-relaxed">{log.call_note}</p>}
-                      {log.photo_url && (
-                        <a href={log.photo_url} target="_blank" rel="noreferrer">
-                          <img src={log.photo_url} alt="รูปประกอบ" className="w-16 h-16 rounded-lg object-cover mt-1.5 border border-aviva-gold/20" />
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-aviva-secondary/50 text-center py-1">ยังไม่มีประวัติการติดต่อ</p>
-            )}
-
-            {/* กิจกรรมที่เกี่ยวข้องกับลูกค้ารายนี้ */}
-            {loadingLeadActivities ? (
-              <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
-            ) : leadActivities.length > 0 ? (
-              <div>
-                <p className="text-xs font-semibold text-aviva-secondary mb-1.5">กิจกรรมที่เกี่ยวข้อง ({leadActivities.length})</p>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {leadActivities.map(act => (
-                    <div key={act.id} className="bg-aviva-bg rounded-xl px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-aviva-gold font-medium">{act.activity_type}</span>
-                        <span className="text-aviva-secondary/60">{new Date(act.activity_date).toLocaleDateString("th-TH")}</span>
-                      </div>
-                      {act.note && <p className="text-aviva-secondary leading-relaxed">{act.note}</p>}
-                      {act.created_by_name && <p className="text-aviva-secondary/50 text-[10px] mt-0.5">โดย {act.created_by_name}</p>}
-                      {act.photo_url && (
-                        <a href={act.photo_url} target="_blank" rel="noreferrer">
-                          <img src={act.photo_url} alt="รูปกิจกรรม" className="w-16 h-16 rounded-lg object-cover mt-1.5 border border-aviva-gold/20" />
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {/* ประวัติเอกสาร/อนุมัติ */}
-            {loadingApprovals ? (
-              <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
-            ) : leadApprovals.length > 0 ? (
-              <div>
-                <p className="text-xs font-semibold text-aviva-secondary mb-1.5">เอกสาร / ประวัติอนุมัติ ({leadApprovals.length})</p>
-                <div className="space-y-1.5">
-                  {leadApprovals.map(appr => {
-                    const wfLabel: Record<string, string> = {
-                      Contract_Approval: "สัญญาซื้อขาย", Booking_Deposit: "ใบจอง",
-                      Finance_Approval: "อนุมัติการเงิน",
-                    };
-                    const statusColor: Record<string, string> = {
-                      Pending: "text-yellow-400 bg-yellow-500/10",
-                      Approved: "text-green-400 bg-green-500/10",
-                      Rejected: "text-red-400 bg-red-500/10",
-                    };
-                    return (
-                      <div key={appr.id} className="bg-aviva-bg rounded-xl px-3 py-2 text-xs">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-aviva-text font-medium">{wfLabel[appr.workflow_type] ?? appr.workflow_type}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusColor[appr.action_taken] ?? "text-aviva-secondary bg-aviva-bg"}`}>
-                            {appr.action_taken}
-                          </span>
-                        </div>
-                        <p className="text-aviva-secondary leading-relaxed truncate">{appr.source_doc_index}</p>
-                        <div className="flex items-center justify-between mt-0.5">
-                          {appr.amount != null && <span className="text-aviva-gold">฿{Number(appr.amount).toLocaleString()}</span>}
-                          <span className="text-aviva-secondary/60 ml-auto">{new Date(appr.created_at).toLocaleDateString("th-TH")}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-            {/* ตารางชำระเงินลูกค้า */}
-            {(custInsts.length > 0 || BOOKING_STATUSES.includes(selectedLead.status)) && (
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-xs font-semibold text-aviva-secondary">ตารางชำระเงิน ({custInsts.length} งวด)</p>
-                  {custInsts.length === 0 && (
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-aviva-gold">ตารางชำระเงินลูกค้า</p>
+                  {custInsts.length === 0 && !loadingCustInsts && (
                     <button onClick={() => createDefaultCustInsts(selectedLead)}
                       className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
-                      + สร้างตาราง
+                      สร้างตาราง
                     </button>
                   )}
                 </div>
                 {loadingCustInsts ? (
-                  <div className="h-8 bg-aviva-bg/50 rounded-xl animate-pulse" />
-                ) : (
-                  <div className="space-y-1.5">
+                  <div className="h-8 rounded-xl bg-aviva-bg animate-pulse" />
+                ) : custInsts.length > 0 ? (
+                  <div className="space-y-2">
                     {custInsts.map(inst => (
-                      <div key={inst.id} className="bg-aviva-bg rounded-xl px-3 py-2 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-aviva-text font-medium">{inst.name}</p>
-                          <p className="text-[10px] text-aviva-secondary">฿{Number(inst.amount).toLocaleString()}{inst.due_date ? ` · ครบ ${new Date(inst.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : ""}</p>
+                      <div key={inst.id} className={clsx("rounded-xl p-3 border", inst.status === 'paid' ? "bg-green-500/10 border-green-500/20" : "bg-aviva-bg border-aviva-gold/10")}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-aviva-text">{inst.name}</p>
+                            <p className="text-[10px] text-aviva-secondary">฿{inst.amount.toLocaleString()}</p>
+                          </div>
+                          <div className="text-right">
+                            {inst.status === 'paid' ? (
+                              <span className="text-[10px] text-green-400 font-semibold">รับแล้ว {inst.paid_date ? new Date(inst.paid_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : ""}</span>
+                            ) : (
+                              <span className={clsx("text-[10px] font-medium", inst.status === 'overdue' ? "text-red-400" : "text-aviva-secondary")}>
+                                {inst.due_date ? new Date(inst.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "ยังไม่กำหนด"}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {inst.status === 'paid' ? (
-                          <span className="text-[10px] text-green-400 font-bold">✓ รับแล้ว</span>
-                        ) : (
-                          <div className="flex flex-col gap-1 items-end">
+                        {inst.status !== 'paid' && (
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <input
                               type="text"
                               placeholder="เลขอ้างอิง..."
@@ -1632,7 +1323,7 @@ export default function CRMPage() {
                       </div>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -1645,10 +1336,6 @@ export default function CRMPage() {
               <button onClick={() => { setCrmLogLead(selectedLead); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
-              </button>
-              <button onClick={() => { setActForm(f => ({ ...f, leadId: selectedLead.id, leadName: selectedLead.customer_name })); setShowActModal(true); setSelectedLead(null); }}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
-                <Star size={12} /> บันทึกกิจกรรม
               </button>
               <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">

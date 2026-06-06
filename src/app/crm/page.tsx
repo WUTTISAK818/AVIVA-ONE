@@ -183,7 +183,7 @@ export default function CRMPage() {
   const [houses, setHouses] = useState<HouseSlot[]>([]);
   const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]>([]);
   const [showActModal, setShowActModal] = useState(false);
-  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "", onBehalfOf: "" });
+  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "", onBehalfOf: "", leadId: "" as string, leadName: "" as string });
   const [savingAct, setSavingAct] = useState(false);
   const [uploadingActPhoto, setUploadingActPhoto] = useState(false);
   const [uploadingLogPhoto, setUploadingLogPhoto] = useState(false);
@@ -191,6 +191,8 @@ export default function CRMPage() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [leadApprovals, setLeadApprovals] = useState<ApprovalLog[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
+  const [leadActivities, setLeadActivities] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]>([]);
+  const [loadingLeadActivities, setLoadingLeadActivities] = useState(false);
   const [custInsts, setCustInsts] = useState<CustomerInstallment[]>([]);
   const [loadingCustInsts, setLoadingCustInsts] = useState(false);
   const [showCustInstModal, setShowCustInstModal] = useState(false);
@@ -210,9 +212,15 @@ export default function CRMPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); setCustInsts([]); return; }
+    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); setCustInsts([]); setLeadActivities([]); return; }
     setLoadingLogs(true);
     setLoadingApprovals(true);
+    setLoadingLeadActivities(true);
+    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url,created_by_name")
+      .eq("lead_id", selectedLead.id)
+      .order("activity_date", { ascending: false })
+      .limit(20)
+      .then(({ data }) => { setLeadActivities((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]); setLoadingLeadActivities(false); });
     supabase.from("crm_logs")
       .select("id,contact_channel,call_status,call_note,created_at,photo_url")
       .eq("lead_id", selectedLead.id)
@@ -260,6 +268,7 @@ export default function CRMPage() {
       activity_date: actForm.activity_date,
       photo_url: photoUrl,
       created_by_name: byName,
+      lead_id: actForm.leadId || null,
     });
     await createNotification({
       type: "info",
@@ -271,7 +280,7 @@ export default function CRMPage() {
     if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
     setSavingAct(false);
     setShowActModal(false);
-    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "", onBehalfOf: "" });
+    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "", onBehalfOf: "", leadId: "", leadName: "" });
     fetchSalesActs();
   };
 
@@ -596,6 +605,20 @@ export default function CRMPage() {
     const ref = payRef[inst.id]?.ref ?? "";
     const date = payRef[inst.id]?.date ?? today;
     await supabase.from("customer_installments").update({ status: 'paid', paid_date: today, transfer_ref: ref || null, transfer_date: date || null }).eq("id", inst.id);
+    // Update AR invoice if one exists for this lead's installment
+    if (selectedLead) {
+      const { data: arRows } = await supabase.from("ar_invoices")
+        .select("id,paid_amount,total_amount")
+        .eq("customer_name", selectedLead.customer_name)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      if (arRows) {
+        const newPaid = (arRows.paid_amount ?? 0) + inst.amount;
+        const newStatus = newPaid >= arRows.total_amount ? "paid" : "partial";
+        await supabase.from("ar_invoices").update({ paid_amount: newPaid, status: newStatus }).eq("id", arRows.id);
+      }
+    }
     setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, status: 'paid', paid_date: today } : i));
     setPayRef(prev => { const next = { ...prev }; delete next[inst.id]; return next; });
     setToast({ msg: `${inst.name} — บันทึกรับเงินแล้ว`, type: "success" });
@@ -1085,8 +1108,11 @@ export default function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
-              <button onClick={() => setShowActModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
+                {actForm.leadName && <p className="text-xs text-aviva-gold mt-0.5">ลิงก์กับ: {actForm.leadName}</p>}
+              </div>
+              <button onClick={() => { setShowActModal(false); setActForm(f => ({ ...f, leadId: "", leadName: "" })); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1495,6 +1521,32 @@ export default function CRMPage() {
               <p className="text-xs text-aviva-secondary/50 text-center py-1">ยังไม่มีประวัติการติดต่อ</p>
             )}
 
+            {/* กิจกรรมที่เกี่ยวข้องกับลูกค้ารายนี้ */}
+            {loadingLeadActivities ? (
+              <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
+            ) : leadActivities.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-aviva-secondary mb-1.5">กิจกรรมที่เกี่ยวข้อง ({leadActivities.length})</p>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {leadActivities.map(act => (
+                    <div key={act.id} className="bg-aviva-bg rounded-xl px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-aviva-gold font-medium">{act.activity_type}</span>
+                        <span className="text-aviva-secondary/60">{new Date(act.activity_date).toLocaleDateString("th-TH")}</span>
+                      </div>
+                      {act.note && <p className="text-aviva-secondary leading-relaxed">{act.note}</p>}
+                      {act.created_by_name && <p className="text-aviva-secondary/50 text-[10px] mt-0.5">โดย {act.created_by_name}</p>}
+                      {act.photo_url && (
+                        <a href={act.photo_url} target="_blank" rel="noreferrer">
+                          <img src={act.photo_url} alt="รูปกิจกรรม" className="w-16 h-16 rounded-lg object-cover mt-1.5 border border-aviva-gold/20" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {/* ประวัติเอกสาร/อนุมัติ */}
             {loadingApprovals ? (
               <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
@@ -1593,6 +1645,10 @@ export default function CRMPage() {
               <button onClick={() => { setCrmLogLead(selectedLead); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
+              </button>
+              <button onClick={() => { setActForm(f => ({ ...f, leadId: selectedLead.id, leadName: selectedLead.customer_name })); setShowActModal(true); setSelectedLead(null); }}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
+                <Star size={12} /> บันทึกกิจกรรม
               </button>
               <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">

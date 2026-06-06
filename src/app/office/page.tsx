@@ -6,7 +6,7 @@ import {
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
-  FolderOpen, Upload, Search, Home, BookOpen,
+  FolderOpen, Upload, Search, Home, BookOpen, Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -268,6 +268,25 @@ function FinanceContent() {
         amount: form.transaction_type === "expense" ? -amt : amt,
         description: `[${form.category}] ${form.description}`,
       }).select().single();
+      // Auto-create JV entry for accounting integration
+      const d = new Date();
+      const jvNum = `JV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-4)}`;
+      const isIncome = form.transaction_type === "income";
+      const { data: jv } = await supabase.from("jv_entries").insert({
+        jv_number: jvNum,
+        jv_date: new Date().toISOString().split("T")[0],
+        description: `[${form.category}] ${form.description}`,
+        status: "posted",
+        total_debit: amt,
+        total_credit: amt,
+        project_id: PROJECT_ID,
+      }).select("id").single();
+      if (jv) {
+        await supabase.from("jv_lines").insert([
+          { jv_id: jv.id, account_code: isIncome ? "1100" : "5000", account_name: isIncome ? "เงินสด/เงินฝากธนาคาร" : "ค่าใช้จ่าย", debit: amt, credit: 0, line_order: 1 },
+          { jv_id: jv.id, account_code: isIncome ? "4000" : "1100", account_name: isIncome ? "รายได้จากการขาย" : "เงินสด/เงินฝากธนาคาร", debit: 0, credit: amt, line_order: 2 },
+        ]);
+      }
       await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
     }
     setSaving(false);
@@ -291,6 +310,24 @@ function FinanceContent() {
         amount: -approval.amount,
         description: approval.description,
       });
+      // Auto-create JV for approved finance transaction
+      const d2 = new Date();
+      const jvNum2 = `JV-${String(d2.getFullYear()).slice(-2)}${String(d2.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-4)}`;
+      const { data: jv2 } = await supabase.from("jv_entries").insert({
+        jv_number: jvNum2,
+        jv_date: new Date().toISOString().split("T")[0],
+        description: `[อนุมัติแล้ว] ${approval.description}`,
+        status: "posted",
+        total_debit: approval.amount,
+        total_credit: approval.amount,
+        project_id: PROJECT_ID,
+      }).select("id").single();
+      if (jv2) {
+        await supabase.from("jv_lines").insert([
+          { jv_id: jv2.id, account_code: "5000", account_name: "ค่าใช้จ่าย", debit: approval.amount, credit: 0, line_order: 1 },
+          { jv_id: jv2.id, account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: approval.amount, line_order: 2 },
+        ]);
+      }
     }
     await logAction("finance", approved ? "approve" : "reject",
       `${approved ? "อนุมัติ" : "ปฏิเสธ"} ฿${approval.amount.toLocaleString()} — ${approval.description}`, id);
@@ -749,6 +786,7 @@ function AccountingContent() {
   const handleSave = async () => {
     if (!form.vendor_name || !form.amount) return;
     setSaving(true);
+    const rcptNum = form.receipt_number || `RC-${Date.now().toString().slice(-6)}`;
     await supabase.from("receipts").insert({
       project_id: PROJECT_ID,
       receipt_date: form.receipt_date,
@@ -757,8 +795,26 @@ function AccountingContent() {
       amount: Number(form.amount),
       category: form.category,
       receipt_type: form.receipt_type,
-      receipt_number: form.receipt_number || `RC-${Date.now().toString().slice(-6)}`,
+      receipt_number: rcptNum,
     });
+    // When recording income receipt, also create AR invoice for accounting integration
+    if (form.receipt_type === "income") {
+      const invNum = `INV-${Date.now().toString().slice(-6)}`;
+      await supabase.from("ar_invoices").insert({
+        invoice_number: invNum,
+        customer_name: form.vendor_name,
+        invoice_date: form.receipt_date,
+        due_date: form.receipt_date,
+        base_amount: Number(form.amount),
+        vat_amount: 0,
+        total_amount: Number(form.amount),
+        paid_amount: Number(form.amount),
+        status: "paid",
+        description: form.description || form.category,
+        project_id: PROJECT_ID,
+        ref_number: rcptNum,
+      });
+    }
     setSaving(false);
     setShowModal(false);
     setForm(emptyReceiptForm);
@@ -1615,6 +1671,7 @@ function HRContent() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyEmployeeForm);
   const [saving, setSaving] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [filterDept, setFilterDept] = useState("ทั้งหมด");
   const [kpiModalHR, setKpiModalHR] = useState<"employees" | "probation" | "salary" | null>(null);
   const [hrTab, setHrTab] = useState<"บุคคล" | "เงินเดือน" | "การลา">("บุคคล");
@@ -1702,23 +1759,54 @@ function HRContent() {
   const handleSave = async () => {
     if (!form.full_name) return;
     setSaving(true);
-    await supabase.from("employees").insert({
-      full_name: form.full_name,
-      nickname: form.nickname,
-      phone: form.phone,
-      email: form.email,
-      department: form.department,
-      position: form.position,
-      base_salary: Number(form.base_salary) || 0,
-      commission_rate: Number(form.commission_rate) || 0,
-      start_date: form.start_date,
-      status: "active",
-    });
-    await logAction("hr", "add_employee", `เพิ่มพนักงาน ${form.full_name} ${form.department}`);
+    if (editingEmployee) {
+      await supabase.from("employees").update({
+        full_name: form.full_name,
+        nickname: form.nickname,
+        phone: form.phone,
+        email: form.email,
+        department: form.department,
+        position: form.position,
+        base_salary: Number(form.base_salary) || 0,
+        commission_rate: Number(form.commission_rate) || 0,
+      }).eq("id", editingEmployee.id);
+      await logAction("hr", "edit_employee", `แก้ไขข้อมูลพนักงาน ${form.full_name}`);
+    } else {
+      await supabase.from("employees").insert({
+        full_name: form.full_name,
+        nickname: form.nickname,
+        phone: form.phone,
+        email: form.email,
+        department: form.department,
+        position: form.position,
+        base_salary: Number(form.base_salary) || 0,
+        commission_rate: Number(form.commission_rate) || 0,
+        start_date: form.start_date,
+        status: "active",
+      });
+      await logAction("hr", "add_employee", `เพิ่มพนักงาน ${form.full_name} ${form.department}`);
+    }
     setSaving(false);
     setShowModal(false);
+    setEditingEmployee(null);
     setForm(emptyEmployeeForm);
     fetchEmployees();
+  };
+
+  const openEditEmployee = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setForm({
+      full_name: emp.full_name,
+      nickname: emp.nickname ?? "",
+      phone: emp.phone ?? "",
+      email: emp.email ?? "",
+      department: emp.department,
+      position: emp.position ?? "",
+      base_salary: String(emp.base_salary ?? ""),
+      commission_rate: String(emp.commission_rate ?? ""),
+      start_date: emp.start_date ?? today,
+    });
+    setShowModal(true);
   };
 
   return (
@@ -1939,13 +2027,21 @@ function HRContent() {
                       )}
                     </div>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-1 rounded-full flex-shrink-0",
-                    emp.status === "active"
-                      ? "bg-green-500/20 text-green-400"
-                      : "bg-gray-500/20 text-gray-400"
-                  )}>
-                    {emp.status === "active" ? "ทำงานอยู่" : "ลาออก"}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className={clsx("text-[10px] px-2 py-1 rounded-full",
+                      emp.status === "active"
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-gray-500/20 text-gray-400"
+                    )}>
+                      {emp.status === "active" ? "ทำงานอยู่" : "ลาออก"}
+                    </span>
+                    {(user?.isAdmin || user?.isManager) && (
+                      <button onClick={() => openEditEmployee(emp)}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 flex items-center gap-1">
+                        <Pencil size={9} /> แก้ไข
+                      </button>
+                    )}
+                  </div>
                 </div>
               </GlassCard>
             ))
@@ -1960,8 +2056,8 @@ function HRContent() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">เพิ่มพนักงาน</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <h2 className="text-lg font-bold text-aviva-text">{editingEmployee ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มพนักงาน"}</h2>
+              <button onClick={() => { setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">

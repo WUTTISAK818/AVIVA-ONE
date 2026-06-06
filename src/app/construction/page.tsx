@@ -824,13 +824,29 @@ export default function ConstructionPage() {
 
   const submitSummaryReport = async () => {
     setSendingSummary(true);
+    let photoUrl: string | null = null;
     if (summaryPhoto) {
       setUploadingSummaryPhoto(true);
       const ext = summaryPhoto.name.split(".").pop() ?? "jpg";
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(`daily/summary-${Date.now()}.${ext}`, summaryPhoto, { upsert: true });
-      if (error) setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      const filePath = `daily/summary-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, summaryPhoto, { upsert: true });
+      if (error) {
+        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      } else {
+        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(filePath);
+        photoUrl = publicUrl;
+      }
       setUploadingSummaryPhoto(false);
     }
+    // Persist summary report to construction_reports table
+    await supabase.from("construction_reports").insert({
+      work_type: "สรุปประจำวัน",
+      work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,
+      progress: overallProgress,
+      reported_by: summaryForm.reporter || null,
+      photo_url: photoUrl,
+      issue: summaryForm.problems || null,
+    });
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     await createNotification({
       type: "info",
@@ -840,7 +856,9 @@ export default function ConstructionPage() {
     });
     setSendingSummary(false);
     setShowSummaryModal(false);
-    setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว", type: "success" });
+    setSummaryPhoto(null);
+    setSummaryPhotoPreview("");
+    setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว ✓", type: "success" });
   };
 
   return (

@@ -6,7 +6,7 @@ import {
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
-  FolderOpen, Upload, Search, Home, BookOpen, Pencil,
+  FolderOpen, Upload, Search, Home, BookOpen, Pencil, ShoppingCart,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -1163,6 +1163,7 @@ const emptyCampaignForm = { name: "", platform: "Facebook", budget: "", start_da
 const MONTH_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 
 function MarketingContent() {
+  const user = useCurrentUser();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [budgets, setBudgets] = useState<MarketingBudget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1178,6 +1179,9 @@ function MarketingContent() {
   const [mktPeriod, setMktPeriod] = useState<Period>("month");
   const [mktStart, setMktStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [mktEnd, setMktEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [showMktPRModal, setShowMktPRModal] = useState(false);
+  const [mktPRForm, setMktPRForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
+  const [mktPRSaving, setMktPRSaving] = useState(false);
 
   const fetchCampaigns = () => {
     let q = supabase.from("campaigns").select("*").eq("project_id", PROJECT_ID);
@@ -1274,6 +1278,45 @@ function MarketingContent() {
     const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(csv); a.download = "campaigns.csv"; a.click();
   };
 
+  const handleCreateMktPR = async () => {
+    if (!mktPRForm.supplier_name || !mktPRForm.description) return;
+    setMktPRSaving(true);
+    const poDocNum = await generateDocNumber("PO");
+    const total = Number(mktPRForm.amount) || 0;
+    const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      po_number: poDocNum,
+      supplier_name: mktPRForm.supplier_name,
+      items: [{ name: mktPRForm.description, qty: 1, unit: "รายการ", unit_price: total }],
+      total_amount: total,
+      status: "draft",
+      requested_by: user?.full_name ?? user?.email ?? "Unknown",
+      notes: mktPRForm.notes,
+    }).select().single();
+    if (poErr) { setMktPRSaving(false); return; }
+    if (poData) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `${poDocNum} | ฝ่ายการตลาด — ${mktPRForm.supplier_name} — ${mktPRForm.description} | โดย ${user?.full_name ?? "Unknown"}`,
+        source_record_id: poData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: total,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      await createNotification({
+        type: "approval",
+        title: "ขอสั่งซื้อ/จ้างบริการ (ฝ่ายการตลาด)",
+        message: `${mktPRForm.supplier_name}${total > 0 ? ` — ฿${total.toLocaleString("th-TH")}` : ""} — โดย ${user?.full_name ?? "Unknown"}`,
+        from_dept: "ฝ่ายการตลาด",
+      });
+    }
+    setMktPRSaving(false);
+    setShowMktPRModal(false);
+    setMktPRForm({ supplier_name: "", description: "", amount: "", notes: "" });
+  };
+
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <DeptAIChat dept="marketing" label="AI ฝ่ายการตลาด" />
@@ -1339,6 +1382,10 @@ function MarketingContent() {
               <Download size={14} /> CSV
             </button>
           </div>
+          <button onClick={() => setShowMktPRModal(true)}
+            className="w-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold py-2.5 rounded-2xl text-sm">
+            <ShoppingCart size={15} /> ขอสั่งซื้อ/จ้างบริการ
+          </button>
           <div>
             <SectionHeader title="แคมเปญ" subtitle="กรองตาม Platform" />
             <div className="flex gap-2 mb-4">
@@ -1620,6 +1667,49 @@ function MarketingContent() {
           </div>
         </div>
       )}
+
+      {/* Purchase Request Modal — Marketing */}
+      {showMktPRModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">ขอสั่งซื้อ/จ้างบริการ</h2>
+              <button onClick={() => setShowMktPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / บริษัทรับจ้าง *</label>
+                <input type="text" value={mktPRForm.supplier_name} onChange={e => setMktPRForm(p => ({ ...p, supplier_name: e.target.value }))}
+                  placeholder="ชื่อร้าน / บริษัท"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
+                <input type="text" value={mktPRForm.description} onChange={e => setMktPRForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="เช่น ค่าจ้างทำกราฟิก, ค่าโฆษณา Facebook"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
+                <input type="number" value={mktPRForm.amount} onChange={e => setMktPRForm(p => ({ ...p, amount: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea value={mktPRForm.notes} onChange={e => setMktPRForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="รายละเอียดเพิ่มเติม"
+                  rows={2}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+            <button onClick={handleCreateMktPR} disabled={mktPRSaving || !mktPRForm.supplier_name || !mktPRForm.description}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {mktPRSaving ? "กำลังส่งคำขอ..." : "ส่งคำขออนุมัติ"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1681,6 +1771,9 @@ function HRContent() {
   const [hrToast, setHrToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string} | null>(null);
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [prForm, setPrForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
+  const [prSaving, setPrSaving] = useState(false);
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -1807,6 +1900,46 @@ function HRContent() {
       start_date: emp.start_date ?? today,
     });
     setShowModal(true);
+  };
+
+  const handleCreateHRPR = async () => {
+    if (!prForm.supplier_name || !prForm.description) return;
+    setPrSaving(true);
+    const poDocNum = await generateDocNumber("PO");
+    const total = Number(prForm.amount) || 0;
+    const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      po_number: poDocNum,
+      supplier_name: prForm.supplier_name,
+      items: [{ name: prForm.description, qty: 1, unit: "รายการ", unit_price: total }],
+      total_amount: total,
+      status: "draft",
+      requested_by: user?.full_name ?? user?.email ?? "Unknown",
+      notes: prForm.notes,
+    }).select().single();
+    if (poErr) { setPrSaving(false); return; }
+    if (poData) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `${poDocNum} | ฝ่ายบุคคล — ${prForm.supplier_name} — ${prForm.description} | โดย ${user?.full_name ?? "Unknown"}`,
+        source_record_id: poData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: total,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      await createNotification({
+        type: "approval",
+        title: "ขอสั่งซื้ออุปกรณ์สำนักงาน (ฝ่ายบุคคล)",
+        message: `${prForm.supplier_name}${total > 0 ? ` — ฿${total.toLocaleString("th-TH")}` : ""} — โดย ${user?.full_name ?? "Unknown"}`,
+        from_dept: "ฝ่ายบุคคล",
+      });
+    }
+    setPrSaving(false);
+    setShowPRModal(false);
+    setPrForm({ supplier_name: "", description: "", amount: "", notes: "" });
+    setHrToast({ msg: "ส่งคำขออนุมัติแล้ว", type: "success" });
   };
 
   return (
@@ -1962,6 +2095,10 @@ function HRContent() {
           <Download size={14} /> CSV
         </button>
       </div>
+      <button onClick={() => setShowPRModal(true)}
+        className="w-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold py-2.5 rounded-2xl text-sm">
+        <ShoppingCart size={15} /> ขอสั่งซื้ออุปกรณ์สำนักงาน
+      </button>
 
       {/* Dept Filter */}
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
@@ -2187,6 +2324,49 @@ function HRContent() {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase Request Modal — HR */}
+      {showPRModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">ขอสั่งซื้ออุปกรณ์สำนักงาน</h2>
+              <button onClick={() => setShowPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / ร้านค้า *</label>
+                <input type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
+                  placeholder="ชื่อร้าน / บริษัท"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
+                <input type="text" value={prForm.description} onChange={e => setPrForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="เช่น กระดาษ A4 x 10 รีม, ปากกา x 20 ด้าม"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
+                <input type="number" value={prForm.amount} onChange={e => setPrForm(p => ({ ...p, amount: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="รายละเอียดเพิ่มเติม"
+                  rows={2}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+            <button onClick={handleCreateHRPR} disabled={prSaving || !prForm.supplier_name || !prForm.description}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {prSaving ? "กำลังส่งคำขอ..." : "ส่งคำขออนุมัติ"}
+            </button>
           </div>
         </div>
       )}

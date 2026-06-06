@@ -923,7 +923,7 @@ export default function DashboardPage() {
                 {constructionStats.inReview > 0 && (
                   <Link href="/approvals" className="flex items-start gap-2.5 p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 active:scale-[0.98] transition-transform">
                     <Clock size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div>
+<div>
                       <p className="text-xs font-bold text-yellow-400">งวดงานรออนุมัติ {constructionStats.inReview} งวด — กระทบกระแสเงินสดผู้รับเหมา</p>
                       <p className="text-[10px] text-aviva-secondary/80 mt-0.5">กดเพื่อไปอนุมัติ</p>
                     </div>

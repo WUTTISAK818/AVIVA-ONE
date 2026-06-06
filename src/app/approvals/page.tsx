@@ -513,7 +513,7 @@ function RegistryContent() {
       .eq("project_id", PROJECT_ID)
       .order("customer_name")
       .then(({ data }) => {
-        setLeads((data as typeof leads) ?? []);
+        setLeads((data as unknown as typeof leads) ?? []);
         setLoading(false);
       });
   }, []);

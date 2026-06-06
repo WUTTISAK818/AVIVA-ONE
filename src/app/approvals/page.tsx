@@ -134,8 +134,12 @@ function ApprovalsContent() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [detail, setDetail] = useState<ApprovalLog | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const pendingCount = logs.filter(l => l.action_taken === "Pending").length;
+
+  const PAGE_SIZE = 50;
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -143,9 +147,24 @@ function ApprovalsContent() {
       .from("approval_logs")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(200);
-    setLogs((data as ApprovalLog[]) ?? []);
+      .limit(PAGE_SIZE);
+    const newLogs = (data as ApprovalLog[]) ?? [];
+    setLogs(newLogs);
+    setHasMore(newLogs.length === PAGE_SIZE);
     setLoading(false);
+  };
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    const { data } = await supabase
+      .from("approval_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(logs.length, logs.length + PAGE_SIZE - 1);
+    const more = (data as ApprovalLog[]) ?? [];
+    setLogs(prev => [...prev, ...more]);
+    setHasMore(more.length === PAGE_SIZE);
+    setLoadingMore(false);
   };
 
   useEffect(() => { fetchLogs(); }, []);
@@ -436,6 +455,12 @@ function ApprovalsContent() {
             );
           })
         )}
+        {hasMore && !loading && (
+          <button onClick={loadMore} disabled={loadingMore}
+            className="w-full py-3 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card/50 hover:border-aviva-gold/30 disabled:opacity-50">
+            {loadingMore ? "กำลังโหลด..." : "โหลดเพิ่มเติม"}
+          </button>
+        )}
       </div>
 
       {/* Detail / Action Modal */}
@@ -499,7 +524,7 @@ function ApprovalsContent() {
   );
 }
 
-// ─── Registry (Customer Installment Viewer) ───────────────────────────────────
+// ─── Registry (Customer Installment Viewer) ──────────────────────────────────────────────
 
 function RegistryContent() {
   const [leads, setLeads] = useState<{ id: string; customer_name: string; house_slot?: { house_number: string } | null }[]>([]);
@@ -622,7 +647,7 @@ function InstallmentViewer({ leadId }: { leadId: string }) {
   );
 }
 
-// ─── ApprovalDetailModal ─────────────────────────────────────────────────────
+// ─── ApprovalDetailModal ─────────────────────────────────────────────
 
 function ApprovalDetailModal({ log, onClose, onAction }: {
   log: ApprovalLog;
@@ -670,7 +695,7 @@ function ApprovalDetailModal({ log, onClose, onAction }: {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────────────────
 
 export default function ApprovalsPage() {
   const [mainTab, setMainTab] = useState<MainTab>("approvals");

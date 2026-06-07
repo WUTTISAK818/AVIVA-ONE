@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { compressContextForAPI, compressChatHistory } from "@/lib/prompt-compression";
+import {
+  selectModelByQuota,
+  AVIVA_RECOMMENDED_CONFIG,
+} from "@/lib/model-selector";
+import {
+  parseAPIError,
+  retryWithBackoff,
+  retryWithCompression,
+  getUserFriendlyErrorMessage,
+  RateLimitCircuitBreaker,
+} from "@/lib/api-error-handler";
+import type { AIResponseBody } from "@/types/api";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +27,9 @@ const supabaseAdmin = createClient(
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+// ✨ NEW: Circuit breaker for rate limit protection
+const rateLimitBreaker = new RateLimitCircuitBreaker(5, 60000);
 
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT = 10;
@@ -113,6 +129,7 @@ ${deptSection}
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
   if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
 
@@ -170,6 +187,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ response: "ไม่พบข้อมูลโครงการ กรุณาตรวจสอบการตั้งค่าค่ะ" });
   }
 
+  type HouseRow = { house_number: string; status: string; delayed_days?: number };
+  type CampaignRow = { name: string; platform: string; status: string; leads_generated: number };
+
   const delayedHouses = (houses as HouseRow[]).filter(h => (h.delayed_days ?? 0) > 0);
   const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Loan Process","Closed Deal"].includes(l.status));
   const closedLeads  = (leads as {status:string}[]).filter(l => l.status === "Closed Deal");
@@ -220,7 +240,7 @@ export async function POST(req: NextRequest) {
 
 ตอบเป็นภาษาไทย กระชับ มืออาชีพ ให้คำแนะนำเชิงกลยุทธ์ที่นำไปใช้ได้จริง`
     : buildStaffContext(userName, userDept, {
-        project: project as ProjectRow,
+        project: project as any,
         houses: houses as HouseRow[],
         leads: leads as {status:string}[],
         installments: installments as unknown[],
@@ -242,31 +262,101 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20_000);
-
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: JSON.stringify({
+    // ✨ NEW: Compress system context before sending
+    const compressionResult = compressContextForAPI(
+      systemContext,
+      isManager,
+      900 // target size
+    );
+
+    console.log(
+      `📦 Context compressed: ${compressionResult.originalSize} → ${compressionResult.compressedSize} tokens (${compressionResult.reductionPercent}% reduction)`
+    );
+
+    // ✨ NEW: Compress chat history (use last 2 instead of 5)
+    const compressedHistory = compressChatHistory(history, message);
+
+    // ✨ NEW: Circuit breaker protection
+    const executeAPICall = async () => {
+      return await rateLimitBreaker.execute(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20_000);
+
+        try {
+          const res = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            signal: controller.signal,
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: compressionResult.compressed },
+                ...compressedHistory,
+                { role: "user", content: message },
+              ],
+              temperature: 0.7,
+              max_tokens: 500,
+            }),
+          });
+
+          clearTimeout(timeoutId);
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error?.message || "API error");
+          }
+
+          return data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่";
+        } catch (err) {
+          clearTimeout(timeoutId);
+          throw err;
+        }
+      });
+    };
+
+    // ✨ NEW: Retry with compression if prompt too long
+    const response = await retryWithCompression(
+      async (context: string) => {
+        return await executeAPICall();
+      },
+      compressionResult.compressed,
+      isManager
+    );
+
+    const responseTime = Date.now() - startTime;
+
+    return NextResponse.json({
+      response,
+      metadata: {
         model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemContext },
-          ...history,
-          { role: "user", content: message },
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
+        tokensUsed: compressionResult.compressedSize,
+        compressionApplied: true,
+        responseTimeMs: responseTime,
+      },
+    } as AIResponseBody);
+  } catch (error: any) {
+    console.error("[AI Error]", error);
+
+    const parsedError = parseAPIError(error);
+    const userMessage = getUserFriendlyErrorMessage(parsedError);
+
+    // ✨ NEW: Check circuit breaker status
+    if (rateLimitBreaker.getStatus() === "open") {
+      return NextResponse.json(
+        {
+          response: "🔴 ระบบ AI ใช้ด้วยคนจำนวนมากเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ",
+          error: "RATE_LIMIT_BREAKER_OPEN",
+        },
+        { status: 429 }
+      );
+    }
+
+    // Fallback response
+    return NextResponse.json({
+      response: userMessage || generateFallback(message, fallbackData, isManager),
+      error: parsedError.code,
     });
-    clearTimeout(timeoutId);
-    const data = await res.json();
-    return NextResponse.json({ response: data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่" });
-  } catch {
-    clearTimeout(timeoutId);
-    return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
 }
 

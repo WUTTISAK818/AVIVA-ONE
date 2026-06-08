@@ -277,48 +277,43 @@ export async function POST(req: NextRequest) {
     // ✨ NEW: Compress chat history (use last 2 instead of 5)
     const compressedHistory = compressChatHistory(history, message);
 
-    // ✨ NEW: Circuit breaker protection
-    const executeAPICall = async () => {
-      return await rateLimitBreaker.execute(async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20_000);
-
-        try {
-          const res = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            signal: controller.signal,
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-            body: JSON.stringify({
-              model: "gpt-4o-mini",
-              messages: [
-                { role: "system", content: compressionResult.compressed },
-                ...compressedHistory,
-                { role: "user", content: message },
-              ],
-              temperature: 0.7,
-              max_tokens: 500,
-            }),
-          });
-
-          clearTimeout(timeoutId);
-          const data = await res.json();
-
-          if (!res.ok) {
-            throw new Error(data.error?.message || "API error");
-          }
-
-          return data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่";
-        } catch (err) {
-          clearTimeout(timeoutId);
-          throw err;
-        }
-      });
-    };
-
     // ✨ NEW: Retry with compression if prompt too long
     const response = await retryWithCompression(
-      async (context: string) => {
-        return await executeAPICall();
+      async (compressedContext: string) => {
+        return await rateLimitBreaker.execute(async () => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 20_000);
+
+          try {
+            const res = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              signal: controller.signal,
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
+              body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [
+                  { role: "system", content: compressedContext },
+                  ...compressedHistory,
+                  { role: "user", content: message },
+                ],
+                temperature: 0.7,
+                max_tokens: 500,
+              }),
+            });
+
+            clearTimeout(timeoutId);
+            const data = await res.json();
+
+            if (!res.ok) {
+              throw new Error(data.error?.message || "API error");
+            }
+
+            return data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่";
+          } catch (err) {
+            clearTimeout(timeoutId);
+            throw err;
+          }
+        });
       },
       compressionResult.compressed,
       isManager

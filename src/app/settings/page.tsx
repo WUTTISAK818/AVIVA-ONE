@@ -5,6 +5,8 @@ import { useCurrentUser } from "@/lib/user-context";
 import { useTheme } from "@/lib/theme-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import PushSetupCard from "@/components/PushSetupCard";
+import LineLinkCard from "@/components/LineLinkCard";
 import Link from "next/link";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -107,6 +109,8 @@ export default function SettingsPage() {
             ))}
           </div>
         </GlassCard>
+        <PushSetupCard />
+        <LineLinkCard />
         <GlassCard className="p-0 overflow-hidden">
           <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">ข้อมูลองค์กร</p>
           <Link href="/settings/manual" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
@@ -181,7 +185,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 4.40</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 5.0</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

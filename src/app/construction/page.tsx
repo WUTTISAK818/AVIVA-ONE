@@ -16,7 +16,7 @@ import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
-import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush } from "@/lib/workflow-events";
+import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -38,6 +38,8 @@ interface House {
   plot_number: number | null;
   house_model: string | null;
   land_size: number | null;
+  contractor_line_id: string | null;
+  contractor_phone: string | null;
 }
 
 interface Report {
@@ -594,6 +596,8 @@ export default function ConstructionPage() {
         actorRole: "finance",
         amount: inst.amount ?? null,
       });
+      // Phase 3 — notify the contractor (LINE/SMS + track link)
+      notifyContractor(instHouse?.contractor_line_id, "paid", inst.name);
     }
     await createNotification({
       type: notifType[newStatus] ?? "info",
@@ -624,6 +628,7 @@ export default function ConstructionPage() {
       amount: inst.amount ?? null,
     });
     notifyPush("ฝ่ายก่อสร้าง", "งวดงานถูกตีกลับ", `${inst.name} — ${reason || "กรุณาตรวจสอบ"}`, "/construction", `inst-${inst.id}`);
+    notifyContractor(instHouse?.contractor_line_id, "rejected", reason);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected", rejection_reason: reason } : i));
     await createNotification({ type: "info", title: `${inst.name} — ถูกปฏิเสธ`, message: reason || "กรุณาตรวจสอบและแก้ไขก่อนส่งใหม่", from_dept: "ผู้บริหาร" });
     setToast({ msg: "ปฏิเสธงวดงานแล้ว — แจ้งวิศวกรแล้ว", type: "success" });

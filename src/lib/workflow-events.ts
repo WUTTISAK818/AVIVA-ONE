@@ -112,6 +112,28 @@ export function rolesForUser(user: {
   return Array.from(roles);
 }
 
+/**
+ * Notify the contractor of a record's outcome over LINE/SMS (+ a public track
+ * link). refCode is the contractor ref stored on houses.contractor_line_id.
+ * No-op when the house has no linked contractor. Best-effort.
+ */
+export async function notifyContractor(
+  refCode: string | null | undefined,
+  status: "approved" | "paid" | "rejected",
+  detail?: string
+): Promise<void> {
+  if (!refCode) return;
+  try {
+    await fetch("/api/notify/contractor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref_code: refCode, status, detail }),
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
 /** Fire a best-effort web-push to a department (no-op if no subscribers). */
 export async function notifyPush(
   department: string,

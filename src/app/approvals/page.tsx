@@ -12,7 +12,7 @@ import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
-import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush } from "@/lib/workflow-events";
+import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -197,6 +197,15 @@ function ApprovalsContent() {
     // Cascade logic based on workflow type
     if (log.workflow_type === "Installment_Review") {
       const byName = user.full_name ?? user.email;
+      // Resolve the contractor linked to this installment's house (for LINE/SMS).
+      let contractorRef: string | null = null;
+      if (log.source_record_id) {
+        const instRow = (await supabase.from("contractor_installments").select("house_id").eq("id", log.source_record_id).maybeSingle()).data as { house_id?: string } | null;
+        if (instRow?.house_id) {
+          const houseRow = (await supabase.from("houses").select("contractor_line_id").eq("id", instRow.house_id).maybeSingle()).data as { contractor_line_id?: string } | null;
+          contractorRef = houseRow?.contractor_line_id ?? null;
+        }
+      }
       if (approved) {
         // Approve installment in contractor_installments
         if (log.source_record_id) {
@@ -228,6 +237,7 @@ function ApprovalsContent() {
             slaDueAt: calcSlaDueAt("Installment_Review"),
           });
           notifyPush("ฝ่ายการเงิน", "งวดงานรอจ่ายเงิน", log.source_doc_index ?? "", "/construction", `inst-${log.source_record_id}`);
+          notifyContractor(contractorRef, "approved", log.source_doc_index ?? undefined);
         }
         await createNotification({
           type: "success",
@@ -257,6 +267,7 @@ function ApprovalsContent() {
             amount: log.amount ?? null,
           });
           notifyPush("ฝ่ายก่อสร้าง", "งวดงานถูกตีกลับ", log.source_doc_index ?? "", "/construction", `inst-${log.source_record_id}`);
+          notifyContractor(contractorRef, "rejected", note ?? undefined);
         }
         await createNotification({
           type: "info",

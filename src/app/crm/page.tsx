@@ -160,6 +160,18 @@ function formatPhone(v: string) {
   return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join("-");
 }
 
+// คำนวณ AI Score จากความคืบหน้าใน pipeline + งบ + การมีนัดติดตาม (แทน hardcode เดิม)
+const AI_STAGE_SCORE: Record<string, number> = {
+  "New Lead": 20, Contacted: 35, "Site Visit": 50, Booking: 75,
+  "Loan Process": 88, Transfer: 96, "Closed Deal": 100,
+};
+function computeAiScore(status: string, budget: number, hasFollowUp: boolean): number {
+  let s = AI_STAGE_SCORE[status] ?? 20;
+  if (budget >= 5_000_000) s += 4;
+  if (hasFollowUp) s += 4;
+  return Math.min(100, s);
+}
+
 const emptyForm = {
   customer_name: "",
   phone: "",
@@ -747,7 +759,7 @@ export default function CRMPage() {
     };
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, Number(form.budget) || 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -802,7 +814,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: computeAiScore(form.status, Number(form.budget) || 0, !!form.next_follow_up_date), next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -830,7 +842,7 @@ export default function CRMPage() {
     }
     const today = new Date().toISOString().split("T")[0];
     const byName = user?.full_name ?? user?.email ?? "ทีมขาย";
-    const upd: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() };
+    const upd: Record<string, unknown> = { status: newStatus, ai_score: computeAiScore(newStatus, lead.budget ?? 0, !!lead.next_follow_up_date), updated_at: new Date().toISOString() };
     if (newStatus === "Booking" && lead.status !== "Booking") { upd.booking_date = lead.booking_date ?? today; upd.booking_by = byName; }
     if (newStatus === "Closed Deal" && lead.status !== "Closed Deal") { upd.transfer_date = lead.transfer_date ?? today; upd.transfer_by = byName; }
     if (newStatus === "Loan Process" && lead.status !== "Loan Process") { upd.contract_signed_date = lead.contract_signed_date ?? today; }

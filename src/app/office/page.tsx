@@ -2447,6 +2447,16 @@ function AfterSalesContent() {
 
   useEffect(() => { fetchClaims(); }, []);
 
+  // UX-10: ดึงผู้รับผิดชอบจากพนักงานฝ่ายก่อสร้าง (fallback เป็นรายการเริ่มต้นถ้าไม่มีข้อมูล)
+  const [assignees, setAssignees] = useState<string[]>(ASSIGNED_TO_OPTIONS);
+  useEffect(() => {
+    supabase.from("employees").select("full_name").eq("status", "active").eq("department", "ฝ่ายก่อสร้าง")
+      .then(({ data }) => {
+        const names = ((data ?? []) as { full_name: string }[]).map(e => e.full_name).filter(Boolean);
+        if (names.length) setAssignees(names);
+      });
+  }, []);
+
   const counts = {
     pending:     claims.filter(c => c.status === "pending").length,
     in_progress: claims.filter(c => c.status === "in_progress").length,
@@ -2653,7 +2663,7 @@ function AfterSalesContent() {
                   <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
                   <select value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    {ASSIGNED_TO_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                    {assignees.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
               </div>
@@ -3349,7 +3359,14 @@ function PayrollContent() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payslipEmp, setPayslipEmp] = useState<PayrollEmployee | null>(null);
-  const [specialIncomes, setSpecialIncomes] = useState<Record<string, string>>({});
+  // UX-04: persist รายได้พิเศษไว้ใน sessionStorage กันหายเมื่อสลับแท็บ (PayrollContent unmount/remount)
+  const [specialIncomes, setSpecialIncomes] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(sessionStorage.getItem("aviva_special_incomes") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem("aviva_special_incomes", JSON.stringify(specialIncomes)); } catch { /* ignore */ }
+  }, [specialIncomes]);
 
   useEffect(() => {
     supabase.from("employees").select("*").eq("status", "active")
@@ -3691,7 +3708,17 @@ function CommunityContent() {
                   )}>
                     {m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ"}
                   </span>
-                  {m.fee_status === "Unpaid" && (
+                  {m.fee_status === "Paid" ? (
+                    <>
+                      {m.transferred_at && (
+                        <span className="text-[9px] text-aviva-secondary">ชำระเมื่อ {new Date(m.transferred_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      )}
+                      <button onClick={() => handleMarkPaid(m.member_id, m.fee_status)}
+                        className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-lg">
+                        ยกเลิกการชำระ
+                      </button>
+                    </>
+                  ) : (
                     <button onClick={() => handleMarkPaid(m.member_id, m.fee_status)}
                       className="text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg">
                       บันทึกรับชำระ

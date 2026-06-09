@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
+import { downloadCsv } from "@/lib/export-csv";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ProgressBar from "@/components/ProgressBar";
@@ -2004,7 +2005,17 @@ function HRContent() {
               {leaveSaving ? "กำลังส่ง..." : "ส่งคำขอลา"}
             </button>
           </GlassCard>
-          <SectionHeader title="ประวัติคำขอลา" />
+          <div className="flex items-center justify-between">
+            <SectionHeader title="ประวัติคำขอลา" />
+            {leaveList.length > 0 && (
+              <button onClick={() => downloadCsv(`leave-requests-${new Date().toISOString().slice(0, 10)}`,
+                ["พนักงาน", "ประเภทลา", "ตั้งแต่", "ถึง", "เหตุผล", "สถานะ", "วันที่ยื่น"],
+                leaveList.map(l => [l.employee_name, l.leave_type, l.date_from, l.date_to, l.reason, l.status, l.created_at ? new Date(l.created_at).toLocaleDateString("th-TH") : ""]))}
+                className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
+                CSV
+              </button>
+            )}
+          </div>
           {leaveLoading ? <div className="h-12 rounded-xl bg-aviva-card/50 animate-pulse" /> : leaveList.length === 0 ? (
             <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีคำขอลา</p></GlassCard>
           ) : leaveList.map(l => (
@@ -2554,13 +2565,23 @@ function AfterSalesContent() {
         message="Claims ที่ค้างเกิน 7 วันควรได้รับการดำเนินการทันที ตรวจสอบสาเหตุและมอบหมายผู้รับผิดชอบให้ชัดเจน"
       />
 
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> แจ้งซ่อม
-      </button>
+      {/* Add + Export */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
+        >
+          <Plus size={16} /> แจ้งซ่อม
+        </button>
+        <button
+          onClick={() => downloadCsv(`warranty-claims-${new Date().toISOString().slice(0, 10)}`,
+            ["ลูกค้า", "บ้านเลขที่", "ประเภท", "รายละเอียด", "สถานะ", "ผู้รับผิดชอบ", "นัดวันที่", "คะแนนพอใจ", "วันที่แจ้ง"],
+            claims.map(c => [c.customer_name, c.house_number, c.issue_type, c.description, c.status, c.assigned_to, c.scheduled_date, c.satisfaction_score, c.created_at ? new Date(c.created_at).toLocaleDateString("th-TH") : ""]))}
+          className="px-4 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary font-bold rounded-2xl text-xs"
+        >
+          CSV
+        </button>
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2">
@@ -3648,10 +3669,18 @@ function CommunityContent() {
         <p className="text-xs text-aviva-secondary">
           {loading ? "กำลังโหลด..." : `${members.length} สมาชิก · รวม ${fmtFee(totalFee)}`}
         </p>
-        <button onClick={() => { setForm({ owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-          <Plus size={14} /> เพิ่มสมาชิก
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => downloadCsv(`community-members-${new Date().toISOString().slice(0, 10)}`,
+            ["เจ้าของ", "เบอร์โทร", "พื้นที่(ตร.ว.)", "ค่าส่วนกลาง", "สถานะ", "วันที่ชำระ"],
+            members.map(m => [m.owner_name, m.owner_phone, m.area_sqw, m.annual_fee, m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ", m.transferred_at ? new Date(m.transferred_at).toLocaleDateString("th-TH") : ""]))}
+            className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
+            CSV
+          </button>
+          <button onClick={() => { setForm({ owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            <Plus size={14} /> เพิ่มสมาชิก
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">

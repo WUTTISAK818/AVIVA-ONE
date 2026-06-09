@@ -46,6 +46,52 @@ interface ArInvoice { id: string; invoice_number: string; customer_name: string;
 interface ApBill { id: string; bill_number: string; vendor_name: string; bill_date: string; due_date: string; base_amount: number; vat_amount: number; wht_rate: number; wht_amount: number; total_amount: number; paid_amount: number; status: string; description?: string; }
 interface VatEntry { id: string; vat_type: string; invoice_no: string; invoice_date: string; party_name: string; base_amount: number; vat_amount: number; total_amount: number; period: string; etax_status: string; }
 interface WhtCert { id: string; cert_number: string; cert_date: string; payee_name: string; base_amount: number; wht_rate: number; wht_amount: number; tax_form: string; }
+
+// พิมพ์หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)
+function printWht(w: WhtCert) {
+  const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const baht = (n: number) => Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const html = `<!doctype html><html lang="th"><head><meta charset="utf-8"><title>50 ทวิ ${esc(w.cert_number)}</title>
+  <style>
+    body{font-family:'Sarabun','TH Sarabun New',sans-serif;color:#1a1a1a;max-width:780px;margin:24px auto;padding:0 24px;font-size:14px}
+    .hd{text-align:center;border-bottom:2px solid #1E4A35;padding-bottom:8px;margin-bottom:12px}
+    .hd h1{margin:2px 0;font-size:18px;color:#1E4A35}
+    .row{display:flex;justify-content:space-between;margin:4px 0}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #999;padding:6px 8px;font-size:13px}
+    th{background:#f0ece1}
+    .right{text-align:right}
+    .sign{display:flex;justify-content:space-between;margin-top:48px}
+    .sign div{text-align:center;width:45%}
+    .line{border-top:1px dotted #555;margin-top:36px;padding-top:4px}
+    .btns{position:fixed;top:10px;right:10px}
+    button{padding:8px 14px;margin-left:6px;border:0;border-radius:6px;cursor:pointer}
+    .p{background:#1E4A35;color:#fff}.c{background:#ccc}
+    @media print{.btns{display:none}}
+  </style></head><body>
+  <div class="btns"><button class="p" onclick="window.print()">พิมพ์</button><button class="c" onclick="window.close()">ปิด</button></div>
+  <div class="hd">
+    <h1>หนังสือรับรองการหักภาษี ณ ที่จ่าย</h1>
+    <p>ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร — แบบ ภ.ง.ด.${esc(w.tax_form)}</p>
+    <p>เลขที่ ${esc(w.cert_number)}</p>
+  </div>
+  <div class="row"><span><b>ผู้มีหน้าที่หักภาษี ณ ที่จ่าย:</b> บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด</span></div>
+  <div class="row"><span><b>ผู้ถูกหักภาษี ณ ที่จ่าย:</b> ${esc(w.payee_name)}</span><span><b>วันที่:</b> ${esc(w.cert_date)}</span></div>
+  <table>
+    <tr><th>ประเภทเงินได้</th><th class="right">จำนวนเงินที่จ่าย (บาท)</th><th class="right">อัตรา</th><th class="right">ภาษีที่หัก (บาท)</th></tr>
+    <tr><td>ค่าบริการ / ค่าจ้าง</td><td class="right">${baht(w.base_amount)}</td><td class="right">${w.wht_rate}%</td><td class="right">${baht(w.wht_amount)}</td></tr>
+    <tr><td class="right"><b>รวม</b></td><td class="right"><b>${baht(w.base_amount)}</b></td><td></td><td class="right"><b>${baht(w.wht_amount)}</b></td></tr>
+  </table>
+  <p style="margin-top:10px">ผู้จ่ายเงินออกหนังสือรับรองฯ ฉบับนี้เพื่อเป็นหลักฐานการหักภาษี ณ ที่จ่าย</p>
+  <div class="sign">
+    <div><div class="line">ลงชื่อผู้จ่ายเงิน / ผู้มีหน้าที่หักภาษี</div></div>
+    <div><div class="line">ลงชื่อผู้รับเงิน</div></div>
+  </div>
+  <p style="text-align:center;color:#888;font-size:11px;margin-top:24px">ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")}</p>
+  </body></html>`;
+  const win = window.open("", "_blank", "width=820,height=900");
+  if (win) { win.document.write(html); win.document.close(); }
+}
 interface SbtEntry { id: string; period: string; base_amount: number; sbt_amount: number; total_tax: number; status: string; transfer_date?: string; }
 interface LbtEntry { id: string; tax_year: number; appraised_value: number; tax_amount: number; status: string; due_date?: string; }
 interface InfraCost { id: string; cost_type: string; total_cost: number; phase?: string; is_allocated: boolean; description?: string; }
@@ -710,7 +756,7 @@ function TaxTab() {
       </div>)}
       {sub==="wht"&&(<div className="space-y-3">
         {whtCerts.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีหนังสือรับรอง WHT</p></GlassCard>:whtCerts.map(w=>(
-          <GlassCard key={w.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{w.cert_number}</p><span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">ภ.ง.ด.{w.tax_form}</span></div><p className="text-xs text-aviva-text">{w.payee_name}</p><p className="text-[10px] text-aviva-secondary">{w.cert_date} · {w.wht_rate}%</p></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-red-400">-฿{fmt(Number(w.wht_amount))}</p><p className="text-[10px] text-aviva-secondary">หัก ณ ที่จ่าย</p></div></div></GlassCard>
+          <GlassCard key={w.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{w.cert_number}</p><span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">ภ.ง.ด.{w.tax_form}</span></div><p className="text-xs text-aviva-text">{w.payee_name}</p><p className="text-[10px] text-aviva-secondary">{w.cert_date} · {w.wht_rate}%</p></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-red-400">-฿{fmt(Number(w.wht_amount))}</p><p className="text-[10px] text-aviva-secondary">หัก ณ ที่จ่าย</p><button onClick={()=>printWht(w)} className="mt-1 text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded">พิมพ์ 50 ทวิ</button></div></div></GlassCard>
         ))}
         <GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-secondary mb-2">อัตรา WHT อ้างอิง</p><div className="grid grid-cols-2 gap-1.5 text-[11px]">{[["ค่าจ้าง (บุคคล)","3% — ภ.ง.ด.3"],["ค่าจ้าง (นิติ)","3% — ภ.ง.ด.53"],["ค่าเช่า","5% — ภ.ง.ด.3/53"],["ค่าโฆษณา","2% — ภ.ง.ด.3/53"],["เงินเดือน","ตามสูตร — ภ.ง.ด.1"],["ดอกเบี้ย","1% — ภ.ง.ด.3/53"]].map(([k,v])=>(<div key={k} className="flex justify-between"><span className="text-aviva-secondary">{k}</span><span className="text-aviva-gold">{v}</span></div>))}</div></GlassCard>
       </div>)}
@@ -1022,7 +1068,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.63</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.64</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">

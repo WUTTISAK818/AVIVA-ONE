@@ -143,6 +143,12 @@ function getChatLink(lead: Lead): string {
   return `https://line.me/R/oaMessage/@`;
 }
 
+// จัดรูปแบบเบอร์โทรเป็น xxx-xxx-xxxx (รับเฉพาะตัวเลข สูงสุด 10 หลัก)
+function formatPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 10);
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join("-");
+}
+
 const emptyForm = {
   customer_name: "",
   phone: "",
@@ -1497,7 +1503,7 @@ export default function CRMPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร <span className="text-red-400">*</span></label>
-                    <input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                    <input type="tel" inputMode="numeric" maxLength={12} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
                       placeholder="08x-xxx-xxxx"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>

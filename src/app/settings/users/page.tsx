@@ -11,18 +11,18 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
 const ROLES = [
   { value: "admin", label: "ผู้ดูแลระบบ" },
-  { value: "ceo", label: "CEO / ผู้บริหาร" },
-  { value: "manager", label: "ผู้จัดการ" },
+  { value: "ceo", label: "ประธานเจ้าหน้าที่บริหาร (CEO)" },
   { value: "director", label: "ผู้อำนวยการ" },
+  { value: "manager", label: "ผู้จัดการ" },
   { value: "project_manager", label: "ผู้จัดการโครงการ" },
-  { value: "sales", label: "ฝ่ายขาย" },
-  { value: "engineer", label: "วิศวกร" },
-  { value: "accountant", label: "ฝ่ายบัญชี" },
-  { value: "hr", label: "ฝ่ายบุคคล" },
-  { value: "finance", label: "ฝ่ายการเงิน" },
-  { value: "marketing", label: "ฝ่ายการตลาด" },
-  { value: "after_sales", label: "ฝ่ายหลังการขาย" },
-  { value: "user", label: "ผู้ใช้ทั่วไป" },
+  { value: "sales", label: "พนักงานขาย" },
+  { value: "marketing", label: "เจ้าหน้าที่การตลาด" },
+  { value: "engineer", label: "วิศวกร / ผู้ควบคุมงาน" },
+  { value: "finance", label: "เจ้าหน้าที่การเงิน" },
+  { value: "accountant", label: "เจ้าหน้าที่บัญชี" },
+  { value: "hr", label: "เจ้าหน้าที่ฝ่ายบุคคล" },
+  { value: "after_sales", label: "เจ้าหน้าที่หลังการขาย" },
+  { value: "user", label: "พนักงานทั่วไป" },
 ];
 
 const DEPARTMENTS = [
@@ -52,6 +52,7 @@ export default function UsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
   const [form, setForm] = useState({ ...BLANK_FORM });
 
   useEffect(() => {
@@ -62,16 +63,29 @@ export default function UsersPage() {
 
   async function fetchUsers() {
     setLoading(true);
+    setListError("");
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setLoading(false); return; }
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-user-management`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+        },
       });
       const data = await res.json();
-      if (data.users) setUsers(data.users);
-    } catch {
-      // silently fail — edge function may not be ready
+      if (Array.isArray(data.users)) {
+        // Newest first so freshly added users always show at the top of the list.
+        const sorted = [...data.users].sort(
+          (a: UserRecord, b: UserRecord) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setUsers(sorted);
+      } else {
+        setListError(data.error ?? "โหลดรายชื่อผู้ใช้ไม่สำเร็จ");
+      }
+    } catch (e: unknown) {
+      setListError(e instanceof Error ? e.message : "โหลดรายชื่อผู้ใช้ไม่สำเร็จ");
     }
     setLoading(false);
   }
@@ -118,7 +132,11 @@ export default function UsersPage() {
       setShowModal(false);
       await fetchUsers();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+      const raw = e instanceof Error ? e.message : "เกิดข้อผิดพลาด";
+      const friendly = /already.*registered|already.*exist|duplicate/i.test(raw)
+        ? "อีเมลนี้ถูกใช้ลงทะเบียนไปแล้ว — ผู้ใช้มีอยู่ในระบบ (ดูได้ที่ด้านบนสุดของรายการ)"
+        : raw;
+      setError(friendly);
     }
     setSaving(false);
   }
@@ -150,6 +168,14 @@ export default function UsersPage() {
       </div>
 
       <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
+        {!loading && !listError && users.length > 0 && (
+          <p className="text-xs text-aviva-secondary px-1">ทั้งหมด {users.length} ผู้ใช้ (เรียงจากที่เพิ่มล่าสุด)</p>
+        )}
+        {listError && (
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            {listError}
+          </p>
+        )}
         {loading ? (
           <div className="text-center py-12">
             <div className="w-8 h-8 border-2 border-aviva-gold/30 border-t-aviva-gold rounded-full animate-spin mx-auto mb-3" />
@@ -242,7 +268,7 @@ export default function UsersPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">บทบาท</label>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ตำแหน่ง</label>
                   <select
                     value={form.role}
                     onChange={e => setForm(p => ({ ...p, role: e.target.value }))}

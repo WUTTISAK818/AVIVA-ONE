@@ -6,6 +6,7 @@ import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import AIInsightPanel from "@/components/AIInsightPanel";
+import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
@@ -1030,6 +1031,7 @@ export default function CRMPage() {
       )}
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        <DeptBriefingPanel dept="sales" label="ฝ่ายขาย" />
         {/* KPI row */}
         <div className="grid grid-cols-4 gap-2">
           {[

@@ -24,6 +24,7 @@ import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
+import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 
@@ -314,6 +315,7 @@ function FinanceContent() {
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <DeptAIChat dept="finance" label="AI ฝ่ายการเงิน" />
+      <DeptBriefingPanel dept="finance" label="ฝ่ายการเงิน" />
       {materialPurchasePending > 0 && (
         <GlassCard className="p-3 border border-orange-500/20 bg-orange-500/5">
           <div className="flex items-center gap-2">
@@ -797,6 +799,7 @@ function AccountingContent() {
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <DeptAIChat dept="accounting" label="AI ฝ่ายบัญชี" />
+      <DeptBriefingPanel dept="accounting" label="ฝ่ายบัญชี" />
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <button onClick={() => setKpiModalAcct("all")} className="active:scale-[0.96] transition-transform w-full text-left">
@@ -1302,6 +1305,7 @@ function MarketingContent() {
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <DeptAIChat dept="marketing" label="AI ฝ่ายการตลาด" />
+      <DeptBriefingPanel dept="marketing" label="ฝ่ายการตลาด" />
       {/* KPI Summary */}
       <div className="grid grid-cols-2 gap-3">
         <GlassCard className="p-3">
@@ -1982,6 +1986,7 @@ function HRContent() {
       {hrToast && <Toast message={hrToast.msg} type={hrToast.type} onClose={() => setHrToast(null)} />}
       <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
         <DeptAIChat dept="hr" label="AI ฝ่ายบุคคล" />
+        <DeptBriefingPanel dept="hr" label="ฝ่ายบุคคล" />
         <div className="mt-3 flex gap-2">
           {(["บุคคล", "เงินเดือน", "การลา"] as const).map(t => (
             <button key={t} onClick={() => setHrTab(t)}
@@ -2587,6 +2592,7 @@ function AfterSalesContent() {
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <DeptAIChat dept="after-sales" label="AI ฝ่ายหลังการขาย" />
+      <DeptBriefingPanel dept="after-sales" label="ฝ่ายหลังการขาย" />
       {/* Status Summary */}
       <div className="grid grid-cols-4 gap-2">
         {([

@@ -7,6 +7,7 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
+import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
@@ -1070,6 +1071,7 @@ export default function ConstructionPage() {
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        <DeptBriefingPanel dept="construction" label="ฝ่ายก่อสร้าง" />
         {counts.delayed > 0 && (
           <button className="w-full text-left" onClick={() => { setPart("inspect"); setFilterStatus("delayed"); }}>
             <AIInsightPanel type="alert" priority="high" title={`มี ${counts.delayed} ยูนิตล่าช้ากว่าแผน`} message="กดเพื่อดูรายการยูนิตที่ล่าช้า — ควรตรวจสอบผู้รับเหมาและวางแผนเร่งงาน" />

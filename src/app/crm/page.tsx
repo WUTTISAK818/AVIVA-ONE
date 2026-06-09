@@ -286,8 +286,6 @@ export default function CRMPage() {
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [custInsts, setCustInsts] = useState<CustomerInstallment[]>([]);
   const [loadingCustInsts, setLoadingCustInsts] = useState(false);
-  const [showCustInstModal, setShowCustInstModal] = useState(false);
-  const [custInstLead, setCustInstLead] = useState<Lead | null>(null);
   const [payRef, setPayRef] = useState<Record<string, { ref: string; date: string }>>({});
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -556,6 +554,46 @@ export default function CRMPage() {
       <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=750");
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
+  // พิมพ์ใบแจ้งหนี้ลูกค้า (ตามตารางผ่อนชำระงวด)
+  const printInvoice = (lead: Lead, insts: CustomerInstallment[]) => {
+    const total = insts.reduce((s, i) => s + Number(i.amount), 0);
+    const paid = insts.filter(i => i.status === "paid").reduce((s, i) => s + Number(i.amount), 0);
+    const remaining = total - paid;
+    const baht = (n: number) => Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const rows = insts.map((i, idx) => `<tr><td class="c">${idx + 1}</td><td>${escapeHtml(i.name)}</td><td class="c">${i.due_date ? new Date(i.due_date).toLocaleDateString("th-TH") : "-"}</td><td class="r">${baht(i.amount)}</td><td class="c">${i.status === "paid" ? "ชำระแล้ว" : "ค้างชำระ"}</td></tr>`).join("");
+    const docNo = `INV-${(lead.lead_code ?? lead.id.slice(0, 6)).replace(/[^A-Za-z0-9]/g, "")}`;
+    const html = `<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ใบแจ้งหนี้ ${escapeHtml(lead.customer_name)}</title>
+    <style>
+      body{font-family:'Sarabun','TH Sarabun New',sans-serif;color:#1a1a1a;max-width:780px;margin:24px auto;padding:0 24px;font-size:14px}
+      .hd{text-align:center;border-bottom:2px solid #1E4A35;padding-bottom:8px;margin-bottom:6px}
+      .hd h1{margin:2px 0;font-size:20px;color:#1E4A35}
+      .meta{display:flex;justify-content:space-between;margin:10px 0;font-size:13px}
+      table{width:100%;border-collapse:collapse;margin-top:8px}
+      th,td{border:1px solid #999;padding:6px 8px;font-size:13px}
+      th{background:#f0ece1}
+      .r{text-align:right}.c{text-align:center}
+      .sum{margin-top:10px;display:flex;justify-content:flex-end}
+      .sum table{width:auto}
+      .btns{position:fixed;top:10px;right:10px}
+      button{padding:8px 14px;margin-left:6px;border:0;border-radius:6px;cursor:pointer}
+      .p{background:#1E4A35;color:#fff}.cc{background:#ccc}
+      @media print{.btns{display:none}}
+    </style></head><body>
+    <div class="btns"><button class="p" onclick="window.print()">พิมพ์</button><button class="cc" onclick="window.close()">ปิด</button></div>
+    <div class="hd"><h1>ใบแจ้งหนี้ / Invoice</h1><p>${escapeHtml(COMPANY.name)}</p><p style="font-size:12px;color:#555">เลขประจำตัวผู้เสียภาษี ${escapeHtml(COMPANY.tax_id)} · โทร ${escapeHtml(COMPANY.phone)}</p></div>
+    <div class="meta"><div><b>ลูกค้า:</b> ${escapeHtml(lead.customer_name)}<br><b>โทร:</b> ${escapeHtml(lead.phone)}${lead.plot_number ? `<br><b>แปลงที่:</b> ${lead.plot_number}` : ""}</div><div class="r"><b>เลขที่:</b> ${docNo}<br><b>วันที่:</b> ${new Date().toLocaleDateString("th-TH")}</div></div>
+    <table><thead><tr><th class="c">งวด</th><th>รายการ</th><th class="c">ครบกำหนด</th><th class="r">จำนวนเงิน (บาท)</th><th class="c">สถานะ</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="sum"><table>
+      <tr><td>รวมทั้งสิ้น</td><td class="r">${baht(total)}</td></tr>
+      <tr><td>ชำระแล้ว</td><td class="r">${baht(paid)}</td></tr>
+      <tr><td><b>คงเหลือ</b></td><td class="r"><b>${baht(remaining)}</b></td></tr>
+    </table></div>
+    <p style="text-align:center;color:#888;font-size:11px;margin-top:28px">ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")}</p>
+    </body></html>`;
+    const w = window.open("", "_blank", "width=820,height=900");
     if (w) { w.document.write(html); w.document.close(); }
   };
 
@@ -1496,12 +1534,17 @@ export default function CRMPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-semibold text-aviva-gold">ตารางชำระเงินลูกค้า</p>
-                  {custInsts.length === 0 && !loadingCustInsts && (
+                  {custInsts.length === 0 && !loadingCustInsts ? (
                     <button onClick={() => createDefaultCustInsts(selectedLead)}
                       className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
                       สร้างตาราง
                     </button>
-                  )}
+                  ) : custInsts.length > 0 ? (
+                    <button onClick={() => printInvoice(selectedLead, custInsts)}
+                      className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
+                      🧾 พิมพ์ใบแจ้งหนี้
+                    </button>
+                  ) : null}
                 </div>
                 {loadingCustInsts ? (
                   <div className="h-8 rounded-xl bg-aviva-bg animate-pulse" />

@@ -12,6 +12,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
+import { maskPhone } from "@/lib/mask";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
@@ -1185,7 +1186,8 @@ export default function ConstructionPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-bold text-aviva-text">{houseCustomer.customer_name}</p>
-                        <p className="text-xs text-aviva-gold font-medium mt-0.5">{houseCustomer.phone}</p>
+                        {/* PDPA: ฝ่ายก่อสร้างเห็นเบอร์แบบปิดบัง เฉพาะฝ่ายขาย/บริหารเห็นเต็ม */}
+                        <p className="text-xs text-aviva-gold font-medium mt-0.5">{(user?.isManager || user?.department === "ฝ่ายขาย") ? houseCustomer.phone : maskPhone(houseCustomer.phone)}</p>
                       </div>
                       <span className="text-[10px] bg-aviva-bg px-2 py-1 rounded-full text-aviva-secondary">
                         {({ Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}

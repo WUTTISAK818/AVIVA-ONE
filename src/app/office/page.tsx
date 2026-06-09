@@ -29,6 +29,13 @@ import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+// สิทธิวันลาต่อปี (ตาม พ.ร.บ.คุ้มครองแรงงาน) สำหรับติดตามโควต้า
+const LEAVE_QUOTA: Record<string, number> = { "ลาป่วย": 30, "ลากิจ": 3, "ลาพักร้อน": 6 };
+function leaveDays(from: string, to: string) {
+  const d = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+  return d > 0 ? d : 1;
+}
 const today = new Date().toISOString().split("T")[0];
 
 // ─── Shared formatters ──────────────────────────────────────────────────────────────────────────────────
@@ -1388,6 +1395,37 @@ function MarketingContent() {
             className="w-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold py-2.5 rounded-2xl text-sm">
             <ShoppingCart size={15} /> ขอสั่งซื้อ/จ้างบริการ
           </button>
+          {campaigns.length > 0 && (() => {
+            const maxLeads = Math.max(...campaigns.map(c => c.leads_generated || 0), 1);
+            return (
+              <GlassCard className="p-4">
+                <p className="text-xs font-semibold text-aviva-gold mb-3">📊 ประสิทธิภาพแคมเปญ (Leads · งบที่ใช้/งบ)</p>
+                <div className="space-y-2.5">
+                  {campaigns.slice(0, 8).map(c => {
+                    const spentPct = c.budget > 0 ? Math.min(100, Math.round((c.spent / c.budget) * 100)) : 0;
+                    return (
+                      <div key={c.id}>
+                        <div className="flex items-center justify-between text-[10px] mb-0.5">
+                          <span className="text-aviva-text truncate max-w-[60%]">{c.name}</span>
+                          <span className="text-aviva-secondary">{c.leads_generated || 0} leads · ฿{Number(c.spent).toLocaleString()}/{Number(c.budget).toLocaleString()}</span>
+                        </div>
+                        <div className="h-2 bg-aviva-bg rounded-full overflow-hidden">
+                          <div className="h-full bg-aviva-gold rounded-full" style={{ width: `${Math.round(((c.leads_generated || 0) / maxLeads) * 100)}%` }} />
+                        </div>
+                        <div className="h-1 bg-aviva-bg rounded-full overflow-hidden mt-0.5">
+                          <div className={clsx("h-full rounded-full", spentPct > 90 ? "bg-red-400" : "bg-blue-400")} style={{ width: `${spentPct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3 mt-3 text-[9px] text-aviva-secondary">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-aviva-gold inline-block" /> Leads</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> งบที่ใช้ (% ของงบ)</span>
+                </div>
+              </GlassCard>
+            );
+          })()}
           <div>
             <SectionHeader title="แคมเปญ" subtitle="กรองตาม Platform" />
             <div className="flex gap-2 mb-4">
@@ -1772,7 +1810,6 @@ function HRContent() {
   const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string}[]>([]);
   const [hrToast, setHrToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
-  const [selectedLeave, setSelectedLeave] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string} | null>(null);
   const [showPRModal, setShowPRModal] = useState(false);
   const [prForm, setPrForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
   const [prSaving, setPrSaving] = useState(false);
@@ -2018,23 +2055,40 @@ function HRContent() {
           </div>
           {leaveLoading ? <div className="h-12 rounded-xl bg-aviva-card/50 animate-pulse" /> : leaveList.length === 0 ? (
             <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีคำขอลา</p></GlassCard>
-          ) : leaveList.map(l => (
-            <GlassCard key={l.id} className="p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
-                  <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
-                </div>
-                <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0",
-                  l.status === "approved" ? "bg-green-500/20 text-green-400" :
-                  l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
-                )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
-              </div>
-              <div className="mt-1.5">
-                <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} />
-              </div>
-            </GlassCard>
-          ))}
+          ) : (() => {
+            const used: Record<string, number> = {};
+            leaveList.filter(x => x.status === "approved").forEach(x => {
+              const k = `${x.employee_name}|${x.leave_type}`;
+              used[k] = (used[k] ?? 0) + leaveDays(x.date_from, x.date_to);
+            });
+            return leaveList.map(l => {
+              const quota = LEAVE_QUOTA[l.leave_type];
+              const u = used[`${l.employee_name}|${l.leave_type}`] ?? 0;
+              const over = quota != null && u > quota;
+              return (
+                <GlassCard key={l.id} className="p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
+                      <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
+                      {quota != null && (
+                        <p className={clsx("text-[10px] mt-0.5", over ? "text-red-400 font-semibold" : "text-aviva-secondary/70")}>
+                          {l.leave_type}สะสม {u}/{quota} วัน{over ? " ⚠ เกินสิทธิ์" : ""}
+                        </p>
+                      )}
+                    </div>
+                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0",
+                      l.status === "approved" ? "bg-green-500/20 text-green-400" :
+                      l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
+                    )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
+                  </div>
+                  <div className="mt-1.5">
+                    <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} />
+                  </div>
+                </GlassCard>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -2447,7 +2501,6 @@ function AfterSalesContent() {
   const [form, setForm] = useState(emptyClaimForm);
   const [saving, setSaving] = useState(false);
   const [kpiModalAS, setKpiModalAS] = useState<"all" | "pending" | "in_progress" | "resolved" | null>(null);
-  const [asToast, setAsToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [resolveScore, setResolveScore] = useState<number | null>(null);
 
   const fetchClaims = () => {
@@ -2531,7 +2584,6 @@ function AfterSalesContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-      {asToast && <Toast message={asToast.msg} type={asToast.type} onClose={() => setAsToast(null)} />}
       <DeptAIChat dept="after-sales" label="AI ฝ่ายหลังการขาย" />
       {/* Status Summary */}
       <div className="grid grid-cols-4 gap-2">
@@ -4161,7 +4213,17 @@ function AuditLogContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
-      <SectionHeader title="Audit Log" subtitle="ประวัติการดำเนินงานในระบบ" />
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Audit Log" subtitle="ประวัติการดำเนินงานในระบบ" />
+        {logs.length > 0 && (
+          <button onClick={() => downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}`,
+            ["โมดูล", "การกระทำ", "รายละเอียด", "ผู้ดำเนินการ", "บทบาท", "ฝ่าย", "เวลา"],
+            logs.map(l => [l.module, l.action, l.description, l.performed_by, l.performed_by_role, l.performed_by_dept, l.created_at ? new Date(l.created_at).toLocaleString("th-TH") : ""]))}
+            className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
+            CSV
+          </button>
+        )}
+      </div>
       <div className="flex gap-1.5 flex-wrap">
         {MODULES.map(m => (
           <button key={m} onClick={() => setFilterModule(m)}

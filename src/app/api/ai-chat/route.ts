@@ -51,6 +51,27 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+// SEC-01: rate limit แบบ persistent (ข้าม serverless cold start / หลาย instance)
+// fail-open: ถ้า DB error ปล่อยผ่าน (ไม่บล็อกผู้ใช้จริงจากปัญหา infra)
+async function checkRateLimitDb(ip: string): Promise<boolean> {
+  try {
+    const since = new Date(Date.now() - RATE_WINDOW).toISOString();
+    const { count } = await supabaseAdmin
+      .from("ai_rate_limits")
+      .select("id", { count: "exact", head: true })
+      .eq("ip", ip)
+      .gte("created_at", since);
+    if ((count ?? 0) >= RATE_LIMIT) return false;
+    await supabaseAdmin.from("ai_rate_limits").insert({ ip });
+    if (Math.random() < 0.02) {
+      await supabaseAdmin.from("ai_rate_limits").delete().lt("created_at", new Date(Date.now() - 10 * RATE_WINDOW).toISOString());
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 type HouseRow = { house_number: string; status: string; delayed_days?: number };
 type CampaignRow = { name: string; platform: string; status: string; leads_generated: number };
 type ProjectRow = { total_units: number; sold_units: number; construction_progress: number; sellout_forecast: string; revenue_target: number };
@@ -134,7 +155,7 @@ ${deptSection}
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
+  if (!checkRateLimit(ip) || !(await checkRateLimitDb(ip))) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -169,15 +190,15 @@ export async function POST(req: NextRequest) {
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const results = await Promise.all([
-    supabase.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
-    supabase.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
-    supabase.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
-    supabase.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+    supabaseAdmin.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
+    supabaseAdmin.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabaseAdmin.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabaseAdmin.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabaseAdmin.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabaseAdmin.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
+    supabaseAdmin.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
+    supabaseAdmin.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabaseAdmin.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
   ]).catch(() => null);
 
   if (!results) {

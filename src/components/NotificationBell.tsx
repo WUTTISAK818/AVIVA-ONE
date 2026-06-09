@@ -18,6 +18,7 @@ interface Notification {
   to_dept: string | null;
   is_read: boolean;
   created_at: string;
+  record_id: string | null;
 }
 
 const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string }> = {
@@ -38,11 +39,13 @@ function timeAgo(ts: string): string {
 }
 
 function getNotifHref(n: Notification): string | null {
+  // ลิงก์ไปยัง record ที่เกี่ยวข้องโดยตรงถ้ามี record_id
+  const rec = n.record_id ? `?lead=${n.record_id}` : "";
   if (n.type === "approval") return "/approvals";
   if (n.type === "claim") return "/office";
   if (n.type === "document") return "/office";
   if (n.from_dept === "ฝ่ายก่อสร้าง") return "/construction";
-  if (n.from_dept === "ฝ่ายขาย") return "/crm";
+  if (n.from_dept === "ฝ่ายขาย") return `/crm${rec}`;
   if (n.from_dept === "ฝ่ายการเงิน" || n.from_dept === "ฝ่ายบัญชี" || n.from_dept === "ฝ่ายออฟฟิศ") return "/office";
   return null;
 }

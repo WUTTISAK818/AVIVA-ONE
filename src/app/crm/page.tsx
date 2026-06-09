@@ -25,6 +25,8 @@ function escapeHtml(s: string): string {
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Loan Process", "Closed Deal"];
+// "Transfer" ถูกรวมเป็น "โอนแล้ว" เดียวกับ "Closed Deal" จึงซ่อนออกจากตัวเลือกใน CRM
+const crmStages = pipelineStages.filter(s => s !== "Transfer");
 const PLOT_COUNT = 31;
 
 function numberToThai(n: number): string {
@@ -81,6 +83,10 @@ interface Lead {
   addr_amphoe?: string | null;
   addr_tambon?: string | null;
   addr_zipcode?: string | null;
+  booking_date?: string | null;
+  transfer_date?: string | null;
+  booking_by?: string | null;
+  transfer_by?: string | null;
 }
 
 interface CustomerInstallment {
@@ -274,7 +280,7 @@ export default function CRMPage() {
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
-  const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null } | null>(null);
+  const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null; salesPerson?: string | null } | null>(null);
   const [mapPlotModal, setMapPlotModal] = useState<number | null>(null);
 
   useEffect(() => {
@@ -568,7 +574,7 @@ export default function CRMPage() {
   };
 
   const stageCounts = useMemo(() => Object.fromEntries(
-    pipelineStages.map((s) => [s, leads.filter((l) => l.status === s).length])
+    crmStages.map((s) => [s, leads.filter((l) => l.status === s).length])
   ) as Record<LeadStatus, number>, [leads]);
 
   const filtered = useMemo(() => leads.filter(
@@ -600,6 +606,10 @@ export default function CRMPage() {
 
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (lead.status === "Closed Deal" && !(user?.isManager)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
+      return;
+    }
     setEditingLead(lead);
     setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "", addr_detail: lead.addr_detail ?? "", addr_province: lead.addr_province ?? "", addr_amphoe: lead.addr_amphoe ?? "", addr_tambon: lead.addr_tambon ?? "", addr_zipcode: lead.addr_zipcode ?? "" });
     setShowModal(true);
@@ -663,6 +673,16 @@ export default function CRMPage() {
     }
   }, [showModal, geo]);
 
+  // Deep-link จากแจ้งเตือน: /crm?lead=<id> → เปิดรายละเอียดลูกค้านั้น
+  useEffect(() => {
+    const leadId = new URLSearchParams(window.location.search).get("lead");
+    if (!leadId) return;
+    window.history.replaceState(null, "", "/crm");
+    supabase.from("leads").select("*").eq("id", leadId).maybeSingle().then(({ data }) => {
+      if (data) setSelectedLead(data as Lead);
+    });
+  }, []);
+
   // ขอปิดฟอร์ม — ถ้ามีข้อมูลที่ยังไม่บันทึก ให้ถามยืนยันก่อน
   const requestCloseModal = () => {
     if (JSON.stringify(form) !== formSnapshotRef.current) setConfirmDiscard(true);
@@ -697,13 +717,24 @@ export default function CRMPage() {
 
   const STATUS_TH: Record<string, string> = {
     "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", "Site Visit": "เข้าชมสถานที่",
-    Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "ปิดการขาย",
+    Booking: "จอง", "Loan Process": "กำลังกู้", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว",
   };
 
   const handleSave = async () => {
     if (!form.customer_name || !form.phone) return;
+    if (editingLead?.status === "Closed Deal" && !(user?.isManager)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
+      return;
+    }
     setSaving(true);
+    const today = new Date().toISOString().split("T")[0];
+    const byName = user?.full_name ?? user?.email ?? "ทีมขาย";
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
+    const statusDates: Record<string, unknown> = {};
+    if (editingLead && form.status !== editingLead.status) {
+      if (form.status === "Booking") { statusDates.booking_date = editingLead.booking_date ?? today; statusDates.booking_by = byName; }
+      if (form.status === "Closed Deal") { statusDates.transfer_date = editingLead.transfer_date ?? today; statusDates.transfer_by = byName; }
+    }
     const addrParts = [form.addr_detail, form.addr_tambon && `ต.${form.addr_tambon}`, form.addr_amphoe && `อ.${form.addr_amphoe}`, form.addr_province && `จ.${form.addr_province}`, form.addr_zipcode].filter(Boolean).join(" ").trim();
     const addrFields = {
       contact_address: addrParts || form.contact_address || null,
@@ -715,7 +746,7 @@ export default function CRMPage() {
     };
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -724,7 +755,7 @@ export default function CRMPage() {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
-            setCelebration({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: Number(form.budget) || null });
+            setCelebration({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: Number(form.budget) || null, salesPerson: byName });
             const docNum = await generateDocNumber("BOOK");
             await supabase.from("approval_logs").insert({
               workflow_type: "Booking_Deposit",
@@ -740,18 +771,18 @@ export default function CRMPage() {
             await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
           }
         }
-        await createNotification({
-          type: form.status === "Closed Deal" ? "success" : "info",
-          title: `${form.customer_name} — ${STATUS_TH[form.status] ?? form.status}`,
-          message: `เปลี่ยนสถานะจาก "${STATUS_TH[editingLead.status] ?? editingLead.status}"${plotNum ? ` · แปลง ${plotNum}` : ""}`,
-          from_dept: "ฝ่ายขาย",
-          to_dept: "ฝ่ายขาย",
-        });
+        const amt = form.contract_price ? Number(form.contract_price) : (Number(form.budget) || null);
+        const cInfo = [plotNum ? `แปลง ${plotNum}` : "", amt ? `฿${Number(amt).toLocaleString("th-TH")}` : "", `โดย ${byName}`].filter(Boolean).join(" · ");
+        if (form.status === "Booking" || form.status === "Closed Deal") {
+          await createNotification({ type: "success", title: form.status === "Closed Deal" ? `🏆 โอนกรรมสิทธิ์สำเร็จ! — ${form.customer_name}` : `🎉 จองสำเร็จ! — ${form.customer_name}`, message: cInfo, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
+        } else {
+          await createNotification({ type: "info", title: `${form.customer_name} — ${STATUS_TH[form.status] ?? form.status}`, message: `เปลี่ยนสถานะจาก "${STATUS_TH[editingLead.status] ?? editingLead.status}" โดย ${byName}`, from_dept: "ฝ่ายขาย", to_dept: "ฝ่ายขาย", record_id: editingLead.id });
+        }
         if (form.status === "Loan Process") {
-          setCelebration({ event: "contract", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
+          setCelebration({ event: "contract", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null, salesPerson: byName });
         }
         if (form.status === "Closed Deal") {
-          setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null });
+          setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
         }
       }
       // Notify when loan is newly approved
@@ -784,11 +815,20 @@ export default function CRMPage() {
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
+    if (lead.status === "Closed Deal" && !(user?.isManager)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไข/เปลี่ยนสถานะได้เฉพาะฝ่ายบริหาร", type: "error" });
+      return;
+    }
     if (lead.plot_number && newStatus === "Booking") {
       const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number).in("status", ["Booking", "Loan Process", "Closed Deal"]).neq("id", lead.id).maybeSingle();
       if (existingBook) { setToast({ msg: `แปลง ${lead.plot_number} ถูกจองโดย ${existingBook.customer_name} แล้ว`, type: "error" }); return; }
     }
-    await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
+    const today = new Date().toISOString().split("T")[0];
+    const byName = user?.full_name ?? user?.email ?? "ทีมขาย";
+    const upd: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() };
+    if (newStatus === "Booking" && lead.status !== "Booking") { upd.booking_date = lead.booking_date ?? today; upd.booking_by = byName; }
+    if (newStatus === "Closed Deal" && lead.status !== "Closed Deal") { upd.transfer_date = lead.transfer_date ?? today; upd.transfer_by = byName; }
+    await supabase.from("leads").update(upd).eq("id", lead.id);
     if (lead.plot_number) {
       if (newStatus === "Booking") {
         await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
@@ -797,21 +837,35 @@ export default function CRMPage() {
       }
     }
     if (newStatus !== lead.status) {
-      await createNotification({
-        type: newStatus === "Closed Deal" ? "success" : "info",
-        title: `${lead.customer_name} — ${STATUS_TH[newStatus] ?? newStatus}`,
-        message: `เปลี่ยนสถานะจาก "${STATUS_TH[lead.status] ?? lead.status}"`,
-        from_dept: "ฝ่ายขาย",
-        to_dept: "ฝ่ายขาย",
-      });
+      const amount = lead.contract_price ?? lead.budget ?? null;
+      const info = [lead.plot_number ? `แปลง ${lead.plot_number}` : "", amount ? `฿${Number(amount).toLocaleString("th-TH")}` : "", `โดย ${byName}`].filter(Boolean).join(" · ");
+      if (newStatus === "Booking" || newStatus === "Closed Deal") {
+        await createNotification({
+          type: "success",
+          title: newStatus === "Closed Deal" ? `🏆 โอนกรรมสิทธิ์สำเร็จ! — ${lead.customer_name}` : `🎉 จองสำเร็จ! — ${lead.customer_name}`,
+          message: info,
+          from_dept: "ฝ่ายขาย",
+          to_dept: "ผู้บริหาร",
+          record_id: lead.id,
+        });
+      } else {
+        await createNotification({
+          type: "info",
+          title: `${lead.customer_name} — ${STATUS_TH[newStatus] ?? newStatus}`,
+          message: `เปลี่ยนสถานะจาก "${STATUS_TH[lead.status] ?? lead.status}" โดย ${byName}`,
+          from_dept: "ฝ่ายขาย",
+          to_dept: "ฝ่ายขาย",
+          record_id: lead.id,
+        });
+      }
       if (newStatus === "Booking") {
-        setCelebration({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null });
+        setCelebration({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
       }
       if (newStatus === "Loan Process") {
-        setCelebration({ event: "contract", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null });
+        setCelebration({ event: "contract", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
       }
       if (newStatus === "Closed Deal") {
-        setCelebration({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null });
+        setCelebration({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
         const docNum = await generateDocNumber("CONTRACT");
         await supabase.from("approval_logs").insert({
           workflow_type: "Contract_Approval",
@@ -953,7 +1007,7 @@ export default function CRMPage() {
             <div>
               <SectionHeader title="Sales Pipeline" subtitle="แตะเพื่อกรอง" />
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                {pipelineStages.map((stage) => (
+                {crmStages.map((stage) => (
                   <button key={stage} onClick={() => setActiveStage(stage)}
                     className={clsx("flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
                       activeStage === stage ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -1367,6 +1421,20 @@ export default function CRMPage() {
                   <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
                 </div>
               )}
+              {selectedLead.booking_date && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+                  <p className="text-yellow-400 text-[10px] font-semibold">📌 จองเมื่อ</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.booking_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                  {selectedLead.booking_by && <p className="text-[9px] text-aviva-secondary mt-0.5">โดย {selectedLead.booking_by}</p>}
+                </div>
+              )}
+              {selectedLead.transfer_date && (
+                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                  <p className="text-green-400 text-[10px] font-semibold">🏆 โอนเมื่อ</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.transfer_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                  {selectedLead.transfer_by && <p className="text-[9px] text-aviva-secondary mt-0.5">โดย {selectedLead.transfer_by}</p>}
+                </div>
+              )}
               {selectedLead.notes && (
                 <div className="bg-aviva-bg rounded-xl p-3 col-span-2">
                   <p className="text-aviva-secondary">หมายเหตุ</p>
@@ -1496,7 +1564,7 @@ export default function CRMPage() {
 
             <p className="text-xs text-aviva-secondary">เปลี่ยนสถานะ:</p>
             <div className="grid grid-cols-2 gap-2">
-              {pipelineStages.map((stage) => (
+              {crmStages.map((stage) => (
                 <button key={stage} onClick={() => handleUpdateStatus(selectedLead, stage)}
                   className={clsx("py-2.5 px-3 rounded-xl text-xs font-medium border transition-all",
                     selectedLead.status === stage ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
@@ -1643,7 +1711,7 @@ export default function CRMPage() {
                   <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
                   <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as LeadStatus }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
-                    {pipelineStages.map(s => <option key={s} value={s}>{STATUS_TH[s] ?? s}</option>)}
+                    {crmStages.map(s => <option key={s} value={s}>{STATUS_TH[s] ?? s}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1755,7 +1823,7 @@ export default function CRMPage() {
         const isBooked = !!bookedLead && !isSold;
         const interestedLeads = leads.filter(l => l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).sort((a, b) => b.ai_score - a.ai_score);
         const displayLead = isSold ? leads.find(l => l.plot_number === n && l.status === "Closed Deal") : bookedLead;
-        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "ปิดการขาย" };
+        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", "Loan Process": "กำลังกู้", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว" };
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setMapPlotModal(null)}>
             <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
@@ -1946,6 +2014,7 @@ export default function CRMPage() {
           customerName={celebration.customerName}
           plotNumber={celebration.plotNumber}
           amount={celebration.amount}
+          salesPerson={celebration.salesPerson}
           onClose={() => setCelebration(null)}
         />
       )}

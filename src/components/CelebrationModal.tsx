@@ -31,6 +31,7 @@ interface Props {
   customerName?: string;
   plotNumber?: number | null;
   amount?: number | null;
+  salesPerson?: string | null;
   onClose: () => void;
 }
 
@@ -40,7 +41,7 @@ const CONFIG: Record<EventType, { icon: string; title: string; subtitle: string;
   transfer: { icon: "🏆", title: "ปิดการขายสำเร็จ! 🎊",  subtitle: "โอนกรรมสิทธิ์เรียบร้อย ยินดีด้วย!", accent: "text-green-400" },
 };
 
-export default function CelebrationModal({ event, customerName, plotNumber, amount, onClose }: Props) {
+export default function CelebrationModal({ event, customerName, plotNumber, amount, salesPerson, onClose }: Props) {
   useEffect(() => {
     if (!event) return;
     const t = setTimeout(onClose, 6000);
@@ -70,6 +71,9 @@ export default function CelebrationModal({ event, customerName, plotNumber, amou
             {plotNumber && <p className="text-xs text-aviva-gold mt-0.5">แปลงที่ {plotNumber}</p>}
             {amount && amount > 0 && (
               <p className="text-sm font-bold text-green-400 mt-1">฿{Number(amount).toLocaleString("th-TH")} บาท</p>
+            )}
+            {salesPerson && (
+              <p className="text-[11px] text-aviva-secondary mt-2 pt-2 border-t border-aviva-gold/10">พนักงานขาย: <span className="font-bold text-aviva-gold">{salesPerson}</span></p>
             )}
           </div>
         )}

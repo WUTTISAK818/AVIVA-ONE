@@ -533,7 +533,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.68</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.69</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -596,6 +596,23 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {ctxUser?.isManager && (
+          <Link href="/ai-council" className="block">
+            <GlassCard gold className="p-4 active:scale-[0.99] transition-transform">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-aviva-gold/15 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
+                  <Users size={16} className="text-aviva-gold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-aviva-text flex items-center gap-1.5">สภา AI — สรุปเสนอผู้บริหาร <Sparkles size={12} className="text-aviva-gold" /></p>
+                  <p className="text-[11px] text-aviva-secondary">ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน + ประเด็นที่ต้องตัดสินใจ</p>
+                </div>
+                <span className="text-aviva-gold/60 text-lg">→</span>
+              </div>
+            </GlassCard>
+          </Link>
+        )}
 
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">

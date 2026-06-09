@@ -110,3 +110,25 @@ export interface DeptBriefing {
   weekly_plan: BriefPlanItem[];
   monthly_plan: BriefPlanItem[];
 }
+
+// ── สภา AI / Executive (Phase 2) ─────────────────────────────────────────────
+export interface CrossIssue {
+  title: string;
+  detail: string;
+  depts: string[];
+  priority: "high" | "medium" | "low";
+  recommendation: string;
+}
+export interface ExecDecision {
+  question: string;
+  recommended: string;
+  impact: string;
+}
+export interface CouncilBriefing {
+  title: string;
+  summary: string;
+  cross_issues: CrossIssue[];
+  decisions: ExecDecision[];
+  weekly_plan: BriefPlanItem[];
+  monthly_plan: BriefPlanItem[];
+}

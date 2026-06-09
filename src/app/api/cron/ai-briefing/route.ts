@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generateDeptBriefing, loadExpert } from "@/lib/dept-data";
-import { callClaudeJSON, ANTHROPIC_ENABLED } from "@/lib/claude";
-import { EXPERT_DEPTS, DEPT_LABEL, type DeptBriefing } from "@/lib/ai-experts";
+import { generateDeptBriefing, generateExecutiveBriefing, loadExpert } from "@/lib/dept-data";
+import { ANTHROPIC_ENABLED } from "@/lib/claude";
+import { EXPERT_DEPTS } from "@/lib/ai-experts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,42 +33,23 @@ export async function GET(req: NextRequest) {
   const db = admin();
   const period = req.nextUrl.searchParams.get("period") === "monthly" ? "monthly" : "weekly";
 
-  const deptSummaries: string[] = [];
   const results: Record<string, string> = {};
-
   for (const dept of EXPERT_DEPTS) {
     const expert = await loadExpert(db, dept);
     if (!expert.is_active) { results[dept] = "skipped (inactive)"; continue; }
     const { briefing, error } = await generateDeptBriefing(db, dept, period, "cron");
-    if (briefing) {
-      results[dept] = "ok";
-      deptSummaries.push(`[${DEPT_LABEL[dept]}] ${briefing.title}: ${briefing.summary}`);
-    } else {
-      results[dept] = `error: ${error ?? "unknown"}`;
-    }
+    results[dept] = briefing ? "ok" : `error: ${error ?? "unknown"}`;
   }
 
-  // สรุปรวมเสนอผู้บริหาร
-  let execOk = false;
-  if (deptSummaries.length > 0) {
-    const { data: exec, model } = await callClaudeJSON<DeptBriefing>({
-      system:
-        `คุณคือ "ที่ปรึกษา AI ของผู้บริหาร" โครงการอสังหาฯ AVIVA ONE ` +
-        `รับบรีฟจากผู้เชี่ยวชาญแต่ละฝ่ายมาสังเคราะห์เป็นภาพรวมเชิงกลยุทธ์สำหรับผู้บริหาร ` +
-        `ชี้เรื่องข้ามฝ่ายที่ต้องตัดสินใจ ความเสี่ยง และโอกาส ตอบภาษาไทย กระชับ\n` +
-        `ตอบ JSON: {"title","summary","highlights":[{"title","detail","priority","action"}],"weekly_plan":[{"label","task","why"}],"monthly_plan":[{"label","task","why"}]}`,
-      user: `บรีฟจากแต่ละฝ่ายสัปดาห์นี้:\n${deptSummaries.join("\n")}\n\nสรุปภาพรวมเสนอผู้บริหาร`,
+  // สภา AI: สังเคราะห์รวมเสนอผู้บริหาร + แจ้งเตือน
+  const { briefing: exec } = await generateExecutiveBriefing(db, period, "cron");
+  if (exec) {
+    await db.from("notifications").insert({
+      project_id: PROJECT_ID, type: "info", to_dept: "ผู้บริหาร",
+      title: `บรีฟผู้บริหาร${period === "monthly" ? "รายเดือน" : "รายสัปดาห์"}พร้อมแล้ว`,
+      message: exec.title ?? "สภา AI สรุปภาพรวมเสนอผู้บริหาร", is_read: false,
     });
-    if (exec) {
-      await db.from("ai_briefings").insert({
-        project_id: PROJECT_ID, scope: "executive", dept: null, period_type: period,
-        title: exec.title ?? "สรุปเสนอผู้บริหาร", summary: exec.summary ?? "",
-        highlights: exec.highlights ?? [], weekly_plan: exec.weekly_plan ?? [],
-        monthly_plan: exec.monthly_plan ?? [], raw: exec, model, generated_by: "cron",
-      });
-      execOk = true;
-    }
   }
 
-  return NextResponse.json({ ok: true, period, depts: results, executive: execOk });
+  return NextResponse.json({ ok: true, period, depts: results, executive: !!exec });
 }

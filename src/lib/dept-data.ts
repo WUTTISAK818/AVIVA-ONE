@@ -5,9 +5,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { callClaudeJSON } from "@/lib/claude";
 import {
   DEFAULT_EXPERTS,
+  EXPERT_DEPTS,
   DEPT_LABEL,
   type DeptExpert,
   type DeptBriefing,
+  type CouncilBriefing,
 } from "@/lib/ai-experts";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -187,4 +189,75 @@ export async function generateDeptBriefing(
     });
   }
   return { briefing: data, model, error };
+}
+
+// ── สภา AI: รวมบรีฟทุกฝ่าย → สังเคราะห์เป็นบรีฟผู้บริหาร (Phase 2) ───────────────
+const COUNCIL_SHAPE = `{
+  "title": "หัวข้อ", "summary": "ภาพรวมเชิงกลยุทธ์ 2-3 ประโยค",
+  "cross_issues": [{ "title": "ประเด็นข้ามฝ่าย", "detail": "อ้างอิงข้อมูลจริง", "depts": ["sales","construction"], "priority": "high|medium|low", "recommendation": "ข้อเสนอแนะ" }],
+  "decisions": [{ "question": "เรื่องที่ผู้บริหารต้องตัดสินใจ", "recommended": "ข้อเสนอ", "impact": "ผลกระทบ" }],
+  "weekly_plan": [{ "label": "โฟกัส", "task": "งานระดับองค์กร", "why": "เหตุผล" }],
+  "monthly_plan": [{ "label": "ธีม", "task": "เป้าหมาย", "why": "ตัวชี้วัด" }]
+}`;
+
+export async function generateExecutiveBriefing(
+  admin: SupabaseClient,
+  period: "weekly" | "monthly" = "weekly",
+  generatedBy = "system",
+): Promise<{ briefing: CouncilBriefing | null; model: string; id?: string; error?: string }> {
+  const experts = await Promise.all(EXPERT_DEPTS.map(d => loadExpert(admin, d)));
+  const active = experts.filter(e => e.is_active);
+
+  // บรีฟล่าสุดของแต่ละฝ่าย (ใช้ที่มีอยู่ ถ้าไม่มีค่อยสร้างใหม่แบบขนาน)
+  const { data: recent } = await admin
+    .from("ai_briefings")
+    .select("dept,title,summary,created_at")
+    .eq("scope", "dept").order("created_at", { ascending: false }).limit(60);
+  const latest: Record<string, { dept: string; title: string; summary: string }> = {};
+  (recent ?? []).forEach((r: { dept: string; title: string; summary: string }) => {
+    if (r.dept && !latest[r.dept]) latest[r.dept] = r;
+  });
+
+  await Promise.all(
+    active.filter(e => !latest[e.dept]).map(async e => {
+      const { briefing } = await generateDeptBriefing(admin, e.dept, period, generatedBy);
+      if (briefing) latest[e.dept] = { dept: e.dept, title: briefing.title, summary: briefing.summary };
+    }),
+  );
+
+  const summaries = active
+    .map(e => latest[e.dept])
+    .filter(Boolean)
+    .map(b => `[${DEPT_LABEL[b.dept] ?? b.dept}] ${b.title}: ${b.summary}`);
+  if (summaries.length === 0) return { briefing: null, model: "", error: "NO_DEPT_DATA" };
+
+  const system =
+    `คุณคือผู้ดำเนินการ "สภา AI" ของโครงการอสังหาฯ AVIVA ONE ` +
+    `นำบรีฟจากผู้เชี่ยวชาญแต่ละฝ่ายมาประชุมร่วมกัน วิเคราะห์ประเด็นที่เชื่อมโยงข้ามฝ่าย ` +
+    `(เช่น จังหวะการขาย vs ความพร้อมก่อสร้าง vs กระแสเงินสด) ชี้ความเสี่ยงและโอกาส ` +
+    `แล้วสรุป "ประเด็นที่ผู้บริหารต้องตัดสินใจ" พร้อมข้อเสนอแนะที่ลงมือได้จริง ` +
+    `อ้างอิงข้อมูลจากบรีฟที่ได้รับเท่านั้น ตอบภาษาไทย กระชับ เป็นรูปธรรม\n` +
+    `ตอบ JSON ตามรูปแบบนี้ (3-5 cross_issues, 2-4 decisions):\n${COUNCIL_SHAPE}`;
+  const user = `บรีฟจากผู้เชี่ยวชาญแต่ละฝ่าย (${period === "monthly" ? "รายเดือน" : "รายสัปดาห์"}):\n${summaries.join("\n")}\n\nจัดประชุมสภา AI แล้วสรุปเสนอผู้บริหาร`;
+
+  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, maxTokens: 2500 });
+  if (!data) return { briefing: null, model, error };
+
+  const highlights = (data.cross_issues ?? []).map(c => ({
+    title: c.title,
+    detail: `${c.detail}${c.depts?.length ? ` [${c.depts.map(d => DEPT_LABEL[d] ?? d).join(", ")}]` : ""}`,
+    priority: c.priority,
+    action: c.recommendation,
+  }));
+  const { data: inserted } = await admin
+    .from("ai_briefings")
+    .insert({
+      project_id: PROJECT_ID, scope: "executive", dept: null, period_type: period,
+      title: data.title ?? "สรุปเสนอผู้บริหาร", summary: data.summary ?? "",
+      highlights, weekly_plan: data.weekly_plan ?? [], monthly_plan: data.monthly_plan ?? [],
+      raw: data, model, generated_by: generatedBy, status: "new",
+    })
+    .select("id").single();
+
+  return { briefing: data, model, id: inserted?.id };
 }

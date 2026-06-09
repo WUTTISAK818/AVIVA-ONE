@@ -14,7 +14,7 @@ function admin() {
 interface LineEvent {
   type: string;
   replyToken?: string;
-  source?: { userId?: string };
+  source?: { type?: string; userId?: string; groupId?: string; roomId?: string };
   message?: { type: string; text?: string };
 }
 
@@ -25,8 +25,19 @@ export async function POST(req: NextRequest) {
 
   for (const ev of body.events ?? []) {
     if (ev.type !== "message" || ev.message?.type !== "text") continue;
-    const userId = ev.source?.userId;
     const text = (ev.message.text ?? "").trim();
+    const src = ev.source ?? {};
+
+    // /id — ตอบ ID ของแหล่งที่มา (groupId ในกลุ่ม / userId ในแชทเดี่ยว)
+    // ใช้ดึงค่าไปตั้ง LINE_SALE_GROUP_ID ใน Vercel
+    if (text.toLowerCase() === "/id" || text === "ไอดี") {
+      const id = src.groupId ?? src.roomId ?? src.userId ?? "(ไม่พบ)";
+      const label = src.groupId ? "Group ID" : src.roomId ? "Room ID" : "User ID";
+      if (ev.replyToken) await replyLine(ev.replyToken, `${label}:\n${id}\n\nนำค่านี้ไปตั้งใน Vercel:\nLINE_SALE_GROUP_ID = ${id}`);
+      continue;
+    }
+
+    const userId = src.userId;
     if (!userId) continue;
 
     const m = text.match(/\b(\d{6})\b/);

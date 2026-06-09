@@ -163,7 +163,7 @@ export default function CRMPage() {
   const [period, setPeriod] = useState<Period>("all");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
-  const [leadsLimit, setLeadsLimit] = useState(200);
+  const [leadsLimit, setLeadsLimit] = useState(10000);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -464,7 +464,7 @@ export default function CRMPage() {
     if (w) { w.document.write(html); w.document.close(); }
   };
 
-  const fetchLeads = async (start: string, end: string, limit = 50) => {
+  const fetchLeads = async (start: string, end: string, limit = 10000) => {
     setLoading(true);
     try {
       let q = supabase.from("leads").select("*").eq("project_id", PROJECT_ID);
@@ -480,8 +480,8 @@ export default function CRMPage() {
   };
 
   useEffect(() => {
-    setLeadsLimit(50);
-    fetchLeads(dateStart, dateEnd, 50);
+    setLeadsLimit(10000);
+    fetchLeads(dateStart, dateEnd, 10000);
   }, [dateStart, dateEnd]);
 
   const handlePeriodChange = (p: Period, start: string, end: string) => {
@@ -846,7 +846,7 @@ export default function CRMPage() {
             </div>
 
             <div>
-              <SectionHeader title="Pipeline" subtitle="แตะเพื่อกรอง" />
+              <SectionHeader title="Sales Pipeline" subtitle="แตะเพื่อกรอง" />
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                 {pipelineStages.map((stage) => (
                   <button key={stage} onClick={() => setActiveStage(stage)}
@@ -944,11 +944,10 @@ export default function CRMPage() {
                     </GlassCard>
                   ))
                 )}
-              {!loading && leads.length >= leadsLimit && (
-                <button onClick={() => { const next = leadsLimit + 50; setLeadsLimit(next); fetchLeads(dateStart, dateEnd, next); }}
-                  className="w-full py-3 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl bg-aviva-card hover:border-aviva-gold/30 transition-all">
-                  โหลดเพิ่มเติม (แสดง {leadsLimit} รายการแล้ว)
-                </button>
+              {!loading && filtered.length > 0 && (
+                <p className="text-center text-[11px] text-aviva-secondary/60 py-2">
+                  แสดงทั้งหมด {filtered.length} รายการ
+                </p>
               )}
             </div>
           </>
@@ -958,7 +957,7 @@ export default function CRMPage() {
           <div className="space-y-4">
             <SectionHeader title="แผนผังโครงการ" subtitle="สถานะแต่ละแปลง AVIVA ONE 31 หลัง" />
             <div className="flex flex-wrap gap-1.5 text-[10px]">
-              {[["bg-green-500/20 border-green-500/30 text-green-400","ว่าง"],["bg-yellow-500/20 border-yellow-500/30 text-yellow-400","ก่อสร้าง"],["bg-orange-500/20 border-orange-500/30 text-orange-400","จอง"],["bg-aviva-gold/20 border-aviva-gold/30 text-aviva-gold","โอนแล้ว"]].map(([cls,lbl])=>(
+              {[["bg-orange-500/20 border-orange-500/30 text-orange-400","ว่าง"],["bg-yellow-500/20 border-yellow-500/30 text-yellow-400","จอง"],["bg-green-500/20 border-green-500/30 text-green-400","โอนแล้ว"]].map(([cls,lbl])=>(
                 <span key={lbl} className={clsx("px-2 py-0.5 rounded-full border",cls)}>{lbl}</span>
               ))}
             </div>
@@ -970,14 +969,11 @@ export default function CRMPage() {
                 const st = house?.status ?? "available";
                 const isSold = st === "sold" || st === "completed" || !!soldLead;
                 const isBooked = !!bookedLead && !isSold;
-                const isConst = !isSold && !isBooked && (st === "under_construction" || st === "in_progress");
                 const cellCls = isSold
-                  ? "bg-aviva-gold/20 border-aviva-gold/30 text-aviva-gold"
+                  ? "bg-green-500/20 border-green-500/30 text-green-400"
                   : isBooked
-                  ? "bg-orange-500/20 border-orange-500/30 text-orange-400"
-                  : isConst
                   ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-400"
-                  : "bg-green-500/20 border-green-500/30 text-green-400";
+                  : "bg-orange-500/20 border-orange-500/30 text-orange-400";
                 const interestedCount = !isBooked && !isSold ? leads.filter(l => l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).length : 0;
                 return (
                   <button key={n} onClick={() => setMapPlotModal(n)}
@@ -993,9 +989,9 @@ export default function CRMPage() {
             </div>
             <div className="grid grid-cols-3 gap-2 mt-2">
               {[
-                { label: "ว่าง", count: Array.from({length:PLOT_COUNT},(_,i)=>i+1).filter(n => { const h=houses.find(x=>x.plot_number===n); const b=leads.find(l=>l.plot_number===n&&BOOKING_STATUSES.includes(l.status)); const sold=leads.some(l=>l.plot_number===n&&l.status==="Closed Deal"); return !sold&&!b&&h?.status!=="under_construction"&&h?.status!=="in_progress"; }).length, color: "text-green-400" },
-                { label: "จอง/Booking", count: leads.filter(l=>BOOKING_STATUSES.slice(0,2).includes(l.status)&&l.plot_number).length, color: "text-orange-400" },
-                { label: "โอนแล้ว", count: leads.filter(l=>l.status==="Closed Deal"&&l.plot_number).length, color: "text-aviva-gold" },
+                { label: "ว่าง", count: Array.from({length:PLOT_COUNT},(_,i)=>i+1).filter(n => { const h=houses.find(x=>x.plot_number===n); const sold=h?.status==="sold"||h?.status==="completed"||leads.some(l=>l.plot_number===n&&l.status==="Closed Deal"); const b=!sold&&leads.some(l=>l.plot_number===n&&BOOKING_STATUSES.includes(l.status)); return !sold&&!b; }).length, color: "text-orange-400" },
+                { label: "จอง/Booking", count: leads.filter(l=>BOOKING_STATUSES.slice(0,2).includes(l.status)&&l.plot_number).length, color: "text-yellow-400" },
+                { label: "โอนแล้ว", count: leads.filter(l=>l.status==="Closed Deal"&&l.plot_number).length, color: "text-green-400" },
               ].map(({label,count,color}) => (
                 <GlassCard key={label} className="p-3 text-center">
                   <p className={clsx("text-lg font-bold", color)}>{count}</p>
@@ -1405,7 +1401,7 @@ export default function CRMPage() {
               </div>
               {(isBooked || isSold) && displayLead ? (
                 <div className="space-y-3">
-                  <div className={`rounded-2xl p-4 border ${isSold ? "bg-aviva-gold/10 border-aviva-gold/30" : "bg-orange-500/10 border-orange-500/30"}`}>
+                  <div className={`rounded-2xl p-4 border ${isSold ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
                     <p className="text-[10px] text-aviva-secondary mb-1">{isSold ? "โอนกรรมสิทธิ์แล้ว" : "จองแล้ว"}</p>
                     <p className="text-base font-bold text-aviva-text">{displayLead.customer_name}</p>
                     <p className="text-sm text-aviva-gold font-medium mt-0.5">{displayLead.phone}</p>
@@ -1459,11 +1455,8 @@ export default function CRMPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-3 text-center">
-                    <p className="text-sm font-bold text-green-400">ว่าง — พร้อมขาย</p>
-                    {house?.status === "under_construction" || house?.status === "in_progress" ? (
-                      <p className="text-[10px] text-yellow-400 mt-0.5">อยู่ระหว่างก่อสร้าง</p>
-                    ) : null}
+                  <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-3 text-center">
+                    <p className="text-sm font-bold text-orange-400">ว่าง — พร้อมขาย</p>
                   </div>
                   <button onClick={() => {
                     setEditingLead(null);
@@ -1472,8 +1465,49 @@ export default function CRMPage() {
                     setMapPlotModal(null);
                   }}
                     className="w-full py-2.5 bg-aviva-gold text-aviva-bg rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
-                    <Plus size={11} /> เพิ่มลูกค้า / จองแปลงนี้
+                    <Plus size={11} /> เพิ่มลูกค้าใหม่ / จองแปลงนี้
                   </button>
+                  {(() => {
+                    const unassigned = leads.filter(l => !l.plot_number && l.status !== "Closed Deal");
+                    if (unassigned.length === 0) return null;
+                    return (
+                      <div className="pt-1">
+                        <p className="text-xs font-semibold text-aviva-secondary mb-1.5">หรือเพิ่มจาก Lead ที่มีอยู่</p>
+                        <select defaultValue=""
+                          onChange={(e) => {
+                            const l = leads.find(x => x.id === e.target.value);
+                            if (!l) return;
+                            setEditingLead(l);
+                            setForm({
+                              customer_name: l.customer_name,
+                              phone: l.phone,
+                              email: l.email ?? "",
+                              budget: String(l.budget),
+                              source: l.source,
+                              status: l.status,
+                              notes: l.notes ?? "",
+                              plot_number: String(n),
+                              next_follow_up_date: l.next_follow_up_date ?? "",
+                              financing_type: l.financing_type ?? "ไม่ระบุ",
+                              urgency: l.urgency ?? "ปกติ",
+                              delivery_date: l.delivery_date ?? "",
+                              contract_price: l.contract_price ? String(l.contract_price) : "",
+                              contract_signed_date: l.contract_signed_date ?? "",
+                              loan_approved_date: l.loan_approved_date ?? "",
+                            });
+                            setShowModal(true);
+                            setMapPlotModal(null);
+                          }}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50">
+                          <option value="">— เลือกลูกค้าจากรายชื่อ Lead —</option>
+                          {unassigned.map(l => (
+                            <option key={l.id} value={l.id}>{l.customer_name} · {l.phone}{l.lead_code ? ` (${l.lead_code})` : ""}</option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-aviva-secondary/60 mt-1">เลือกแล้วจะเปิดฟอร์มพร้อมผูกแปลง {n} ให้อัตโนมัติ — แก้สถานะเป็น &quot;จอง&quot; แล้วกดบันทึก</p>
+                      </div>
+                    );
+                  })()}
                   {interestedLeads.length > 0 ? (
                     <div>
                       <p className="text-xs font-semibold text-aviva-secondary mb-2">ผู้สนใจแปลงนี้ ({interestedLeads.length} ราย)</p>

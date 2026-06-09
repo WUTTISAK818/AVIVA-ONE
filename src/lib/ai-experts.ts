@@ -1,7 +1,9 @@
 // นิยาม "ผู้เชี่ยวชาญ AI ประจำฝ่าย" — persona เริ่มต้น + ชนิดข้อมูลที่ใช้ร่วมกัน
 // ทั้งฝั่ง API (สร้างบรีฟ) และ settings (ตั้งค่า)
 
-export const DEFAULT_MODEL = "claude-opus-4-8";
+// โมเดลเริ่มต้นของบรีฟรายฝ่าย — ใช้ Haiku (เร็ว/ประหยัด) เพียงพอกับงานสรุปข้อมูลชุดเล็ก
+// ส่วน "สภา AI" (สังเคราะห์ข้ามฝ่ายเสนอผู้บริหาร) ใช้ Sonnet ซึ่งกำหนดแยกใน dept-data.ts
+export const DEFAULT_MODEL = "claude-haiku-4-5";
 
 export interface DeptExpert {
   dept: string;
@@ -57,7 +59,7 @@ export const DEFAULT_EXPERTS: Record<string, DeptExpert> = {
     persona:
       "ผู้เชี่ยวชาญการตลาดอสังหาฯ วิเคราะห์ ROI และต้นทุนต่อ lead ของแต่ละแคมเปญ แนะนำการจัดสรรงบและคอนเทนต์รายสัปดาห์",
     model: DEFAULT_MODEL,
-    is_active: true,
+    is_active: false,
   },
   hr: {
     dept: "hr",
@@ -66,7 +68,7 @@ export const DEFAULT_EXPERTS: Record<string, DeptExpert> = {
     persona:
       "ผู้เชี่ยวชาญทรัพยากรบุคคล ดูแลกำลังคนแต่ละแผนก โควต้าวันลา และรายการที่ต้องดำเนินการด้านบุคคล",
     model: DEFAULT_MODEL,
-    is_active: true,
+    is_active: false,
   },
   "after-sales": {
     dept: "after-sales",
@@ -75,7 +77,7 @@ export const DEFAULT_EXPERTS: Record<string, DeptExpert> = {
     persona:
       "ผู้เชี่ยวชาญบริการหลังการขาย ติดตามงานแจ้งซ่อมที่ค้างและเกิน SLA จัดลำดับการมอบหมายช่าง และดูแลความพึงพอใจลูกค้า",
     model: DEFAULT_MODEL,
-    is_active: true,
+    is_active: false,
   },
 };
 

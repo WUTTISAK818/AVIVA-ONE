@@ -240,7 +240,8 @@ export async function generateExecutiveBriefing(
     `ตอบ JSON ตามรูปแบบนี้ (3-5 cross_issues, 2-4 decisions):\n${COUNCIL_SHAPE}`;
   const user = `บรีฟจากผู้เชี่ยวชาญแต่ละฝ่าย (${period === "monthly" ? "รายเดือน" : "รายสัปดาห์"}):\n${summaries.join("\n")}\n\nจัดประชุมสภา AI แล้วสรุปเสนอผู้บริหาร`;
 
-  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, maxTokens: 2500 });
+  // สภา AI ใช้ Sonnet — ต้องสังเคราะห์เชิงกลยุทธ์ข้ามฝ่าย (เหตุผลดีกว่า Haiku, ถูกกว่า Opus)
+  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, model: "claude-sonnet-4-6", maxTokens: 2500 });
   if (!data) return { briefing: null, model, error };
 
   const highlights = (data.cross_issues ?? []).map(c => ({

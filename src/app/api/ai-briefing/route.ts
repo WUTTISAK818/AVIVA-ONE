@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generateDeptBriefing } from "@/lib/dept-data";
+import { generateDeptBriefing, loadExpert } from "@/lib/dept-data";
 import { anthropicEnabled } from "@/lib/claude";
 import { EXPERT_DEPTS } from "@/lib/ai-experts";
 
@@ -35,6 +35,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า API key ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI ก่อนค่ะ" },
       { status: 503 },
+    );
+  }
+
+  // ฝ่ายที่ปิดใช้งาน AI (ตั้งใน settings) — ไม่ให้สร้างบรีฟ กันค่าใช้จ่าย/บรีฟไม่จำเป็น
+  const expert = await loadExpert(supabaseAdmin, dept);
+  if (!expert.is_active) {
+    return NextResponse.json(
+      { error: "ฝ่ายนี้ยังไม่เปิดใช้งาน AI — เปิดได้ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI" },
+      { status: 403 },
     );
   }
 

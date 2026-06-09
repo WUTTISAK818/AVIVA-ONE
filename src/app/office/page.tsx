@@ -17,6 +17,7 @@ import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import AttachDocButton from "@/components/AttachDocButton";
 import { supabase } from "@/lib/supabase";
+import { postJv } from "@/lib/jv";
 import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
@@ -63,20 +64,14 @@ interface ContractorInstallmentPay {
   material_cost?: number | null;
 }
 
-interface AccountingEntry {
+// รายการจ่ายงวดก่อสร้าง — อ่านจาก jv_entries (แหล่งบัญชีเดียว ไม่ใช้ accounting_entries ซ้อนอีก)
+interface ConstructionJv {
   id: string;
-  contractor_installment_id: string;
-  amount: number;
-  account_debit: string;
-  account_credit: string;
-  payment_method: string | null;
-  reference_number: string | null;
-  entry_date: string;
-  entered_by: string | null;
-  notes: string | null;
-  created_at: string;
-  inst_name?: string;
-  house_number?: string;
+  jv_number: string;
+  jv_date: string;
+  description: string;
+  ref_number: string | null;
+  total_debit: number;
 }
 
 // ─── Finance ──────────────────────────────────────────────────────────────────────────────────
@@ -169,37 +164,21 @@ function FinanceContent() {
   const handlePayInstallment = async () => {
     if (!payingInst) return;
     setSaving(true);
-    await supabase.from("accounting_entries").insert({
-      contractor_installment_id: payingInst.id,
-      amount: payingInst.amount,
-      account_debit: "2100 เจ้าหนี้ผู้รับเหมา",
-      account_credit: "1100 เงินสด/เงินฝากธนาคาร",
-      payment_method: payForm.payment_method || null,
-      reference_number: payForm.reference_number || null,
-      entry_date: payForm.entry_date,
-      entered_by: user?.full_name ?? user?.email ?? null,
-      notes: payForm.notes || null,
-    });
-    // Auto-create JV entry in full accounting system for integration
-    const d = new Date();
-    const jvNumber = `JV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-4)}`;
-    const jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${payingInst.house_number ?? payingInst.house_id}`;
-    const { data: jv } = await supabase.from("jv_entries").insert({
-      jv_number: jvNumber,
+    // บันทึกเป็น JV เดียว (jv_entries/jv_lines) — แหล่งบัญชีเดียว ไม่เขียนซ้ำลง accounting_entries
+    // ฝัง payment_method / notes ไว้ในคำอธิบายเพื่อคงข้อมูลเดิม โดยขึ้นต้นด้วย "จ่ายงวดก่อสร้าง:" สำหรับ filter
+    const unit = payingInst.house_number ?? payingInst.house_id;
+    let jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${unit} (${payForm.payment_method})`;
+    if (payForm.notes) jvDesc += ` — ${payForm.notes}`;
+    await postJv({
+      project_id: PROJECT_ID,
       jv_date: payForm.entry_date,
       description: jvDesc,
       ref_number: payForm.reference_number || null,
-      status: "posted",
-      total_debit: payingInst.amount,
-      total_credit: payingInst.amount,
-      project_id: PROJECT_ID,
-    }).select("id").single();
-    if (jv) {
-      await supabase.from("jv_lines").insert([
-        { jv_id: jv.id, account_code: "2100", account_name: "เจ้าหนี้ผู้รับเหมา", debit: payingInst.amount, credit: 0, line_order: 1 },
-        { jv_id: jv.id, account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: payingInst.amount, line_order: 2 },
-      ]);
-    }
+      lines: [
+        { account_code: "2100", account_name: "เจ้าหนี้ผู้รับเหมา", debit: payingInst.amount, credit: 0 },
+        { account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: payingInst.amount },
+      ],
+    });
     const paidByName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
     await supabase.from("contractor_installments").update({ status: "paid", paid_by: paidByName, paid_at: new Date().toISOString() }).eq("id", payingInst.id);
     await createNotification({
@@ -277,24 +256,16 @@ function FinanceContent() {
         description: `[${form.category}] ${form.description}`,
       }).select().single();
       // Auto-create JV entry for accounting integration
-      const d = new Date();
-      const jvNum = `JV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-4)}`;
       const isIncome = form.transaction_type === "income";
-      const { data: jv } = await supabase.from("jv_entries").insert({
-        jv_number: jvNum,
+      await postJv({
+        project_id: PROJECT_ID,
         jv_date: new Date().toISOString().split("T")[0],
         description: `[${form.category}] ${form.description}`,
-        status: "posted",
-        total_debit: amt,
-        total_credit: amt,
-        project_id: PROJECT_ID,
-      }).select("id").single();
-      if (jv) {
-        await supabase.from("jv_lines").insert([
-          { jv_id: jv.id, account_code: isIncome ? "1100" : "5000", account_name: isIncome ? "เงินสด/เงินฝากธนาคาร" : "ค่าใช้จ่าย", debit: amt, credit: 0, line_order: 1 },
-          { jv_id: jv.id, account_code: isIncome ? "4000" : "1100", account_name: isIncome ? "รายได้จากการขาย" : "เงินสด/เงินฝากธนาคาร", debit: 0, credit: amt, line_order: 2 },
-        ]);
-      }
+        lines: [
+          { account_code: isIncome ? "1100" : "5000", account_name: isIncome ? "เงินสด/เงินฝากธนาคาร" : "ค่าใช้จ่าย", debit: amt, credit: 0 },
+          { account_code: isIncome ? "4000" : "1100", account_name: isIncome ? "รายได้จากการขาย" : "เงินสด/เงินฝากธนาคาร", debit: 0, credit: amt },
+        ],
+      });
       await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
     }
     setSaving(false);
@@ -319,23 +290,15 @@ function FinanceContent() {
         description: approval.description,
       });
       // Auto-create JV for approved finance transaction
-      const d2 = new Date();
-      const jvNum2 = `JV-${String(d2.getFullYear()).slice(-2)}${String(d2.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-4)}`;
-      const { data: jv2 } = await supabase.from("jv_entries").insert({
-        jv_number: jvNum2,
+      await postJv({
+        project_id: PROJECT_ID,
         jv_date: new Date().toISOString().split("T")[0],
         description: `[อนุมัติแล้ว] ${approval.description}`,
-        status: "posted",
-        total_debit: approval.amount,
-        total_credit: approval.amount,
-        project_id: PROJECT_ID,
-      }).select("id").single();
-      if (jv2) {
-        await supabase.from("jv_lines").insert([
-          { jv_id: jv2.id, account_code: "5000", account_name: "ค่าใช้จ่าย", debit: approval.amount, credit: 0, line_order: 1 },
-          { jv_id: jv2.id, account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: approval.amount, line_order: 2 },
-        ]);
-      }
+        lines: [
+          { account_code: "5000", account_name: "ค่าใช้จ่าย", debit: approval.amount, credit: 0 },
+          { account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: approval.amount },
+        ],
+      });
     }
     await logAction("finance", approved ? "approve" : "reject",
       `${approved ? "อนุมัติ" : "ปฏิเสธ"} ฿${approval.amount.toLocaleString()} — ${approval.description}`, id);
@@ -743,7 +706,7 @@ function AccountingContent() {
   const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [acctLimit, setAcctLimit] = useState(50);
   const [kpiModalAcct, setKpiModalAcct] = useState<"all" | "income" | "expense" | null>(null);
-  const [acctEntries, setAcctEntries] = useState<AccountingEntry[]>([]);
+  const [acctEntries, setAcctEntries] = useState<ConstructionJv[]>([]);
   const [acctView, setAcctView] = useState<"receipts" | "construction">("receipts");
 
   const fetchReceipts = (limit = acctLimit) => {
@@ -757,16 +720,17 @@ function AccountingContent() {
       });
   };
 
-  const fetchAccountingEntries = async () => {
-    const { data } = await supabase.from("accounting_entries")
-      .select("*")
+  const fetchConstructionJvs = async () => {
+    const { data } = await supabase.from("jv_entries")
+      .select("id,jv_number,jv_date,description,ref_number,total_debit")
       .eq("project_id", PROJECT_ID)
-      .order("entry_date", { ascending: false })
+      .like("description", "จ่ายงวดก่อสร้าง%")
+      .order("jv_date", { ascending: false })
       .limit(50);
-    setAcctEntries((data as AccountingEntry[]) ?? []);
+    setAcctEntries((data as ConstructionJv[]) ?? []);
   };
 
-  useEffect(() => { setAcctLimit(50); fetchReceipts(50); fetchAccountingEntries(); }, [acctStart, acctEnd]);
+  useEffect(() => { setAcctLimit(50); fetchReceipts(50); fetchConstructionJvs(); }, [acctStart, acctEnd]);
 
   const totalExpense = receipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
   const totalIncome = receipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
@@ -933,17 +897,17 @@ function AccountingContent() {
             <GlassCard key={e.id} className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-aviva-text truncate">{e.notes ?? e.account_debit}</p>
-                  <p className="text-xs text-aviva-secondary mt-0.5">{e.entry_date} · {e.payment_method ?? "—"}</p>
-                  {e.reference_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.reference_number}</p>}
+                  <p className="text-sm font-medium text-aviva-text truncate">{e.description}</p>
+                  <p className="text-xs text-aviva-secondary mt-0.5">{e.jv_date} · {e.jv_number}</p>
+                  {e.ref_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.ref_number}</p>}
                   <div className="text-[10px] text-aviva-secondary/60 mt-0.5">
-                    Dr: {e.account_debit} / Cr: {e.account_credit}
+                    Dr: 2100 เจ้าหนี้ผู้รับเหมา / Cr: 1100 เงินสด/เงินฝากธนาคาร
                   </div>
                   <div className="mt-1.5">
-                    <AttachDocButton entityType="accounting_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} />
+                    <AttachDocButton entityType="jv_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} />
                   </div>
                 </div>
-                <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.amount.toLocaleString()}</p>
+                <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.total_debit.toLocaleString()}</p>
               </div>
             </GlassCard>
           ))}

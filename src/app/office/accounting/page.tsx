@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { postJv, yymm } from "@/lib/jv";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import clsx from "clsx";
@@ -28,10 +29,6 @@ const fmt = (n: number) =>
 const fmtM = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : fmt(n);
 const today = () => new Date().toISOString().split("T")[0];
-const nextJvNumber = () => {
-  const d = new Date();
-  return `JV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
-};
 
 type AccTab = "dashboard" | "journal" | "ar" | "ap" | "tax" | "lot-cost" | "tfrs15" | "scanner" | "matching";
 type TaxSubTab = "vat" | "wht" | "sbt" | "lbt";
@@ -231,31 +228,20 @@ function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
   const handleSave = async (postNow: boolean) => {
     if (!form.description || !balanced) return;
     setSaving(true);
-    const jvNumber = nextJvNumber();
-    const { data: jv } = await supabase.from("jv_entries").insert({
-      jv_number: jvNumber,
+    await postJv({
+      project_id: PROJECT_ID,
       jv_date: form.jv_date,
       description: form.description,
       ref_number: form.ref_number || null,
       status: postNow ? "posted" : "draft",
-      total_debit: totalDr,
-      total_credit: totalCr,
-      project_id: PROJECT_ID,
-    }).select("id").single();
-
-    if (jv) {
-      await supabase.from("jv_lines").insert(
-        jvLines.filter(l => l.account_code).map((l, i) => ({
-          jv_id: jv.id,
-          account_code: l.account_code,
-          account_name: l.account_name,
-          description: l.description || null,
-          debit: Number(l.debit),
-          credit: Number(l.credit),
-          line_order: i + 1,
-        }))
-      );
-    }
+      lines: jvLines.filter(l => l.account_code).map(l => ({
+        account_code: l.account_code,
+        account_name: l.account_name,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+        description: l.description || null,
+      })),
+    });
     setSaving(false);
     setShowModal(false);
     setForm({ jv_date: today(), description: "", ref_number: "" });
@@ -487,7 +473,7 @@ function ARTab() {
     if (!form.customer_name || !form.base_amount || !form.due_date) return;
     setSaving(true);
     const base = Number(form.base_amount);
-    const vat = Math.round(base * 0.07 * 100) / 100;
+    const vat = Math.round(base * TAX_CONFIG.VAT_RATE * 100) / 100;
     const d = new Date();
     const invNo = `TINV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
     await supabase.from("ar_invoices").insert({
@@ -589,8 +575,8 @@ function ARTab() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
                 {form.base_amount && (
                   <p className="text-[10px] text-aviva-secondary mt-1">
-                    VAT 7%: ฿{fmt(Math.round(Number(form.base_amount) * 0.07 * 100) / 100)} ·
-                    รวม: ฿{fmt(Math.round(Number(form.base_amount) * 1.07 * 100) / 100)}
+                    VAT 7%: ฿{fmt(Math.round(Number(form.base_amount) * TAX_CONFIG.VAT_RATE * 100) / 100)} ·
+                    รวม: ฿{fmt(Math.round(Number(form.base_amount) * (1 + TAX_CONFIG.VAT_RATE) * 100) / 100)}
                   </p>
                 )}
               </div>
@@ -617,7 +603,6 @@ function APTab() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const WHT_RATES = [0, 1, 2, 3, 5, 10];
   const [form, setForm] = useState({
     vendor_name: "", vendor_tax_id: "", bill_date: today(), due_date: "",
     base_amount: "", wht_rate: "0", description: "",
@@ -633,7 +618,7 @@ function APTab() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const base = Number(form.base_amount) || 0;
-  const vat = Math.round(base * 0.07 * 100) / 100;
+  const vat = Math.round(base * TAX_CONFIG.VAT_RATE * 100) / 100;
   const whtAmt = Math.round(base * Number(form.wht_rate) / 100 * 100) / 100;
   const total = base + vat - whtAmt;
 
@@ -700,7 +685,7 @@ function APTab() {
                 <input type="number" min="0" placeholder="0.00" value={form.base_amount} onChange={e=>setForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">อัตรา WHT (%)</label>
                 <div className="flex gap-2 flex-wrap">
-                  {WHT_RATES.map(r=>(
+                  {TAX_CONFIG.WHT_RATES.map(r=>(
                     <button key={r} onClick={()=>setForm(f=>({...f,wht_rate:String(r)}))} className={clsx("px-3 py-1.5 rounded-lg text-xs border transition-all",form.wht_rate===String(r)?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>{r}%</button>
                   ))}
                 </div>
@@ -737,7 +722,7 @@ function TaxTab() {
   const [whtForm, setWhtForm] = useState({ payee_name: "", payee_tax_id: "", cert_date: today(), base_amount: "", wht_rate: "3", tax_form: "3", income_type: "ค่าบริการ / ค่าจ้าง" });
   const [sbtForm, setSbtForm] = useState({ transfer_date: today(), base_amount: "" });
   const [lbtForm, setLbtForm] = useState({ tax_year: String(new Date().getFullYear() + 543), appraised_value: "", parcel_number: "", due_date: "" });
-  const period = (() => { const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })();
+  const period = yymm();
 
   const loadWht = () => supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
   const loadSbt = () => supabase.from("sbt_register").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
@@ -781,7 +766,7 @@ function TaxTab() {
     const sbtAmt=Math.round(base*TAX_CONFIG.SBT_BASE_RATE*100)/100;
     const localSurtax=Math.round(sbtAmt*TAX_CONFIG.SBT_LOCAL_SURTAX*100)/100;
     const totalTax=Math.round(base*TAX_CONFIG.SBT_RATE*100)/100;
-    const sbtPeriod=(()=>{ const d=new Date(sbtForm.transfer_date); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })();
+    const sbtPeriod=yymm(new Date(sbtForm.transfer_date));
     await supabase.from("sbt_register").insert({ period:sbtPeriod, base_amount:base, sbt_rate:TAX_CONFIG.SBT_BASE_RATE*100, sbt_amount:sbtAmt, local_surtax:localSurtax, total_tax:totalTax, transfer_date:sbtForm.transfer_date, status:"pending", project_id:PROJECT_ID });
     setSaving(false); setShowSbtModal(false);
     setSbtForm({ transfer_date:today(), base_amount:"" });
@@ -837,7 +822,7 @@ function TaxTab() {
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขที่ใบกำกับ *</label><input type="text" placeholder={vatForm.vat_type==="output"?"TINV-2601-001":"VINV-2601-001"} value={vatForm.invoice_no} onChange={e=>setVatForm(f=>({...f,invoice_no:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">ชื่อ บริษัท / บุคคล *</label><input type="text" value={vatForm.party_name} onChange={e=>setVatForm(f=>({...f,party_name:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี</label><input type="text" maxLength={13} placeholder="0000000000000" value={vatForm.party_tax_id} onChange={e=>setVatForm(f=>({...f,party_tax_id:e.target.value.replace(/\D/g,"")}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
-              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label><input type="number" min="0" placeholder="0.00" value={vatForm.base_amount} onChange={e=>setVatForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/>{vatForm.base_amount&&(<p className="text-[10px] text-aviva-secondary mt-1">VAT 7%: ฿{fmt(Math.round(Number(vatForm.base_amount)*0.07*100)/100)}</p>)}</div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label><input type="number" min="0" placeholder="0.00" value={vatForm.base_amount} onChange={e=>setVatForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/>{vatForm.base_amount&&(<p className="text-[10px] text-aviva-secondary mt-1">VAT 7%: ฿{fmt(Math.round(Number(vatForm.base_amount)*TAX_CONFIG.VAT_RATE*100)/100)}</p>)}</div>
               <button onClick={saveVat} disabled={!vatForm.invoice_no||!vatForm.party_name||!vatForm.base_amount||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึก VAT"}</button>
             </div>
           </div>
@@ -1079,7 +1064,7 @@ function ScannerTab() {
 
   const saveResult = async () => {
     if (!result) return;
-    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*0.07*100)/100, total_amount: Math.round(result.amount*1.07*100)/100, period: (()=>{ const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })(), etax_status: "pending", project_id: PROJECT_ID });
+    await supabase.from("vat_register").insert({ vat_type: "input", invoice_no: `SCAN-${Date.now().toString().slice(-6)}`, invoice_date: result.date, party_name: result.vendor, base_amount: result.amount, vat_amount: Math.round(result.amount*TAX_CONFIG.VAT_RATE*100)/100, total_amount: Math.round(result.amount*(1+TAX_CONFIG.VAT_RATE)*100)/100, period: yymm(), etax_status: "pending", project_id: PROJECT_ID });
     setSaved(true);
   };
 
@@ -1186,7 +1171,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.66</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.67</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">

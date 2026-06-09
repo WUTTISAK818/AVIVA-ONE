@@ -339,6 +339,33 @@ function ApprovalsContent() {
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
       });
+    } else if (log.workflow_type === "Booking_Deposit") {
+      // ปฏิเสธเงินจอง → คืนสถานะลูกค้าเป็น New Lead + ปล่อยแปลงกลับเป็นว่าง
+      if (!approved && log.source_record_id) {
+        const { data: lead } = await supabase.from("leads").select("plot_number").eq("id", log.source_record_id).maybeSingle();
+        await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
+        const plot = (lead as { plot_number?: number } | null)?.plot_number;
+        if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+      }
+      await createNotification({
+        type: approved ? "success" : "info",
+        title: approved ? "อนุมัติเงินจองแล้ว" : "ปฏิเสธเงินจอง — คืนสถานะลูกค้า",
+        message: log.source_doc_index ?? "",
+        from_dept: "ฝ่ายอนุมัติ",
+        to_dept: "ฝ่ายขาย",
+      });
+    } else if (log.workflow_type === "Contract_Approval") {
+      // ปฏิเสธสัญญา → คืนสถานะลูกค้าเป็น Booking (จอง)
+      if (!approved && log.source_record_id) {
+        await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
+      }
+      await createNotification({
+        type: approved ? "success" : "info",
+        title: approved ? "อนุมัติสัญญาแล้ว" : "ปฏิเสธสัญญา — คืนสถานะเป็นจอง",
+        message: log.source_doc_index ?? "",
+        from_dept: "ฝ่ายอนุมัติ",
+        to_dept: "ฝ่ายขาย",
+      });
     }
 
     await logAction("approvals", action.toLowerCase(), `${action} — ${log.workflow_type}: ${log.source_doc_index ?? ""}`, log.id);

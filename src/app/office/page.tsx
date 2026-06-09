@@ -129,7 +129,7 @@ function FinanceContent() {
       supabase.from("approvals").select("*").eq("module", "finance")
         .order("created_at", { ascending: false }),
       supabase.from("approval_logs").select("approval_id", { count: "exact", head: true })
-        .eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending"),
+        .eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending").eq("project_id", PROJECT_ID),
     ]).then(([txnRes, apprRes, matRes]) => {
       setTransactions((txnRes.data as Transaction[]) ?? []);
       setApprovals((apprRes.data as Approval[]) ?? []);
@@ -752,6 +752,7 @@ function AccountingContent() {
   const fetchAccountingEntries = async () => {
     const { data } = await supabase.from("accounting_entries")
       .select("*")
+      .eq("project_id", PROJECT_ID)
       .order("entry_date", { ascending: false })
       .limit(50);
     setAcctEntries((data as AccountingEntry[]) ?? []);
@@ -2833,6 +2834,7 @@ function ApprovalsContent() {
 
   const fetchLogs = () => {
     supabase.from("approval_logs").select("*")
+      .eq("project_id", PROJECT_ID)
       .order("action_timestamp", { ascending: false, nullsFirst: true })
       .limit(100)
       .then(({ data }) => { setLogs((data as ApprovalLog[]) ?? []); setLoading(false); });

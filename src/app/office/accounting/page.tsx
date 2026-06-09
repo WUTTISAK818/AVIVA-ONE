@@ -86,7 +86,7 @@ function DashboardTab() {
       supabase.from("ar_invoices").select("total_amount,paid_amount").in("status", ["pending", "partial", "overdue"]),
       supabase.from("ap_bills").select("total_amount,paid_amount,due_date").in("status", ["pending", "partial"]),
       supabase.from("vat_register").select("vat_amount").eq("etax_status", "pending"),
-      supabase.from("wht_certificates").select("wht_amount").is("period", null),
+      supabase.from("wht_certificates").select("wht_amount").eq("project_id", PROJECT_ID).is("period", null),
     ]).then(([jv, ar, ap, vat, wht]) => {
       const arOut = (ar.data ?? []).reduce((s, r) => s + (Number(r.total_amount) - Number(r.paid_amount)), 0);
       const now = today();
@@ -680,7 +680,7 @@ function TaxTab() {
 
   useEffect(() => {
     supabase.from("vat_register").select("*").order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
-    supabase.from("wht_certificates").select("*").order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
+    supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
     supabase.from("sbt_register").select("*").order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
     supabase.from("land_building_tax").select("*").order("tax_year",{ascending:false}).limit(10).then(({data})=>setLbtEntries((data??[]) as LbtEntry[]));
   }, []);
@@ -814,7 +814,7 @@ function TFRS15Tab() {
   const fetch = useCallback(async () => {
     setLoading(true);
     const [rr, h] = await Promise.all([
-      supabase.from("revenue_recognition").select("*").order("created_at", { ascending: false }).limit(50),
+      supabase.from("revenue_recognition").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(50),
       supabase.from("houses").select("id,house_number,plot_number,sale_price").eq("project_id", PROJECT_ID).order("plot_number").limit(31),
     ]);
     setRows((rr.data ?? []) as RevenueRec[]); setHouses((h.data ?? []) as House[]); setLoading(false);
@@ -950,7 +950,7 @@ function MatchingTab() {
 
   const fetch = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("payments").select("*").order("created_at", { ascending: false }).limit(30);
+    const { data } = await supabase.from("payments").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(30);
     setItems((data ?? []) as typeof items); setLoading(false);
   }, []);
   useEffect(() => { fetch(); }, [fetch]);
@@ -1022,7 +1022,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.24</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.62</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">

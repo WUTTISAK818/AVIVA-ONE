@@ -391,7 +391,10 @@ export default function DashboardPage() {
     const selloutForecast = project?.sellout_forecast ?? "-";
     const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
     const noProjectData = !loading && project === null;
-    const monthsElapsed = Math.max(new Date().getMonth() + 1, 3);
+    // นับจำนวนเดือนจริงนับจากวันเริ่มโครงการ (เม.ย. 2569) — ไม่ผูกกับเดือนปฏิทินที่รีเซ็ตทุกปี
+    const projStart = new Date(2026, 3, 1);
+    const now = new Date();
+    const monthsElapsed = Math.max((now.getFullYear() - projStart.getFullYear()) * 12 + (now.getMonth() - projStart.getMonth()) + 1, 1);
     const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
     const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
     const netPL = stats.totalReceipts - stats.expenseTotal;
@@ -528,7 +531,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.61</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.62</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

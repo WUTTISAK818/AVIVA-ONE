@@ -222,6 +222,8 @@ export default function CRMPage() {
   const [leadsLimit, setLeadsLimit] = useState(10000);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const formSnapshotRef = useRef("");
   const [saving, setSaving] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -628,6 +630,18 @@ export default function CRMPage() {
   };
 
   const openAdd = () => { setEditingLead(null); setForm(emptyForm); setShowModal(true); };
+
+  // จับ snapshot ของฟอร์มตอนเปิด modal เพื่อตรวจว่ามีการแก้ไขที่ยังไม่บันทึกหรือไม่
+  useEffect(() => {
+    if (showModal) formSnapshotRef.current = JSON.stringify(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal]);
+
+  // ขอปิดฟอร์ม — ถ้ามีข้อมูลที่ยังไม่บันทึก ให้ถามยืนยันก่อน
+  const requestCloseModal = () => {
+    if (JSON.stringify(form) !== formSnapshotRef.current) setConfirmDiscard(true);
+    else setShowModal(false);
+  };
 
   const DEFAULT_CUST_INST = (price: number) => [
     { installment_no: 1, name: "งวดจอง", amount: Math.round(price * 0.02), due_date: null },
@@ -1463,11 +1477,11 @@ export default function CRMPage() {
 
       {/* Add / Edit Lead Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={requestCloseModal}>
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[88vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่ม Lead ใหม่"}</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={requestCloseModal}><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
             <div className="space-y-5">
@@ -1633,6 +1647,26 @@ export default function CRMPage() {
               <button onClick={handleSave} disabled={saving || !form.customer_name || !form.phone}
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
                 {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "เพิ่ม Lead"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ยืนยันออกโดยไม่บันทึก */}
+      {confirmDiscard && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-6" onClick={() => setConfirmDiscard(false)}>
+          <div className="w-full max-w-xs bg-aviva-card rounded-2xl p-5 border border-aviva-gold/20" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-aviva-text mb-1">ออกโดยไม่บันทึก?</p>
+            <p className="text-xs text-aviva-secondary leading-relaxed mb-4">มีข้อมูลที่ยังไม่ได้บันทึก หากออกตอนนี้ ข้อมูลที่กรอกไว้จะหายไป</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmDiscard(false)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold border border-aviva-gold/30 text-aviva-text">
+                กรอกต่อ
+              </button>
+              <button onClick={() => { setConfirmDiscard(false); setShowModal(false); }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-red-500/90 text-white">
+                ออกไม่บันทึก
               </button>
             </div>
           </div>

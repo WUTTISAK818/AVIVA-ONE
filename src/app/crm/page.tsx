@@ -76,6 +76,11 @@ interface Lead {
   budget_range?: string | null;
   monthly_payment_range?: string | null;
   probability?: string | null;
+  addr_detail?: string | null;
+  addr_province?: string | null;
+  addr_amphoe?: string | null;
+  addr_tambon?: string | null;
+  addr_zipcode?: string | null;
 }
 
 interface CustomerInstallment {
@@ -177,7 +182,14 @@ const emptyForm = {
   budget_range: "",
   monthly_payment_range: "",
   probability: "",
+  addr_detail: "",
+  addr_province: "",
+  addr_amphoe: "",
+  addr_tambon: "",
+  addr_zipcode: "",
 };
+
+type GeoData = Record<string, Record<string, Record<string, string>>>;
 
 // Dropdown option sets (จากไฟล์ Excel รายงานการติดตามลูกค้า)
 const OPT_MARITAL   = ["โสด", "สมรสไม่มีบุตร", "สมรสมีบุตร"];
@@ -230,6 +242,7 @@ export default function CRMPage() {
   const [form, setForm] = useState(emptyForm);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const formSnapshotRef = useRef("");
+  const [geo, setGeo] = useState<GeoData | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -588,7 +601,7 @@ export default function CRMPage() {
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "" });
+    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "", addr_detail: lead.addr_detail ?? "", addr_province: lead.addr_province ?? "", addr_amphoe: lead.addr_amphoe ?? "", addr_tambon: lead.addr_tambon ?? "", addr_zipcode: lead.addr_zipcode ?? "" });
     setShowModal(true);
   };
 
@@ -643,6 +656,13 @@ export default function CRMPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal]);
 
+  // โหลดชุดข้อมูลที่อยู่ไทย (จังหวัด/อำเภอ/ตำบล/ZIP) ครั้งเดียวเมื่อเปิดฟอร์ม
+  useEffect(() => {
+    if (showModal && !geo) {
+      fetch("/thai-geo.json").then(r => r.json()).then(setGeo).catch(() => {});
+    }
+  }, [showModal, geo]);
+
   // ขอปิดฟอร์ม — ถ้ามีข้อมูลที่ยังไม่บันทึก ให้ถามยืนยันก่อน
   const requestCloseModal = () => {
     if (JSON.stringify(form) !== formSnapshotRef.current) setConfirmDiscard(true);
@@ -684,9 +704,18 @@ export default function CRMPage() {
     if (!form.customer_name || !form.phone) return;
     setSaving(true);
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
+    const addrParts = [form.addr_detail, form.addr_tambon && `ต.${form.addr_tambon}`, form.addr_amphoe && `อ.${form.addr_amphoe}`, form.addr_province && `จ.${form.addr_province}`, form.addr_zipcode].filter(Boolean).join(" ").trim();
+    const addrFields = {
+      contact_address: addrParts || form.contact_address || null,
+      addr_detail: form.addr_detail || null,
+      addr_province: form.addr_province || null,
+      addr_amphoe: form.addr_amphoe || null,
+      addr_tambon: form.addr_tambon || null,
+      addr_zipcode: form.addr_zipcode || null,
+    };
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, contact_address: form.contact_address || null, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -737,7 +766,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, contact_address: form.contact_address || null, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -1443,7 +1472,7 @@ export default function CRMPage() {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "", addr_detail: selectedLead.addr_detail ?? "", addr_province: selectedLead.addr_province ?? "", addr_amphoe: selectedLead.addr_amphoe ?? "", addr_tambon: selectedLead.addr_tambon ?? "", addr_zipcode: selectedLead.addr_zipcode ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>
@@ -1515,10 +1544,48 @@ export default function CRMPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ที่อยู่ที่ติดต่อได้</label>
-                  <input type="text" value={form.contact_address} onChange={e => setForm(p => ({ ...p, contact_address: e.target.value }))}
-                    placeholder="บ้านเลขที่ / หมู่บ้าน / ตำบล / อำเภอ / จังหวัด"
+                  <label className="text-xs text-aviva-secondary mb-1 block">ที่อยู่ที่ติดต่อได้ (บ้านเลขที่ / หมู่ / ซอย / ถนน)</label>
+                  <input type="text" value={form.addr_detail} onChange={e => setForm(p => ({ ...p, addr_detail: e.target.value }))}
+                    placeholder="เช่น 21/3 ม.7 ถ.มิตรภาพ"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  {form.contact_address && !form.addr_province && (
+                    <p className="text-[10px] text-aviva-secondary/70 mt-1">ที่อยู่เดิม: {form.contact_address}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">จังหวัด</label>
+                    <select value={form.addr_province} onChange={e => setForm(p => ({ ...p, addr_province: e.target.value, addr_amphoe: "", addr_tambon: "", addr_zipcode: "" }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      <option value="">{geo ? "— เลือกจังหวัด —" : "กำลังโหลด..."}</option>
+                      {geo && Object.keys(geo).sort((a, b) => a.localeCompare(b, "th")).map(pv => <option key={pv} value={pv}>{pv}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">อำเภอ/เขต</label>
+                    <select value={form.addr_amphoe} disabled={!form.addr_province}
+                      onChange={e => setForm(p => ({ ...p, addr_amphoe: e.target.value, addr_tambon: "", addr_zipcode: "" }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 disabled:opacity-50">
+                      <option value="">— เลือกอำเภอ —</option>
+                      {geo && form.addr_province && geo[form.addr_province] && Object.keys(geo[form.addr_province]).sort((a, b) => a.localeCompare(b, "th")).map(am => <option key={am} value={am}>{am}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">ตำบล/แขวง</label>
+                    <select value={form.addr_tambon} disabled={!form.addr_amphoe}
+                      onChange={e => { const tb = e.target.value; const zip = (geo && form.addr_province && form.addr_amphoe) ? (geo[form.addr_province]?.[form.addr_amphoe]?.[tb] ?? "") : ""; setForm(p => ({ ...p, addr_tambon: tb, addr_zipcode: zip })); }}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 disabled:opacity-50">
+                      <option value="">— เลือกตำบล —</option>
+                      {geo && form.addr_province && form.addr_amphoe && geo[form.addr_province]?.[form.addr_amphoe] && Object.keys(geo[form.addr_province][form.addr_amphoe]).sort((a, b) => a.localeCompare(b, "th")).map(tb => <option key={tb} value={tb}>{tb}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">รหัสไปรษณีย์</label>
+                    <input type="tel" inputMode="numeric" maxLength={5} value={form.addr_zipcode}
+                      onChange={e => setForm(p => ({ ...p, addr_zipcode: e.target.value.replace(/\D/g, "").slice(0, 5) }))}
+                      placeholder="อัตโนมัติ"
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 items-start">
                   <SelectWithOther label="สถานภาพ" value={form.marital_status} options={OPT_MARITAL} onChange={v => setForm(p => ({ ...p, marital_status: v }))} />
@@ -1757,6 +1824,11 @@ export default function CRMPage() {
                       budget_range: displayLead.budget_range ?? "",
                       monthly_payment_range: displayLead.monthly_payment_range ?? "",
                       probability: displayLead.probability ?? "",
+                      addr_detail: displayLead.addr_detail ?? "",
+                      addr_province: displayLead.addr_province ?? "",
+                      addr_amphoe: displayLead.addr_amphoe ?? "",
+                      addr_tambon: displayLead.addr_tambon ?? "",
+                      addr_zipcode: displayLead.addr_zipcode ?? "",
                     });
                     setShowModal(true);
                     setMapPlotModal(null);
@@ -1818,6 +1890,11 @@ export default function CRMPage() {
                               budget_range: l.budget_range ?? "",
                               monthly_payment_range: l.monthly_payment_range ?? "",
                               probability: l.probability ?? "",
+                              addr_detail: l.addr_detail ?? "",
+                              addr_province: l.addr_province ?? "",
+                              addr_amphoe: l.addr_amphoe ?? "",
+                              addr_tambon: l.addr_tambon ?? "",
+                              addr_zipcode: l.addr_zipcode ?? "",
                             });
                             setShowModal(true);
                             setMapPlotModal(null);

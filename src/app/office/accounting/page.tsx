@@ -14,6 +14,15 @@ import SectionHeader from "@/components/SectionHeader";
 import clsx from "clsx";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+// C6 — รวมอัตราภาษีไว้ที่เดียว (เลิก hardcode กระจาย)
+const TAX_CONFIG = {
+  VAT_RATE: 0.07,        // ภาษีมูลค่าเพิ่ม 7%
+  SBT_BASE_RATE: 0.03,   // ภ.ธ.40 3%
+  SBT_LOCAL_SURTAX: 0.1, // ภาษีท้องถิ่น 10% ของ ภ.ธ.
+  SBT_RATE: 0.033,       // รวม 3.3%
+  LBT_RATE: 0.003,       // ภาษีที่ดินเพื่อการค้า 0.3%
+  WHT_RATES: [0, 1, 2, 3, 5, 10] as const,
+};
 const fmt = (n: number) =>
   (n ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtM = (n: number) =>
@@ -720,25 +729,75 @@ function TaxTab() {
   const [sbtEntries, setSbtEntries] = useState<SbtEntry[]>([]);
   const [lbtEntries, setLbtEntries] = useState<LbtEntry[]>([]);
   const [showVatModal, setShowVatModal] = useState(false);
+  const [showWhtModal, setShowWhtModal] = useState(false);
+  const [showSbtModal, setShowSbtModal] = useState(false);
+  const [showLbtModal, setShowLbtModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [vatForm, setVatForm] = useState({ vat_type: "output", invoice_no: "", invoice_date: today(), party_name: "", party_tax_id: "", base_amount: "" });
+  const [whtForm, setWhtForm] = useState({ payee_name: "", payee_tax_id: "", cert_date: today(), base_amount: "", wht_rate: "3", tax_form: "3", income_type: "ค่าบริการ / ค่าจ้าง" });
+  const [sbtForm, setSbtForm] = useState({ transfer_date: today(), base_amount: "" });
+  const [lbtForm, setLbtForm] = useState({ tax_year: String(new Date().getFullYear() + 543), appraised_value: "", parcel_number: "", due_date: "" });
   const period = (() => { const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })();
+
+  const loadWht = () => supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
+  const loadSbt = () => supabase.from("sbt_register").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
+  const loadLbt = () => supabase.from("land_building_tax").select("*").eq("project_id", PROJECT_ID).order("tax_year",{ascending:false}).limit(10).then(({data})=>setLbtEntries((data??[]) as LbtEntry[]));
 
   useEffect(() => {
     supabase.from("vat_register").select("*").eq("project_id", PROJECT_ID).order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
-    supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
-    supabase.from("sbt_register").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
-    supabase.from("land_building_tax").select("*").eq("project_id", PROJECT_ID).order("tax_year",{ascending:false}).limit(10).then(({data})=>setLbtEntries((data??[]) as LbtEntry[]));
+    loadWht();
+    loadSbt();
+    loadLbt();
   }, []);
 
   const saveVat = async () => {
     if (!vatForm.invoice_no||!vatForm.party_name||!vatForm.base_amount) return;
     setSaving(true);
-    const base=Number(vatForm.base_amount); const vat=Math.round(base*0.07*100)/100;
+    const base=Number(vatForm.base_amount); const vat=Math.round(base*TAX_CONFIG.VAT_RATE*100)/100;
     await supabase.from("vat_register").insert({ vat_type:vatForm.vat_type, invoice_no:vatForm.invoice_no, invoice_date:vatForm.invoice_date, party_name:vatForm.party_name, party_tax_id:vatForm.party_tax_id||null, base_amount:base, vat_amount:vat, total_amount:base+vat, period, etax_status:"pending", project_id:PROJECT_ID });
     setSaving(false); setShowVatModal(false);
     setVatForm({vat_type:"output",invoice_no:"",invoice_date:today(),party_name:"",party_tax_id:"",base_amount:""});
     supabase.from("vat_register").select("*").eq("project_id", PROJECT_ID).order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
+  };
+
+  // C2 — สร้างหนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)
+  const saveWht = async () => {
+    if (!whtForm.payee_name||!whtForm.base_amount) return;
+    setSaving(true);
+    const base=Number(whtForm.base_amount); const rate=Number(whtForm.wht_rate);
+    const whtAmt=Math.round(base*rate/100*100)/100;
+    const certNumber=`WHT-${period}-${Date.now().toString().slice(-4)}`;
+    await supabase.from("wht_certificates").insert({ cert_number:certNumber, cert_date:whtForm.cert_date, payee_name:whtForm.payee_name, payee_tax_id:whtForm.payee_tax_id||null, income_type:whtForm.income_type, tax_form:whtForm.tax_form, base_amount:base, wht_rate:rate, wht_amount:whtAmt, period, project_id:PROJECT_ID });
+    setSaving(false); setShowWhtModal(false);
+    setWhtForm({ payee_name:"", payee_tax_id:"", cert_date:today(), base_amount:"", wht_rate:"3", tax_form:"3", income_type:"ค่าบริการ / ค่าจ้าง" });
+    loadWht();
+  };
+
+  // C1 — สร้างรายการภาษีธุรกิจเฉพาะ (ภ.ธ.40)
+  const saveSbt = async () => {
+    if (!sbtForm.base_amount) return;
+    setSaving(true);
+    const base=Number(sbtForm.base_amount);
+    const sbtAmt=Math.round(base*TAX_CONFIG.SBT_BASE_RATE*100)/100;
+    const localSurtax=Math.round(sbtAmt*TAX_CONFIG.SBT_LOCAL_SURTAX*100)/100;
+    const totalTax=Math.round(base*TAX_CONFIG.SBT_RATE*100)/100;
+    const sbtPeriod=(()=>{ const d=new Date(sbtForm.transfer_date); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })();
+    await supabase.from("sbt_register").insert({ period:sbtPeriod, base_amount:base, sbt_rate:TAX_CONFIG.SBT_BASE_RATE*100, sbt_amount:sbtAmt, local_surtax:localSurtax, total_tax:totalTax, transfer_date:sbtForm.transfer_date, status:"pending", project_id:PROJECT_ID });
+    setSaving(false); setShowSbtModal(false);
+    setSbtForm({ transfer_date:today(), base_amount:"" });
+    loadSbt();
+  };
+
+  // C1 — สร้างรายการภาษีที่ดินและสิ่งปลูกสร้าง
+  const saveLbt = async () => {
+    if (!lbtForm.tax_year||!lbtForm.appraised_value) return;
+    setSaving(true);
+    const appraised=Number(lbtForm.appraised_value);
+    const taxAmt=Math.round(appraised*TAX_CONFIG.LBT_RATE*100)/100;
+    await supabase.from("land_building_tax").insert({ tax_year:Number(lbtForm.tax_year), appraised_value:appraised, tax_rate:TAX_CONFIG.LBT_RATE*100, tax_amount:taxAmt, parcel_number:lbtForm.parcel_number||null, due_date:lbtForm.due_date||null, status:"pending", project_id:PROJECT_ID });
+    setSaving(false); setShowLbtModal(false);
+    setLbtForm({ tax_year:String(new Date().getFullYear()+543), appraised_value:"", parcel_number:"", due_date:"" });
+    loadLbt();
   };
 
   const subTabs: { key: TaxSubTab; label: string }[] = [{key:"vat",label:"VAT"},{key:"wht",label:"WHT ภ.ง.ด."},{key:"sbt",label:"ภ.ธ.40"},{key:"lbt",label:"ภาษีที่ดิน"}];
@@ -755,15 +814,18 @@ function TaxTab() {
         ))}
       </div>)}
       {sub==="wht"&&(<div className="space-y-3">
+        <div className="flex items-center justify-between"><p className="text-xs text-aviva-secondary">หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</p><button onClick={()=>setShowWhtModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold"><Plus size={12}/> เพิ่ม</button></div>
         {whtCerts.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีหนังสือรับรอง WHT</p></GlassCard>:whtCerts.map(w=>(
           <GlassCard key={w.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{w.cert_number}</p><span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">ภ.ง.ด.{w.tax_form}</span></div><p className="text-xs text-aviva-text">{w.payee_name}</p><p className="text-[10px] text-aviva-secondary">{w.cert_date} · {w.wht_rate}%</p></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-red-400">-฿{fmt(Number(w.wht_amount))}</p><p className="text-[10px] text-aviva-secondary">หัก ณ ที่จ่าย</p><button onClick={()=>printWht(w)} className="mt-1 text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded">พิมพ์ 50 ทวิ</button></div></div></GlassCard>
         ))}
         <GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-secondary mb-2">อัตรา WHT อ้างอิง</p><div className="grid grid-cols-2 gap-1.5 text-[11px]">{[["ค่าจ้าง (บุคคล)","3% — ภ.ง.ด.3"],["ค่าจ้าง (นิติ)","3% — ภ.ง.ด.53"],["ค่าเช่า","5% — ภ.ง.ด.3/53"],["ค่าโฆษณา","2% — ภ.ง.ด.3/53"],["เงินเดือน","ตามสูตร — ภ.ง.ด.1"],["ดอกเบี้ย","1% — ภ.ง.ด.3/53"]].map(([k,v])=>(<div key={k} className="flex justify-between"><span className="text-aviva-secondary">{k}</span><span className="text-aviva-gold">{v}</span></div>))}</div></GlassCard>
       </div>)}
       {sub==="sbt"&&(<div className="space-y-3"><GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีธุรกิจเฉพาะ (ภ.ธ.40)</p><p className="text-[11px] text-aviva-secondary">อัตรา 3.3% (ภ.ธ.40 3% + ภาษีท้องถิ่น 10% ของ 3%) ต่อยอดขายบ้านทุกรายการโอน</p></GlassCard>
+        <div className="flex items-center justify-between"><p className="text-xs text-aviva-secondary">ทะเบียน ภ.ธ.40</p><button onClick={()=>setShowSbtModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold"><Plus size={12}/> เพิ่ม</button></div>
         {sbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ ภ.ธ.40</p></GlassCard>:sbtEntries.map(s=>(<GlassCard key={s.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">Period {s.period}</p><p className="text-[10px] text-aviva-secondary">โอน: {s.transfer_date??"-"} · ฐาน: ฿{fmtM(Number(s.base_amount))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(s.total_tax))}</p><StatusBadge status={s.status}/></div></div></GlassCard>))}
       </div>)}
       {sub==="lbt"&&(<div className="space-y-3"><GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-2">ภาษีที่ดินและสิ่งปลูกสร้าง (พ.ร.บ.2562)</p><p className="text-[11px] text-aviva-secondary">อัตราที่ดินเพื่อการขาย 0.3% ต่อปี ของราคาประเมิน</p></GlassCard>
+        <div className="flex items-center justify-between"><p className="text-xs text-aviva-secondary">ภาษีที่ดินรายปี</p><button onClick={()=>setShowLbtModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold"><Plus size={12}/> เพิ่ม</button></div>
         {lbtEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการภาษีที่ดิน</p></GlassCard>:lbtEntries.map(l=>(<GlassCard key={l.id} className="p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-medium text-aviva-text">ปี {l.tax_year}</p><p className="text-[10px] text-aviva-secondary">ประเมิน: ฿{fmtM(Number(l.appraised_value))}</p></div><div className="text-right"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(l.tax_amount))}</p><StatusBadge status={l.status}/></div></div></GlassCard>))}
       </div>)}
       {showVatModal&&(
@@ -777,6 +839,62 @@ function TaxTab() {
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี</label><input type="text" maxLength={13} placeholder="0000000000000" value={vatForm.party_tax_id} onChange={e=>setVatForm(f=>({...f,party_tax_id:e.target.value.replace(/\D/g,"")}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT *</label><input type="number" min="0" placeholder="0.00" value={vatForm.base_amount} onChange={e=>setVatForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/>{vatForm.base_amount&&(<p className="text-[10px] text-aviva-secondary mt-1">VAT 7%: ฿{fmt(Math.round(Number(vatForm.base_amount)*0.07*100)/100)}</p>)}</div>
               <button onClick={saveVat} disabled={!vatForm.invoice_no||!vatForm.party_name||!vatForm.base_amount||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึก VAT"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showWhtModal&&(
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
+          <div className="bg-aviva-card rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-aviva-card px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">ออกหนังสือรับรอง 50 ทวิ</h2><button onClick={()=>setShowWhtModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
+            <div className="p-5 space-y-3">
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ชื่อผู้ถูกหักภาษี *</label><input type="text" placeholder="ชื่อ บริษัท / บุคคล" value={whtForm.payee_name} onChange={e=>setWhtForm(f=>({...f,payee_name:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขผู้เสียภาษี</label><input type="text" maxLength={13} placeholder="0000000000000" value={whtForm.payee_tax_id} onChange={e=>setWhtForm(f=>({...f,payee_tax_id:e.target.value.replace(/\D/g,"")}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่จ่าย</label><input type="date" value={whtForm.cert_date} onChange={e=>setWhtForm(f=>({...f,cert_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              </div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ประเภทเงินได้</label><input type="text" placeholder="เช่น ค่าบริการ / ค่าจ้าง" value={whtForm.income_type} onChange={e=>setWhtForm(f=>({...f,income_type:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">จำนวนเงินที่จ่าย *</label><input type="number" min="0" placeholder="0.00" value={whtForm.base_amount} onChange={e=>setWhtForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">อัตรา WHT (%)</label><div className="flex gap-1.5 flex-wrap">{TAX_CONFIG.WHT_RATES.filter(r=>r>0).map(r=>(<button key={r} onClick={()=>setWhtForm(f=>({...f,wht_rate:String(r)}))} className={clsx("px-2.5 py-1.5 rounded-lg text-xs border transition-all",whtForm.wht_rate===String(r)?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>{r}%</button>))}</div></div>
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">แบบ ภ.ง.ด.</label><div className="flex gap-1.5 flex-wrap">{["1","3","53"].map(t=>(<button key={t} onClick={()=>setWhtForm(f=>({...f,tax_form:t}))} className={clsx("px-2.5 py-1.5 rounded-lg text-xs border transition-all",whtForm.tax_form===t?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>{t}</button>))}</div></div>
+              </div>
+              {whtForm.base_amount&&(<div className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs flex justify-between"><span className="text-aviva-secondary">ภาษีหัก ณ ที่จ่าย {whtForm.wht_rate}%</span><span className="text-red-400 font-bold">฿{fmt(Math.round(Number(whtForm.base_amount)*Number(whtForm.wht_rate)/100*100)/100)}</span></div>)}
+              <button onClick={saveWht} disabled={!whtForm.payee_name||!whtForm.base_amount||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"ออกหนังสือรับรอง"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSbtModal&&(
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
+          <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
+            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">เพิ่มรายการ ภ.ธ.40</h2><button onClick={()=>setShowSbtModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
+            <div className="p-5 space-y-3">
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่โอนกรรมสิทธิ์</label><input type="date" value={sbtForm.transfer_date} onChange={e=>setSbtForm(f=>({...f,transfer_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ฐานภาษี (ราคาขาย/ราคาประเมิน แล้วแต่สูงกว่า) *</label><input type="number" min="0" placeholder="0.00" value={sbtForm.base_amount} onChange={e=>setSbtForm(f=>({...f,base_amount:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              {sbtForm.base_amount&&(<div className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs space-y-1">
+                <div className="flex justify-between"><span className="text-aviva-secondary">ภ.ธ.40 (3%)</span><span className="text-aviva-text">฿{fmt(Math.round(Number(sbtForm.base_amount)*TAX_CONFIG.SBT_BASE_RATE*100)/100)}</span></div>
+                <div className="flex justify-between"><span className="text-aviva-secondary">ภาษีท้องถิ่น (10% ของ ภ.ธ.)</span><span className="text-aviva-text">฿{fmt(Math.round(Number(sbtForm.base_amount)*TAX_CONFIG.SBT_BASE_RATE*TAX_CONFIG.SBT_LOCAL_SURTAX*100)/100)}</span></div>
+                <div className="flex justify-between font-bold border-t border-aviva-gold/10 pt-1 mt-1"><span className="text-aviva-text">รวม (3.3%)</span><span className="text-aviva-gold">฿{fmt(Math.round(Number(sbtForm.base_amount)*TAX_CONFIG.SBT_RATE*100)/100)}</span></div>
+              </div>)}
+              <button onClick={saveSbt} disabled={!sbtForm.base_amount||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึก ภ.ธ.40"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showLbtModal&&(
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4">
+          <div className="bg-aviva-card rounded-3xl w-full max-w-lg">
+            <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">เพิ่มรายการภาษีที่ดิน</h2><button onClick={()=>setShowLbtModal(false)}><X size={18} className="text-aviva-secondary"/></button></div>
+            <div className="p-5 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">ปีภาษี (พ.ศ.) *</label><input type="number" value={lbtForm.tax_year} onChange={e=>setLbtForm(f=>({...f,tax_year:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+                <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขโฉนด/แปลง</label><input type="text" placeholder="เช่น 12345" value={lbtForm.parcel_number} onChange={e=>setLbtForm(f=>({...f,parcel_number:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              </div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">ราคาประเมิน (บาท) *</label><input type="number" min="0" placeholder="0.00" value={lbtForm.appraised_value} onChange={e=>setLbtForm(f=>({...f,appraised_value:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันครบกำหนดชำระ</label><input type="date" value={lbtForm.due_date} onChange={e=>setLbtForm(f=>({...f,due_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+              {lbtForm.appraised_value&&(<div className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs flex justify-between"><span className="text-aviva-secondary">ภาษีที่ดิน (0.3%)</span><span className="text-aviva-gold font-bold">฿{fmt(Math.round(Number(lbtForm.appraised_value)*TAX_CONFIG.LBT_RATE*100)/100)}</span></div>)}
+              <button onClick={saveLbt} disabled={!lbtForm.tax_year||!lbtForm.appraised_value||saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving?"กำลังบันทึก...":"บันทึกภาษีที่ดิน"}</button>
             </div>
           </div>
         </div>

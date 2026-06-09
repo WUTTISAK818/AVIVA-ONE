@@ -3044,7 +3044,13 @@ function ApprovalsContent() {
       else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "rejected", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "rejected" }).eq("id", log.source_record_id);
-      else if (log.workflow_type === "Booking_Deposit") await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Booking_Deposit") {
+        // ปฏิเสธเงินจอง → คืนสถานะลูกค้าเป็น New Lead + ปล่อยแปลงกลับเป็นว่าง (ให้ตรงกับหน้า /approvals)
+        const { data: lead } = await supabase.from("leads").select("plot_number").eq("id", log.source_record_id).maybeSingle();
+        await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
+        const plot = (lead as { plot_number?: number } | null)?.plot_number;
+        if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+      }
       else if (log.workflow_type === "Contract_Approval") await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
     }
     if (log) {
@@ -3743,11 +3749,14 @@ interface CommunityMember {
   transferred_at: string | null;
 }
 
+interface CommunityHouse { id: string; house_number: string; land_size: number | null; }
+
 function CommunityContent() {
   const [members, setMembers] = useState<CommunityMember[]>([]);
+  const [houses, setHouses] = useState<CommunityHouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ owner_name: "", owner_phone: "", area_sqw: "" });
+  const [form, setForm] = useState({ house_id: "", owner_name: "", owner_phone: "", area_sqw: "" });
   const [saving, setSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "Paid" | "Unpaid">("all");
 
@@ -3756,7 +3765,11 @@ function CommunityContent() {
       .then(({ data }) => { setMembers((data as CommunityMember[]) ?? []); setLoading(false); });
   };
 
-  useEffect(() => { fetchMembers(); }, []);
+  useEffect(() => {
+    fetchMembers();
+    supabase.from("houses").select("id,house_number,land_size").eq("project_id", PROJECT_ID).order("plot_number").limit(31)
+      .then(({ data }) => setHouses((data as CommunityHouse[]) ?? []));
+  }, []);
 
   const fmtFee = (n: number) => `฿${Number(n).toLocaleString("th-TH")}`;
   const totalFee = members.reduce((s, m) => s + Number(m.annual_fee), 0);
@@ -3768,6 +3781,7 @@ function CommunityContent() {
     if (!form.owner_name || !form.area_sqw) return;
     setSaving(true);
     await supabase.from("community_members").insert({
+      house_id: form.house_id || null,
       owner_name: form.owner_name,
       owner_phone: form.owner_phone,
       area_sqw: Number(form.area_sqw),
@@ -3776,7 +3790,7 @@ function CommunityContent() {
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ owner_name: "", owner_phone: "", area_sqw: "" });
+    setForm({ house_id: "", owner_name: "", owner_phone: "", area_sqw: "" });
     fetchMembers();
   };
 
@@ -3803,7 +3817,7 @@ function CommunityContent() {
             className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
             CSV
           </button>
-          <button onClick={() => { setForm({ owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
+          <button onClick={() => { setForm({ house_id: "", owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
             className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
             <Plus size={14} /> เพิ่มสมาชิก
           </button>
@@ -3896,6 +3910,20 @@ function CommunityContent() {
             <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
           </div>
           <div className="space-y-3">
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">แปลงบ้าน (ผูกกับทะเบียนบ้าน)</label>
+              <select value={form.house_id}
+                onChange={(e) => {
+                  const h = houses.find(h => h.id === e.target.value);
+                  setForm({ ...form, house_id: e.target.value, area_sqw: h?.land_size != null ? String(h.land_size) : form.area_sqw });
+                }}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <option value="">— ไม่ผูกแปลง (กรอกพื้นที่เอง) —</option>
+                {houses.map(h => (
+                  <option key={h.id} value={h.id}>{h.house_number}{h.land_size != null ? ` · ${h.land_size} ตร.ว.` : ""}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเจ้าของ *</label>
               <input type="text" value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })}

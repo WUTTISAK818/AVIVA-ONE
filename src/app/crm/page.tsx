@@ -1379,6 +1379,147 @@ export default function CRMPage() {
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
+      {/* Add / Edit Lead Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[88vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่ม Lead ใหม่"}</h2>
+              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+
+            <div className="space-y-5">
+              {/* หมวด 1 — ข้อมูลลูกค้า */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">1 · ข้อมูลลูกค้า</p>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ชื่อ-นามสกุล <span className="text-red-400">*</span></label>
+                  <input type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))}
+                    placeholder="เช่น น.ส.ศิริภัสสร ศรีกลาง"
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร <span className="text-red-400">*</span></label>
+                    <input type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+                      placeholder="08x-xxx-xxxx"
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">อีเมล</label>
+                    <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                      placeholder="email@example.com"
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                </div>
+              </div>
+
+              {/* หมวด 2 — ความสนใจ / ที่มา */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">2 · ความสนใจ / ที่มา</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">ช่องทางที่มา</label>
+                    <select value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">แปลงที่สนใจ</label>
+                    <select value={form.plot_number} onChange={e => setForm(p => ({ ...p, plot_number: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      <option value="">— ยังไม่ระบุ —</option>
+                      {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map(n => <option key={n} value={String(n)}>แปลง {n}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
+                  <input type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
+                    placeholder="เช่น 4500000"
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                </div>
+              </div>
+
+              {/* หมวด 3 — สถานะ / การเงิน */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">3 · สถานะ / การเงิน</p>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                  <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as LeadStatus }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                    {pipelineStages.map(s => <option key={s} value={s}>{STATUS_TH[s] ?? s}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">รูปแบบการชำระ</label>
+                    <select value={form.financing_type} onChange={e => setForm(p => ({ ...p, financing_type: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      {["ไม่ระบุ", "เงินสด", "สินเชื่อธนาคาร"].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">ความเร่งด่วน</label>
+                    <select value={form.urgency} onChange={e => setForm(p => ({ ...p, urgency: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      {["ปกติ", "เร่งด่วน", "สูงมาก"].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* หมวด 4 — วันที่สำคัญ / สัญญา */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">4 · วันที่สำคัญ / สัญญา</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งถัดไป</label>
+                    <input type="date" value={form.next_follow_up_date} onChange={e => setForm(p => ({ ...p, next_follow_up_date: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">นัดส่งมอบ</label>
+                    <input type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
+                    <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
+                      placeholder="เช่น 5170000"
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">วันเซ็นสัญญา</label>
+                    <input type="date" value={form.contract_signed_date} onChange={e => setForm(p => ({ ...p, contract_signed_date: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">วันกู้ผ่าน</label>
+                    <input type="date" value={form.loan_approved_date} onChange={e => setForm(p => ({ ...p, loan_approved_date: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                </div>
+              </div>
+
+              {/* หมวด 5 — หมายเหตุ */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">5 · หมายเหตุ</p>
+                <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
+                  placeholder="รายละเอียดความสนใจ / เหตุผลที่เข้าชม / โครงการที่เปรียบเทียบ ฯลฯ"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
+              </div>
+
+              <button onClick={handleSave} disabled={saving || !form.customer_name || !form.phone}
+                className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
+                {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "เพิ่ม Lead"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Map Plot Detail Modal */}
       {mapPlotModal !== null && (() => {
         const n = mapPlotModal;

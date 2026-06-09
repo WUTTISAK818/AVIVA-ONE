@@ -205,7 +205,7 @@ const OPT_RESIDENCE = ["บ้านเดี่ยว", "บ้านแฝด"
 const OPT_PRODUCT   = ["บ้านเดี่ยว AVA", "บ้านแฝด VIVA"];
 const OPT_ROOM      = ["3 นอน 3 น้ำ 2 จอด", "4 นอน 3 น้ำ 2 จอด", "4 นอน 3 น้ำ 3 จอด", "4 นอน 4 น้ำ 3 จอด"];
 const OPT_REASON    = ["ต้องการที่อยู่อาศัยกว้างขึ้น", "ต้องการอยู่อาศัยเป็นของตนเอง", "ต้องการสภาพแวดล้อมที่ดีขึ้น", "ต้องการความสะดวกในการเดินทาง"];
-const OPT_BUDGET    = ["ต่ำกว่า 3 ล้าน", "3-3.99 ล้าน", "4-4.99 ล้าน", "5-5.99 ล้าน", "6-6.99 ล้าน", "7 ล้านขึ้นไป"];
+const OPT_BUDGET    = ["ต่ำกว่า 3 ล้านบาท", "3-3.99 ล้านบาท", "4-4.99 ล้านบาท", "5-5.99 ล้านบาท", "6-6.99 ล้านบาท", "7 ล้านบาทขึ้นไป"];
 const OPT_PAYMENT   = ["ต่ำกว่า 10,000", "10,001-20,000", "20,001-30,000", "30,001-40,000", "40,001-50,000", "มากกว่า 50,000", "จ่ายสด"];
 const OPT_PROB      = ["Low", "Medium", "High"];
 
@@ -1686,7 +1686,10 @@ export default function CRMPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
+                  <SelectWithOther label="งบประมาณ (ช่วงราคา)" value={form.budget_range} options={OPT_BUDGET} onChange={v => setForm(p => ({ ...p, budget_range: v }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ — ระบุราคาที่แน่นอน (บาท, ถ้าทราบ)</label>
                   <input type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
                     placeholder="เช่น 4500000"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
@@ -1730,10 +1733,7 @@ export default function CRMPage() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 items-start">
-                  <SelectWithOther label="งบ (ช่วงราคา)" value={form.budget_range} options={OPT_BUDGET} onChange={v => setForm(p => ({ ...p, budget_range: v }))} />
-                  <SelectWithOther label="ผ่อน/เดือน" value={form.monthly_payment_range} options={OPT_PAYMENT} onChange={v => setForm(p => ({ ...p, monthly_payment_range: v }))} />
-                </div>
+                <SelectWithOther label="ผ่อน/เดือน" value={form.monthly_payment_range} options={OPT_PAYMENT} onChange={v => setForm(p => ({ ...p, monthly_payment_range: v }))} />
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">โอกาสปิดการขาย (Probability)</label>
                   <select value={form.probability} onChange={e => setForm(p => ({ ...p, probability: e.target.value }))}

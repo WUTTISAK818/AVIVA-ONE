@@ -30,15 +30,15 @@ Vercel Cron ถูกตั้งไว้แล้วใน `vercel.json` (`0 1
 | `LINE_CHANNEL_ACCESS_TOKEN` | จาก LINE Developers Console (Messaging API channel) |
 | `NEXT_PUBLIC_LINE_OA_ID` | LINE OA ID เช่น `@aviva` |
 | `THAIBULKSMS_API_KEY` / `THAIBULKSMS_API_SECRET` / `THAIBULKSMS_SENDER` | จาก ThaiBulkSMS |
-| `NEXT_PUBLIC_SITE_URL` | โดเมนจริง เช่น `https://aviva-private.vercel.app` (ใช้สร้างลิงก์ /track) |
+| `NEXT_PUBLIC_SITE_URL` | `https://aviva-private.vercel.app` (โดเมน production จริง — ใช้สร้างลิงก์ /track) |
 
 ---
 
 ## 2) LINE Webhook
 
 1. ไปที่ LINE Developers → Messaging API channel
-2. ตั้ง **Webhook URL** = `https://<โดเมน>/api/line/webhook`
-3. เปิด **Use webhook** = ON
+2. ตั้ง **Webhook URL** = `https://aviva-private.vercel.app/api/line/webhook`
+3. เปิด **Use webhook** = ON (กด **Verify** ต้องขึ้น Success)
 4. พนักงานผูกบัญชี: หน้า **ตั้งค่า → "ผูกบัญชี LINE"** กดขอรหัส 6 หลัก แล้วพิมพ์รหัสในแชต LINE OA
 
 ---
@@ -48,7 +48,7 @@ Vercel Cron ถูกตั้งไว้แล้วใน `vercel.json` (`0 1
 ไปที่ **ตั้งค่า → ผู้รับเหมา** (เฉพาะผู้จัดการ/แอดมิน):
 1. **เพิ่มผู้รับเหมา** — กรอกชื่อ, เบอร์โทร (สำหรับ SMS), ref code (auto-gen ได้)
 2. **ผูกแปลง** — เลือกแปลง/ยูนิตที่ผู้รับเหมารับผิดชอบ (ตั้งค่า `houses.contractor_line_id = ref_code`)
-3. ผู้รับเหมาดูสถานะงานได้ที่ `https://<โดเมน>/track/<ref_code>` (ไม่ต้องล็อกอิน)
+3. ผู้รับเหมาดูสถานะงานได้ที่ `https://aviva-private.vercel.app/track/<ref_code>` (ไม่ต้องล็อกอิน)
 
 เมื่องวดงานถูก **อนุมัติ / จ่ายเงิน / ตีกลับ** ระบบจะส่ง LINE/SMS หาผู้รับเหมาที่ผูกไว้อัตโนมัติ
 (LINE จะส่งได้เมื่อผู้รับเหมาผูก `line_user_id` แล้ว; SMS ส่งตามเบอร์ที่กรอก)
@@ -58,7 +58,7 @@ Vercel Cron ถูกตั้งไว้แล้วใน `vercel.json` (`0 1
 ## 4) ทดสอบ
 
 - **Web Push:** ตั้งค่า → "การแจ้งเตือนบนอุปกรณ์" → เปิด (iPhone ต้อง Add to Home Screen ก่อน)
-- **Cron:** `curl "https://<โดเมน>/api/cron/sla-reminder?secret=<CRON_SECRET>"`
+- **Cron:** `curl "https://aviva-private.vercel.app/api/cron/sla-reminder?secret=<CRON_SECRET>"`
 - **กล่องงาน:** ส่งงวดงานตรวจ → เห็นงานเด้งใน /inbox ของผู้จัดการ → อนุมัติ → เด้งต่อให้ฝ่ายการเงิน
 
 ---

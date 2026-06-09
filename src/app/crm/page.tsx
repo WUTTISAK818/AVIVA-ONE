@@ -64,6 +64,18 @@ interface Lead {
   contract_price?: number | null;
   contract_signed_date?: string | null;
   loan_approved_date?: string | null;
+  contact_address?: string | null;
+  marital_status?: string | null;
+  age_range?: string | null;
+  occupation?: string | null;
+  current_residence?: string | null;
+  product_interest?: string | null;
+  room_requirement?: string | null;
+  visit_reason?: string | null;
+  competitor_projects?: string | null;
+  budget_range?: string | null;
+  monthly_payment_range?: string | null;
+  probability?: string | null;
 }
 
 interface CustomerInstallment {
@@ -147,7 +159,51 @@ const emptyForm = {
   contract_price: "",
   contract_signed_date: "",
   loan_approved_date: "",
+  contact_address: "",
+  marital_status: "",
+  age_range: "",
+  occupation: "",
+  current_residence: "",
+  product_interest: "",
+  room_requirement: "",
+  visit_reason: "",
+  competitor_projects: "",
+  budget_range: "",
+  monthly_payment_range: "",
+  probability: "",
 };
+
+// Dropdown option sets (จากไฟล์ Excel รายงานการติดตามลูกค้า)
+const OPT_MARITAL   = ["โสด", "สมรสไม่มีบุตร", "สมรสมีบุตร"];
+const OPT_AGE       = ["ต่ำกว่า 26 ปี", "26-30 ปี", "31-35 ปี", "36-40 ปี", "41-45 ปี", "46-50 ปี", "51 ปีขึ้นไป"];
+const OPT_OCCUP     = ["รับราชการ", "พนักงานบริษัทเอกชน", "บุคลากรทางการแพทย์", "เจ้าของธุรกิจ"];
+const OPT_RESIDENCE = ["บ้านเดี่ยว", "บ้านแฝด", "ทาวน์เฮาส์", "คอนโด", "อพาร์ตเมนต์/หอพัก"];
+const OPT_PRODUCT   = ["บ้านเดี่ยว AVA", "บ้านแฝด VIVA"];
+const OPT_ROOM      = ["3 นอน 3 น้ำ 2 จอด", "4 นอน 3 น้ำ 2 จอด", "4 นอน 3 น้ำ 3 จอด", "4 นอน 4 น้ำ 3 จอด"];
+const OPT_REASON    = ["ต้องการที่อยู่อาศัยกว้างขึ้น", "ต้องการอยู่อาศัยเป็นของตนเอง", "ต้องการสภาพแวดล้อมที่ดีขึ้น", "ต้องการความสะดวกในการเดินทาง"];
+const OPT_BUDGET    = ["ต่ำกว่า 3 ล้าน", "3-3.99 ล้าน", "4-4.99 ล้าน", "5-5.99 ล้าน", "6-6.99 ล้าน", "7 ล้านขึ้นไป"];
+const OPT_PAYMENT   = ["ต่ำกว่า 10,000", "10,001-20,000", "20,001-30,000", "30,001-40,000", "40,001-50,000", "มากกว่า 50,000", "จ่ายสด"];
+const OPT_PROB      = ["Low", "Medium", "High"];
+
+// Select ที่มีตัวเลือก "อื่นๆ" → เผยช่องพิมพ์ข้อความเอง (เก็บค่าจริงลง field เดียว)
+function SelectWithOther({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  const selectVal = value === "" ? "" : (options.includes(value) ? value : "อื่นๆ");
+  const inputCls = "w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50";
+  return (
+    <div>
+      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <select value={selectVal} onChange={e => onChange(e.target.value === "อื่นๆ" ? "อื่นๆ" : e.target.value)} className={inputCls}>
+        <option value="">— เลือก —</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        <option value="อื่นๆ">อื่นๆ (พิมพ์เอง)</option>
+      </select>
+      {selectVal === "อื่นๆ" && (
+        <input type="text" autoFocus value={value === "อื่นๆ" ? "" : value} onChange={e => onChange(e.target.value)}
+          placeholder="ระบุข้อมูล..." className={inputCls + " mt-2"} />
+      )}
+    </div>
+  );
+}
 
 const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photo: null as File | null, photoPreview: "" };
 
@@ -524,7 +580,7 @@ export default function CRMPage() {
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "" });
+    setForm({ customer_name: lead.customer_name, phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "" });
     setShowModal(true);
   };
 
@@ -610,7 +666,7 @@ export default function CRMPage() {
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, contact_address: form.contact_address || null, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -661,7 +717,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, contact_address: form.contact_address || null, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -1268,6 +1324,32 @@ export default function CRMPage() {
                   <p className="text-aviva-text mt-0.5 leading-relaxed">{selectedLead.notes}</p>
                 </div>
               )}
+              {(selectedLead.contact_address || selectedLead.marital_status || selectedLead.age_range || selectedLead.occupation || selectedLead.current_residence || selectedLead.product_interest || selectedLead.room_requirement || selectedLead.visit_reason || selectedLead.competitor_projects || selectedLead.budget_range || selectedLead.monthly_payment_range || selectedLead.probability) && (
+                <div className="bg-aviva-bg rounded-xl p-3 col-span-2 space-y-2">
+                  <p className="text-aviva-secondary text-[11px] font-semibold">ข้อมูลโปรไฟล์ลูกค้า</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {([
+                      ["ที่อยู่ติดต่อ", selectedLead.contact_address],
+                      ["สถานภาพ", selectedLead.marital_status],
+                      ["อายุ", selectedLead.age_range],
+                      ["อาชีพ", selectedLead.occupation],
+                      ["ที่อยู่ปัจจุบัน", selectedLead.current_residence],
+                      ["สินค้าที่สนใจ", selectedLead.product_interest],
+                      ["จำนวนฟังก์ชัน", selectedLead.room_requirement],
+                      ["เหตุผลที่เข้าชม", selectedLead.visit_reason],
+                      ["โครงการเปรียบเทียบ", selectedLead.competitor_projects],
+                      ["งบ (ช่วง)", selectedLead.budget_range],
+                      ["ผ่อน/เดือน", selectedLead.monthly_payment_range],
+                      ["Probability", selectedLead.probability],
+                    ] as [string, string | null | undefined][]).filter(([, v]) => v).map(([label, v]) => (
+                      <div key={label} className="min-w-0">
+                        <span className="text-[10px] text-aviva-secondary/70">{label}: </span>
+                        <span className="text-[11px] text-aviva-text font-medium break-words">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Customer Installment Section */}
@@ -1341,7 +1423,7 @@ export default function CRMPage() {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>
@@ -1412,6 +1494,20 @@ export default function CRMPage() {
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                 </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ที่อยู่ที่ติดต่อได้</label>
+                  <input type="text" value={form.contact_address} onChange={e => setForm(p => ({ ...p, contact_address: e.target.value }))}
+                    placeholder="บ้านเลขที่ / หมู่บ้าน / ตำบล / อำเภอ / จังหวัด"
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-start">
+                  <SelectWithOther label="สถานภาพ" value={form.marital_status} options={OPT_MARITAL} onChange={v => setForm(p => ({ ...p, marital_status: v }))} />
+                  <SelectWithOther label="อายุ" value={form.age_range} options={OPT_AGE} onChange={v => setForm(p => ({ ...p, age_range: v }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-start">
+                  <SelectWithOther label="อาชีพ" value={form.occupation} options={OPT_OCCUP} onChange={v => setForm(p => ({ ...p, occupation: v }))} />
+                  <SelectWithOther label="ที่อยู่ปัจจุบัน" value={form.current_residence} options={OPT_RESIDENCE} onChange={v => setForm(p => ({ ...p, current_residence: v }))} />
+                </div>
               </div>
 
               {/* หมวด 2 — ความสนใจ / ที่มา */}
@@ -1438,6 +1534,17 @@ export default function CRMPage() {
                   <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
                   <input type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
                     placeholder="เช่น 4500000"
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-start">
+                  <SelectWithOther label="สินค้าที่สนใจ" value={form.product_interest} options={OPT_PRODUCT} onChange={v => setForm(p => ({ ...p, product_interest: v }))} />
+                  <SelectWithOther label="จำนวนฟังก์ชัน" value={form.room_requirement} options={OPT_ROOM} onChange={v => setForm(p => ({ ...p, room_requirement: v }))} />
+                </div>
+                <SelectWithOther label="เหตุผลที่เข้าชม" value={form.visit_reason} options={OPT_REASON} onChange={v => setForm(p => ({ ...p, visit_reason: v }))} />
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">โครงการที่เปรียบเทียบ (คู่แข่ง)</label>
+                  <input type="text" value={form.competitor_projects} onChange={e => setForm(p => ({ ...p, competitor_projects: e.target.value }))}
+                    placeholder="เช่น Golden Neo, ศุภาลัย ฯลฯ"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                 </div>
               </div>
@@ -1467,6 +1574,18 @@ export default function CRMPage() {
                       {["ปกติ", "เร่งด่วน", "สูงมาก"].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-start">
+                  <SelectWithOther label="งบ (ช่วงราคา)" value={form.budget_range} options={OPT_BUDGET} onChange={v => setForm(p => ({ ...p, budget_range: v }))} />
+                  <SelectWithOther label="ผ่อน/เดือน" value={form.monthly_payment_range} options={OPT_PAYMENT} onChange={v => setForm(p => ({ ...p, monthly_payment_range: v }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">โอกาสปิดการขาย (Probability)</label>
+                  <select value={form.probability} onChange={e => setForm(p => ({ ...p, probability: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                    <option value="">— ไม่ระบุ —</option>
+                    {OPT_PROB.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
               </div>
 
@@ -1586,6 +1705,18 @@ export default function CRMPage() {
                       contract_price: displayLead.contract_price ? String(displayLead.contract_price) : "",
                       contract_signed_date: displayLead.contract_signed_date ?? "",
                       loan_approved_date: displayLead.loan_approved_date ?? "",
+                      contact_address: displayLead.contact_address ?? "",
+                      marital_status: displayLead.marital_status ?? "",
+                      age_range: displayLead.age_range ?? "",
+                      occupation: displayLead.occupation ?? "",
+                      current_residence: displayLead.current_residence ?? "",
+                      product_interest: displayLead.product_interest ?? "",
+                      room_requirement: displayLead.room_requirement ?? "",
+                      visit_reason: displayLead.visit_reason ?? "",
+                      competitor_projects: displayLead.competitor_projects ?? "",
+                      budget_range: displayLead.budget_range ?? "",
+                      monthly_payment_range: displayLead.monthly_payment_range ?? "",
+                      probability: displayLead.probability ?? "",
                     });
                     setShowModal(true);
                     setMapPlotModal(null);
@@ -1635,6 +1766,18 @@ export default function CRMPage() {
                               contract_price: l.contract_price ? String(l.contract_price) : "",
                               contract_signed_date: l.contract_signed_date ?? "",
                               loan_approved_date: l.loan_approved_date ?? "",
+                              contact_address: l.contact_address ?? "",
+                              marital_status: l.marital_status ?? "",
+                              age_range: l.age_range ?? "",
+                              occupation: l.occupation ?? "",
+                              current_residence: l.current_residence ?? "",
+                              product_interest: l.product_interest ?? "",
+                              room_requirement: l.room_requirement ?? "",
+                              visit_reason: l.visit_reason ?? "",
+                              competitor_projects: l.competitor_projects ?? "",
+                              budget_range: l.budget_range ?? "",
+                              monthly_payment_range: l.monthly_payment_range ?? "",
+                              probability: l.probability ?? "",
                             });
                             setShowModal(true);
                             setMapPlotModal(null);

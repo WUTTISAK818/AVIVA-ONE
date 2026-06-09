@@ -42,13 +42,10 @@ export async function notifyMilestone(opts: {
     record_id: opts.record_id,
   });
   const url = opts.url ?? (opts.record_id ? `/crm?lead=${opts.record_id}` : "/crm");
-  await Promise.allSettled(
-    ["ฝ่ายขาย", "ฝ่ายบริหาร"].map((department) =>
-      fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: opts.title, body: opts.message, url, tag: "aviva-milestone", department }),
-      }).catch(() => {})
-    )
-  );
+  // ส่งออกหลายช่องทาง (web push ฝ่ายขาย+ผู้บริหาร + LINE กลุ่มทีมขาย) — best-effort
+  await fetch("/api/notify/milestone", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: opts.title, body: opts.message, url }),
+  }).catch(() => {});
 }

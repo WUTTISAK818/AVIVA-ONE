@@ -1155,9 +1155,8 @@ const statusLabel: Record<string, string> = {
   ended:  "สิ้นสุดแล้ว",
 };
 
-function roi(campaign: Campaign) {
-  const avgHousePrice = 9_500_000;
-  const revenue = campaign.conversions * avgHousePrice;
+function roi(campaign: Campaign, avgPrice = 9_500_000) {
+  const revenue = campaign.conversions * avgPrice;
   return campaign.spent > 0 ? Math.round((revenue / campaign.spent) * 100) : 0;
 }
 
@@ -1176,6 +1175,16 @@ function MarketingContent() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [budgets, setBudgets] = useState<MarketingBudget[]>([]);
   const [loading, setLoading] = useState(true);
+  // B4: ราคาขายเฉลี่ยจริง (จากลูกค้าที่ปิดการขาย) ใช้คำนวณ ROI แทน hardcode
+  const [avgUnitPrice, setAvgUnitPrice] = useState(9_500_000);
+  useEffect(() => {
+    supabase.from("leads").select("contract_price,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal")
+      .then(({ data }) => {
+        const vals = ((data ?? []) as { contract_price: number | null; budget: number | null }[])
+          .map(r => Number(r.contract_price ?? r.budget) || 0).filter(v => v > 0);
+        if (vals.length) setAvgUnitPrice(Math.round(vals.reduce((s, v) => s + v, 0) / vals.length));
+      });
+  }, []);
   const [activeView, setActiveView] = useState<"campaigns" | "budget">("campaigns");
   const [filter, setFilter] = useState<"all" | "Facebook" | "TikTok" | "Google">("all");
   const [showModal, setShowModal] = useState(false);
@@ -1234,7 +1243,7 @@ function MarketingContent() {
   const totalSpent = campaigns.reduce((s, c) => s + c.spent, 0);
   const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
   const avgROI = campaigns.length
-    ? Math.round(campaigns.reduce((s, c) => s + roi(c), 0) / campaigns.length)
+    ? Math.round(campaigns.reduce((s, c) => s + roi(c, avgUnitPrice), 0) / campaigns.length)
     : 0;
   const totalBudgetAllocated = budgets.reduce((s, b) => s + Number(b.budget_amount), 0);
 
@@ -1282,7 +1291,7 @@ function MarketingContent() {
 
   const exportCampaignsCSV = () => {
     const rows = [["ชื่อแคมเปญ", "Platform", "งบ", "ใช้ไป", "Leads", "Conversion", "ROI%", "สถานะ"]];
-    campaigns.forEach(c => rows.push([c.name, c.platform, String(c.budget), String(c.spent), String(c.leads_generated), String(c.conversions), String(roi(c)), c.status]));
+    campaigns.forEach(c => rows.push([c.name, c.platform, String(c.budget), String(c.spent), String(c.leads_generated), String(c.conversions), String(roi(c, avgUnitPrice)), c.status]));
     const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
     const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(csv); a.download = "campaigns.csv"; a.click();
   };
@@ -1462,7 +1471,7 @@ function MarketingContent() {
                             )}
                           </div>
                           <div className="text-right flex-shrink-0 space-y-1">
-                            <p className="text-lg font-bold text-aviva-gold">{roi(c)}%</p>
+                            <p className="text-lg font-bold text-aviva-gold">{roi(c, avgUnitPrice)}%</p>
                             <p className="text-[10px] text-aviva-secondary">ROI</p>
                             <button onClick={() => openEditCampaign(c)}
                               className="text-[10px] bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 px-2 py-0.5 rounded-lg">
@@ -1825,9 +1834,21 @@ function HRContent() {
 
   const fetchLeave = () => {
     setLeaveLoading(true);
-    supabase.from("leave_requests").select("id,employee_name,leave_type,date_from,date_to,reason,status,created_at")
-      .order("created_at", { ascending: false }).limit(30)
-      .then(({ data }) => { setLeaveList((data as typeof leaveList) ?? []); setLeaveLoading(false); });
+    // C4: sync สถานะล่าสุดจาก approval_logs ให้ตรงกับหน้า /approvals
+    Promise.all([
+      supabase.from("leave_requests").select("id,employee_name,leave_type,date_from,date_to,reason,status,created_at").order("created_at", { ascending: false }).limit(30),
+      supabase.from("approval_logs").select("source_record_id,action_taken").eq("workflow_type", "Leave_Request"),
+    ]).then(([lvRes, apRes]) => {
+      const apMap: Record<string, string> = {};
+      ((apRes.data ?? []) as { source_record_id: string | null; action_taken: string }[]).forEach(a => { if (a.source_record_id) apMap[a.source_record_id] = a.action_taken; });
+      const merged = ((lvRes.data ?? []) as typeof leaveList).map(l => {
+        const act = apMap[l.id];
+        const synced = act === "Approved" ? "approved" : act === "Rejected" ? "rejected" : act === "Pending" ? "pending" : l.status;
+        return { ...l, status: synced };
+      });
+      setLeaveList(merged);
+      setLeaveLoading(false);
+    });
   };
 
   useEffect(() => { fetchEmployees(); }, []);
@@ -1850,6 +1871,17 @@ function HRContent() {
       return;
     }
     const days = Math.max(1, Math.ceil((new Date(leaveForm.date_to).getTime() - new Date(leaveForm.date_from).getTime()) / 86400000) + 1);
+    // C3: เตือน/บล็อกเมื่อยื่นลาเกินสิทธิต่อปี (สะสมจากใบลาที่อนุมัติแล้ว + ที่ขอใหม่)
+    const quota = LEAVE_QUOTA[leaveForm.leave_type];
+    if (quota != null) {
+      const usedSoFar = leaveList
+        .filter(l => l.employee_name === leaveForm.employee_name && l.leave_type === leaveForm.leave_type && l.status === "approved")
+        .reduce((s, l) => s + leaveDays(l.date_from, l.date_to), 0);
+      if (usedSoFar + days > quota) {
+        setHrToast({ msg: `เกินสิทธิ ${leaveForm.leave_type} (${quota} วัน/ปี) — ใช้ไปแล้ว ${usedSoFar} + ขอใหม่ ${days} = ${usedSoFar + days} วัน`, type: "error" });
+        return;
+      }
+    }
     const docNum = await generateDocNumber("LEAVE");
     const { data: leaveData } = await supabase.from("leave_requests").insert({
       doc_number: docNum,
@@ -2553,8 +2585,9 @@ function AfterSalesContent() {
     await createNotification({
       type: "claim",
       title: `แจ้งซ่อมใหม่ — ${docNum}`,
-      message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description}`,
+      message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description} · ผู้รับผิดชอบ: ${form.assigned_to}`,
       from_dept: "ฝ่ายหลังการขาย",
+      to_dept: "ฝ่ายก่อสร้าง",
     });
     setSaving(false);
     setShowModal(false);
@@ -2564,6 +2597,11 @@ function AfterSalesContent() {
 
   const handleUpdateStatus = async (id: string, newStatus: Claim["status"]) => {
     const claim = claims.find(c => c.id === id);
+    // C5: บังคับให้คะแนนความพึงพอใจก่อนปิดงาน (กันค่า null ทำให้ค่าเฉลี่ยไม่ครบ)
+    if (newStatus === "resolved" && !resolveScore) {
+      if (typeof window !== "undefined") window.alert("กรุณาให้คะแนนความพึงพอใจลูกค้า (1-5 ดาว) ก่อนปิดงาน");
+      return;
+    }
     const updateData: Record<string, unknown> = { status: newStatus };
     if (newStatus === "resolved" && resolveScore) updateData.satisfaction_score = resolveScore;
     await supabase.from("warranty_claims").update(updateData).eq("id", id);
@@ -2972,9 +3010,11 @@ function ApprovalsContent() {
     const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log?.source_record_id) {
-      if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
+      if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-      else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved", approved_by: user?.full_name ?? user?.email }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "approved" }).eq("id", log.source_record_id);
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
@@ -3002,6 +3042,10 @@ function ApprovalsContent() {
       if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "rejected", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "rejected" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Booking_Deposit") await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Contract_Approval") await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
@@ -3243,6 +3287,24 @@ function MaterialsContent() {
     fetchMaterialsData();
   };
 
+  // A4: รับของจาก PO ที่อนุมัติ → อัปเดตสต็อกวัสดุ + บันทึก goods_receipts + PO=received
+  const handleReceivePO = async (po: PurchaseOrder) => {
+    if (!Array.isArray(po.items) || po.items.length === 0) return;
+    for (const item of po.items) {
+      const mat = materials.find(m => m.name === item.name);
+      if (mat) await supabase.from("materials").update({ current_stock: (mat.current_stock ?? 0) + Number(item.qty) }).eq("id", mat.id);
+    }
+    await supabase.from("goods_receipts").insert({
+      grn_number: `GRN-${Date.now().toString().slice(-8)}`, po_id: po.id,
+      received_by: user?.full_name ?? user?.email ?? null,
+      received_date: new Date().toISOString().split("T")[0],
+      items: po.items, status: "received", project_id: PROJECT_ID,
+    });
+    await supabase.from("purchase_orders").update({ status: "received" }).eq("id", po.id);
+    await createNotification({ type: "success", title: "รับของเข้าสต็อกแล้ว", message: `${po.po_number ?? ""} — ${po.supplier_name} (อัปเดตสต็อก ${po.items.length} รายการ)`, from_dept: "ฝ่ายก่อสร้าง" });
+    fetchMaterialsData();
+  };
+
   const lowStockCount = materials.filter(m => (m.current_stock ?? 0) < (m.min_stock ?? 0)).length;
 
   return (
@@ -3351,6 +3413,12 @@ function MaterialsContent() {
                     <CheckCircle size={12} /> อนุมัติ PO
                   </button>
                 )}
+                {po.status === "approved" && (
+                  <button onClick={() => handleReceivePO(po)}
+                    className="w-full py-1.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                    📦 รับของเข้าสต็อก
+                  </button>
+                )}
               </GlassCard>
             );
           })}
@@ -3374,9 +3442,10 @@ function MaterialsContent() {
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
                 <div className="space-y-2">
+                  <datalist id="po-mat-names">{materials.map(m => <option key={m.id} value={m.name} />)}</datalist>
                   {poItemRows.map((row, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-1.5 items-center">
-                      <input value={row.name} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                      <input value={row.name} list="po-mat-names" onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
                         placeholder="ชื่อวัสดุ" className="col-span-4 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
                       <input type="number" value={row.qty} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
                         placeholder="จำนวน" className="col-span-2 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
@@ -3423,6 +3492,7 @@ function MaterialsContent() {
 interface PayrollEmployee extends Employee {
   commission_amount?: number;
   sso?: number;
+  tax?: number;
   net?: number;
 }
 
@@ -3463,7 +3533,7 @@ function PayrollContent() {
     ];
     for (const [lo, hi, rate] of brackets) {
       if (annual < lo) break;
-      tax += (Math.min(annual, hi) - lo + 1) * rate;
+      tax += (Math.min(annual, hi) - lo) * rate;
     }
     return Math.round(tax / 12);
   };
@@ -3474,7 +3544,7 @@ function PayrollContent() {
     const sso = calcSSO(emp.base_salary);
     const gross = emp.base_salary + commission + special;
     const tax = calcIncomeTax(gross * 12);
-    return { ...emp, commission_amount: commission, sso, net: gross - sso - tax };
+    return { ...emp, commission_amount: commission, sso, tax, net: gross - sso - tax };
   };
 
   const totalNetPayroll = employees.reduce((sum, emp) => sum + (calcPayroll(emp).net ?? 0), 0);
@@ -3521,6 +3591,7 @@ function PayrollContent() {
       <p class="section-title">รายหัก</p>
       <table>
         <tr><td class="deduct">ประกันสังคม (5%, สูงสุด ฿750)</td><td class="deduct">-฿${(pr.sso ?? 0).toLocaleString("th-TH")}</td></tr>
+        <tr><td class="deduct">ภาษีเงินได้หัก ณ ที่จ่าย</td><td class="deduct">-฿${(pr.tax ?? 0).toLocaleString("th-TH")}</td></tr>
         <tr class="total-row"><td>เงินได้สุทธิ</td><td>฿${(pr.net ?? 0).toLocaleString("th-TH")}</td></tr>
       </table>
       <div class="sign">
@@ -3572,6 +3643,10 @@ function PayrollContent() {
                 <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
                   <p className="text-aviva-secondary">ประกันสังคม</p>
                   <p className="text-red-400 font-medium">-฿{(pr.sso ?? 0).toLocaleString("th-TH")}</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
+                  <p className="text-aviva-secondary">ภาษีหัก ณ ที่จ่าย</p>
+                  <p className="text-red-400 font-medium">-฿{(pr.tax ?? 0).toLocaleString("th-TH")}</p>
                 </div>
                 <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
                   <p className="text-aviva-secondary">รายได้พิเศษ</p>

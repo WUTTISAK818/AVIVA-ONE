@@ -385,8 +385,10 @@ export default function DashboardPage() {
     selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct,
   } = useMemo(() => {
     const totalUnits = project?.total_units ?? 0;
-    const soldUnits = project?.sold_units ?? 0;
-    const available = project?.available_units ?? 0;
+    // A2: นับ "ขายแล้ว/คงเหลือ" สดจากข้อมูลลูกค้าจริง (ไม่พึ่งค่าคีย์มือในตาราง projects)
+    const soldUnits = salesFunnel?.transferCount ?? (project?.sold_units ?? 0);
+    const bookedActive = Math.max((salesFunnel?.bookedCount ?? 0) - soldUnits, 0);
+    const available = totalUnits > 0 ? Math.max(totalUnits - soldUnits - bookedActive, 0) : (project?.available_units ?? 0);
     const constructionProgress = project?.construction_progress ?? 0;
     const selloutForecast = project?.sellout_forecast ?? "-";
     const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
@@ -402,7 +404,7 @@ export default function DashboardPage() {
       ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
       : null;
     return { totalUnits, soldUnits, available, constructionProgress, selloutForecast, selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct };
-  }, [project, loading, stats]);
+  }, [project, loading, stats, salesFunnel]);
 
   const canSeeAll = ctxUser?.isManager || ctxUser?.isAdmin || false;
   const canSeeFinance = canSeeAll || ctxUser?.department === "ฝ่ายการเงิน" || ctxUser?.department === "ฝ่ายบัญชี";
@@ -531,7 +533,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.65</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.66</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

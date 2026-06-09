@@ -128,10 +128,10 @@ function DashboardTab() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("jv_entries").select("id", { count: "exact" }).eq("status", "draft"),
-      supabase.from("ar_invoices").select("total_amount,paid_amount").in("status", ["pending", "partial", "overdue"]),
-      supabase.from("ap_bills").select("total_amount,paid_amount,due_date").in("status", ["pending", "partial"]),
-      supabase.from("vat_register").select("vat_amount").eq("etax_status", "pending"),
+      supabase.from("jv_entries").select("id", { count: "exact" }).eq("project_id", PROJECT_ID).eq("status", "draft"),
+      supabase.from("ar_invoices").select("total_amount,paid_amount").eq("project_id", PROJECT_ID).in("status", ["pending", "partial", "overdue"]),
+      supabase.from("ap_bills").select("total_amount,paid_amount,due_date").eq("project_id", PROJECT_ID).in("status", ["pending", "partial"]),
+      supabase.from("vat_register").select("vat_amount").eq("project_id", PROJECT_ID).eq("etax_status", "pending"),
       supabase.from("wht_certificates").select("wht_amount").eq("project_id", PROJECT_ID).is("period", null),
     ]).then(([jv, ar, ap, vat, wht]) => {
       const arOut = (ar.data ?? []).reduce((s, r) => s + (Number(r.total_amount) - Number(r.paid_amount)), 0);
@@ -193,7 +193,7 @@ function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
 
   const fetch = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("jv_entries").select("*").order("created_at", { ascending: false }).limit(50);
+    const { data } = await supabase.from("jv_entries").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(50);
     setEntries((data ?? []) as JvEntry[]);
     setLoading(false);
   }, []);
@@ -725,10 +725,10 @@ function TaxTab() {
   const period = (() => { const d=new Date(); return `${String(d.getFullYear()).slice(-2)}${String(d.getMonth()+1).padStart(2,"0")}`; })();
 
   useEffect(() => {
-    supabase.from("vat_register").select("*").order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
+    supabase.from("vat_register").select("*").eq("project_id", PROJECT_ID).order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
     supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
-    supabase.from("sbt_register").select("*").order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
-    supabase.from("land_building_tax").select("*").order("tax_year",{ascending:false}).limit(10).then(({data})=>setLbtEntries((data??[]) as LbtEntry[]));
+    supabase.from("sbt_register").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
+    supabase.from("land_building_tax").select("*").eq("project_id", PROJECT_ID).order("tax_year",{ascending:false}).limit(10).then(({data})=>setLbtEntries((data??[]) as LbtEntry[]));
   }, []);
 
   const saveVat = async () => {
@@ -738,7 +738,7 @@ function TaxTab() {
     await supabase.from("vat_register").insert({ vat_type:vatForm.vat_type, invoice_no:vatForm.invoice_no, invoice_date:vatForm.invoice_date, party_name:vatForm.party_name, party_tax_id:vatForm.party_tax_id||null, base_amount:base, vat_amount:vat, total_amount:base+vat, period, etax_status:"pending", project_id:PROJECT_ID });
     setSaving(false); setShowVatModal(false);
     setVatForm({vat_type:"output",invoice_no:"",invoice_date:today(),party_name:"",party_tax_id:"",base_amount:""});
-    supabase.from("vat_register").select("*").order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
+    supabase.from("vat_register").select("*").eq("project_id", PROJECT_ID).order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
   };
 
   const subTabs: { key: TaxSubTab; label: string }[] = [{key:"vat",label:"VAT"},{key:"wht",label:"WHT ภ.ง.ด."},{key:"sbt",label:"ภ.ธ.40"},{key:"lbt",label:"ภาษีที่ดิน"}];
@@ -795,7 +795,7 @@ function LotCostTab() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("infrastructure_costs").select("*").order("created_at", { ascending: false }),
+      supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
       supabase.from("houses").select("id,house_number,plot_number,house_model,sale_price").eq("project_id", PROJECT_ID).order("plot_number").limit(31),
     ]).then(([ic, h]) => { setInfra((ic.data??[]) as InfraCost[]); setHouses((h.data??[]) as House[]); setLoading(false); });
   }, []);
@@ -809,7 +809,7 @@ function LotCostTab() {
     await supabase.from("infrastructure_costs").insert({ cost_type: form.cost_type, total_cost: Number(form.total_cost), phase: form.phase, description: form.description || null, allocation_method: "by_size", is_allocated: false, project_id: PROJECT_ID });
     setSaving(false); setShowModal(false);
     setForm({ cost_type: "", total_cost: "", phase: "Phase 1", description: "" });
-    supabase.from("infrastructure_costs").select("*").order("created_at",{ascending:false}).then(({data})=>setInfra((data??[]) as InfraCost[]));
+    supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).then(({data})=>setInfra((data??[]) as InfraCost[]));
   };
 
   return (
@@ -1068,7 +1068,7 @@ export default function AccountingPage() {
             <h1 className="text-base font-bold text-aviva-text">ฝ่ายบัญชี</h1>
             <p className="text-[11px] text-aviva-secondary">ระบบบัญชีเต็มรูปแบบ — AVIVA Private</p>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.65</span>
+          <span className="text-[10px] px-2 py-1 rounded-full bg-aviva-gold/15 text-aviva-gold font-mono">v4.66</span>
         </div>
         <div className="px-4 pb-3 max-w-2xl mx-auto space-y-1.5">
           <div className="grid grid-cols-5 gap-1">

@@ -645,7 +645,7 @@ export default function CRMPage() {
         siteVisit: ml.filter((l) => l.status === "Site Visit").length,
         booking: ml.filter((l) => l.status === "Booking").length,
         closed: ml.filter((l) => l.status === "Closed Deal").length,
-        revenue: ml.filter((l) => l.status === "Closed Deal").reduce((s, l) => s + Number(l.budget), 0),
+        revenue: ml.filter((l) => l.status === "Closed Deal").reduce((s, l) => s + Number(l.contract_price ?? l.budget), 0),
         closeRate: ml.length > 0 ? Math.round((ml.filter((l) => l.status === "Closed Deal").length / ml.length) * 100) : 0,
       }))
       .sort((a, b) => b.closed - a.closed);
@@ -839,6 +839,7 @@ export default function CRMPage() {
         }
         if (form.status === "Closed Deal") {
           setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
+          await recordTransfer(plotNum, form.customer_name, Number(form.contract_price) || Number(form.budget) || null);
         }
       }
       // Notify + celebrate when loan is newly approved
@@ -867,6 +868,25 @@ export default function CRMPage() {
     setEditingLead(null);
     setForm(emptyForm);
     fetchLeads(dateStart, dateEnd, leadsLimit);
+  };
+
+  // A1+A3: เมื่อโอนกรรมสิทธิ์ — ตั้งบ้าน=sold + สร้างรับรู้รายได้ (revenue_recognition) + รายการรับเงิน (finance) อัตโนมัติ
+  const recordTransfer = async (plot: number | null, customerName: string, amount: number | null) => {
+    const today = new Date().toISOString().split("T")[0];
+    const cv = amount && amount > 0 ? amount : 0;
+    if (plot) await supabase.from("houses").update({ status: "sold" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+    await supabase.from("revenue_recognition").insert({
+      house_number: plot ? String(plot) : null,
+      contract_date: today, transfer_date: today,
+      contract_value: cv, recognized_amount: cv, deferred_amount: 0, received_total: cv,
+      status: "recognized", project_id: PROJECT_ID,
+      notes: `โอนกรรมสิทธิ์ — ${customerName}`,
+    });
+    if (cv > 0) await supabase.from("finance_transactions").insert({
+      transaction_type: "income", amount: cv, category: "รายได้จากการขาย",
+      description: `รายได้โอนกรรมสิทธิ์ — ${customerName}${plot ? ` แปลง ${plot}` : ""}`,
+      approved_by: user?.full_name ?? user?.email ?? null, project_id: PROJECT_ID,
+    });
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
@@ -920,6 +940,7 @@ export default function CRMPage() {
       }
       if (newStatus === "Closed Deal") {
         setCelebration({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
+        await recordTransfer(lead.plot_number ?? null, lead.customer_name, lead.contract_price ?? lead.budget ?? null);
         const docNum = await generateDocNumber("CONTRACT");
         await supabase.from("approval_logs").insert({
           workflow_type: "Contract_Approval",
@@ -1035,7 +1056,7 @@ export default function CRMPage() {
         {closedCount > 0 && (
           <AIInsightPanel type="success" priority="low"
             title={`ปิดการขายแล้ว ${closedCount} ราย`}
-            message={`ยอดขายรวมประมาณ ฿${(leads.filter(l => l.status === "Closed Deal").reduce((s, l) => s + Number(l.budget), 0) / 1_000_000).toFixed(1)}M ในช่วงที่เลือก`} />
+            message={`ยอดขายรวมประมาณ ฿${(leads.filter(l => l.status === "Closed Deal").reduce((s, l) => s + Number(l.contract_price ?? l.budget), 0) / 1_000_000).toFixed(1)}M ในช่วงที่เลือก`} />
         )}
 
         {/* Main tabs */}

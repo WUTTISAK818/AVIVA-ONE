@@ -8,6 +8,12 @@ import { createClient } from "@supabase/supabase-js";
  */
 let cache: Record<string, { v: string | undefined; at: number }> = {};
 
+/** ล้าง cache หลังอัปเดตค่า (เช่นตั้ง key ใหม่จากหน้า settings) ให้ค่าใหม่มีผลทันที */
+export function clearSettingCache(key?: string) {
+  if (key) delete cache[key];
+  else cache = {};
+}
+
 export async function getSetting(key: string, envValue?: string): Promise<string | undefined> {
   if (envValue) return envValue;
   const hit = cache[key];

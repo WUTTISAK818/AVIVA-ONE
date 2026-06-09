@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateDeptBriefing } from "@/lib/dept-data";
-import { ANTHROPIC_ENABLED } from "@/lib/claude";
+import { anthropicEnabled } from "@/lib/claude";
 import { EXPERT_DEPTS } from "@/lib/ai-experts";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown department" }, { status: 400 });
   }
 
-  if (!ANTHROPIC_ENABLED) {
+  if (!(await anthropicEnabled())) {
     return NextResponse.json(
-      { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า ANTHROPIC_API_KEY ในระบบก่อนค่ะ" },
+      { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า API key ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI ก่อนค่ะ" },
       { status: 503 },
     );
   }

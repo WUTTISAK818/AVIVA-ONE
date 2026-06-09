@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateDeptBriefing, generateExecutiveBriefing, loadExpert } from "@/lib/dept-data";
-import { ANTHROPIC_ENABLED } from "@/lib/claude";
+import { anthropicEnabled } from "@/lib/claude";
 import { EXPERT_DEPTS } from "@/lib/ai-experts";
 
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ function authorized(req: NextRequest): boolean {
 // (Phase 2 seed — ผู้เชี่ยวชาญแต่ละฝ่ายสร้างบรีฟ แล้ว "ที่ปรึกษา AI" สังเคราะห์รวมให้ผู้บริหาร)
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!ANTHROPIC_ENABLED) return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 503 });
+  if (!(await anthropicEnabled())) return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 503 });
 
   const db = admin();
   const period = req.nextUrl.searchParams.get("period") === "monthly" ? "monthly" : "weekly";

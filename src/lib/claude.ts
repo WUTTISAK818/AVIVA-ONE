@@ -3,10 +3,19 @@
 //
 // ใช้สำหรับงานสรุป/วางแผนเชิงรุกที่ต้องการผลลัพธ์เป็น JSON มีโครงสร้าง
 
+import { getSetting } from "@/lib/app-config";
+
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
-export const ANTHROPIC_ENABLED = !!process.env.ANTHROPIC_API_KEY;
+// key มาจาก env (แนะนำ) หรือ app_settings.ANTHROPIC_API_KEY (ตั้งผ่านหน้า settings ในแอปได้)
+async function getApiKey(): Promise<string | undefined> {
+  return getSetting("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+}
+
+export async function anthropicEnabled(): Promise<boolean> {
+  return !!(await getApiKey());
+}
 
 interface ClaudeJSONParams {
   system: string;
@@ -27,7 +36,7 @@ export async function callClaudeJSON<T = unknown>({
   maxTokens = 2000,
   timeoutMs = 30_000,
 }: ClaudeJSONParams): Promise<{ data: T | null; model: string; error?: string }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = await getApiKey();
   if (!apiKey) return { data: null, model, error: "NO_API_KEY" };
 
   const controller = new AbortController();

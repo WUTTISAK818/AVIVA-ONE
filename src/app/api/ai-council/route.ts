@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateExecutiveBriefing } from "@/lib/dept-data";
-import { ANTHROPIC_ENABLED } from "@/lib/claude";
+import { anthropicEnabled } from "@/lib/claude";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +30,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "เฉพาะผู้บริหารเท่านั้น" }, { status: 403 });
   }
 
-  if (!ANTHROPIC_ENABLED) {
+  if (!(await anthropicEnabled())) {
     return NextResponse.json(
-      { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า ANTHROPIC_API_KEY ก่อนค่ะ" },
+      { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า API key ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI ก่อนค่ะ" },
       { status: 503 },
     );
   }

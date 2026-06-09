@@ -1,0 +1,132 @@
+// src/lib/workflow-events.ts
+// Phase 1 — Workflow Hand-off & Status Tracking
+// Audit trail (workflow_events) + per-department work queue (work_queue).
+// Every helper is best-effort and never throws, so it can be layered onto
+// existing approval/construction flows without changing their behaviour.
+import { supabase } from "./supabase";
+
+const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+export interface WorkflowEventInput {
+  workflowType: string;
+  sourceRecordId: string;
+  docIndex?: string | null;
+  eventType: string; // submitted | acknowledged | approved | rejected | paid | reminded | escalated
+  stageFrom?: string | null;
+  stageTo?: string | null;
+  actorName?: string | null;
+  actorRole?: string | null;
+  routedToRole?: string | null;
+  routedToName?: string | null;
+  conditionNote?: string | null;
+  amount?: number | null;
+}
+
+/** Append one immutable event to the audit trail. Best-effort. */
+export async function logWorkflowEvent(e: WorkflowEventInput): Promise<void> {
+  try {
+    await supabase.from("workflow_events").insert({
+      project_id: PROJECT_ID,
+      workflow_type: e.workflowType,
+      source_record_id: e.sourceRecordId,
+      doc_index: e.docIndex ?? null,
+      event_type: e.eventType,
+      stage_from: e.stageFrom ?? null,
+      stage_to: e.stageTo ?? null,
+      actor_name: e.actorName ?? null,
+      actor_role: e.actorRole ?? null,
+      routed_to_role: e.routedToRole ?? null,
+      routed_to_name: e.routedToName ?? null,
+      condition_note: e.conditionNote ?? null,
+      amount: e.amount ?? null,
+    });
+  } catch {
+    /* best-effort audit — never block the main flow */
+  }
+}
+
+export interface WorkQueueInput {
+  workflowType: string;
+  sourceRecordId: string;
+  docIndex?: string | null;
+  title: string;
+  amount?: number | null;
+  assignedRole: string; // "manager" | "finance" | ...
+  slaDueAt?: string | null;
+}
+
+/** Push a task into a department's inbox. Best-effort. */
+export async function createWorkQueue(q: WorkQueueInput): Promise<void> {
+  try {
+    await supabase.from("work_queue").insert({
+      project_id: PROJECT_ID,
+      workflow_type: q.workflowType,
+      source_record_id: q.sourceRecordId,
+      doc_index: q.docIndex ?? null,
+      title: q.title,
+      amount: q.amount ?? null,
+      assigned_role: q.assignedRole,
+      status: "open",
+      sla_due_at: q.slaDueAt ?? null,
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Mark open queue item(s) for a record as done. Best-effort. */
+export async function closeWorkQueue(
+  sourceRecordId: string,
+  assignedRole?: string,
+  doneBy?: string | null
+): Promise<void> {
+  try {
+    let q = supabase
+      .from("work_queue")
+      .update({ status: "done", done_at: new Date().toISOString(), done_by: doneBy ?? null })
+      .eq("source_record_id", sourceRecordId)
+      .eq("status", "open");
+    if (assignedRole) q = q.eq("assigned_role", assignedRole);
+    await q;
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Map a logged-in user to the work_queue.assigned_role values they should see. */
+export function rolesForUser(user: {
+  role?: string;
+  department?: string;
+  isManager?: boolean;
+  isAdmin?: boolean;
+}): string[] {
+  const roles = new Set<string>();
+  const dept = user.department ?? "";
+  if (user.isManager || user.isAdmin) roles.add("manager");
+  if (dept.includes("การเงิน") || dept.includes("finance") || dept.includes("บัญชี")) roles.add("finance");
+  // Admins / executives oversee every queue.
+  if (user.isAdmin) {
+    roles.add("manager");
+    roles.add("finance");
+  }
+  return Array.from(roles);
+}
+
+/** Fire a best-effort web-push to a department (no-op if no subscribers). */
+export async function notifyPush(
+  department: string,
+  title: string,
+  body: string,
+  url?: string,
+  tag?: string
+): Promise<void> {
+  try {
+    await fetch("/api/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ department, title, body, url, tag }),
+    });
+  } catch {
+    /* best-effort */
+  }
+}

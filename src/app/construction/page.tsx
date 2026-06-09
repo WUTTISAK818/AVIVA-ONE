@@ -15,6 +15,8 @@ import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
+import WorkflowTimeline from "@/components/WorkflowTimeline";
+import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush } from "@/lib/workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -542,15 +544,55 @@ export default function ConstructionPage() {
     const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
     if (newStatus === "in_review") {
       const docNum = await generateDocNumber("INST");
+      const docIndex = `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${byName}`;
+      const slaDue = calcSlaDueAt("Installment_Review");
       await supabase.from("approval_logs").insert({
         workflow_type: "Installment_Review",
-        source_doc_index: `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${byName}`,
+        source_doc_index: docIndex,
         source_record_id: inst.id,
         current_approver_role: user?.isAdmin ? "admin" : "manager",
         action_taken: "Pending",
         amount: inst.amount ?? null,
-        sla_due_at: calcSlaDueAt("Installment_Review"),
+        sla_due_at: slaDue,
         assigned_to_name: "ผู้จัดการ",
+      });
+      // Phase 1 — audit trail + route work to the manager's inbox
+      await logWorkflowEvent({
+        workflowType: "Installment_Review",
+        sourceRecordId: inst.id,
+        docIndex,
+        eventType: "submitted",
+        stageFrom: "pending",
+        stageTo: "in_review",
+        actorName: byName,
+        actorRole: user?.isManager ? "manager" : "engineer",
+        routedToRole: "manager",
+        routedToName: "ผู้จัดการ",
+        amount: inst.amount ?? null,
+      });
+      await createWorkQueue({
+        workflowType: "Installment_Review",
+        sourceRecordId: inst.id,
+        docIndex,
+        title: `อนุมัติงวดงาน: ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`,
+        amount: inst.amount ?? null,
+        assignedRole: "manager",
+        slaDueAt: slaDue,
+      });
+      notifyPush("ฝ่ายบริหาร", "งวดงานรออนุมัติ", `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`, "/approvals", `inst-${inst.id}`);
+    }
+    if (newStatus === "paid") {
+      // Phase 1 — close the finance queue + record the payment event
+      await closeWorkQueue(inst.id, "finance", byName);
+      await logWorkflowEvent({
+        workflowType: "Installment_Review",
+        sourceRecordId: inst.id,
+        eventType: "paid",
+        stageFrom: "approved",
+        stageTo: "paid",
+        actorName: byName,
+        actorRole: "finance",
+        amount: inst.amount ?? null,
       });
     }
     await createNotification({
@@ -570,6 +612,18 @@ export default function ConstructionPage() {
     }).eq("id", inst.id);
     await supabase.from("approval_logs").update({ action_taken: "Rejected" })
       .eq("source_record_id", inst.id).eq("action_taken", "Pending");
+    await closeWorkQueue(inst.id, "manager", user?.full_name ?? user?.email ?? null);
+    await logWorkflowEvent({
+      workflowType: "Installment_Review",
+      sourceRecordId: inst.id,
+      eventType: "rejected",
+      actorName: user?.full_name ?? user?.email ?? "ผู้บริหาร",
+      actorRole: "manager",
+      routedToRole: "engineer",
+      conditionNote: reason || "ตีกลับให้แก้ไข",
+      amount: inst.amount ?? null,
+    });
+    notifyPush("ฝ่ายก่อสร้าง", "งวดงานถูกตีกลับ", `${inst.name} — ${reason || "กรุณาตรวจสอบ"}`, "/construction", `inst-${inst.id}`);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected", rejection_reason: reason } : i));
     await createNotification({ type: "info", title: `${inst.name} — ถูกปฏิเสธ`, message: reason || "กรุณาตรวจสอบและแก้ไขก่อนส่งใหม่", from_dept: "ผู้บริหาร" });
     setToast({ msg: "ปฏิเสธงวดงานแล้ว — แจ้งวิศวกรแล้ว", type: "success" });
@@ -595,6 +649,14 @@ export default function ConstructionPage() {
       contractor_acknowledged_at: now,
     }).eq("id", ackInst.id);
     setInstallments(prev => prev.map(i => i.id === ackInst.id ? { ...i, contractor_ack_name: ackName.trim(), contractor_acknowledged_at: now } : i));
+    await logWorkflowEvent({
+      workflowType: "Installment_Review",
+      sourceRecordId: ackInst.id,
+      eventType: "acknowledged",
+      actorName: ackName.trim(),
+      actorRole: "contractor",
+      conditionNote: "ผู้รับเหมารับทราบงวดงาน",
+    });
     const inst = ackInst;
     setShowAckModal(false);
     setAckInst(null);
@@ -1316,6 +1378,12 @@ export default function ConstructionPage() {
                                     {inst.status === "pending" ? "ส่งตรวจสอบ" : inst.status === "rejected" ? "ส่งตรวจสอบอีกครั้ง" : "รออนุมัติจากระบบ"}
                                   </button>
                                 ) : null}
+                              </div>
+                            )}
+                            {inst.status !== "pending" && (
+                              <div className="border-t border-aviva-gold/10 pt-2 mt-1">
+                                <p className="text-[10px] font-semibold text-aviva-secondary/70 mb-1">ประวัติการส่งต่องาน</p>
+                                <WorkflowTimeline sourceRecordId={inst.id} />
                               </div>
                             )}
                           </div>

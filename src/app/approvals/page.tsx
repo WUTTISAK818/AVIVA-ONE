@@ -10,7 +10,9 @@ import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
-import { SLA_DAYS } from "@/lib/approval-matrix";
+import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
+import WorkflowTimeline from "@/components/WorkflowTimeline";
+import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush } from "@/lib/workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -194,24 +196,67 @@ function ApprovalsContent() {
 
     // Cascade logic based on workflow type
     if (log.workflow_type === "Installment_Review") {
+      const byName = user.full_name ?? user.email;
       if (approved) {
         // Approve installment in contractor_installments
         if (log.source_record_id) {
           await supabase.from("contractor_installments")
-            .update({ status: "approved", approved_by: user.full_name ?? user.email, approved_at: new Date().toISOString() })
+            .update({ status: "approved", approved_by: byName, approved_at: new Date().toISOString() })
             .eq("id", log.source_record_id);
+          // Phase 1 — close manager queue, route the task on to Finance (fixes "อนุมัติแล้วค้าง")
+          await closeWorkQueue(log.source_record_id, "manager", byName);
+          await logWorkflowEvent({
+            workflowType: "Installment_Review",
+            sourceRecordId: log.source_record_id,
+            docIndex: log.source_doc_index,
+            eventType: "approved",
+            stageFrom: "in_review",
+            stageTo: "approved",
+            actorName: byName,
+            actorRole: user.isAdmin ? "admin" : "manager",
+            routedToRole: "finance",
+            routedToName: "ฝ่ายการเงิน",
+            amount: log.amount ?? null,
+          });
+          await createWorkQueue({
+            workflowType: "Installment_Review",
+            sourceRecordId: log.source_record_id,
+            docIndex: log.source_doc_index,
+            title: `จ่ายเงินงวดงาน: ${log.source_doc_index ?? ""}`,
+            amount: log.amount ?? null,
+            assignedRole: "finance",
+            slaDueAt: calcSlaDueAt("Installment_Review"),
+          });
+          notifyPush("ฝ่ายการเงิน", "งวดงานรอจ่ายเงิน", log.source_doc_index ?? "", "/construction", `inst-${log.source_record_id}`);
         }
         await createNotification({
           type: "success",
           title: "อนุมัติงวดงานแล้ว",
           message: log.source_doc_index ?? "",
           from_dept: "ฝ่ายอนุมัติ",
+          to_dept: "ฝ่ายการเงิน",
         });
       } else {
         if (log.source_record_id) {
           await supabase.from("contractor_installments")
             .update({ status: "rejected" })
             .eq("id", log.source_record_id);
+          // Phase 1 — close manager queue, route back to engineering
+          await closeWorkQueue(log.source_record_id, "manager", byName);
+          await logWorkflowEvent({
+            workflowType: "Installment_Review",
+            sourceRecordId: log.source_record_id,
+            docIndex: log.source_doc_index,
+            eventType: "rejected",
+            stageFrom: "in_review",
+            stageTo: "rejected",
+            actorName: byName,
+            actorRole: user.isAdmin ? "admin" : "manager",
+            routedToRole: "engineer",
+            conditionNote: note ?? undefined,
+            amount: log.amount ?? null,
+          });
+          notifyPush("ฝ่ายก่อสร้าง", "งวดงานถูกตีกลับ", log.source_doc_index ?? "", "/construction", `inst-${log.source_record_id}`);
         }
         await createNotification({
           type: "info",
@@ -493,6 +538,12 @@ function ApprovalsContent() {
                 </div>
               )}
             </div>
+            {detail.source_record_id && (
+              <div className="border-t border-aviva-gold/10 pt-3">
+                <p className="text-xs font-semibold text-aviva-secondary/70 mb-2">ประวัติการส่งต่องาน</p>
+                <WorkflowTimeline sourceRecordId={detail.source_record_id} />
+              </div>
+            )}
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ (ถ้ามี)</label>
               <textarea

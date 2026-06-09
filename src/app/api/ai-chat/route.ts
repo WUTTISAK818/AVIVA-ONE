@@ -14,15 +14,18 @@ import {
 } from "@/lib/api-error-handler";
 import type { AIResponseBody } from "@/types/api";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Placeholder fallbacks keep `createClient` from throwing during `next build`
+// page-data collection when secrets are absent (local/CI). Real env vars are
+// present at runtime in production, so live requests use the real credentials.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Admin client for trusted server-side operations (bypasses RLS for role lookup)
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY
 );
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

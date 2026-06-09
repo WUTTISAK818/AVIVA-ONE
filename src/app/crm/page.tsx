@@ -10,7 +10,7 @@ import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
-import { createNotification } from "@/lib/notify";
+import { createNotification, notifyMilestone } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
@@ -280,7 +280,7 @@ export default function CRMPage() {
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
-  const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null; salesPerson?: string | null } | null>(null);
+  const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "loan" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null; salesPerson?: string | null } | null>(null);
   const [mapPlotModal, setMapPlotModal] = useState<number | null>(null);
 
   useEffect(() => {
@@ -717,7 +717,7 @@ export default function CRMPage() {
 
   const STATUS_TH: Record<string, string> = {
     "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", "Site Visit": "เข้าชมสถานที่",
-    Booking: "จอง", "Loan Process": "กำลังกู้", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว",
+    Booking: "จอง", "Loan Process": "ทำสัญญา", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว",
   };
 
   const handleSave = async () => {
@@ -734,6 +734,7 @@ export default function CRMPage() {
     if (editingLead && form.status !== editingLead.status) {
       if (form.status === "Booking") { statusDates.booking_date = editingLead.booking_date ?? today; statusDates.booking_by = byName; }
       if (form.status === "Closed Deal") { statusDates.transfer_date = editingLead.transfer_date ?? today; statusDates.transfer_by = byName; }
+      if (form.status === "Loan Process") { statusDates.contract_signed_date = editingLead.contract_signed_date ?? today; }
     }
     const addrParts = [form.addr_detail, form.addr_tambon && `ต.${form.addr_tambon}`, form.addr_amphoe && `อ.${form.addr_amphoe}`, form.addr_province && `จ.${form.addr_province}`, form.addr_zipcode].filter(Boolean).join(" ").trim();
     const addrFields = {
@@ -773,8 +774,13 @@ export default function CRMPage() {
         }
         const amt = form.contract_price ? Number(form.contract_price) : (Number(form.budget) || null);
         const cInfo = [plotNum ? `แปลง ${plotNum}` : "", amt ? `฿${Number(amt).toLocaleString("th-TH")}` : "", `โดย ${byName}`].filter(Boolean).join(" · ");
-        if (form.status === "Booking" || form.status === "Closed Deal") {
-          await createNotification({ type: "success", title: form.status === "Closed Deal" ? `🏆 โอนกรรมสิทธิ์สำเร็จ! — ${form.customer_name}` : `🎉 จองสำเร็จ! — ${form.customer_name}`, message: cInfo, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
+        const mTitle: Record<string, string> = {
+          Booking: `🎉 จองสำเร็จ! — ${form.customer_name}`,
+          "Loan Process": `📝 ทำสัญญาสำเร็จ! — ${form.customer_name}`,
+          "Closed Deal": `🏆 โอนกรรมสิทธิ์สำเร็จ! — ${form.customer_name}`,
+        };
+        if (mTitle[form.status]) {
+          await notifyMilestone({ title: mTitle[form.status], message: cInfo, record_id: editingLead.id });
         } else {
           await createNotification({ type: "info", title: `${form.customer_name} — ${STATUS_TH[form.status] ?? form.status}`, message: `เปลี่ยนสถานะจาก "${STATUS_TH[editingLead.status] ?? editingLead.status}" โดย ${byName}`, from_dept: "ฝ่ายขาย", to_dept: "ฝ่ายขาย", record_id: editingLead.id });
         }
@@ -785,15 +791,14 @@ export default function CRMPage() {
           setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
         }
       }
-      // Notify when loan is newly approved
+      // Notify + celebrate when loan is newly approved
       if (form.loan_approved_date && !prevLoanDate) {
-        await createNotification({
-          type: "success",
-          title: `🏦 กู้ผ่านแล้ว! — ${form.customer_name}`,
-          message: `ธนาคารอนุมัติสินเชื่อ${plotNum ? ` แปลงที่ ${plotNum}` : ""} วันที่ ${new Date(form.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}`,
-          from_dept: "ฝ่ายขาย",
-          to_dept: "ผู้บริหาร",
+        await notifyMilestone({
+          title: `🏦 อนุมัติสินเชื่อแล้ว! — ${form.customer_name}`,
+          message: [plotNum ? `แปลง ${plotNum}` : "", `อนุมัติ ${new Date(form.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`, `โดย ${byName}`].filter(Boolean).join(" · "),
+          record_id: editingLead.id,
         });
+        setCelebration({ event: "loan", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
@@ -828,6 +833,7 @@ export default function CRMPage() {
     const upd: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() };
     if (newStatus === "Booking" && lead.status !== "Booking") { upd.booking_date = lead.booking_date ?? today; upd.booking_by = byName; }
     if (newStatus === "Closed Deal" && lead.status !== "Closed Deal") { upd.transfer_date = lead.transfer_date ?? today; upd.transfer_by = byName; }
+    if (newStatus === "Loan Process" && lead.status !== "Loan Process") { upd.contract_signed_date = lead.contract_signed_date ?? today; }
     await supabase.from("leads").update(upd).eq("id", lead.id);
     if (lead.plot_number) {
       if (newStatus === "Booking") {
@@ -839,15 +845,13 @@ export default function CRMPage() {
     if (newStatus !== lead.status) {
       const amount = lead.contract_price ?? lead.budget ?? null;
       const info = [lead.plot_number ? `แปลง ${lead.plot_number}` : "", amount ? `฿${Number(amount).toLocaleString("th-TH")}` : "", `โดย ${byName}`].filter(Boolean).join(" · ");
-      if (newStatus === "Booking" || newStatus === "Closed Deal") {
-        await createNotification({
-          type: "success",
-          title: newStatus === "Closed Deal" ? `🏆 โอนกรรมสิทธิ์สำเร็จ! — ${lead.customer_name}` : `🎉 จองสำเร็จ! — ${lead.customer_name}`,
-          message: info,
-          from_dept: "ฝ่ายขาย",
-          to_dept: "ผู้บริหาร",
-          record_id: lead.id,
-        });
+      const mTitle: Record<string, string> = {
+        Booking: `🎉 จองสำเร็จ! — ${lead.customer_name}`,
+        "Loan Process": `📝 ทำสัญญาสำเร็จ! — ${lead.customer_name}`,
+        "Closed Deal": `🏆 โอนกรรมสิทธิ์สำเร็จ! — ${lead.customer_name}`,
+      };
+      if (mTitle[newStatus]) {
+        await notifyMilestone({ title: mTitle[newStatus], message: info, record_id: lead.id });
       } else {
         await createNotification({
           type: "info",
@@ -960,7 +964,7 @@ export default function CRMPage() {
           {[
             { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text", filter: "all" },
             { label: "Booking", value: stageCounts["Booking"] ?? 0, color: "text-aviva-gold", filter: "Booking" },
-            { label: "Loan", value: stageCounts["Loan Process"] ?? 0, color: "text-blue-400", filter: "Loan Process" },
+            { label: "ทำสัญญา", value: stageCounts["Loan Process"] ?? 0, color: "text-blue-400", filter: "Loan Process" },
             { label: "โอนแล้ว", value: closedCount, color: "text-green-400", filter: "Closed Deal" },
           ].map(({ label, value, color, filter }) => (
             <button key={label} onClick={() => setKpiModal(filter)} className="active:scale-[0.96] transition-transform w-full">
@@ -1428,6 +1432,12 @@ export default function CRMPage() {
                   {selectedLead.booking_by && <p className="text-[9px] text-aviva-secondary mt-0.5">โดย {selectedLead.booking_by}</p>}
                 </div>
               )}
+              {selectedLead.contract_signed_date && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                  <p className="text-blue-400 text-[10px] font-semibold">📝 ทำสัญญาเมื่อ</p>
+                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.contract_signed_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                </div>
+              )}
               {selectedLead.transfer_date && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
                   <p className="text-green-400 text-[10px] font-semibold">🏆 โอนเมื่อ</p>
@@ -1823,7 +1833,7 @@ export default function CRMPage() {
         const isBooked = !!bookedLead && !isSold;
         const interestedLeads = leads.filter(l => l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).sort((a, b) => b.ai_score - a.ai_score);
         const displayLead = isSold ? leads.find(l => l.plot_number === n && l.status === "Closed Deal") : bookedLead;
-        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", "Loan Process": "กำลังกู้", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว" };
+        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", "Loan Process": "ทำสัญญา", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว" };
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setMapPlotModal(null)}>
             <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>

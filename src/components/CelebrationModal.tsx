@@ -24,7 +24,7 @@ const PARTICLES: { left: number; top: number; delay: number; dur: number; e: str
   { left: 40, top: 92, delay: 0.1,  dur: 1.5, e: "🌟" },
 ];
 
-type EventType = "booking" | "contract" | "transfer";
+type EventType = "booking" | "contract" | "loan" | "transfer";
 
 interface Props {
   event: EventType | null;
@@ -38,6 +38,7 @@ interface Props {
 const CONFIG: Record<EventType, { icon: string; title: string; subtitle: string; accent: string }> = {
   booking:  { icon: "🎉", title: "จองสำเร็จ!",           subtitle: "ลูกค้ายืนยันการจองเรียบร้อยแล้ว", accent: "text-yellow-400" },
   contract: { icon: "📝", title: "ทำสัญญาสำเร็จ!",       subtitle: "ลงนามสัญญาจะซื้อจะขายเรียบร้อยแล้ว", accent: "text-blue-400" },
+  loan:     { icon: "🏦", title: "อนุมัติสินเชื่อแล้ว!",  subtitle: "ธนาคารอนุมัติเงินกู้เรียบร้อย พร้อมเดินหน้าโอน", accent: "text-green-400" },
   transfer: { icon: "🏆", title: "ปิดการขายสำเร็จ! 🎊",  subtitle: "โอนกรรมสิทธิ์เรียบร้อย ยินดีด้วย!", accent: "text-green-400" },
 };
 

@@ -21,3 +21,34 @@ export async function createNotification(opts: {
     record_id: opts.record_id ?? null,
   });
 }
+
+/**
+ * แจ้งเตือนหมุดหมายการขาย (จอง/ทำสัญญา/อนุมัติกู้/โอนแล้ว):
+ * บันทึกลง DB (เด้ง real-time ในแอป) + ส่ง push เข้ามือถือฝ่ายขาย + ผู้บริหาร
+ * push เป็น best-effort — ถ้าไม่มี VAPID/ยังไม่ได้ subscribe จะข้ามเงียบๆ
+ */
+export async function notifyMilestone(opts: {
+  title: string;
+  message: string;
+  record_id?: string;
+  url?: string;
+}) {
+  await createNotification({
+    type: "success",
+    title: opts.title,
+    message: opts.message,
+    from_dept: "ฝ่ายขาย",
+    to_dept: "ผู้บริหาร",
+    record_id: opts.record_id,
+  });
+  const url = opts.url ?? (opts.record_id ? `/crm?lead=${opts.record_id}` : "/crm");
+  await Promise.allSettled(
+    ["ฝ่ายขาย", "ฝ่ายบริหาร"].map((department) =>
+      fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: opts.title, body: opts.message, url, tag: "aviva-milestone", department }),
+      }).catch(() => {})
+    )
+  );
+}

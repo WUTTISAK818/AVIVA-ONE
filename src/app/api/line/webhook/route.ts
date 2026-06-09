@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     if (text.toLowerCase() === "/id" || text === "ไอดี") {
       const id = src.groupId ?? src.roomId ?? src.userId ?? "(ไม่พบ)";
       const label = src.groupId ? "Group ID" : src.roomId ? "Room ID" : "User ID";
-      if (ev.replyToken) await replyLine(ev.replyToken, `${label}:\n${id}\n\nนำค่านี้ไปตั้งใน Vercel:\nLINE_SALE_GROUP_ID = ${id}`);
+      if (ev.replyToken) await replyLine(ev.replyToken, `${label}:\n${id}\n\nคัดลอก ID นี้ส่งให้ผู้ดูแลระบบ AVIVA ONE เพื่อเปิดแจ้งเตือนเข้ากลุ่มนี้`);
       continue;
     }
 

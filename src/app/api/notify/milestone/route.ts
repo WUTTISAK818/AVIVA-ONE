@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
+import { getSetting } from "@/lib/app-config";
 
 export const runtime = "nodejs";
 
@@ -33,8 +34,8 @@ export async function POST(req: NextRequest) {
   );
   const pushSent = pushResults.reduce((n, r) => n + (r.status === "fulfilled" ? r.value.sent : 0), 0);
 
-  // LINE -> กลุ่มทีมขาย/ผู้บริหาร
-  const lineTarget = process.env.LINE_SALE_GROUP_ID;
+  // LINE -> กลุ่มทีมขาย/ผู้บริหาร (env หรือ app_settings.line_sale_group_id)
+  const lineTarget = await getSetting("line_sale_group_id", process.env.LINE_SALE_GROUP_ID);
   let line = false;
   if (lineTarget) {
     const text = `${p.title}\n${p.body}\nเปิดดู: ${absUrl}`;

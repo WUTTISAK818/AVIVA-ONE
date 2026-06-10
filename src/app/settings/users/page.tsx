@@ -54,6 +54,10 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetOk, setResetOk] = useState(false);
   const [form, setForm] = useState({ ...BLANK_FORM });
 
   // สิทธิ์เพิ่ม/ลบ/แก้ไขบัญชี: CEO, COO (ผู้อำนวยการ/director), Admin
@@ -108,7 +112,34 @@ export default function UsersPage() {
     setForm({ email: u.email, password: "", full_name: u.full_name, role: u.role, department: u.department || "ฝ่ายบริหาร" });
     setError("");
     setConfirmDelete(false);
+    setNewPassword("");
+    setShowNewPassword(false);
+    setResetOk(false);
     setShowModal(true);
+  }
+
+  async function resetPassword() {
+    if (!editUser) return;
+    if (newPassword.length < 6) { setError("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
+    setResetting(true);
+    setError("");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setResetting(false); return; }
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-user-management`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: editUser.id, password: newPassword }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setNewPassword("");
+      setResetOk(true);
+      setTimeout(() => setResetOk(false), 4000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "รีเซ็ตรหัสผ่านไม่สำเร็จ");
+    }
+    setResetting(false);
   }
 
   async function deleteUser() {
@@ -325,6 +356,38 @@ export default function UsersPage() {
                 <Save size={14} />
                 {saving ? "กำลังบันทึก..." : editUser ? "บันทึกการแก้ไข" : "สร้างผู้ใช้"}
               </button>
+
+              {editUser && (
+                <div className="pt-3 mt-1 border-t border-aviva-gold/10 space-y-2">
+                  <label className="text-xs text-aviva-secondary block">รีเซ็ตรหัสผ่าน (ตั้งรหัสใหม่ให้ผู้ใช้นี้)</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        type={showNewPassword ? "text" : "password"}
+                        placeholder="รหัสใหม่ อย่างน้อย 6 ตัวอักษร"
+                        className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text focus:outline-none focus:border-aviva-gold/50 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(p => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-aviva-secondary"
+                      >
+                        {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    <button
+                      onClick={resetPassword}
+                      disabled={resetting || newPassword.length < 6}
+                      className="flex-shrink-0 text-xs font-semibold text-aviva-gold border border-aviva-gold/30 rounded-lg px-3 disabled:opacity-40 hover:bg-aviva-gold/5 transition-all"
+                    >
+                      {resetting ? "กำลังตั้ง..." : "ตั้งรหัสใหม่"}
+                    </button>
+                  </div>
+                  {resetOk && <p className="text-xs text-green-400">✓ ตั้งรหัสผ่านใหม่เรียบร้อย — แจ้งรหัสใหม่ให้ผู้ใช้ได้เลย</p>}
+                </div>
+              )}
 
               {editUser && editUser.id !== currentUser?.id && (
                 <div className="pt-3 mt-1 border-t border-red-500/10">

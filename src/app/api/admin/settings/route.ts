@@ -14,7 +14,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MANAGER_ROLES = ["admin", "ceo", "manager", "director", "project_manager"];
 // secret ที่อนุญาตให้ตั้งผ่านหน้า settings (เพิ่ม key อื่นในอนาคตได้ที่นี่)
-const ALLOWED_KEYS = ["ANTHROPIC_API_KEY"];
+const ALLOWED_KEYS = ["ANTHROPIC_API_KEY", "line_channel_access_token"];
 
 // ตั้งค่า secret ระดับระบบจากในแอป (มือถือได้ ไม่ต้องแตะ Vercel) — เฉพาะผู้บริหาร
 export async function POST(req: NextRequest) {
@@ -77,6 +77,26 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "test") {
+    // ทดสอบ LINE: เรียก bot info ด้วย token ที่บันทึกไว้
+    if (key === "line_channel_access_token") {
+      const { data } = await db.from("app_settings").select("value").eq("key", key).maybeSingle();
+      const tok = (data?.value as string | undefined)?.trim();
+      if (!tok) return NextResponse.json({ ok: false, error: "ยังไม่ได้ตั้ง token" });
+      try {
+        const res = await fetch("https://api.line.me/v2/bot/info", {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        if (res.ok) {
+          const info = await res.json().catch(() => ({}));
+          return NextResponse.json({ ok: true, info: info?.displayName ?? null });
+        }
+        return NextResponse.json({ ok: false, error: `LINE ปฏิเสธ token (HTTP ${res.status}) — ตรวจสอบ Channel Access Token` });
+      } catch {
+        return NextResponse.json({ ok: false, error: "เชื่อมต่อ LINE ไม่สำเร็จ" });
+      }
+    }
+
+    // ทดสอบ Anthropic (ค่าเริ่มต้น)
     if (!(await anthropicEnabled(token))) {
       return NextResponse.json({ ok: false, error: "ยังไม่ได้ตั้ง key" });
     }

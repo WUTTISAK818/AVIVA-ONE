@@ -136,6 +136,22 @@ export async function gatherDeptContext(admin: SupabaseClient, dept: string): Pr
     ].join("\n");
   }
 
+  if (dept === "document") {
+    const { data: docs } = await admin.from("documents")
+      .select("name,category,status,doc_number,uploaded_by,created_at")
+      .eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(80);
+    const D = docs ?? [];
+    const pending = D.filter(d => d.status === "pending");
+    const byCat = D.reduce((a: Record<string, number>, d) => { a[d.category] = (a[d.category] ?? 0) + 1; return a; }, {});
+    const stale = pending.filter(d => daysAgo(d.created_at) >= 7);
+    return [
+      `เอกสารทั้งหมด ${D.length} | อนุมัติแล้ว ${D.filter(d => d.status === "approved").length} | รออนุมัติ ${pending.length}`,
+      `แบ่งตามหมวด: ${Object.entries(byCat).map(([k, v]) => `${k}:${v}`).join(", ") || "-"}`,
+      `เอกสารรออนุมัติ: ${pending.slice(0, 12).map(d => `${d.name}(${d.doc_number ?? "ไม่มีเลขที่"}, ${daysAgo(d.created_at)}วัน)`).join(" | ") || "ไม่มี"}`,
+      `ค้างเกิน 7 วัน ${stale.length} ฉบับ${stale.length ? ": " + stale.slice(0, 8).map(d => d.name).join(", ") : ""}`,
+    ].join("\n");
+  }
+
   return "ไม่มีข้อมูลเฉพาะฝ่ายนี้";
 }
 

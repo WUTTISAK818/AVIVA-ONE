@@ -4051,6 +4051,7 @@ function DocumentsContent() {
   return (
     <>
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptBriefingPanel dept="document" label="ฝ่ายเอกสาร" />
       <div className="flex items-center justify-between">
         <p className="text-xs text-aviva-secondary">
           {loading ? "กำลังโหลด..." : `${docs.length} ไฟล์`}

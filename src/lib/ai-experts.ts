@@ -59,7 +59,7 @@ export const DEFAULT_EXPERTS: Record<string, DeptExpert> = {
     persona:
       "ผู้เชี่ยวชาญการตลาดอสังหาฯ วิเคราะห์ ROI และต้นทุนต่อ lead ของแต่ละแคมเปญ แนะนำการจัดสรรงบและคอนเทนต์รายสัปดาห์",
     model: DEFAULT_MODEL,
-    is_active: false,
+    is_active: true,
   },
   hr: {
     dept: "hr",
@@ -68,7 +68,7 @@ export const DEFAULT_EXPERTS: Record<string, DeptExpert> = {
     persona:
       "ผู้เชี่ยวชาญทรัพยากรบุคคล ดูแลกำลังคนแต่ละแผนก โควต้าวันลา และรายการที่ต้องดำเนินการด้านบุคคล",
     model: DEFAULT_MODEL,
-    is_active: false,
+    is_active: true,
   },
   "after-sales": {
     dept: "after-sales",
@@ -77,7 +77,16 @@ export const DEFAULT_EXPERTS: Record<string, DeptExpert> = {
     persona:
       "ผู้เชี่ยวชาญบริการหลังการขาย ติดตามงานแจ้งซ่อมที่ค้างและเกิน SLA จัดลำดับการมอบหมายช่าง และดูแลความพึงพอใจลูกค้า",
     model: DEFAULT_MODEL,
-    is_active: false,
+    is_active: true,
+  },
+  document: {
+    dept: "document",
+    expert_name: "ผู้จัดการเอกสาร",
+    focus: "เอกสารรออนุมัติ · จัดหมวด/เลขที่เอกสาร · เอกสารค้างนาน",
+    persona:
+      "ผู้เชี่ยวชาญงานเอกสาร/ธุรการ ติดตามเอกสารที่รออนุมัติ ดูแลหมวดหมู่และเลขที่เอกสารให้ครบถ้วน และเตือนเอกสารที่ค้างนานเกินกำหนด",
+    model: DEFAULT_MODEL,
+    is_active: true,
   },
 };
 
@@ -91,6 +100,7 @@ export const DEPT_LABEL: Record<string, string> = {
   marketing: "ฝ่ายการตลาด",
   hr: "ฝ่ายบุคคล",
   "after-sales": "ฝ่ายหลังการขาย",
+  document: "ฝ่ายเอกสาร",
 };
 
 // โครงสร้างผลลัพธ์บรีฟที่ AI ต้องคืน (ใช้ทั้ง prompt และ render)

@@ -99,7 +99,32 @@ const WORKFLOW_LABELS: Record<string, string> = {
   Document_Approval:  "เอกสาร",
   Finance_Approval:   "การเงิน",
   Leave_Request:      "การลา",
+  Booking_Deposit:    "เงินจอง",
+  Contract_Approval:  "สัญญา",
 };
+
+// รองรับสถานะที่บันทึกมาแบบตัวพิมพ์เล็ก/ใหญ่ปนกัน (ข้อมูลเก่าบางชุดเป็น pending/approved)
+const normAction = (a: string | null): "Pending" | "Approved" | "Rejected" => {
+  const s = (a ?? "").toLowerCase();
+  return s === "approved" ? "Approved" : s === "rejected" ? "Rejected" : "Pending";
+};
+
+// ตารางต้นทางของแต่ละ workflow — ใช้ดึงรายละเอียดจริงมาแสดงก่อนอนุมัติ
+const SOURCE_TABLE: Record<string, string> = {
+  Material_Purchase:  "purchase_orders",
+  Finance_Approval:   "approvals",
+  Leave_Request:      "leave_requests",
+  Document_Approval:  "documents",
+  Installment_Review: "contractor_installments",
+  Booking_Deposit:    "leads",
+  Contract_Approval:  "leads",
+};
+
+const str = (v: unknown): string | undefined =>
+  (v === null || v === undefined || v === "") ? undefined : String(v);
+const baht = (v: unknown): string | undefined =>
+  (v === null || v === undefined) ? undefined : `฿${Number(v).toLocaleString("th-TH")}`;
+
 
 function slaDaysLeft(sla_due_at: string | null): number | null {
   if (!sla_due_at) return null;
@@ -125,6 +150,133 @@ function SlaChip({ sla_due_at, action }: { sla_due_at: string | null; action: st
   );
 }
 
+function DetailRow({ label, value }: { label: string; value: string | undefined }) {
+  if (!value) return null;
+  return (
+    <div className="flex justify-between gap-3 text-xs">
+      <span className="text-aviva-secondary flex-shrink-0">{label}</span>
+      <span className="text-aviva-text text-right break-words">{value}</span>
+    </div>
+  );
+}
+
+function ItemsList({ items }: { items: unknown }) {
+  let arr: Record<string, unknown>[] = [];
+  if (Array.isArray(items)) {
+    arr = items as Record<string, unknown>[];
+  } else if (typeof items === "string" && items.trim()) {
+    try {
+      const p: unknown = JSON.parse(items);
+      if (Array.isArray(p)) arr = p as Record<string, unknown>[];
+      else return <DetailRow label="รายการ" value={items} />;
+    } catch {
+      return <DetailRow label="รายการ" value={items} />;
+    }
+  }
+  if (arr.length === 0) return null;
+  return (
+    <div className="pt-1.5 border-t border-aviva-gold/10 mt-1.5">
+      <p className="text-[11px] text-aviva-secondary mb-1">รายการ ({arr.length})</p>
+      <div className="space-y-1">
+        {arr.map((it, i) => {
+          const name = str(it.name ?? it.item ?? it.description) ?? `รายการ ${i + 1}`;
+          const qty = it.qty ?? it.quantity;
+          const price = it.price ?? it.amount ?? it.total;
+          return (
+            <div key={i} className="flex justify-between gap-2 text-[11px] text-aviva-text">
+              <span className="truncate">{name}{qty !== undefined && qty !== null ? ` ×${String(qty)}` : ""}</span>
+              {baht(price) && <span className="text-aviva-gold flex-shrink-0">{baht(price)}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ดึงข้อมูลจริงจากตารางต้นทางตาม workflow_type + source_record_id มาแสดงก่อนอนุมัติ
+function SourceDetail({ log }: { log: ApprovalLog }) {
+  const [row, setRow] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const table = SOURCE_TABLE[log.workflow_type];
+    if (!table || !log.source_record_id) { setLoading(false); return; }
+    let active = true;
+    supabase.from(table).select("*").eq("id", log.source_record_id).maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        setRow((data as Record<string, unknown> | null) ?? null);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [log]);
+
+  if (loading) return <div className="h-16 rounded-xl bg-aviva-bg/50 animate-pulse" />;
+  if (!row) return (
+    <p className="text-[11px] text-aviva-secondary bg-aviva-bg/50 rounded-xl px-3 py-2.5">
+      ไม่พบข้อมูลต้นทาง (เป็นรายการเก่า/เดโม) — ใช้ข้อมูลสรุปด้านบนประกอบการพิจารณา
+    </p>
+  );
+
+  const wt = log.workflow_type;
+  const fileUrl = str(row.file_url);
+
+  return (
+    <div className="bg-aviva-bg rounded-xl p-4 space-y-1.5">
+      <p className="text-xs font-semibold text-aviva-secondary/70 mb-1">รายละเอียดคำขอ</p>
+      {wt === "Material_Purchase" && <>
+        <DetailRow label="เลขที่ PO" value={str(row.po_number)} />
+        <DetailRow label="ผู้ขาย" value={str(row.supplier_name)} />
+        <DetailRow label="ยอดรวม" value={baht(row.total_amount)} />
+        <DetailRow label="ผู้ขอ" value={str(row.requested_by)} />
+        <DetailRow label="หมายเหตุ" value={str(row.notes)} />
+        <ItemsList items={row.items} />
+      </>}
+      {wt === "Finance_Approval" && <>
+        <DetailRow label="โมดูล" value={str(row.module)} />
+        <DetailRow label="รายละเอียด" value={str(row.description)} />
+        <DetailRow label="ยอดเงิน" value={baht(row.amount)} />
+        <DetailRow label="ผู้ขอ" value={str(row.requested_by)} />
+        <DetailRow label="หมายเหตุ" value={str(row.note)} />
+      </>}
+      {wt === "Leave_Request" && <>
+        <DetailRow label="พนักงาน" value={str(row.employee_name)} />
+        <DetailRow label="ฝ่าย" value={str(row.employee_dept)} />
+        <DetailRow label="ประเภทลา" value={str(row.leave_type)} />
+        <DetailRow label="ช่วงวันที่" value={`${str(row.date_from) ?? "?"} – ${str(row.date_to) ?? "?"}`} />
+        <DetailRow label="จำนวนวัน" value={row.days_count != null ? `${String(row.days_count)} วัน` : undefined} />
+        <DetailRow label="เหตุผล" value={str(row.reason)} />
+      </>}
+      {wt === "Document_Approval" && <>
+        <DetailRow label="ชื่อเอกสาร" value={str(row.name)} />
+        <DetailRow label="หมวด" value={str(row.category)} />
+        <DetailRow label="เลขที่" value={str(row.doc_number)} />
+        <DetailRow label="คำอธิบาย" value={str(row.description)} />
+        <DetailRow label="ผู้อัปโหลด" value={str(row.uploaded_by)} />
+        {fileUrl && <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-xs text-aviva-gold underline pt-1"><FileText size={12} /> เปิดไฟล์เอกสาร</a>}
+      </>}
+      {wt === "Installment_Review" && <>
+        <DetailRow label="งวดที่" value={str(row.installment_no)} />
+        <DetailRow label="ชื่องวด" value={str(row.name)} />
+        <DetailRow label="ค่าแรง" value={baht(row.labor_cost)} />
+        <DetailRow label="ค่าวัสดุ" value={baht(row.material_cost)} />
+        <DetailRow label="ยอดรวม" value={baht(row.amount)} />
+        <DetailRow label="ผู้ตั้งงวด" value={str(row.created_by_name)} />
+        <DetailRow label="หมายเหตุช่าง" value={str(row.contractor_notes)} />
+      </>}
+      {(wt === "Booking_Deposit" || wt === "Contract_Approval") && <>
+        <DetailRow label="ลูกค้า" value={str(row.customer_name)} />
+        <DetailRow label="แปลง" value={str(row.plot_number)} />
+        <DetailRow label="เบอร์โทร" value={str(row.phone)} />
+        <DetailRow label="งบ/ราคา" value={baht(row.contract_price ?? row.budget)} />
+        <DetailRow label="สถานะ" value={str(row.status)} />
+      </>}
+    </div>
+  );
+}
+
 function ApprovalsContent() {
   const user = useCurrentUser();
   const [logs, setLogs] = useState<ApprovalLog[]>([]);
@@ -139,7 +291,7 @@ function ApprovalsContent() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const pendingCount = logs.filter(l => l.action_taken === "Pending").length;
+  const pendingCount = logs.filter(l => normAction(l.action_taken) === "Pending").length;
 
   const PAGE_SIZE = 50;
 
@@ -174,7 +326,7 @@ function ApprovalsContent() {
   const filtered = useMemo(() => {
     return logs.filter(l => {
       if (filterType !== "all" && l.workflow_type !== filterType) return false;
-      if (filterAction !== "all" && l.action_taken !== filterAction) return false;
+      if (filterAction !== "all" && normAction(l.action_taken) !== filterAction) return false;
       if (search && !(l.source_doc_index ?? "").toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
@@ -385,23 +537,23 @@ function ApprovalsContent() {
         </GlassCard>
         <GlassCard className="p-3 text-center">
           <CheckCircle size={16} className="text-green-400 mx-auto mb-1" />
-          <p className="text-xl font-bold text-green-400">{logs.filter(l => l.action_taken === "Approved").length}</p>
+          <p className="text-xl font-bold text-green-400">{logs.filter(l => normAction(l.action_taken) === "Approved").length}</p>
           <p className="text-[10px] text-aviva-secondary">อนุมัติแล้ว</p>
         </GlassCard>
         <GlassCard className="p-3 text-center">
           <XCircle size={16} className="text-red-400 mx-auto mb-1" />
-          <p className="text-xl font-bold text-red-400">{logs.filter(l => l.action_taken === "Rejected").length}</p>
+          <p className="text-xl font-bold text-red-400">{logs.filter(l => normAction(l.action_taken) === "Rejected").length}</p>
           <p className="text-[10px] text-aviva-secondary">ปฏิเสธ</p>
         </GlassCard>
       </div>
 
       {/* SLA warning */}
-      {logs.filter(l => l.action_taken === "Pending" && slaDaysLeft(l.sla_due_at) !== null && (slaDaysLeft(l.sla_due_at) as number) <= 1).length > 0 && (
+      {logs.filter(l => normAction(l.action_taken) === "Pending" && slaDaysLeft(l.sla_due_at) !== null && (slaDaysLeft(l.sla_due_at) as number) <= 1).length > 0 && (
         <GlassCard className="p-3 border border-red-500/30 bg-red-500/5">
           <div className="flex items-center gap-2">
             <AlertTriangle size={14} className="text-red-400 flex-shrink-0" />
             <span className="text-xs text-red-400">
-              <b>{logs.filter(l => l.action_taken === "Pending" && slaDaysLeft(l.sla_due_at) !== null && (slaDaysLeft(l.sla_due_at) as number) <= 1).length} รายการ</b> SLA ใกล้ครบ/เกินกำหนด — ดำเนินการด่วน
+              <b>{logs.filter(l => normAction(l.action_taken) === "Pending" && slaDaysLeft(l.sla_due_at) !== null && (slaDaysLeft(l.sla_due_at) as number) <= 1).length} รายการ</b> SLA ใกล้ครบ/เกินกำหนด — ดำเนินการด่วน
             </span>
           </div>
         </GlassCard>
@@ -454,10 +606,10 @@ function ApprovalsContent() {
         ) : (
           filtered.map(log => {
             const cfg = WORKFLOW_CONFIG[log.workflow_type] ?? { label: log.workflow_type, icon: FileText, color: "text-aviva-secondary", bg: "bg-aviva-bg/50", border: "border-aviva-gold/10" };
-            const actionCfg = ACTION_CONFIG[log.action_taken] ?? ACTION_CONFIG.Pending;
+            const actionCfg = ACTION_CONFIG[normAction(log.action_taken)] ?? ACTION_CONFIG.Pending;
             const Icon = cfg.icon;
             const isExpanded = expandedId === log.id;
-            const isPending = log.action_taken === "Pending";
+            const isPending = normAction(log.action_taken) === "Pending";
             const canAct = isPending && (user?.isManager || user?.isAdmin);
 
             return (
@@ -470,7 +622,7 @@ function ApprovalsContent() {
                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                       <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full", cfg.bg, cfg.color)}>{cfg.label}</span>
                       <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full", actionCfg.bg, actionCfg.color)}>{actionCfg.label}</span>
-                      <SlaChip sla_due_at={log.sla_due_at} action={log.action_taken} />
+                      <SlaChip sla_due_at={log.sla_due_at} action={normAction(log.action_taken)} />
                       {log.amount !== null && (
                         <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full border border-aviva-gold/20">
                           ฿{(log.amount).toLocaleString("th-TH")}
@@ -572,10 +724,11 @@ function ApprovalsContent() {
               {detail.sla_due_at && (
                 <div className="flex justify-between">
                   <span className="text-aviva-secondary">SLA</span>
-                  <SlaChip sla_due_at={detail.sla_due_at} action={detail.action_taken} />
+                  <SlaChip sla_due_at={detail.sla_due_at} action={normAction(detail.action_taken)} />
                 </div>
               )}
             </div>
+            <SourceDetail log={detail} />
             {detail.source_record_id && (
               <div className="border-t border-aviva-gold/10 pt-3">
                 <p className="text-xs font-semibold text-aviva-secondary/70 mb-2">ประวัติการส่งต่องาน</p>
@@ -731,54 +884,6 @@ function InstallmentViewer({ leadId }: { leadId: string }) {
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── ApprovalDetailModal ─────────────────────────────────────────────
-
-function ApprovalDetailModal({ log, onClose, onAction }: {
-  log: ApprovalLog;
-  onClose: () => void;
-  onAction: (log: ApprovalLog, approved: boolean) => void;
-}) {
-  const cfg = WORKFLOW_CONFIG[log.workflow_type] ?? { label: log.workflow_type, icon: FileText, color: "text-aviva-secondary", bg: "bg-aviva-bg/50", border: "border-aviva-gold/10" };
-  const Icon = cfg.icon;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-aviva-card rounded-3xl p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={clsx("w-8 h-8 rounded-xl flex items-center justify-center", cfg.bg)}>
-              <Icon size={16} className={cfg.color} />
-            </div>
-            <h2 className="text-sm font-bold text-aviva-text">{cfg.label}</h2>
-          </div>
-          <button onClick={onClose}><X size={18} className="text-aviva-secondary" /></button>
-        </div>
-        <div className="bg-aviva-bg rounded-xl p-4 space-y-2 text-sm">
-          {log.amount !== null && (
-            <div className="flex justify-between">
-              <span className="text-aviva-secondary">ยอดเงิน</span>
-              <span className="text-aviva-gold font-bold">฿{log.amount.toLocaleString("th-TH")}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-aviva-secondary">รายละเอียด</span>
-            <span className="text-aviva-text text-right text-xs max-w-[60%]">{log.source_doc_index ?? "-"}</span>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={() => { onAction(log, true); onClose(); }}
-            className="flex-1 py-3.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-2xl text-sm font-bold flex items-center justify-center gap-2">
-            <CheckCircle size={15} /> อนุมัติ
-          </button>
-          <button onClick={() => { onAction(log, false); onClose(); }}
-            className="flex-1 py-3.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-2xl text-sm font-bold flex items-center justify-center gap-2">
-            <XCircle size={15} /> ปฏิเสธ
-          </button>
-        </div>
       </div>
     </div>
   );

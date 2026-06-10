@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, Plus, X, Eye, EyeOff, User, Shield, Save, ArrowLeft } from "lucide-react";
+import { Users, Plus, X, Eye, EyeOff, User, Shield, Save, ArrowLeft, Trash2 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
@@ -53,7 +53,11 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [form, setForm] = useState({ ...BLANK_FORM });
+
+  // สิทธิ์เพิ่ม/ลบ/แก้ไขบัญชี: CEO, COO (ผู้อำนวยการ/director), Admin
+  const canManage = ["admin", "ceo", "director"].includes(currentUser?.role ?? "");
 
   useEffect(() => {
     if (!currentUser) return;
@@ -94,6 +98,7 @@ export default function UsersPage() {
     setEditUser(null);
     setForm({ ...BLANK_FORM });
     setError("");
+    setConfirmDelete(false);
     setShowPassword(false);
     setShowModal(true);
   }
@@ -102,7 +107,30 @@ export default function UsersPage() {
     setEditUser(u);
     setForm({ email: u.email, password: "", full_name: u.full_name, role: u.role, department: u.department || "ฝ่ายบริหาร" });
     setError("");
+    setConfirmDelete(false);
     setShowModal(true);
+  }
+
+  async function deleteUser() {
+    if (!editUser) return;
+    setSaving(true);
+    setError("");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setSaving(false); return; }
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-user-management`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: editUser.id }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setShowModal(false);
+      await fetchUsers();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "ลบบัญชีไม่สำเร็จ");
+    }
+    setSaving(false);
   }
 
   async function submit() {
@@ -156,7 +184,7 @@ export default function UsersPage() {
               <h1 className="text-lg font-bold text-aviva-text">จัดการผู้ใช้</h1>
             </div>
           </div>
-          {currentUser?.isAdmin && (
+          {canManage && (
             <button
               onClick={openAdd}
               className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-semibold px-3 py-2 rounded-lg"
@@ -203,7 +231,7 @@ export default function UsersPage() {
                   <p className="text-[10px] text-aviva-secondary">{u.department}</p>
                 </div>
               </div>
-              {currentUser?.isAdmin && (
+              {canManage && (
                 <button
                   onClick={() => openEdit(u)}
                   className="mt-3 w-full text-xs text-aviva-secondary border border-aviva-gold/10 rounded-lg py-1.5 hover:border-aviva-gold/30 transition-all"
@@ -297,6 +325,41 @@ export default function UsersPage() {
                 <Save size={14} />
                 {saving ? "กำลังบันทึก..." : editUser ? "บันทึกการแก้ไข" : "สร้างผู้ใช้"}
               </button>
+
+              {editUser && editUser.id !== currentUser?.id && (
+                <div className="pt-3 mt-1 border-t border-red-500/10">
+                  {!confirmDelete ? (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="w-full flex items-center justify-center gap-2 text-xs text-red-400 border border-red-500/20 rounded-xl py-2.5 hover:bg-red-500/5 transition-all"
+                    >
+                      <Trash2 size={13} /> ลบบัญชีผู้ใช้นี้
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-red-400 text-center leading-relaxed">
+                        ⚠️ ยืนยันลบ &ldquo;{editUser.full_name || editUser.email}&rdquo;?<br />ลบแล้วกู้คืนไม่ได้
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setConfirmDelete(false)}
+                          disabled={saving}
+                          className="flex-1 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-xl py-2.5"
+                        >
+                          ยกเลิก
+                        </button>
+                        <button
+                          onClick={deleteUser}
+                          disabled={saving}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-red-500 rounded-xl py-2.5 disabled:opacity-60"
+                        >
+                          <Trash2 size={13} /> {saving ? "กำลังลบ..." : "ยืนยันลบ"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

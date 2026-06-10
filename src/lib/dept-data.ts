@@ -187,7 +187,8 @@ export async function generateDeptBriefing(
 
   const user = `ข้อมูลล่าสุดของ${label} (ณ ${today}):\n${context}\n\nสร้างบรีฟประจำ${periodType === "monthly" ? "เดือน" : periodType === "weekly" ? "สัปดาห์" : "วันนี้"}ให้พนักงาน${label}`;
 
-  const { data, model, error } = await callClaudeJSON<DeptBriefing>({ system, user, model: expert.model, accessToken });
+  // ภาษาไทยกินโทเค็นมากกว่าอังกฤษ ~2 เท่า — บรีฟเต็มรูปแบบต้องเผื่อเพดานสูง ไม่งั้นโดนตัดกลาง JSON
+  const { data, model, error } = await callClaudeJSON<DeptBriefing>({ system, user, model: expert.model, maxTokens: 4000, timeoutMs: 90_000, accessToken });
 
   if (data) {
     await admin.from("ai_briefings").insert({
@@ -259,7 +260,7 @@ export async function generateExecutiveBriefing(
   const user = `บรีฟจากผู้เชี่ยวชาญแต่ละฝ่าย (${period === "monthly" ? "รายเดือน" : "รายสัปดาห์"}):\n${summaries.join("\n")}\n\nจัดประชุมสภา AI แล้วสรุปเสนอผู้บริหาร`;
 
   // สภา AI ใช้ Sonnet — ต้องสังเคราะห์เชิงกลยุทธ์ข้ามฝ่าย (เหตุผลดีกว่า Haiku, ถูกกว่า Opus)
-  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, model: "claude-sonnet-4-6", maxTokens: 2500, accessToken });
+  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, model: "claude-sonnet-4-6", maxTokens: 5000, timeoutMs: 100_000, accessToken });
   if (!data) return { briefing: null, model, error };
 
   const highlights = (data.cross_issues ?? []).map(c => ({

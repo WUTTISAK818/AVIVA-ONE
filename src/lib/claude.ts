@@ -73,7 +73,9 @@ export async function callClaudeJSON<T = unknown>({
         .map((b: { text: string }) => b.text)
         .join("") ?? "";
     const parsed = extractJson<T>(text);
-    return { data: parsed, model, error: parsed ? undefined : "PARSE_FAILED" };
+    // แยก "โดนตัดเพราะชน max_tokens" ออกจาก "JSON ผิดรูป" เพื่อ debug ง่ายขึ้น
+    const failReason = json?.stop_reason === "max_tokens" ? "TRUNCATED" : "PARSE_FAILED";
+    return { data: parsed, model, error: parsed ? undefined : failReason };
   } catch (err) {
     clearTimeout(timeout);
     return { data: null, model, error: err instanceof Error ? err.message : "UNKNOWN" };

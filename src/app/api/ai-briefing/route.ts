@@ -10,6 +10,10 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placehol
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 120; // บรีฟภาษาไทยยาว — กัน Vercel ตัด function กลางทาง
+
 // ผู้ช่วยเชิงรุกประจำฝ่าย — กดเพื่อให้ AI สร้างบรีฟ (รายการน่าสนใจ + แผนสัปดาห์/เดือน)
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("Authorization");
@@ -59,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   if (!briefing) {
     return NextResponse.json(
-      { error: error === "PARSE_FAILED" ? "AI ตอบกลับไม่สมบูรณ์ กรุณาลองใหม่ค่ะ" : (error ?? "สร้างบรีฟไม่สำเร็จ") },
+      { error: error === "PARSE_FAILED" || error === "TRUNCATED" ? "AI ตอบกลับไม่สมบูรณ์ กรุณาลองใหม่ค่ะ" : (error ?? "สร้างบรีฟไม่สำเร็จ") },
       { status: 502 },
     );
   }

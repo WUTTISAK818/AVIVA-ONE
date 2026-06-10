@@ -170,6 +170,7 @@ export async function generateDeptBriefing(
   dept: string,
   periodType: "adhoc" | "weekly" | "monthly" = "adhoc",
   generatedBy = "system",
+  accessToken?: string,
 ): Promise<{ briefing: DeptBriefing | null; model: string; error?: string }> {
   const expert = await loadExpert(admin, dept);
   const context = await gatherDeptContext(admin, dept);
@@ -186,7 +187,7 @@ export async function generateDeptBriefing(
 
   const user = `ข้อมูลล่าสุดของ${label} (ณ ${today}):\n${context}\n\nสร้างบรีฟประจำ${periodType === "monthly" ? "เดือน" : periodType === "weekly" ? "สัปดาห์" : "วันนี้"}ให้พนักงาน${label}`;
 
-  const { data, model, error } = await callClaudeJSON<DeptBriefing>({ system, user, model: expert.model });
+  const { data, model, error } = await callClaudeJSON<DeptBriefing>({ system, user, model: expert.model, accessToken });
 
   if (data) {
     await admin.from("ai_briefings").insert({
@@ -220,6 +221,7 @@ export async function generateExecutiveBriefing(
   admin: SupabaseClient,
   period: "weekly" | "monthly" = "weekly",
   generatedBy = "system",
+  accessToken?: string,
 ): Promise<{ briefing: CouncilBriefing | null; model: string; id?: string; error?: string }> {
   const experts = await Promise.all(EXPERT_DEPTS.map(d => loadExpert(admin, d)));
   const active = experts.filter(e => e.is_active);
@@ -236,7 +238,7 @@ export async function generateExecutiveBriefing(
 
   await Promise.all(
     active.filter(e => !latest[e.dept]).map(async e => {
-      const { briefing } = await generateDeptBriefing(admin, e.dept, period, generatedBy);
+      const { briefing } = await generateDeptBriefing(admin, e.dept, period, generatedBy, accessToken);
       if (briefing) latest[e.dept] = { dept: e.dept, title: briefing.title, summary: briefing.summary };
     }),
   );
@@ -257,7 +259,7 @@ export async function generateExecutiveBriefing(
   const user = `บรีฟจากผู้เชี่ยวชาญแต่ละฝ่าย (${period === "monthly" ? "รายเดือน" : "รายสัปดาห์"}):\n${summaries.join("\n")}\n\nจัดประชุมสภา AI แล้วสรุปเสนอผู้บริหาร`;
 
   // สภา AI ใช้ Sonnet — ต้องสังเคราะห์เชิงกลยุทธ์ข้ามฝ่าย (เหตุผลดีกว่า Haiku, ถูกกว่า Opus)
-  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, model: "claude-sonnet-4-6", maxTokens: 2500 });
+  const { data, model, error } = await callClaudeJSON<CouncilBriefing>({ system, user, model: "claude-sonnet-4-6", maxTokens: 2500, accessToken });
   if (!data) return { briefing: null, model, error };
 
   const highlights = (data.cross_issues ?? []).map(c => ({

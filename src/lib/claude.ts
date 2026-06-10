@@ -9,12 +9,13 @@ const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
 // key มาจาก env (แนะนำ) หรือ app_settings.ANTHROPIC_API_KEY (ตั้งผ่านหน้า settings ในแอปได้)
-async function getApiKey(): Promise<string | undefined> {
-  return getSetting("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+// accessToken: ใช้สิทธิ์ผู้ใช้ที่ล็อกอินอ่าน app_settings เมื่อไม่มี service role key ใน env
+async function getApiKey(accessToken?: string): Promise<string | undefined> {
+  return getSetting("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY, accessToken);
 }
 
-export async function anthropicEnabled(): Promise<boolean> {
-  return !!(await getApiKey());
+export async function anthropicEnabled(accessToken?: string): Promise<boolean> {
+  return !!(await getApiKey(accessToken));
 }
 
 interface ClaudeJSONParams {
@@ -23,6 +24,7 @@ interface ClaudeJSONParams {
   model?: string;
   maxTokens?: number;
   timeoutMs?: number;
+  accessToken?: string;
 }
 
 /**
@@ -35,8 +37,9 @@ export async function callClaudeJSON<T = unknown>({
   model = "claude-opus-4-8",
   maxTokens = 2000,
   timeoutMs = 30_000,
+  accessToken,
 }: ClaudeJSONParams): Promise<{ data: T | null; model: string; error?: string }> {
-  const apiKey = await getApiKey();
+  const apiKey = await getApiKey(accessToken);
   if (!apiKey) return { data: null, model, error: "NO_API_KEY" };
 
   const controller = new AbortController();

@@ -3,12 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { generateDeptBriefing, loadExpert } from "@/lib/dept-data";
 import { anthropicEnabled } from "@/lib/claude";
 import { EXPERT_DEPTS } from "@/lib/ai-experts";
+import { serverDb } from "@/lib/server-db";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const supabaseAdmin = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY);
 
 // ผู้ช่วยเชิงรุกประจำฝ่าย — กดเพื่อให้ AI สร้างบรีฟ (รายการน่าสนใจ + แผนสัปดาห์/เดือน)
 export async function POST(req: NextRequest) {
@@ -31,15 +31,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown department" }, { status: 400 });
   }
 
-  if (!(await anthropicEnabled())) {
+  if (!(await anthropicEnabled(token))) {
     return NextResponse.json(
       { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า API key ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI ก่อนค่ะ" },
       { status: 503 },
     );
   }
 
+  // ใช้ service role ถ้ามี ไม่งั้นใช้สิทธิ์ผู้ใช้ที่ล็อกอิน (RLS v473)
+  const db = serverDb(token);
+
   // ฝ่ายที่ปิดใช้งาน AI (ตั้งใน settings) — ไม่ให้สร้างบรีฟ กันค่าใช้จ่าย/บรีฟไม่จำเป็น
-  const expert = await loadExpert(supabaseAdmin, dept);
+  const expert = await loadExpert(db, dept);
   if (!expert.is_active) {
     return NextResponse.json(
       { error: "ฝ่ายนี้ยังไม่เปิดใช้งาน AI — เปิดได้ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI" },
@@ -47,11 +50,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: dbUser } = await supabaseAdmin
+  const { data: dbUser } = await db
     .from("users").select("full_name").eq("id", user.id).single();
 
   const { briefing, model, error } = await generateDeptBriefing(
-    supabaseAdmin, dept, periodType, dbUser?.full_name ?? user.email ?? "user",
+    db, dept, periodType, dbUser?.full_name ?? user.email ?? "user", token,
   );
 
   if (!briefing) {

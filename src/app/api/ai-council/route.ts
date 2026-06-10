@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateExecutiveBriefing } from "@/lib/dept-data";
 import { anthropicEnabled } from "@/lib/claude";
+import { serverDb } from "@/lib/server-db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,6 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholde
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const supabaseAdmin = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY);
 
 const MANAGER_ROLES = ["admin", "ceo", "manager", "director", "project_manager"];
 
@@ -24,13 +24,15 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: dbUser } = await supabaseAdmin
+  // ใช้ service role ถ้ามี ไม่งั้นใช้สิทธิ์ผู้ใช้ที่ล็อกอิน (RLS v473)
+  const db = serverDb(token);
+  const { data: dbUser } = await db
     .from("users").select("role, full_name").eq("id", user.id).single();
   if (!MANAGER_ROLES.includes(dbUser?.role ?? "")) {
     return NextResponse.json({ error: "เฉพาะผู้บริหารเท่านั้น" }, { status: 403 });
   }
 
-  if (!(await anthropicEnabled())) {
+  if (!(await anthropicEnabled(token))) {
     return NextResponse.json(
       { error: "AI ยังไม่พร้อมใช้งาน — กรุณาตั้งค่า API key ที่ ตั้งค่า → ผู้เชี่ยวชาญ AI ก่อนค่ะ" },
       { status: 503 },
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
   } catch { /* default weekly */ }
 
   const { briefing, model, id, error } = await generateExecutiveBriefing(
-    supabaseAdmin, period, dbUser?.full_name ?? user.email ?? "ผู้บริหาร",
+    db, period, dbUser?.full_name ?? user.email ?? "ผู้บริหาร", token,
   );
 
   if (!briefing) {
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await supabaseAdmin.from("notifications").insert({
+  await db.from("notifications").insert({
     project_id: PROJECT_ID, type: "info", to_dept: "ผู้บริหาร",
     title: "สภา AI สรุปเสนอผู้บริหารแล้ว", message: briefing.title ?? "", is_read: false,
   });

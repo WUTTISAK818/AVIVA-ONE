@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { compressContextForAPI, compressChatHistory } from "@/lib/prompt-compression";
-import {
-  selectModelByQuota,
-  AVIVA_RECOMMENDED_CONFIG,
-} from "@/lib/model-selector";
-import {
-  parseAPIError,
-  retryWithBackoff,
-  retryWithCompression,
-  getUserFriendlyErrorMessage,
-  RateLimitCircuitBreaker,
-} from "@/lib/api-error-handler";
+import { callClaudeText, anthropicEnabled } from "@/lib/claude";
+import { serverDb } from "@/lib/server-db";
+import { loadExpert } from "@/lib/dept-data";
 import type { AIResponseBody } from "@/types/api";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 // Placeholder fallbacks keep `createClient` from throwing during `next build`
 // page-data collection when secrets are absent (local/CI). Real env vars are
@@ -22,17 +18,21 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placehol
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Admin client for trusted server-side operations (bypasses RLS for role lookup)
-const supabaseAdmin = createClient(
-  SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? SUPABASE_ANON_KEY
-);
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
-// ✨ NEW: Circuit breaker for rate limit protection
-const rateLimitBreaker = new RateLimitCircuitBreaker(5, 60000);
+// แมปฝ่ายของผู้ใช้ (ไทย/อังกฤษ) → คีย์ผู้เชี่ยวชาญ เพื่อให้แชตคุยกับ persona เดียวกับบรีฟ
+function deptToExpertKey(dept: string): string | null {
+  const d = (dept || "").toLowerCase();
+  if (d.includes("ขาย") || d.includes("sale") || d.includes("crm")) return "sales";
+  if (d.includes("ก่อสร้าง") || d.includes("construction")) return "construction";
+  if (d.includes("การเงิน") || d.includes("finance")) return "finance";
+  if (d.includes("บัญชี") || d.includes("account")) return "accounting";
+  if (d.includes("ตลาด") || d.includes("marketing")) return "marketing";
+  if (d.includes("บุคคล") || d.includes("hr")) return "hr";
+  if (d.includes("หลังการขาย") || d.includes("after") || d.includes("ซ่อม") || d.includes("warranty")) return "after-sales";
+  if (d.includes("เอกสาร") || d.includes("document")) return "document";
+  return null;
+}
 
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT = 10;
@@ -55,16 +55,17 @@ function checkRateLimit(ip: string): boolean {
 // fail-open: ถ้า DB error ปล่อยผ่าน (ไม่บล็อกผู้ใช้จริงจากปัญหา infra)
 async function checkRateLimitDb(ip: string): Promise<boolean> {
   try {
+    const db = serverDb(); // service role ถ้ามี ไม่งั้น anon (fail-open อยู่แล้ว)
     const since = new Date(Date.now() - RATE_WINDOW).toISOString();
-    const { count } = await supabaseAdmin
+    const { count } = await db
       .from("ai_rate_limits")
       .select("id", { count: "exact", head: true })
       .eq("ip", ip)
       .gte("created_at", since);
     if ((count ?? 0) >= RATE_LIMIT) return false;
-    await supabaseAdmin.from("ai_rate_limits").insert({ ip });
+    await db.from("ai_rate_limits").insert({ ip });
     if (Math.random() < 0.02) {
-      await supabaseAdmin.from("ai_rate_limits").delete().lt("created_at", new Date(Date.now() - 10 * RATE_WINDOW).toISOString());
+      await db.from("ai_rate_limits").delete().lt("created_at", new Date(Date.now() - 10 * RATE_WINDOW).toISOString());
     }
     return true;
   } catch {
@@ -163,7 +164,9 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: dbUser } = await supabaseAdmin
+  // ใช้ service role ถ้ามี ไม่งั้นใช้สิทธิ์ผู้ใช้ที่ล็อกอิน (RLS v473) — ไม่ต้องพึ่ง ENV ใน Vercel
+  const db = serverDb(token);
+  const { data: dbUser } = await db
     .from("users")
     .select("role, department, full_name")
     .eq("id", user.id)
@@ -190,15 +193,15 @@ export async function POST(req: NextRequest) {
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const results = await Promise.all([
-    supabaseAdmin.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
-    supabaseAdmin.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabaseAdmin.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabaseAdmin.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabaseAdmin.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabaseAdmin.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
-    supabaseAdmin.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
-    supabaseAdmin.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabaseAdmin.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+    db.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
+    db.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
+    db.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
+    db.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
   ]).catch(() => null);
 
   if (!results) {
@@ -282,101 +285,57 @@ export async function POST(req: NextRequest) {
 
   const fallbackData = { soldUnits: project?.sold_units ?? 0, totalUnits: project?.total_units ?? 0, delayedHouses, bookingLeads, monthIncome, monthExpense, pendingApprovals: pendingApprovals.length, employees: employees.length, empByDept, pendingClaims: pendingClaims.length, pendingInstallments: (installments as unknown[]).length };
 
-  if (!OPENAI_API_KEY) {
+  // ยังไม่ได้ตั้ง Claude key → ใช้ข้อความสำรองจากข้อมูลจริง (ไม่ให้ผู้ใช้เจอ error)
+  if (!(await anthropicEnabled(token))) {
     return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
 
-  try {
-    // ✨ NEW: Compress system context before sending
-    const compressionResult = compressContextForAPI(
-      systemContext,
-      isManager,
-      900 // target size
-    );
+  // ผูกแชตกับผู้เชี่ยวชาญฝ่ายเดียวกับบรีฟ (เช่น ฝ่ายขาย = Vee-SM) ถ้าจับคู่ฝ่ายได้
+  let persona = "";
+  const expertKey = deptToExpertKey(userDept);
+  if (expertKey) {
+    try {
+      const expert = await loadExpert(db, expertKey);
+      persona = `คุณคือ "${expert.expert_name}" ผู้ช่วย AI ${expert.persona}\nความเชี่ยวชาญ: ${expert.focus}\n\n`;
+    } catch { /* ไม่มี persona ก็ใช้ AVIVA AI ปกติ */ }
+  }
 
-    console.log(
-      `📦 Context compressed: ${compressionResult.originalSize} → ${compressionResult.compressedSize} tokens (${compressionResult.reductionPercent}% reduction)`
-    );
+  // บีบ context ให้สั้นลงเพื่อประหยัดโทเค็น แล้วต่อท้ายด้วยแนวทางการตอบ
+  const compressionResult = compressContextForAPI(systemContext, isManager, 1200);
+  const compressedHistory = compressChatHistory(history, message);
+  const system =
+    persona + compressionResult.compressed +
+    "\n\nตอบเป็นภาษาไทยที่เป็นธรรมชาติ กระชับ ตรงคำถาม " +
+    "เมื่ออ้างตัวเลข/ชื่อ ให้ใช้จากข้อมูลจริงด้านบนเท่านั้น ห้ามแต่งข้อมูลที่ไม่มี " +
+    "ถ้าผู้ใช้คุยเรื่องทั่วไปนอกเหนืองาน ก็ตอบอย่างเป็นมิตรได้ตามปกติ";
 
-    // ✨ NEW: Compress chat history (use last 2 instead of 5)
-    const compressedHistory = compressChatHistory(history, message);
+  const { text, model, error } = await callClaudeText({
+    system,
+    messages: [...compressedHistory, { role: "user", content: message }],
+    model: "claude-haiku-4-5",
+    maxTokens: 900,
+    timeoutMs: 40_000,
+    accessToken: token,
+  });
 
-    // ✨ NEW: Retry with compression if prompt too long
-    const response = await retryWithCompression(
-      async (compressedContext: string) => {
-        return await rateLimitBreaker.execute(async () => {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 20_000);
-
-          try {
-            const res = await fetch("https://api.openai.com/v1/chat/completions", {
-              method: "POST",
-              signal: controller.signal,
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-              body: JSON.stringify({
-                model: "gpt-4o-mini",
-                messages: [
-                  { role: "system", content: compressedContext },
-                  ...compressedHistory,
-                  { role: "user", content: message },
-                ],
-                temperature: 0.7,
-                max_tokens: 500,
-              }),
-            });
-
-            clearTimeout(timeoutId);
-            const data = await res.json();
-
-            if (!res.ok) {
-              throw new Error(data.error?.message || "API error");
-            }
-
-            return data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่";
-          } catch (err) {
-            clearTimeout(timeoutId);
-            throw err;
-          }
-        });
-      },
-      compressionResult.compressed,
-      isManager
-    );
-
-    const responseTime = Date.now() - startTime;
-
+  // เรียก Claude ไม่สำเร็จ → ใช้ข้อความสำรองจากข้อมูลจริง แทนการโชว์ error
+  if (!text) {
     return NextResponse.json({
-      response,
-      metadata: {
-        model: "gpt-4o-mini",
-        tokensUsed: compressionResult.compressedSize,
-        compressionApplied: true,
-        responseTimeMs: responseTime,
-      },
-    } as AIResponseBody);
-  } catch (error: any) {
-    console.error("[AI Error]", error);
-
-    const parsedError = parseAPIError(error);
-    const userMessage = getUserFriendlyErrorMessage(parsedError);
-
-    // ✨ NEW: Check circuit breaker status
-    if (rateLimitBreaker.getStatus() === "open") {
-      return NextResponse.json(
-        {
-          response: "🔴 ระบบ AI ใช้ด้วยคนจำนวนมากเกินไป กรุณารอสักครู่แล้วลองใหม่ค่ะ",
-          error: "RATE_LIMIT_BREAKER_OPEN",
-        },
-        { status: 429 }
-      );
-    }
-
-    // Fallback response
-    return NextResponse.json({
-      response: userMessage || generateFallback(message, fallbackData, isManager),
-      error: parsedError.code,
+      response: generateFallback(message, fallbackData, isManager),
+      error: error ?? "AI_FAILED",
     });
   }
+
+  return NextResponse.json({
+    response: text,
+    metadata: {
+      model,
+      tokensUsed: compressionResult.compressedSize,
+      compressionApplied: true,
+      retryCount: 0,
+      responseTimeMs: Date.now() - startTime,
+    },
+  } as AIResponseBody);
 }
 
 function generateFallback(message: string, d: { soldUnits: number; totalUnits: number; delayedHouses: {house_number:string}[]; bookingLeads: unknown[]; monthIncome: number; monthExpense: number; pendingApprovals: number; employees: number; empByDept: Record<string,number>; pendingClaims: number; pendingInstallments: number; }, isManager: boolean) {

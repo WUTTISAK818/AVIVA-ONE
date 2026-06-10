@@ -101,3 +101,74 @@ function extractJson<T>(text: string): T | null {
     return null;
   }
 }
+
+interface ClaudeChatParams {
+  system: string;
+  messages: { role: string; content: string }[];
+  model?: string;
+  maxTokens?: number;
+  timeoutMs?: number;
+  accessToken?: string;
+}
+
+/**
+ * เรียก Claude แบบสนทนา (คืนข้อความธรรมดา ไม่บังคับ JSON) — สำหรับ AVIVA AI โหมดถาม-ตอบ
+ * รองรับประวัติสนทนา (messages) และ persona ผ่าน system
+ * คืน text ว่างพร้อม error เมื่อ: ไม่มี key / API error — ให้ผู้เรียกจัดการ fallback เอง
+ */
+export async function callClaudeText({
+  system,
+  messages,
+  model = "claude-haiku-4-5",
+  maxTokens = 900,
+  timeoutMs = 30_000,
+  accessToken,
+}: ClaudeChatParams): Promise<{ text: string; model: string; error?: string }> {
+  const apiKey = await getApiKey(accessToken);
+  if (!apiKey) return { text: "", model, error: "NO_API_KEY" };
+
+  // เก็บเฉพาะ role ที่ถูกต้องและมีเนื้อหา และต้องเริ่มด้วย user เสมอ
+  const filtered = messages
+    .filter(m => (m.role === "user" || m.role === "assistant") && m.content?.trim())
+    .map(m => ({ role: m.role as "user" | "assistant", content: m.content.trim() }));
+  while (filtered.length && filtered[0].role !== "user") filtered.shift();
+  // Claude บังคับ user/assistant สลับกัน — รวมข้อความ role เดียวกันที่ติดกันเข้าด้วยกัน
+  const cleaned: { role: "user" | "assistant"; content: string }[] = [];
+  for (const m of filtered) {
+    const last = cleaned[cleaned.length - 1];
+    if (last && last.role === m.role) last.content += "\n\n" + m.content;
+    else cleaned.push({ ...m });
+  }
+  if (cleaned.length === 0 || cleaned[cleaned.length - 1].role !== "user") {
+    return { text: "", model, error: "NO_MESSAGE" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: cleaned }),
+    });
+    clearTimeout(timeout);
+    const json = await res.json();
+    if (!res.ok) {
+      return { text: "", model, error: json?.error?.message || `HTTP ${res.status}` };
+    }
+    const text: string = (json.content ?? [])
+      .filter((b: { type: string }) => b.type === "text")
+      .map((b: { text: string }) => b.text)
+      .join("")
+      .trim();
+    return { text, model, error: text ? undefined : "EMPTY" };
+  } catch (err) {
+    clearTimeout(timeout);
+    return { text: "", model, error: err instanceof Error ? err.message : "UNKNOWN" };
+  }
+}

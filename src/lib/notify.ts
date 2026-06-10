@@ -2,6 +2,22 @@ import { supabase } from "./supabase";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
+// ประเภทแจ้งเตือนที่ส่งเข้า LINE ส่วนตัวด้วย (รออนุมัติ/ผลอนุมัติ/เคลม/หมุดหมาย) — เว้น "info" กัน spam
+const LINE_TYPES = new Set(["approval", "claim", "success"]);
+
+/** ยิงแจ้งเตือนเข้า LINE ส่วนตัวของผู้ใช้ที่ผูกบัญชีไว้ (best-effort, ไม่ throw) */
+export async function notifyPersonalLine(title: string, body: string, url?: string, emails?: string[]) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    await fetch("/api/notify/personal-line", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ title, body, url, emails }),
+    });
+  } catch { /* best-effort */ }
+}
+
 export async function createNotification(opts: {
   type: "approval" | "claim" | "document" | "success" | "info";
   title: string;
@@ -20,6 +36,10 @@ export async function createNotification(opts: {
     is_read: false,
     record_id: opts.record_id ?? null,
   });
+  // เคสสำคัญ → ส่งเข้า LINE ส่วนตัวของผู้ที่ผูกบัญชีด้วย (best-effort)
+  if (LINE_TYPES.has(opts.type)) {
+    await notifyPersonalLine(opts.title, opts.message, opts.record_id ? `/crm?lead=${opts.record_id}` : undefined);
+  }
 }
 
 /**

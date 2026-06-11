@@ -4239,7 +4239,7 @@ const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; construction
   { key: "after-sales", label: "หลังการขาย",    dept: "ฝ่ายหลังการขาย" },
   { key: "approvals",   label: "อนุมัติ",        managerOnly: true },
   { key: "materials",   label: "คลังวัสดุ",      constructionOnly: true },
-  { key: "documents",   label: "เอกสาร" },
+  { key: "documents",   label: "คลังเอกสาร" },
   { key: "community",   label: "ค่าส่วนกลาง",    adminOnly: true },
   { key: "audit",       label: "Audit Log",       adminOnly: true },
 ];
@@ -4248,7 +4248,7 @@ const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; construction
 // (ลิงก์ไปหน้าเต็ม ไม่ใช่ tab content)
 const MANAGER_LINKS: { label: string; href: string }[] = [
   { label: "รายงาน", href: "/reports" },
-  { label: "สร้างเอกสาร", href: "/documents/generate" },
+  { label: "ออกเอกสารขาย", href: "/documents/generate" },
 ];
 
 // ─── Audit Log Viewer ─────────────────────────────────────────────────────────

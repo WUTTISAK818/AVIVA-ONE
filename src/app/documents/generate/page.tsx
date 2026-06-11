@@ -124,7 +124,7 @@ function GenerateInner() {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
           <button onClick={() => router.back()} className="text-aviva-secondary active:scale-90"><ArrowLeft size={20} /></button>
           <FileText size={18} className="text-aviva-gold" />
-          <h1 className="text-base font-bold text-aviva-text">สร้างเอกสาร</h1>
+          <h1 className="text-base font-bold text-aviva-text">ออกเอกสารขาย</h1>
           <button onClick={() => window.print()}
             className="ml-auto flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold text-sm px-3 py-1.5 rounded-lg active:scale-95">
             <Printer size={15} /> พิมพ์ / PDF

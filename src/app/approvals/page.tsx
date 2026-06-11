@@ -10,7 +10,7 @@ import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
-import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
+import { SLA_DAYS, calcSlaDueAt, summarizeApproval } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
@@ -341,12 +341,12 @@ function ApprovalsContent() {
     const action = approved ? "Approved" : "Rejected";
     const note = commentArg ?? notes[log.id] ?? null;
 
-    // Update the approval log
+    // Update the approval log (เก็บเหตุผลใน rejection_comment เฉพาะตอนปฏิเสธ — approval_logs ไม่มีคอลัมน์ notes)
     await supabase.from("approval_logs").update({
       action_taken: action,
       action_timestamp: new Date().toISOString(),
       approver_email: user.email,
-      notes: note,
+      ...(approved ? {} : { rejection_comment: note }),
     }).eq("id", log.id);
 
     // Cascade logic based on workflow type
@@ -770,8 +770,22 @@ function ApprovalsContent() {
           log={verifyLog as VerifyLog}
           busy={processingId === verifyLog.id}
           onClose={() => setVerifyLog(null)}
-          onApprove={async () => { const l = verifyLog; setVerifyLog(null); await handleApprove(l, true); }}
-          onReject={async (c) => { const l = verifyLog; setVerifyLog(null); await handleApprove(l, false, c); }}
+          onApprove={async (items) => {
+            const l = verifyLog; setVerifyLog(null);
+            await handleApprove(l, true);
+            const s = summarizeApproval(l);
+            await logAction("approvals", "verify_approve",
+              `ตรวจสอบ & อนุมัติ — ${s.subject} (จาก ${s.fromName})${l.amount ? ` ฿${Number(l.amount).toLocaleString("th-TH")}` : ""} · ยืนยัน: ${items.join(", ")}`,
+              l.source_record_id ?? undefined, { department: user?.department });
+          }}
+          onReject={async (c) => {
+            const l = verifyLog; setVerifyLog(null);
+            await handleApprove(l, false, c);
+            const s = summarizeApproval(l);
+            await logAction("approvals", "verify_reject",
+              `ตรวจสอบ & ปฏิเสธ — ${s.subject} (จาก ${s.fromName}) · เหตุผล: ${c}`,
+              l.source_record_id ?? undefined, { department: user?.department });
+          }}
         />
       )}
     </div>

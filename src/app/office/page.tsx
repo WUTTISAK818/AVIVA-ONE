@@ -26,7 +26,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
-import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT } from "@/lib/approval-matrix";
+import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 
@@ -3125,8 +3125,22 @@ function ApprovalsContent() {
           log={verifyLog as VerifyLog}
           busy={saving}
           onClose={() => setVerifyLog(null)}
-          onApprove={async () => { const id = verifyLog.approval_id; setVerifyLog(null); await handleApprove(id); }}
-          onReject={async (c) => { const id = verifyLog.approval_id; setVerifyLog(null); await handleReject(id, c); }}
+          onApprove={async (items) => {
+            const lg = verifyLog; setVerifyLog(null);
+            await handleApprove(lg.approval_id);
+            const s = summarizeApproval(lg);
+            await logAction("approvals", "verify_approve",
+              `ตรวจสอบ & อนุมัติ — ${s.subject} (จาก ${s.fromName})${lg.amount ? ` ฿${Number(lg.amount).toLocaleString("th-TH")}` : ""} · ยืนยัน: ${items.join(", ")}`,
+              lg.source_record_id ?? undefined, { department: user?.department });
+          }}
+          onReject={async (c) => {
+            const lg = verifyLog; setVerifyLog(null);
+            await handleReject(lg.approval_id, c);
+            const s = summarizeApproval(lg);
+            await logAction("approvals", "verify_reject",
+              `ตรวจสอบ & ปฏิเสธ — ${s.subject} (จาก ${s.fromName}) · เหตุผล: ${c}`,
+              lg.source_record_id ?? undefined, { department: user?.department });
+          }}
         />
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

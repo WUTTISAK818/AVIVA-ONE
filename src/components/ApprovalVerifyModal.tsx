@@ -17,7 +17,7 @@ export default function ApprovalVerifyModal({
   log, onApprove, onReject, onClose, busy = false,
 }: {
   log: VerifyLog;
-  onApprove: () => void | Promise<void>;
+  onApprove: (verifiedItems: string[]) => void | Promise<void>;
   onReject: (comment: string) => void | Promise<void>;
   onClose: () => void;
   busy?: boolean;
@@ -161,7 +161,7 @@ export default function ApprovalVerifyModal({
           </div>
         ) : (
           <div className="flex gap-2">
-            <button onClick={() => onApprove()} disabled={busy || loading || !allChecked}
+            <button onClick={() => onApprove(data?.checklist ?? [])} disabled={busy || loading || !allChecked}
               className="flex-1 py-3 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
               <CheckCircle size={15} /> {allChecked ? "อนุมัติ" : "ติ๊กตรวจสอบให้ครบ"}
             </button>

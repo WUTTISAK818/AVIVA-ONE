@@ -6,7 +6,7 @@ import {
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
-  FolderOpen, Upload, Search, Home, BookOpen, Pencil, ShoppingCart,
+  FolderOpen, Upload, Search, Home, BookOpen, Pencil, ShoppingCart, Paperclip,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -19,6 +19,7 @@ import AttachDocButton from "@/components/AttachDocButton";
 import { supabase } from "@/lib/supabase";
 import { postJv } from "@/lib/jv";
 import { logAction } from "@/lib/audit";
+import { attachDocumentToEntity } from "@/lib/doc-attach";
 import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
@@ -114,6 +115,7 @@ function FinanceContent() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyFinanceForm);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"txn" | "approval" | "construction">("txn");
   const [period, setPeriod] = useState<Period>("month");
@@ -239,7 +241,7 @@ function FinanceContent() {
         status: "pending",
         requested_by: user?.full_name ?? "Admin",
       }).select().single();
-      await supabase.from("approval_logs").insert({
+      const { data: logRow } = await supabase.from("approval_logs").insert({
         workflow_type: "Finance_Approval",
         source_doc_index: `${finDocNum} | [${form.category}] ${form.description}${form.cost_center ? ` (${form.cost_center})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         source_record_id: data?.id ?? null,
@@ -248,7 +250,17 @@ function FinanceContent() {
         amount: amt,
         sla_due_at: calcSlaDueAt("Finance_Approval"),
         assigned_to_name: "ผู้จัดการ",
-      });
+      }).select("approval_id").single();
+      // แนบใบเสร็จ/สลิป เข้ากับคำขออนุมัติ (ให้ผู้อนุมัติเปิดดูในหน้าตรวจสอบ)
+      if (receiptFile && logRow?.approval_id) {
+        const ext = receiptFile.name.split(".").pop() ?? "jpg";
+        const path = `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("document-attachments").upload(path, receiptFile, { upsert: true });
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
+          await attachDocumentToEntity("approval_log", logRow.approval_id, publicUrl, receiptFile.name, user?.full_name ?? user?.email ?? "ผู้ขอ");
+        }
+      }
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
       await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `[${form.category}] ${form.description} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการเงิน" });
     } else {
@@ -274,6 +286,7 @@ function FinanceContent() {
     setSaving(false);
     setShowModal(false);
     setForm(emptyFinanceForm);
+    setReceiptFile(null);
     fetchData();
   };
 
@@ -613,6 +626,18 @@ function FinanceContent() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
+
+            {Number(form.amount) >= 100000 && (
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสร็จ / สลิป (ให้ผู้อนุมัติตรวจสอบ)</label>
+                <label className="flex items-center gap-2 cursor-pointer bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-secondary hover:border-aviva-gold/50">
+                  <Paperclip size={14} className="text-aviva-gold" />
+                  <span className="truncate">{receiptFile ? receiptFile.name : "แตะเพื่อแนบรูป/ไฟล์ PDF"}</span>
+                  <input type="file" accept="image/*,application/pdf" className="hidden"
+                    onChange={e => setReceiptFile(e.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            )}
 
             <button onClick={handleSave} disabled={saving || !form.amount || !form.description}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
@@ -3123,6 +3148,8 @@ function ApprovalsContent() {
       {verifyLog && (
         <ApprovalVerifyModal
           log={verifyLog as VerifyLog}
+          logId={verifyLog.approval_id}
+          attachedBy={user?.full_name ?? user?.email ?? "ผู้ใช้"}
           busy={saving}
           onClose={() => setVerifyLog(null)}
           onApprove={async (items) => {

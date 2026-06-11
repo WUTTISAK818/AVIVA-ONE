@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { X, CheckCircle, XCircle, AlertTriangle, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
+import { X, CheckCircle, XCircle, AlertTriangle, ExternalLink, Loader2, ShieldCheck, Paperclip, FileText } from "lucide-react";
 import clsx from "clsx";
 import ApprovalRouteBar from "./ApprovalRouteBar";
 import { type ApprovalSummaryInput } from "@/lib/approval-matrix";
 import { fetchApprovalSource, buildVerification, type VerifyData } from "@/lib/approval-source";
+import { attachDocumentToEntity, getEntityDocuments } from "@/lib/doc-attach";
+import { supabase } from "@/lib/supabase";
 import { formatNumber } from "@/lib/thai-baht";
+
+const isImg = (u: string | null) => !!u && /\.(jpg|jpeg|png|gif|webp)$/i.test(u.split("?")[0]);
 
 export interface VerifyLog extends ApprovalSummaryInput {
   workflow_type: string;
@@ -14,9 +18,11 @@ export interface VerifyLog extends ApprovalSummaryInput {
 }
 
 export default function ApprovalVerifyModal({
-  log, onApprove, onReject, onClose, busy = false,
+  log, logId, attachedBy = "ผู้ใช้", onApprove, onReject, onClose, busy = false,
 }: {
   log: VerifyLog;
+  logId?: string;
+  attachedBy?: string;
   onApprove: (verifiedItems: string[]) => void | Promise<void>;
   onReject: (comment: string) => void | Promise<void>;
   onClose: () => void;
@@ -27,6 +33,9 @@ export default function ApprovalVerifyModal({
   const [checked, setChecked] = useState<boolean[]>([]);
   const [rejecting, setRejecting] = useState(false);
   const [comment, setComment] = useState("");
+  const [attachments, setAttachments] = useState<{ id: string; file_url: string | null; file_name: string | null }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -39,6 +48,25 @@ export default function ApprovalVerifyModal({
     });
     return () => { alive = false; };
   }, [log.workflow_type, log.source_record_id, log.amount]);
+
+  useEffect(() => {
+    if (!logId) return;
+    getEntityDocuments("approval_log", logId).then(setAttachments);
+  }, [logId]);
+
+  const uploadReceipt = async (file: File) => {
+    if (!logId) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `entity-docs/approval_log/${logId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("document-attachments").upload(path, file, { upsert: true });
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
+      await attachDocumentToEntity("approval_log", logId, publicUrl, file.name, attachedBy);
+      setAttachments(await getEntityDocuments("approval_log", logId));
+    }
+    setUploading(false);
+  };
 
   const allChecked = (data?.checklist.length ?? 0) === 0 || checked.every(Boolean);
 
@@ -125,6 +153,37 @@ export default function ApprovalVerifyModal({
               <a href={data.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium border border-aviva-gold/30 bg-aviva-gold/10 text-aviva-gold">
                 <ExternalLink size={13} /> เปิดไฟล์แนบ
               </a>
+            )}
+
+            {/* ใบเสร็จ/สลิป/เอกสารแนบ */}
+            {logId && (
+              <div className="bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase">ใบเสร็จ / สลิป / เอกสารแนบ</p>
+                  <label className="cursor-pointer text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg flex items-center gap-1">
+                    {uploading ? <Loader2 size={11} className="animate-spin" /> : <Paperclip size={11} />} แนบไฟล์
+                    <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); }} />
+                  </label>
+                </div>
+                {attachments.length === 0 ? (
+                  <p className="text-[11px] text-aviva-secondary/60">ยังไม่มีไฟล์แนบ — แตะ &ldquo;แนบไฟล์&rdquo; เพื่ออัปโหลด</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((a) => (
+                      <a key={a.id} href={a.file_url ?? "#"} target="_blank" rel="noreferrer" className="block">
+                        {isImg(a.file_url) ? (
+                          <img src={a.file_url!} alt={a.file_name ?? "img"} className="w-16 h-16 object-cover rounded-lg border border-aviva-gold/20" />
+                        ) : (
+                          <span className="flex items-center gap-1 text-[10px] text-aviva-gold border border-aviva-gold/20 rounded-lg px-2 py-2.5">
+                            <FileText size={12} /> {a.file_name ?? "ไฟล์แนบ"}
+                          </span>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Checklist บังคับ */}

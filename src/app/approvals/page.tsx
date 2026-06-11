@@ -768,6 +768,8 @@ function ApprovalsContent() {
       {verifyLog && (
         <ApprovalVerifyModal
           log={verifyLog as VerifyLog}
+          logId={verifyLog.id}
+          attachedBy={user?.full_name ?? user?.email ?? "ผู้ใช้"}
           busy={processingId === verifyLog.id}
           onClose={() => setVerifyLog(null)}
           onApprove={async (items) => {

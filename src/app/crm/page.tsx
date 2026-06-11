@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import { Search, Star, Phone, Plus, X, Pencil, MessageCircle, PhoneCall, TrendingUp, Download, Bot, Send, MapPin, Printer, FileText, Camera, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
@@ -1661,6 +1662,11 @@ export default function CRMPage() {
                 </button>
               )}
             </div>
+
+            <Link href={`/documents/generate?lead=${selectedLead.id}${selectedLead.plot_number ? `&plot=${selectedLead.plot_number}` : ""}`}
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold border bg-aviva-gold/15 text-aviva-gold border-aviva-gold/30 active:scale-95">
+              <FileText size={13} /> สร้างเอกสาร (ใบเสนอราคา / จอง / สัญญา)
+            </Link>
 
             <p className="text-xs text-aviva-secondary">เปลี่ยนสถานะ:</p>
             <div className="grid grid-cols-2 gap-2">

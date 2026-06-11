@@ -924,7 +924,7 @@ export default function ConstructionPage() {
       await createNotification({
         type: "approval",
         title: `ขออนุมัติจัดซื้อ ${docNum}`,
-        message: `${prForm.supplier_name} · ฿${totalAmount.toLocaleString("th-TH")} · โดย ${byName}`,
+        message: `จาก ${byName} · ${prForm.supplier_name} ฿${totalAmount.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
         from_dept: "ฝ่ายก่อสร้าง",
         to_dept: "ผู้บริหาร",
       });

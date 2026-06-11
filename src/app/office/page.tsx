@@ -262,7 +262,7 @@ function FinanceContent() {
         }
       }
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
-      await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `[${form.category}] ${form.description} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการเงิน" });
+      await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `จาก ${user?.full_name ?? "ฝ่ายการเงิน"} · [${form.category}] ${form.description} ฿${amt.toLocaleString()} · ส่งให้${amt >= 500000 ? "ผู้บริหาร" : "ผู้จัดการ"}พิจารณา`, from_dept: "ฝ่ายการเงิน", to_dept: "ผู้บริหาร" });
     } else {
       const { data } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
@@ -1320,7 +1320,7 @@ function MarketingContent() {
       await createNotification({
         type: "approval",
         title: "ขอสั่งซื้อ/จ้างบริการ (ฝ่ายการตลาด)",
-        message: `${mktPRForm.supplier_name}${total > 0 ? ` — ฿${total.toLocaleString("th-TH")}` : ""} — โดย ${user?.full_name ?? "Unknown"}`,
+        message: `จาก ${user?.full_name ?? "ฝ่ายการตลาด"} · ${mktPRForm.supplier_name}${total > 0 ? ` ฿${total.toLocaleString("th-TH")}` : ""} · ส่งให้ผู้จัดการพิจารณา`,
         from_dept: "ฝ่ายการตลาด",
       });
     }
@@ -1998,7 +1998,7 @@ function HRContent() {
       await createNotification({
         type: "approval",
         title: "ขอสั่งซื้ออุปกรณ์สำนักงาน (ฝ่ายบุคคล)",
-        message: `${prForm.supplier_name}${total > 0 ? ` — ฿${total.toLocaleString("th-TH")}` : ""} — โดย ${user?.full_name ?? "Unknown"}`,
+        message: `จาก ${user?.full_name ?? "ฝ่ายบุคคล"} · ${prForm.supplier_name}${total > 0 ? ` ฿${total.toLocaleString("th-TH")}` : ""} · ส่งให้ผู้จัดการพิจารณา`,
         from_dept: "ฝ่ายบุคคล",
       });
     }
@@ -3262,7 +3262,7 @@ function MaterialsContent() {
     await createNotification({
       type: "approval",
       title: "ใบสั่งซื้อ (PO) ใหม่",
-      message: `${poForm.supplier_name} — ฿${total.toLocaleString("th-TH")} — โดย ${user?.full_name ?? "Unknown"}`,
+      message: `จาก ${user?.full_name ?? "ฝ่ายจัดซื้อ"} · ${poForm.supplier_name} ฿${total.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
       from_dept: "ฝ่ายก่อสร้าง",
     });
     setSaving(false);

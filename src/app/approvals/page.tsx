@@ -11,6 +11,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
+import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
@@ -629,10 +630,9 @@ function ApprovalsContent() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-aviva-text font-medium truncate">{log.source_doc_index ?? "-"}</p>
-                    <p className="text-[10px] text-aviva-secondary mt-0.5">
+                    <ApprovalRouteBar log={log} />
+                    <p className="text-[10px] text-aviva-secondary mt-1">
                       {new Date(log.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
-                      {log.assigned_to_name && ` · ก่อง: ${log.assigned_to_name}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">

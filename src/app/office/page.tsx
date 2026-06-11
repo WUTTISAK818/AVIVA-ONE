@@ -26,7 +26,8 @@ import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
-import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
+import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT } from "@/lib/approval-matrix";
+import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -2876,28 +2877,6 @@ interface ApprovalLog {
 
 type ApprovalsFilterTab = "pending" | "approved" | "rejected";
 
-const APPR_DEPT: Record<string, string> = {
-  Material_Purchase: "ฝ่ายก่อสร้าง",
-  Finance_Approval: "ฝ่ายการเงิน",
-  Installment_Review: "ฝ่ายก่อสร้าง",
-  Leave_Request: "ฝ่ายบุคคล",
-  Document_Approval: "ฝ่ายออฟฟิศ",
-  Booking_Deposit: "ฝ่ายขาย",
-  Contract_Approval: "ฝ่ายขาย",
-  Marketing_Budget: "ฝ่ายการตลาด",
-};
-
-const APPR_LABEL: Record<string, string> = {
-  Material_Purchase: "ขออนุมัติจัดซื้อวัสดุ",
-  Finance_Approval: "ขออนุมัติรายจ่าย",
-  Installment_Review: "ตรวจสอบงวดงาน",
-  Leave_Request: "ขออนุมัติการลา",
-  Document_Approval: "ขออนุมัติเอกสาร",
-  Booking_Deposit: "อนุมัติเงินจอง",
-  Contract_Approval: "อนุมัติสัญญาซื้อขาย",
-  Marketing_Budget: "อนุมัติงบการตลาด",
-};
-
 function fmtAmt(n: number) {
   if (n >= 1_000_000) return `฿${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `฿${(n / 1_000).toFixed(0)}K`;
@@ -3067,7 +3046,6 @@ function ApprovalsContent() {
           filtered.map((log) => {
             const docParts = log.source_doc_index.split(" | ");
             const docNum = docParts[0];
-            const docDesc = docParts.slice(1).join(" | ");
             const slaBadge = getSlaBadge(log);
             return (
             <GlassCard key={log.approval_id} className={clsx("p-4 space-y-3", slaBadge?.cls.includes("red") && "border border-red-500/30")}>
@@ -3086,10 +3064,8 @@ function ApprovalsContent() {
                       </span>
                     )}
                   </div>
-                  {docDesc && <p className="text-xs text-aviva-text mt-0.5">{docDesc}</p>}
-                  <p className="text-xs text-aviva-secondary">{APPR_LABEL[log.workflow_type] ?? log.workflow_type} · {log.current_approver_role}</p>
                   {log.action_timestamp && (
-                    <p className="text-[10px] text-aviva-secondary/60">
+                    <p className="text-[10px] text-aviva-secondary/60 mt-0.5">
                       {new Date(log.action_timestamp).toLocaleDateString("th-TH")}
                     </p>
                   )}
@@ -3105,6 +3081,8 @@ function ApprovalsContent() {
                   </span>
                 </div>
               </div>
+
+              <ApprovalRouteBar log={log} />
 
               {log.rejection_comment && (
                 <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">

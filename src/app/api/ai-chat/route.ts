@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
   type CampaignRow = { name: string; platform: string; status: string; leads_generated: number };
 
   const delayedHouses = (houses as HouseRow[]).filter(h => (h.delayed_days ?? 0) > 0);
-  const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Loan Process","Closed Deal"].includes(l.status));
+  const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Contract","Loan Approved","Closed Deal"].includes(l.status));
   const closedLeads  = (leads as {status:string}[]).filter(l => l.status === "Closed Deal");
   const newLeads     = (leads as {status:string}[]).filter(l => l.status === "New Lead");
 

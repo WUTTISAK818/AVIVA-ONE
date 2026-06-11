@@ -323,7 +323,7 @@ export default function DashboardPage() {
     let mounted = true;
     const ORDER_MAP: Record<string, number> = {
       "New Lead": 0, "Contacted": 1, "Site Visit": 2,
-      "Booking": 3, "Loan Process": 4, "Transfer": 5, "Closed Deal": 6,
+      "Booking": 3, "Contract": 4, "Loan Approved": 5, "Transfer": 6, "Closed Deal": 7,
     };
     const rank = (s: string) => ORDER_MAP[s] ?? 0;
     const emptyFunnel = { totalNew: 0, visitCount: 0, bookedCount: 0, loanCount: 0, loanApprovedCount: 0, transferCount: 0, hot: 0, warm: 0, cool: 0 };
@@ -533,7 +533,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.82</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.83</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

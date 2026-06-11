@@ -376,7 +376,7 @@ export default function ConstructionPage() {
       supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number"),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
-      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Loan Process", "Closed Deal"]),
+      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
     ]).then(([hRes, rRes, dRes, leadRes]) => {
       // D2: กัน null หลัง reset ข้อมูลก่อสร้าง (progress/contractor อาจเป็น null)
       setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0 })));
@@ -410,7 +410,7 @@ export default function ConstructionPage() {
         .select("customer_name,phone,status,notes,loan_approved_date,delivery_date")
         .eq("project_id", PROJECT_ID)
         .eq("plot_number", house.plot_number)
-        .in("status", ["Booking", "Loan Process", "Closed Deal"])
+        .in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"])
         .maybeSingle();
       if (fetchGenRef.current !== gen) return;
       if (cust) setHouseCustomer(cust as { customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null });
@@ -1193,7 +1193,7 @@ export default function ConstructionPage() {
                         <p className="text-xs text-aviva-gold font-medium mt-0.5">{(user?.isManager || user?.department === "ฝ่ายขาย") ? houseCustomer.phone : maskPhone(houseCustomer.phone)}</p>
                       </div>
                       <span className="text-[10px] bg-aviva-bg px-2 py-1 rounded-full text-aviva-secondary">
-                        {({ Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
+                        {({ Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
                       </span>
                     </div>
                     {houseCustomer.loan_approved_date && (

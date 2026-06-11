@@ -49,7 +49,7 @@ export async function gatherDeptContext(admin: SupabaseClient, dept: string): Pr
     ]);
     const L = leads ?? [];
     const byStatus = L.reduce((a: Record<string, number>, l) => { a[l.status] = (a[l.status] ?? 0) + 1; return a; }, {});
-    const hot = L.filter(l => ["Booking", "Loan Process"].includes(l.status));
+    const hot = L.filter(l => ["Booking", "Contract", "Loan Approved"].includes(l.status));
     const stale = L.filter(l => l.status === "New Lead" && daysAgo(l.updated_at) >= 14);
     return [
       `ยูนิตว่าง ${((project?.total_units ?? 0) - (project?.sold_units ?? 0))}/${project?.total_units ?? 0}`,

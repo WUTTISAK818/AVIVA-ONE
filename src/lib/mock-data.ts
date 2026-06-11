@@ -29,7 +29,8 @@ export type LeadStatus =
   | "Contacted"
   | "Site Visit"
   | "Booking"
-  | "Loan Process"
+  | "Contract"
+  | "Loan Approved"
   | "Transfer"
   | "Closed Deal";
 
@@ -45,7 +46,7 @@ export const leads: {
 }[] = [
   { id: 1, name: "คุณสมชาย ใจดี", status: "Booking", score: 92, source: "Facebook", phone: "081-234-5678", date: "2026-05-15", budget: 8_500_000 },
   { id: 2, name: "คุณสุภาพ รักดี", status: "Site Visit", score: 78, source: "TikTok", phone: "082-345-6789", date: "2026-05-16", budget: 12_000_000 },
-  { id: 3, name: "คุณวิภา มั่งมี", status: "Loan Process", score: 85, source: "Google", phone: "083-456-7890", date: "2026-05-14", budget: 9_200_000 },
+  { id: 3, name: "คุณวิภา มั่งมี", status: "Contract", score: 85, source: "Google", phone: "083-456-7890", date: "2026-05-14", budget: 9_200_000 },
   { id: 4, name: "คุณประสิทธิ์ ดีงาม", status: "New Lead", score: 45, source: "Facebook", phone: "084-567-8901", date: "2026-05-18", budget: 7_000_000 },
   { id: 5, name: "คุณจิราภา สุขใจ", status: "Contacted", score: 61, source: "Referral", phone: "085-678-9012", date: "2026-05-17", budget: 15_000_000 },
   { id: 6, name: "คุณธนากร รวยดี", status: "Transfer", score: 96, source: "Facebook", phone: "086-789-0123", date: "2026-05-10", budget: 11_500_000 },
@@ -54,11 +55,11 @@ export const leads: {
   { id: 9, name: "คุณเพชร วิไล", status: "Site Visit", score: 72, source: "Facebook", phone: "089-012-3456", date: "2026-05-16", budget: 8_000_000 },
   { id: 10, name: "คุณรัตนา งามดี", status: "Booking", score: 88, source: "Referral", phone: "090-123-4567", date: "2026-05-13", budget: 10_000_000 },
   { id: 11, name: "คุณชัยวัฒน์ สว่าง", status: "Contacted", score: 55, source: "TikTok", phone: "091-234-5678", date: "2026-05-17", budget: 7_500_000 },
-  { id: 12, name: "คุณมาลี บุญมา", status: "Loan Process", score: 81, source: "Facebook", phone: "092-345-6789", date: "2026-05-12", budget: 9_800_000 },
+  { id: 12, name: "คุณมาลี บุญมา", status: "Contract", score: 81, source: "Facebook", phone: "092-345-6789", date: "2026-05-12", budget: 9_800_000 },
 ];
 
 export const pipelineStages: LeadStatus[] = [
-  "New Lead", "Contacted", "Site Visit", "Booking", "Loan Process", "Transfer", "Closed Deal",
+  "New Lead", "Contacted", "Site Visit", "Booking", "Contract", "Loan Approved", "Transfer", "Closed Deal",
 ];
 
 export type HouseStatus = "complete" | "on-track" | "delayed";
@@ -126,7 +127,7 @@ export const aiInsights: {
   title: string;
   message: string;
 }[] = [
-  { id: 1, type: "warning", priority: "high", title: "ความเสี่ยง Cashflow", message: "คาดการณ์ว่า cashflow อาจติดลบในเดือนตุลาคม จากค่าก่อสร้างที่เพิ่มขึ้น 23% แนะนำให้เร่งปิดการขาย 8 ยูนิตที่อยู่ในขั้น Loan Process" },
+  { id: 1, type: "warning", priority: "high", title: "ความเสี่ยง Cashflow", message: "คาดการณ์ว่า cashflow อาจติดลบในเดือนตุลาคม จากค่าก่อสร้างที่เพิ่มขึ้น 23% แนะนำให้เร่งปิดการขาย 8 ยูนิตที่อยู่ในขั้นทำสัญญา" },
   { id: 2, type: "success", priority: "medium", title: "แคมเปญ Facebook ROI สูง", message: "แคมเปญ 'AVIVA Luxury May' มี ROI 340% สูงกว่าค่าเฉลี่ย 2.1x แนะนำเพิ่มงบ 20% ในสัปดาห์หน้า" },
   { id: 3, type: "alert", priority: "high", title: "ยูนิตล่าช้า 3 หน่วย", message: "B-101, A-103, B-105 ล่าช้ากว่าแผน ควรส่ง Engineer ตรวจสอบด่วน เพื่อไม่ให้กระทบวันโอนกรรมสิทธิ์" },
   { id: 4, type: "info", priority: "low", title: "Sales Conversion ดีขึ้น", message: "อัตราแปลงจาก Site Visit → Booking เพิ่มขึ้นเป็น 42% (จาก 31% เดือนก่อน) ทีม Sales ทำงานได้ยอดเยี่ยม" },
@@ -152,5 +153,5 @@ export const mockAIResponses: Record<string, string> = {
   "ยูนิตไหนล่าช้าบ้าง?": "มี 3 ยูนิตที่ล่าช้ากว่าแผน ได้แก่ B-101 (ล่าช้า 14 วัน อยู่ในขั้นฐานราก), A-103 (ล่าช้า 7 วัน อยู่ในขั้นโครงสร้าง), B-105 (ล่าช้า 5 วัน อยู่ในขั้นโครงสร้าง) ควรส่ง Engineer เข้าตรวจสอบทันทีครับ",
   "Cashflow เดือนหน้าเป็นอย่างไร?": "คาดการณ์ Cashflow เดือนมิถุนายน: รายรับ 38-45 ล้านบาท รายจ่าย 22-28 ล้านบาท Net Cashflow +15-22 ล้านบาท อย่างไรก็ดี มีความเสี่ยงจากค่าก่อสร้างที่อาจบวมเพิ่ม 15% หากยูนิตที่ล่าช้าต้องใช้ทรัพยากรเพิ่มเติมครับ",
   "พนักงานขายคนไหน Conversion ดีที่สุด?": "จากข้อมูล CRM คุณธนพล มี Conversion Rate สูงสุด 68% (จาก Site Visit → Booking) ตามด้วยคุณสิริพร 55% และคุณวรวุฒิ 48% คุณธนพลมีจุดเด่นด้านการ Follow-up ภายใน 24 ชั่วโมงหลัง Site Visit ครับ",
-  "คาดว่าโครงการจะขายหมดเมื่อไหร่?": "จากอัตราการขาย 8-10 ยูนิตต่อเดือน และ pipeline ที่แข็งแกร่ง (42 lead ใน Booking/Loan Process) คาดว่าโครงการจะขายหมด 100% ภายใน Q3 2026 (ประมาณเดือนสิงหาคม-กันยายน) ก่อนเป้าหมายเดิม 3 เดือนครับ",
+  "คาดว่าโครงการจะขายหมดเมื่อไหร่?": "จากอัตราการขาย 8-10 ยูนิตต่อเดือน และ pipeline ที่แข็งแกร่ง (42 lead ใน Booking/ทำสัญญา) คาดว่าโครงการจะขายหมด 100% ภายใน Q3 2026 (ประมาณเดือนสิงหาคม-กันยายน) ก่อนเป้าหมายเดิม 3 เดือนครับ",
 };

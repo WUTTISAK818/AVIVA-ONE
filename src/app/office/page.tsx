@@ -28,6 +28,7 @@ import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
+import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -2900,6 +2901,7 @@ function ApprovalsContent() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [saving, setSaving] = useState(false);
+  const [verifyLog, setVerifyLog] = useState<ApprovalLog | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   const fetchLogs = () => {
@@ -2974,7 +2976,7 @@ function ApprovalsContent() {
     fetchLogs();
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (id: string, commentArg?: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
 
@@ -2985,7 +2987,7 @@ function ApprovalsContent() {
       return;
     }
 
-    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
+    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: commentArg ?? rejectComment }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log?.source_record_id) {
       if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
@@ -3091,16 +3093,10 @@ function ApprovalsContent() {
               )}
 
               {log.action_taken === "Pending" && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
-                    className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <CheckCircle size={12} /> อนุมัติ
-                  </button>
-                  <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
-                    className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <XCircle size={12} /> ปฏิเสธ
-                  </button>
-                </div>
+                <button onClick={() => setVerifyLog(log)} disabled={saving}
+                  className="w-full py-2.5 bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  <ClipboardCheck size={13} /> ตรวจสอบ &amp; อนุมัติ
+                </button>
               )}
             </GlassCard>
           );})
@@ -3123,6 +3119,15 @@ function ApprovalsContent() {
             </button>
           </div>
         </div>
+      )}
+      {verifyLog && (
+        <ApprovalVerifyModal
+          log={verifyLog as VerifyLog}
+          busy={saving}
+          onClose={() => setVerifyLog(null)}
+          onApprove={async () => { const id = verifyLog.approval_id; setVerifyLog(null); await handleApprove(id); }}
+          onReject={async (c) => { const id = verifyLog.approval_id; setVerifyLog(null); await handleReject(id, c); }}
+        />
       )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>

@@ -12,6 +12,7 @@ import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
+import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
@@ -289,6 +290,7 @@ function ApprovalsContent() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [detail, setDetail] = useState<ApprovalLog | null>(null);
+  const [verifyLog, setVerifyLog] = useState<ApprovalLog | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -333,11 +335,11 @@ function ApprovalsContent() {
     });
   }, [logs, filterType, filterAction, search]);
 
-  const handleApprove = async (log: ApprovalLog, approved: boolean) => {
+  const handleApprove = async (log: ApprovalLog, approved: boolean, commentArg?: string) => {
     if (!user) return;
     setProcessingId(log.id);
     const action = approved ? "Approved" : "Rejected";
-    const note = notes[log.id] ?? null;
+    const note = commentArg ?? notes[log.id] ?? null;
 
     // Update the approval log
     await supabase.from("approval_logs").update({
@@ -637,9 +639,9 @@ function ApprovalsContent() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {canAct && (
-                      <button onClick={() => setDetail(log)}
+                      <button onClick={() => setVerifyLog(log)}
                         className="text-[10px] px-2 py-1 rounded-lg bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30">
-                        ดำเนินการ
+                        ตรวจสอบ &amp; อนุมัติ
                       </button>
                     )}
                     <button onClick={() => setExpandedId(isExpanded ? null : log.id)} className="text-aviva-secondary">
@@ -761,6 +763,16 @@ function ApprovalsContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {verifyLog && (
+        <ApprovalVerifyModal
+          log={verifyLog as VerifyLog}
+          busy={processingId === verifyLog.id}
+          onClose={() => setVerifyLog(null)}
+          onApprove={async () => { const l = verifyLog; setVerifyLog(null); await handleApprove(l, true); }}
+          onReject={async (c) => { const l = verifyLog; setVerifyLog(null); await handleApprove(l, false, c); }}
+        />
       )}
     </div>
   );

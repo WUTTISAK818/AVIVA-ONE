@@ -767,7 +767,7 @@ export default function CRMPage() {
   };
 
   const STATUS_TH: Record<string, string> = {
-    "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", "Site Visit": "เข้าชมสถานที่",
+    "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", "Site Visit": "เยี่ยมชมโครงการ",
     Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว",
   };
 

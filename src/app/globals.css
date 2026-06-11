@@ -23,6 +23,16 @@ body {
   overflow-x: hidden;
 }
 
+/* ── Safe-area: header บนสุดของทุกหน้า เผื่อ status bar / notch อัตโนมัติ ──
+   (แอปตั้ง viewport-fit:cover + status bar แบบ translucent ทำให้เนื้อหาไหลใต้ notch)
+   ใช้ค่าจริงจากอุปกรณ์แทนการ fix ค่า pt-12 — แก้ปัญหากดปุ่มย้อนกลับไม่ได้ + สัดส่วนพอดีทุกเครื่อง
+   ครอบคลุม header หน้าหลัก (backdrop-blur-sm) และหน้า /documents (bg-aviva-nav)
+   แต่ไม่กระทบ sticky header ภายใน modal (bg-aviva-card) */
+.sticky.top-0.backdrop-blur-sm,
+.sticky.top-0.bg-aviva-nav {
+  padding-top: calc(env(safe-area-inset-top) + 0.6rem);
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
 }

@@ -4244,6 +4244,13 @@ const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; construction
   { key: "audit",       label: "Audit Log",       adminOnly: true },
 ];
 
+// ทางลัดสำหรับผู้บริหาร/ผจก.โครงการ — ย้ายมาจากแถบเมนูล่างเพื่อลดความแออัด
+// (ลิงก์ไปหน้าเต็ม ไม่ใช่ tab content)
+const MANAGER_LINKS: { label: string; href: string }[] = [
+  { label: "รายงาน", href: "/reports" },
+  { label: "สร้างเอกสาร", href: "/documents/generate" },
+];
+
 // ─── Audit Log Viewer ─────────────────────────────────────────────────────────
 
 interface AuditEntry {
@@ -4388,6 +4395,15 @@ export default function OfficePage() {
               >
                 {label}
               </button>
+            ))}
+            {(user?.isManager || user?.isAdmin) && MANAGER_LINKS.map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="py-1.5 px-3 rounded-xl text-[11px] font-semibold border border-aviva-gold/30 bg-aviva-gold/10 text-aviva-gold transition-all whitespace-nowrap inline-flex items-center gap-1"
+              >
+                {label} <span className="text-[9px]">↗</span>
+              </Link>
             ))}
           </div>
         </div>

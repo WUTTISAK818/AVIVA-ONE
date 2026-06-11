@@ -41,15 +41,17 @@ export default function BottomNav() {
   if (pathname === "/login") return null;
 
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
+  // ผู้บริหาร/ผจก.โครงการ: เอกสาร+รายงาน ย้ายไปอยู่ในออฟฟิศแล้ว จึงซ่อนจากแถบล่างเพื่อลดความแออัด
+  const isExec = !!user && (user.isManager || user.isAdmin);
 
   const tabs = [
     { href: "/dashboard",    label: "หน้าหลัก",    icon: LayoutGrid,   show: true,  badge: 0 },
     { href: "/crm",          label: "ขาย",          icon: Users,        show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
-    { href: "/documents/generate", label: "เอกสาร",  icon: FileText,     show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
+    { href: "/documents/generate", label: "เอกสาร",  icon: FileText,     show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
     { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
     { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
-    { href: "/reports",      label: "รายงาน",       icon: ClipboardList, show: true, badge: 0 },
+    { href: "/reports",      label: "รายงาน",       icon: ClipboardList, show: !isExec, badge: 0 },
     { href: "/settings",     label: "ตั้งค่า",      icon: Settings,     show: true, badge: 0 },
   ].filter(t => t.show);
 

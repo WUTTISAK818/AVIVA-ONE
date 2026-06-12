@@ -231,7 +231,7 @@ function FinanceContent() {
     if (!form.amount || !form.description) return;
     setSaving(true);
     const amt = Number(form.amount);
-    if (amt >= 100000) {
+    if (amt >= 50000) {
       const finDocNum = await generateDocNumber("FIN");
       const { data } = await supabase.from("approvals").insert({
         module: "finance",
@@ -605,7 +605,7 @@ function FinanceContent() {
                   onChange={e => setForm({ ...form, amount: e.target.value })}
                   placeholder="0"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-                {Number(form.amount) >= 100000 && (
+                {Number(form.amount) >= 50000 && (
                   <p className="text-[11px] text-yellow-400 mt-1 flex items-center gap-1">
                     <Clock size={10} /> ≥ ฿100,000 จะเข้าระบบอนุมัติก่อน
                   </p>
@@ -634,7 +634,7 @@ function FinanceContent() {
               </div>
             </div>
 
-            {Number(form.amount) >= 100000 && (
+            {Number(form.amount) >= 50000 && (
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสร็จ / สลิป (ให้ผู้อนุมัติตรวจสอบ)</label>
                 <label className="flex items-center gap-2 cursor-pointer bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-secondary hover:border-aviva-gold/50">
@@ -648,7 +648,7 @@ function FinanceContent() {
 
             <button onClick={handleSave} disabled={saving || !form.amount || !form.description}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : Number(form.amount) >= 100000 ? "ส่งขออนุมัติ" : "บันทึก"}
+              {saving ? "กำลังบันทึก..." : Number(form.amount) >= 50000 ? "ส่งขออนุมัติ" : "บันทึก"}
             </button>
           </div>
         </div>

@@ -18,6 +18,7 @@ import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
 import LoanApplications from "@/components/LoanApplications";
+import TransferChecklist from "@/components/TransferChecklist";
 import CelebrationModal from "@/components/CelebrationModal";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
@@ -1523,6 +1524,9 @@ export default function CRMPage() {
                   fetchLeads(dateStart, dateEnd, leadsLimit);
                 }}
               />
+              {["Contract", "Loan Approved", "Closed Deal"].includes(selectedLead.status) && (
+                <TransferChecklist leadId={selectedLead.id} />
+              )}
               {selectedLead.booking_date && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
                   <p className="text-yellow-400 text-[10px] font-semibold">📌 จองเมื่อ</p>

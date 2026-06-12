@@ -33,10 +33,14 @@ bash /path/to/aviva-plus-extract/scripts/copy-plus-files.sh \
 Copy ไฟล์ใน `src/` ของ folder นี้ไป overwrite ของ Plus repo:
 - `src/app/layout.tsx` — Cormorant + IBM Plex Sans Thai (ไม่มี TARGET branching)
 - `src/app/manifest.ts` — Plus brand เท่านั้น
-- `src/app/login/page.tsx` — redirect ไป /community/announcements
-- `src/components/BottomNav.tsx` — residentTabs + guard early return
+- `src/app/page.tsx` — root redirect → `/community/announcements`
+- `src/app/login/page.tsx` — login form ส่งไป `/community/announcements`
+- `src/app/icon.tsx` + `apple-icon.tsx` — `A+` brand icons
+- `src/components/BottomNav.tsx` — residentTabs + guard/security early return
 - `src/lib/user-context.tsx` — เก็บแค่ isResident/isGuard/isJuristic
+- `package.json` — ลบ `@netlify/plugin-nextjs` + `playwright` (ไม่ใช้ใน Plus)
 - ลบ `src/proxy.ts` (ถ้ามี)
+- **review `next.config.ts.from-one`** ก่อน rename → `next.config.ts`
 
 ### 5. Setup env
 Copy `.env.example` → `.env.local`:

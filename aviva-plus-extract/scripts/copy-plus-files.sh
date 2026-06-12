@@ -74,15 +74,21 @@ cp "$ONE/src/lib/supabase-server.ts" "$PLUS/src/lib/"
 cp "$ONE/src/lib/theme-context.tsx" "$PLUS/src/lib/" 2>/dev/null || echo "  (theme-context.tsx not found — skip)"
 cp "$ONE/src/components/AuthProvider.tsx" "$PLUS/src/components/" 2>/dev/null || echo "  (AuthProvider.tsx not found — skip)"
 
-# 10. globals.css + tailwind config
+# 10. globals.css (Tailwind v4 — theme is inline, no tailwind.config)
 cp "$ONE/src/app/globals.css" "$PLUS/src/app/"
-[ -f "$ONE/tailwind.config.ts" ] && cp "$ONE/tailwind.config.ts" "$PLUS/"
-[ -f "$ONE/tailwind.config.js" ] && cp "$ONE/tailwind.config.js" "$PLUS/"
+cp "$ONE/postcss.config.mjs" "$PLUS/"
+# next.config.ts — copy but review (may have ONE-specific settings)
+cp "$ONE/next.config.ts" "$PLUS/next.config.ts.from-one"
+echo "  ⚠️  next.config.ts copied as next.config.ts.from-one — review before replacing"
 
 # 11. settings page (shared) + dashboard removal
 # Plus has /settings but NOT /dashboard, /crm, /construction, /office, /reports
 mkdir -p "$PLUS/src/app/settings"
 [ -d "$ONE/src/app/settings" ] && cp -r "$ONE/src/app/settings/." "$PLUS/src/app/settings/"
+
+# 12. globals + root page (need landing — copy / page if exists)
+[ -f "$ONE/src/app/page.tsx" ] && cp "$ONE/src/app/page.tsx" "$PLUS/src/app/page.tsx.from-one"
+echo "  ⚠️  root page.tsx copied as page.tsx.from-one — Plus needs custom landing or redirect"
 
 echo ""
 echo "✅ Copy complete."

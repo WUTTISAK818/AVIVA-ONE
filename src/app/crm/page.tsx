@@ -17,6 +17,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
+import LoanApplications from "@/components/LoanApplications";
 import CelebrationModal from "@/components/CelebrationModal";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
@@ -1513,6 +1514,15 @@ export default function CRMPage() {
                   <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
                 </div>
               )}
+              <LoanApplications
+                leadId={selectedLead.id}
+                defaultAmount={selectedLead.contract_price ?? selectedLead.budget}
+                onApproved={async () => {
+                  await supabase.from("leads").update({ loan_approved_date: new Date().toISOString().split("T")[0] }).eq("id", selectedLead.id);
+                  setToast({ msg: `🏦 บันทึกอนุมัติสินเชื่อแล้ว — ${selectedLead.customer_name}`, type: "success" });
+                  fetchLeads(dateStart, dateEnd, leadsLimit);
+                }}
+              />
               {selectedLead.booking_date && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
                   <p className="text-yellow-400 text-[10px] font-semibold">📌 จองเมื่อ</p>

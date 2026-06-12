@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock, ClipboardList } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
@@ -193,7 +193,7 @@ export default function DashboardPage() {
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "sold") {
-        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget,created_at").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
+        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "available") {
@@ -228,10 +228,7 @@ export default function DashboardPage() {
 
     Promise.allSettled([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
-      supabase.from("finance_transactions").select("amount,created_at,transaction_type")
-        .eq("project_id", PROJECT_ID)
-        .gte("created_at", `${yearStr}-01-01`)
-        .lt("created_at", `${year + 1}-01-01`),
+      supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID),
       supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
@@ -316,14 +313,14 @@ export default function DashboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "approval_logs" }, fetchPendingBreakdown)
       .on("postgres_changes", { event: "*", schema: "public", table: "contractor_installments" }, refreshInsts)
       .subscribe();
-    return () => { channel.unsubscribe(); supabase.removeChannel(channel); };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
     let mounted = true;
     const ORDER_MAP: Record<string, number> = {
       "New Lead": 0, "Contacted": 1, "Site Visit": 2,
-      "Booking": 3, "Contract": 4, "Loan Approved": 5, "Transfer": 6, "Closed Deal": 7,
+      "Booking": 3, "Loan Process": 4, "Transfer": 5, "Closed Deal": 6,
     };
     const rank = (s: string) => ORDER_MAP[s] ?? 0;
     const emptyFunnel = { totalNew: 0, visitCount: 0, bookedCount: 0, loanCount: 0, loanApprovedCount: 0, transferCount: 0, hot: 0, warm: 0, cool: 0 };
@@ -343,8 +340,8 @@ export default function DashboardPage() {
           loanApprovedCount: leads.filter(l => l.loan_approved_date != null).length,
           transferCount: leads.filter(l => rank(l.status) >= 5).length,
           hot: leads.filter(l => (l.ai_score ?? 0) >= 80).length,
-          warm: leads.filter(l => (l.ai_score ?? 0) >= 50 && (l.ai_score ?? 0) < 80).length,
-          cool: leads.filter(l => (l.ai_score ?? 0) < 50).length,
+          warm: leads.filter(l => (l.ai_score ?? 0) >= 60 && (l.ai_score ?? 0) < 80).length,
+          cool: leads.filter(l => (l.ai_score ?? 0) < 60).length,
         });
         const dates = leads.map(l => l.created_at).filter(Boolean).sort();
         if (dates.length > 0) {
@@ -380,36 +377,26 @@ export default function DashboardPage() {
     return () => { mounted = false; };
   }, []);
 
-  const {
-    totalUnits, soldUnits, available, constructionProgress, selloutForecast,
-    selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct,
-  } = useMemo(() => {
-    const totalUnits = project?.total_units ?? 0;
-    // A2: นับ "ขายแล้ว/คงเหลือ" สดจากข้อมูลลูกค้าจริง (ไม่พึ่งค่าคีย์มือในตาราง projects)
-    const soldUnits = salesFunnel?.transferCount ?? (project?.sold_units ?? 0);
-    const bookedActive = Math.max((salesFunnel?.bookedCount ?? 0) - soldUnits, 0);
-    const available = totalUnits > 0 ? Math.max(totalUnits - soldUnits - bookedActive, 0) : (project?.available_units ?? 0);
-    const constructionProgress = project?.construction_progress ?? 0;
-    const selloutForecast = project?.sellout_forecast ?? "-";
-    const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
-    const noProjectData = !loading && project === null;
-    // นับจำนวนเดือนจริงนับจากวันเริ่มโครงการ (เม.ย. 2569) — ไม่ผูกกับเดือนปฏิทินที่รีเซ็ตทุกปี
-    const projStart = new Date(2026, 3, 1);
-    const now = new Date();
-    const monthsElapsed = Math.max((now.getFullYear() - projStart.getFullYear()) * 12 + (now.getMonth() - projStart.getMonth()) + 1, 1);
-    const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
-    const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
-    const netPL = stats.totalReceipts - stats.expenseTotal;
-    const revenuePct = project && project.revenue_target > 0
-      ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
-      : null;
-    return { totalUnits, soldUnits, available, constructionProgress, selloutForecast, selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct };
-  }, [project, loading, stats, salesFunnel]);
+  const totalUnits = project?.total_units ?? 0;
+  const soldUnits = project?.sold_units ?? 0;
+  const available = project?.available_units ?? 0;
+  const constructionProgress = project?.construction_progress ?? 0;
+  const selloutForecast = project?.sellout_forecast ?? "-";
+  const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
+  const noProjectData = !loading && project === null;
 
   const canSeeAll = ctxUser?.isManager || ctxUser?.isAdmin || false;
   const canSeeFinance = canSeeAll || ctxUser?.department === "ฝ่ายการเงิน" || ctxUser?.department === "ฝ่ายบัญชี";
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
+
+  const monthsElapsed = Math.max(new Date().getMonth() + 1, 3);
+  const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
+  const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
+  const netPL = stats.totalReceipts - stats.expenseTotal;
+  const revenuePct = project && project.revenue_target > 0
+    ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
+    : null;
 
   const isEmployee = !!ctxUser && !ctxUser.isManager && !ctxUser.isAdmin;
 
@@ -533,7 +520,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.97</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.95</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -596,23 +583,6 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-
-        {ctxUser?.isManager && (
-          <Link href="/ai-council" className="block">
-            <GlassCard gold className="p-4 active:scale-[0.99] transition-transform">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-aviva-gold/15 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
-                  <Users size={16} className="text-aviva-gold" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-aviva-text flex items-center gap-1.5">สภา AI — สรุปเสนอผู้บริหาร <Sparkles size={12} className="text-aviva-gold" /></p>
-                  <p className="text-[11px] text-aviva-secondary">ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน + ประเด็นที่ต้องตัดสินใจ</p>
-                </div>
-                <span className="text-aviva-gold/60 text-lg">→</span>
-              </div>
-            </GlassCard>
-          </Link>
-        )}
 
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">
@@ -737,7 +707,9 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <SectionHeader title="ฝ่ายขาย — ภาพรวม"
-                    subtitle="ข้อมูล Leads ทั้งหมดตั้งแต่เริ่มโครงการ" />
+                    subtitle={salesFunnelRange
+                      ? `ข้อมูล ${salesFunnelRange.from} – ${salesFunnelRange.to}`
+                      : "สถานะ Leads ทั้งหมดในโครงการ"} />
                 </div>
                 <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
               </div>
@@ -951,7 +923,7 @@ export default function DashboardPage() {
                 {constructionStats.inReview > 0 && (
                   <Link href="/approvals" className="flex items-start gap-2.5 p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 active:scale-[0.98] transition-transform">
                     <Clock size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-<div>
+                    <div>
                       <p className="text-xs font-bold text-yellow-400">งวดงานรออนุมัติ {constructionStats.inReview} งวด — กระทบกระแสเงินสดผู้รับเหมา</p>
                       <p className="text-[10px] text-aviva-secondary/80 mt-0.5">กดเพื่อไปอนุมัติ</p>
                     </div>
@@ -1046,9 +1018,6 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs text-aviva-text font-medium">{String(item.customer_name ?? "—")}</p>
                       <p className="text-[10px] text-aviva-secondary">{String(item.phone ?? "")}</p>
-                      {item.created_at ? (
-                        <p className="text-[10px] text-blue-400">📅 เยี่ยมชม {new Date(String(item.created_at)).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
-                      ) : null}
                     </div>
                     <p className="text-sm font-bold text-green-400">฿{(Number(item.budget ?? 0) / 1_000_000).toFixed(1)}M</p>
                   </div>

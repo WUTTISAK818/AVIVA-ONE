@@ -19,6 +19,7 @@ import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
 import LoanApplications from "@/components/LoanApplications";
 import TransferChecklist from "@/components/TransferChecklist";
+import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
@@ -1284,9 +1285,7 @@ export default function CRMPage() {
                           <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">โดย {a.created_by_name}</span>
                         )}
                         {a.photo_url && (
-                          <a href={a.photo_url} target="_blank" rel="noreferrer">
-                            <img src={a.photo_url} alt="รูปกิจกรรม" className="w-16 h-16 rounded-lg object-cover mt-1 border border-aviva-gold/20" />
-                          </a>
+                          <SignedImg src={a.photo_url} alt="รูปกิจกรรม" link imgClassName="w-16 h-16 rounded-lg object-cover mt-1 border border-aviva-gold/20" />
                         )}
                       </div>
                     </div>

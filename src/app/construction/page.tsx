@@ -17,6 +17,7 @@ import { maskPhone } from "@/lib/mask";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
+import SignedImg from "@/components/SignedImg";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
@@ -283,7 +284,7 @@ function InspectionPanel({
               {uploadingInsp === insp.id
                 ? <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Loader2 size={12} className="text-aviva-gold animate-spin" /></div>
                 : insp.photo_url
-                  ? <img src={insp.photo_url} alt="รูปตรวจ" className="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
+                  ? <SignedImg src={insp.photo_url} alt="รูปตรวจ" imgClassName="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
                   : <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Camera size={12} className="text-aviva-secondary/50" /></div>
               }
             </label>
@@ -1352,7 +1353,7 @@ export default function ConstructionPage() {
                                     {uploadingTask === task.id
                                       ? <Loader2 size={13} className="text-aviva-gold animate-spin" />
                                       : task.photo_url
-                                        ? <img src={task.photo_url} alt="" className="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
+                                        ? <SignedImg src={task.photo_url} alt="" imgClassName="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
                                         : <Camera size={13} className="text-aviva-secondary/40" />
                                     }
                                   </label>

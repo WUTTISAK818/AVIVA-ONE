@@ -70,6 +70,7 @@ interface Lead {
   contract_price?: number | null;
   contract_signed_date?: string | null;
   loan_approved_date?: string | null;
+  portal_token?: string | null;
   contact_address?: string | null;
   marital_status?: string | null;
   age_range?: string | null;
@@ -1526,6 +1527,29 @@ export default function CRMPage() {
               />
               {["Contract", "Loan Approved", "Closed Deal"].includes(selectedLead.status) && (
                 <TransferChecklist leadId={selectedLead.id} />
+              )}
+              {selectedLead.portal_token && (
+                <div className="bg-aviva-bg rounded-xl p-3 border border-aviva-gold/10 col-span-2">
+                  <p className="text-xs font-bold text-aviva-text flex items-center gap-1.5 mb-2">
+                    <Send size={12} className="text-aviva-gold" /> ลิงก์สถานะสำหรับลูกค้า
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => {
+                      const url = `${window.location.origin}/customer/${selectedLead.portal_token}`;
+                      navigator.clipboard?.writeText(url);
+                      setToast({ msg: "คัดลอกลิงก์แล้ว", type: "success" });
+                    }} className="flex-1 py-2 text-[11px] font-medium bg-aviva-card text-aviva-secondary border border-aviva-gold/15 rounded-lg active:scale-95">
+                      คัดลอกลิงก์
+                    </button>
+                    <button onClick={() => {
+                      const url = `${window.location.origin}/customer/${selectedLead.portal_token}`;
+                      const msg = `ติดตามสถานะบ้านโครงการ AVIVA Private ของคุณ${selectedLead.customer_name} ได้ที่: ${url}`;
+                      window.open(`https://line.me/R/msg/text/?${encodeURIComponent(msg)}`, "_blank");
+                    }} className="flex-1 py-2 text-[11px] font-bold bg-green-500/15 text-green-400 border border-green-500/30 rounded-lg active:scale-95">
+                      ส่งผ่าน LINE
+                    </button>
+                  </div>
+                </div>
               )}
               {selectedLead.booking_date && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">

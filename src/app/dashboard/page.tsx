@@ -385,7 +385,6 @@ export default function DashboardPage() {
     selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct,
   } = useMemo(() => {
     const totalUnits = project?.total_units ?? 0;
-    // A2: นับ "ขายแล้ว/คงเหลือ" สดจากข้อมูลลูกค้าจริง (ไม่พึ่งค่าคีย์มือในตาราง projects)
     const soldUnits = salesFunnel?.transferCount ?? (project?.sold_units ?? 0);
     const bookedActive = Math.max((salesFunnel?.bookedCount ?? 0) - soldUnits, 0);
     const available = totalUnits > 0 ? Math.max(totalUnits - soldUnits - bookedActive, 0) : (project?.available_units ?? 0);
@@ -393,7 +392,6 @@ export default function DashboardPage() {
     const selloutForecast = project?.sellout_forecast ?? "-";
     const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
     const noProjectData = !loading && project === null;
-    // นับจำนวนเดือนจริงนับจากวันเริ่มโครงการ (เม.ย. 2569) — ไม่ผูกกับเดือนปฏิทินที่รีเซ็ตทุกปี
     const projStart = new Date(2026, 3, 1);
     const now = new Date();
     const monthsElapsed = Math.max((now.getFullYear() - projStart.getFullYear()) * 12 + (now.getMonth() - projStart.getMonth()) + 1, 1);

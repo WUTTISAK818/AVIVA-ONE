@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { Paperclip, Loader2, X, FileText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { attachDocumentToEntity, getEntityDocuments, type EntityType } from "@/lib/doc-attach";
+import { toSignedUrl } from "@/lib/storage";
 
 function isImageUrl(url: string | null): boolean {
   if (!url) return false;
@@ -18,16 +19,17 @@ interface Props {
 
 export default function AttachDocButton({ entityType, entityId, attachedBy, onAttached }: Props) {
   const [uploading, setUploading] = useState(false);
-  const [docs, setDocs] = useState<{ id: string; file_url: string | null; file_name: string | null; created_at: string }[]>([]);
+  const [docs, setDocs] = useState<{ id: string; file_url: string | null; file_name: string | null; created_at: string; signed?: string | null }[]>([]);
   const [showDocs, setShowDocs] = useState(false);
   const [latestImage, setLatestImage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadDocs = async () => {
     const result = await getEntityDocuments(entityType, entityId);
-    setDocs(result);
-    const img = result.find(d => isImageUrl(d.file_url));
-    if (img?.file_url) setLatestImage(img.file_url);
+    const withSigned = await Promise.all(result.map(async d => ({ ...d, signed: await toSignedUrl(d.file_url) })));
+    setDocs(withSigned);
+    const img = withSigned.find(d => isImageUrl(d.file_url));
+    if (img?.signed) setLatestImage(img.signed);
     setShowDocs(true);
   };
 
@@ -39,7 +41,7 @@ export default function AttachDocButton({ entityType, entityId, attachedBy, onAt
     if (!error) {
       const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
       await attachDocumentToEntity(entityType, entityId, publicUrl, file.name, attachedBy);
-      if (isImageUrl(publicUrl)) setLatestImage(publicUrl);
+      if (isImageUrl(publicUrl)) setLatestImage(await toSignedUrl(publicUrl));
       onAttached?.();
       await loadDocs();
     }
@@ -73,10 +75,10 @@ export default function AttachDocButton({ entityType, entityId, attachedBy, onAt
             <button onClick={() => setShowDocs(false)}><X size={10} className="text-aviva-secondary" /></button>
           </div>
           {docs.map(d => (
-            <a key={d.id} href={d.file_url ?? "#"} target="_blank" rel="noreferrer"
+            <a key={d.id} href={d.signed ?? d.file_url ?? "#"} target="_blank" rel="noreferrer"
               className="flex items-center gap-1.5 text-[10px] text-aviva-gold hover:underline truncate">
               {isImageUrl(d.file_url)
-                ? <img src={d.file_url!} alt={d.file_name ?? "img"} className="w-10 h-10 object-cover rounded flex-shrink-0" />
+                ? <img src={d.signed ?? d.file_url!} alt={d.file_name ?? "img"} className="w-10 h-10 object-cover rounded flex-shrink-0" />
                 : <FileText size={9} className="flex-shrink-0" />}
               <span className="truncate">{d.file_name ?? "ไฟล์แนบ"}</span>
             </a>

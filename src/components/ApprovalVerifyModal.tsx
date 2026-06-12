@@ -6,6 +6,7 @@ import ApprovalRouteBar from "./ApprovalRouteBar";
 import { type ApprovalSummaryInput } from "@/lib/approval-matrix";
 import { fetchApprovalSource, buildVerification, type VerifyData } from "@/lib/approval-source";
 import { attachDocumentToEntity, getEntityDocuments } from "@/lib/doc-attach";
+import { toSignedUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import { formatNumber } from "@/lib/thai-baht";
 
@@ -33,9 +34,15 @@ export default function ApprovalVerifyModal({
   const [checked, setChecked] = useState<boolean[]>([]);
   const [rejecting, setRejecting] = useState(false);
   const [comment, setComment] = useState("");
-  const [attachments, setAttachments] = useState<{ id: string; file_url: string | null; file_name: string | null }[]>([]);
+  const [attachments, setAttachments] = useState<{ id: string; file_url: string | null; file_name: string | null; signed?: string | null }[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadAttachments = async (id: string) => {
+    const rows = await getEntityDocuments("approval_log", id);
+    const signed = await Promise.all(rows.map(async (r) => ({ ...r, signed: await toSignedUrl(r.file_url) })));
+    setAttachments(signed);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -50,8 +57,8 @@ export default function ApprovalVerifyModal({
   }, [log.workflow_type, log.source_record_id, log.amount]);
 
   useEffect(() => {
-    if (!logId) return;
-    getEntityDocuments("approval_log", logId).then(setAttachments);
+    if (logId) loadAttachments(logId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logId]);
 
   const uploadReceipt = async (file: File) => {
@@ -63,7 +70,7 @@ export default function ApprovalVerifyModal({
     if (!error) {
       const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
       await attachDocumentToEntity("approval_log", logId, publicUrl, file.name, attachedBy);
-      setAttachments(await getEntityDocuments("approval_log", logId));
+      await loadAttachments(logId);
     }
     setUploading(false);
   };
@@ -171,9 +178,9 @@ export default function ApprovalVerifyModal({
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {attachments.map((a) => (
-                      <a key={a.id} href={a.file_url ?? "#"} target="_blank" rel="noreferrer" className="block">
+                      <a key={a.id} href={a.signed ?? a.file_url ?? "#"} target="_blank" rel="noreferrer" className="block">
                         {isImg(a.file_url) ? (
-                          <img src={a.file_url!} alt={a.file_name ?? "img"} className="w-16 h-16 object-cover rounded-lg border border-aviva-gold/20" />
+                          <img src={a.signed ?? a.file_url!} alt={a.file_name ?? "img"} className="w-16 h-16 object-cover rounded-lg border border-aviva-gold/20" />
                         ) : (
                           <span className="flex items-center gap-1 text-[10px] text-aviva-gold border border-aviva-gold/20 rounded-lg px-2 py-2.5">
                             <FileText size={12} /> {a.file_name ?? "ไฟล์แนบ"}

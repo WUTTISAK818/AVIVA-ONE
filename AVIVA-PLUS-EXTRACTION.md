@@ -3,7 +3,69 @@
 > **เอกสารชั่วคราว** — ใช้เป็น checklist ระหว่างย้าย AVIVA Plus ไป repo ใหม่
 > ลบทิ้งได้หลัง extract เสร็จ + ลบ branch นี้
 
-สถานะปัจจุบัน: PR #9 ปิดแล้ว, ไม่ merge เข้า main, branch ยังอยู่เป็นแหล่ง extract
+---
+
+## 🟢 SESSION 1 — เสร็จแล้ว (DB Migration Complete)
+
+### Supabase project ใหม่ — `aviva-plus` พร้อมแล้ว
+- **Project ID:** `azstncqpwyrabwvcuxjf`
+- **URL:** `https://azstncqpwyrabwvcuxjf.supabase.co`
+- **Region:** `ap-southeast-1` (Singapore)
+- **Organization:** AVIVA (`dkvzrmjuznzweowpzxzn`)
+- **Status:** ACTIVE_HEALTHY
+- **Anon key:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6c3RuY3Fwd3lyYWJ3dmN1eGpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MjQ3MTEsImV4cCI6MjA5NjMwMDcxMX0.j0WiYyqcRHXr1au8xDMWWkQDY5filO5zmd2c_Bb319M`
+- **Publishable key:** `sb_publishable_D0pvoxynqKJuzyY7CXvNiA_2Eau5g5e`
+
+### Schema Applied (37 tables)
+✅ Functions: `normalize_plate`, `set_updated_at`
+✅ 37 tables พร้อม GENERATED columns (`license_plate_norm`, `annual_fee`)
+✅ Primary keys + UNIQUE + CHECK constraints
+✅ Foreign keys (intra-Plus + auth.users)
+   - **ตัด FK ที่ชี้ AVIVA ONE tables ออก** (projects, customers, finance_transactions, ledger_accounts, users)
+   - คอลัมน์ยังคงอยู่ (nullable UUID) แต่ไม่บังคับ referential integrity
+✅ 21 secondary indexes
+✅ RLS enabled บนทุก 37 tables (policies ต้องเขียนใหม่หลัง deploy)
+
+### Data Migrated (12 ตารางที่มี data)
+| ตาราง | rows |
+|---|---|
+| `houses` | 55 ✓ |
+| `community_members` | 6 ✓ |
+| `facilities` | 3 ✓ |
+| `residents` | 3 ✓ (auth_user_id = NULL — รอ resident signup) |
+| `resident_vehicles` | 3 ✓ |
+| `guard_checkpoints` | 3 ✓ |
+| `gates` | 2 ✓ |
+| `visitors` | 1 ✓ |
+| `visitor_passes` | 1 ✓ |
+| `blacklist` | 1 ✓ |
+| `meetings` | 13 ✓ (created_by = NULL — user UUID ของ ONE ไม่ portable) |
+| `meeting_agendas` | 42 ✓ |
+
+### หมายเหตุการ migrate
+- `auth.users` ใน aviva-plus ว่าง — ต้องให้ resident signup ใหม่ใน Plus app
+- `WinVote` ถูก paused ชั่วคราว (เพื่อปลด 2-project limit) — ค่อย unpause ทีหลัง
+- FK ทั้งหมดที่ชี้ auth.users (เช่น `meetings.created_by`) ถูก SET NULL
+
+---
+
+## 🔴 SESSION 2 — ยังไม่ทำ (App + Deploy)
+
+### ขั้นตอนที่เหลือ
+1. **สร้าง GitHub repo:** `joyus818/aviva-plus` (private)
+2. **Scaffold Next.js project** ใน repo ใหม่
+3. **Copy ไฟล์ Plus-only** (รายการใน Section 1 ด้านล่าง)
+4. **Merge/แปลงไฟล์ shared** (รายการใน Section 2)
+5. **Update env vars** ด้วยค่า aviva-plus ด้านบน
+6. **Create Vercel project** → deploy
+7. **Test end-to-end**
+
+### Prompt ที่ใช้เริ่ม Session 2
+> "ทำต่อจาก spec ใน branch `claude/aviva-plus-resident-app-wdPCx` — DB พร้อมแล้ว ทำ GitHub repo `joyus818/aviva-plus` + copy Plus code + Vercel deploy"
+
+### ก่อนเริ่ม Session 2 — ผู้ใช้ต้อง
+1. ขยาย MCP scope เพิ่ม `joyus818/aviva-plus` (https://code.claude.com/docs/en/claude-code-on-the-web)
+2. ยืนยัน Vercel account login ด้วย joyus818@gmail.com
 
 ---
 
@@ -92,96 +154,53 @@ src/lib/gate-events.ts
 
 ---
 
-## 3. Database — 32 ตาราง Plus ใน Supabase project `lpxerxxcbxwsjimzougk`
+## 3. env vars ที่ต้องตั้งใน Vercel
 
-### 3a. ตาราง Plus ที่ต้องย้าย (มี data จริง)
-| ตาราง | rows |
-|---|---|
-| `houses` | 55 |
-| `community_members` | 6 |
-| `facilities` | 3 |
-| `residents` | 3 |
-| `resident_vehicles` | 3 |
-| `guard_checkpoints` | 3 |
-| `gates` | 2 |
-| `visitors` | 1 |
-| `visitor_passes` | 1 |
-| `blacklist` | 1 |
-| `reservations` | 4 |
-| `meetings` | 12 |
-| `meeting_agendas` | 33 |
-
-### 3b. ตาราง Plus ที่ว่าง (แค่ schema)
-`announcements, bills, committee_members, community_events, facility_bookings, gate_events, guard_shifts, incidents, juristic_documents, juristic_journals, juristic_journal_lines, meeting_minutes, parcels, patrol_logs, polls, poll_options, poll_votes, resolutions, resolution_votes, service_requests`
-
-### 3c. ตาราง "ใช้ร่วม" — ตัดสินใจก่อน
-| ตาราง | ปัญหา | ทางเลือก |
-|---|---|---|
-| `users` (32 rows) | มีทั้ง staff + resident ปนกัน | A) ดึงเฉพาะ resident users / B) ใช้ Supabase auth ใหม่ใน Plus project + import เฉพาะ resident emails |
-| `user_roles, roles, permissions` | shared RBAC | สร้างใหม่ใน Plus project ด้วย role ที่จำกัด (resident/guard/juristic) |
-| `notifications` (80 rows) | ทั้ง ONE + Plus | filter เฉพาะที่ Plus เป็นเจ้าของ |
-| `documents, audit_log` | shared infrastructure | สร้างใหม่ใน Plus project |
-| `events` (92 rows) | คลุมเครือ — เป็น calendar events หรือ Plus community events? | check schema ก่อน |
-
-### 3d. ตาราง AVIVA ONE — ไม่ย้าย (สรุปไว้กันลืม)
-`accounting_entries, ai_logs, alert_rules, approval_logs, approvals, attendance, bank_*, budget_lines, campaigns, cash_flow, commissions, construction_reports, contractor_installments, contracts, crm_logs, customer*, dashboard_config, defects, document_sequences, employees, finance_transactions, goods_receipts, installment_*, invoices, journal_entries, kpi_settings, leads, leave_requests, ledger_accounts, marketing_budgets, materials, payments, payroll_runs, projects, purchase_orders, qc_defects, receipts, salary_records, sales_activities, stock_transactions, tax_invoices, vendors, warranty_claims, work_*`
-
----
-
-## 4. Decisions ที่ owner ต้องเลือกก่อน extract
-
-### D1. Supabase project ใหม่
-- [ ] สร้าง project ชื่ออะไร? (แนะนำ `aviva-plus` หรือ `condo-plus`)
-- [ ] region — เลือก `ap-southeast-1` เหมือนเดิม
-- [ ] organization — ใหม่หรือใช้ org เดิม (`dkvzrmjuznzweowpzxzn`)?
-
-### D2. ตาราง `users` จะจัดการยังไง
-- [ ] **A:** Plus auth แยก — resident ต้อง login ด้วย account ใหม่ (cleanest)
-- [ ] **B:** Supabase shared auth — สอง project ใช้ auth pool เดียวกัน (ซับซ้อนกว่า แต่ user ไม่ต้องสร้าง account ใหม่)
-
-### D3. Domain name
-- [ ] subdomain เช่น `plus.condo-name.com` หรือ root domain เช่น `condo-plus.app`
-
-### D4. Repo name + visibility
-- [ ] `aviva-plus`? `condo-plus`? `your-condo-app`?
-- [ ] private (default) — ผ่อนคลายเป็น public ทีหลังได้
-
----
-
-## 5. Step-by-step extraction (หลัง owner ตอบ D1–D4)
-
-```bash
-# 1. สร้าง repo เปล่าใน GitHub (joyus818)
-# 2. Clone + scaffold Next.js
-npx create-next-app@latest aviva-plus --typescript --tailwind --app
-
-# 3. Copy ไฟล์ Plus-only จาก branch claude/aviva-plus-resident-app-wdPCx
-#    ใช้ rsync/cp ตามรายการ Section 1
-
-# 4. Merge/แปลงไฟล์ shared (Section 2) — เขียนใหม่ให้สะอาด
-
-# 5. Setup Supabase project ใหม่ (ดู Section 3)
-#    - pg_dump เฉพาะ Plus tables จาก lpxerxxcbxwsjimzougk
-#    - แก้ FK ที่ชี้ users → ใช้ Plus auth (D2)
-#    - apply schema + data ใน project ใหม่
-
-# 6. Deploy บน Vercel ใหม่
-#    - new project pointing to new repo
-#    - env vars ของ Plus Supabase + Cormorant font + brand
-
-# 7. ทดสอบ end-to-end บน preview
-# 8. Cutover DNS
-# 9. ลบ branch claude/aviva-plus-resident-app-wdPCx
-# 10. ลบไฟล์นี้
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://azstncqpwyrabwvcuxjf.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_D0pvoxynqKJuzyY7CXvNiA_2Eau5g5e
+# Optional — JWT legacy key (เผื่อ library เก่าใช้):
+# NEXT_PUBLIC_SUPABASE_LEGACY_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6c3RuY3Fwd3lyYWJ3dmN1eGpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MjQ3MTEsImV4cCI6MjA5NjMwMDcxMX0.j0WiYyqcRHXr1au8xDMWWkQDY5filO5zmd2c_Bb319M
 ```
 
 ---
 
-## 6. สิ่งที่ผมช่วยได้ต่อไป
+## 4. Step-by-step extraction (Session 2)
 
-- เขียน `pg_dump --schema-only` script สำหรับ Plus tables เฉพาะ (Section 3)
-- Scaffold ไฟล์ shared แบบใหม่สำหรับ Plus repo (Section 2)
-- เขียน data migration script (export → transform → import)
-- ตรวจ env vars + Supabase RLS policies ที่ต้อง port ตามไป
+```bash
+# 1. สร้าง repo เปล่าใน GitHub (joyus818/aviva-plus, private)
 
-ต้องการให้เริ่มอันไหนก่อน?
+# 2. Scaffold Next.js + copy Plus files
+npx create-next-app@latest aviva-plus --typescript --tailwind --app
+cd aviva-plus
+# rsync Section 1 ไฟล์ทั้งหมด
+
+# 3. Merge/แปลงไฟล์ shared ตาม Section 2
+
+# 4. ตั้ง .env.local + push ไป GitHub
+
+# 5. Vercel: import repo → set env vars จาก Section 3 → deploy
+
+# 6. Test:
+#    - /login → redirect /community/announcements
+#    - /community/* — list 47 routes accessible
+#    - /guard/* — guard view
+#    - /security/* — juristic view
+#    - Resident signup → check auth.users + residents row creation
+
+# 7. หลัง stable:
+#    - ลบ branch claude/aviva-plus-resident-app-wdPCx ใน wuttisak818/aviva-one
+#    - ลบ AVIVA-PLUS-EXTRACTION.md ไฟล์นี้
+#    - Unpause WinVote ใน Supabase
+```
+
+---
+
+## 5. Decisions ที่ตัดสินใจแล้ว (สำหรับ Session 2)
+
+| # | คำถาม | คำตอบ |
+|---|---|---|
+| D1 | Supabase project name | `aviva-plus` ✓ (สร้างแล้ว) |
+| D2 | Users table strategy | **A** — Plus auth แยกออกจาก ONE |
+| D3 | Domain | `aviva-plus.vercel.app` (free) — custom domain ทีหลัง |
+| D4 | Repo | `joyus818/aviva-plus` (private) — รอ MCP scope ใน Session 2 |

@@ -22,6 +22,9 @@ interface HouseLite {
   plot_number: number | null;
   contractor: string | null;
   contractor_line_id: string | null;
+  progress: number | null;
+  delayed_days: number | null;
+  status: string | null;
 }
 
 const BLANK = { name: "", phone: "", ref_code: "" };
@@ -47,7 +50,7 @@ export default function ContractorsPage() {
     setLoading(true);
     const [{ data: cs }, { data: hs }] = await Promise.all([
       supabase.from("contractors").select("*").order("created_at", { ascending: false }),
-      supabase.from("houses").select("id, house_number, plot_number, contractor, contractor_line_id").order("plot_number"),
+      supabase.from("houses").select("id, house_number, plot_number, contractor, contractor_line_id, progress, delayed_days, status").order("plot_number"),
     ]);
     setContractors((cs as Contractor[]) ?? []);
     setHouses((hs as HouseLite[]) ?? []);
@@ -104,6 +107,14 @@ export default function ContractorsPage() {
   }
 
   const linkedCount = (refCode: string) => houses.filter(h => h.contractor_line_id === refCode).length;
+  // Scorecard: ผลงานผู้รับเหมาจากแปลงที่ผูก (เฉลี่ย progress + จำนวนล่าช้า)
+  const scoreOf = (refCode: string) => {
+    const hs = houses.filter(h => h.contractor_line_id === refCode);
+    if (!hs.length) return null;
+    const avg = Math.round(hs.reduce((s, h) => s + (h.progress ?? 0), 0) / hs.length);
+    const delayed = hs.filter(h => (h.delayed_days ?? 0) > 0).length;
+    return { avg, delayed, total: hs.length };
+  };
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
@@ -136,7 +147,7 @@ export default function ContractorsPage() {
         ) : contractors.length === 0 ? (
           <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีผู้รับเหมา — กดเพิ่มผู้รับเหมาเพื่อเริ่มต้น</p>
         ) : (
-          contractors.map(c => (
+          contractors.map(c => { const sc = scoreOf(c.ref_code); return (
             <GlassCard key={c.id} className="p-4">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center flex-shrink-0">
@@ -154,6 +165,19 @@ export default function ContractorsPage() {
                   </div>
                 </div>
               </div>
+              {sc && (
+                <div className="mt-2.5">
+                  <div className="flex items-center justify-between text-[10px] mb-1">
+                    <span className="text-aviva-secondary">ความคืบหน้าเฉลี่ย {sc.avg}% ({sc.total} แปลง)</span>
+                    {sc.delayed > 0
+                      ? <span className="text-red-400 font-medium">⚠ ล่าช้า {sc.delayed} แปลง</span>
+                      : <span className="text-green-400 font-medium">✓ ตรงเวลา</span>}
+                  </div>
+                  <div className="h-1.5 rounded-full bg-aviva-gold/10 overflow-hidden">
+                    <div className={sc.delayed > 0 ? "h-full bg-red-400/80" : "h-full bg-green-400"} style={{ width: `${Math.min(100, Math.max(0, sc.avg))}%` }} />
+                  </div>
+                </div>
+              )}
               <div className="mt-3 flex gap-2">
                 <button onClick={() => openEdit(c)} className="flex-1 text-xs text-aviva-secondary border border-aviva-gold/10 rounded-lg py-1.5 hover:border-aviva-gold/30 transition-all">แก้ไข</button>
                 <button onClick={() => setLinkFor(c)} className="flex-1 text-xs text-aviva-gold border border-aviva-gold/20 bg-aviva-gold/5 rounded-lg py-1.5 hover:bg-aviva-gold/10 transition-all inline-flex items-center justify-center gap-1">
@@ -161,7 +185,7 @@ export default function ContractorsPage() {
                 </button>
               </div>
             </GlassCard>
-          ))
+          ); })
         )}
       </div>
 

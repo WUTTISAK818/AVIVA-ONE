@@ -2553,6 +2553,13 @@ function AfterSalesContent() {
       });
   }, []);
 
+  // ผูกกับแปลงจริง (เลิก free-text) เพื่อวิเคราะห์ defect/เคลมต่อแปลงได้
+  const [houseOpts, setHouseOpts] = useState<{ plot_number: number | null; house_number: string }[]>([]);
+  useEffect(() => {
+    supabase.from("houses").select("plot_number,house_number").eq("project_id", PROJECT_ID).order("plot_number")
+      .then(({ data }) => setHouseOpts((data ?? []) as { plot_number: number | null; house_number: string }[]));
+  }, []);
+
   const counts = {
     pending:     claims.filter(c => c.status === "pending").length,
     in_progress: claims.filter(c => c.status === "in_progress").length,
@@ -2758,10 +2765,13 @@ function AfterSalesContent() {
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">บ้าน/แปลงที่</label>
-                <input type="text" value={form.house_number}
+                <select value={form.house_number}
                   onChange={e => setForm({ ...form, house_number: e.target.value })}
-                  placeholder="เช่น แปลงที่ 5"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="">— เลือกแปลง —</option>
+                  {houseOpts.map(h => <option key={h.house_number} value={h.house_number}>{h.house_number}</option>)}
+                  <option value="ส่วนกลาง">ส่วนกลาง / อื่นๆ</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

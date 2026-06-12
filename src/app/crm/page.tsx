@@ -815,6 +815,7 @@ export default function CRMPage() {
             await supabase.from("approval_logs").insert({
               workflow_type: "Booking_Deposit",
               source_doc_index: `${docNum} | จองแปลง ${effectivePlot} — ${form.customer_name} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+              submitted_by_user_id: user?.id ?? null,
               source_record_id: editingLead.id,
               current_approver_role: "manager",
               action_taken: "Pending",
@@ -959,6 +960,7 @@ export default function CRMPage() {
         await supabase.from("approval_logs").insert({
           workflow_type: "Contract_Approval",
           source_doc_index: `${docNum} | ${lead.customer_name}${lead.plot_number ? ` แปลง ${lead.plot_number}` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+          submitted_by_user_id: user?.id ?? null,
           source_record_id: lead.id,
           current_approver_role: "manager",
           action_taken: "Pending",

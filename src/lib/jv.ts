@@ -34,6 +34,12 @@ export async function postJv(params: {
   const total_debit = params.lines.reduce((s, l) => s + Number(l.debit), 0);
   const total_credit = params.lines.reduce((s, l) => s + Number(l.credit), 0);
 
+  // Guard: รายการบัญชีต้องสมดุล (เดบิต = เครดิต) — ป้องกัน JV ไม่ balance ตามหลักบัญชีคู่
+  if (Math.round(total_debit * 100) !== Math.round(total_credit * 100)) {
+    console.error("postJv: JV ไม่สมดุล — ไม่บันทึก", { total_debit, total_credit, description: params.description });
+    return null;
+  }
+
   const { data: jv } = await supabase
     .from("jv_entries")
     .insert({

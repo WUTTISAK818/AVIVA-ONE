@@ -342,12 +342,18 @@ function ApprovalsContent() {
     const note = commentArg ?? notes[log.id] ?? null;
 
     // Update the approval log (เก็บเหตุผลใน rejection_comment เฉพาะตอนปฏิเสธ — approval_logs ไม่มีคอลัมน์ notes)
-    await supabase.from("approval_logs").update({
+    const { error: updErr } = await supabase.from("approval_logs").update({
       action_taken: action,
       action_timestamp: new Date().toISOString(),
       approver_email: user.email,
       ...(approved ? {} : { rejection_comment: note }),
     }).eq("id", log.id);
+    if (updErr) {
+      // เช่น โดน Maker-Checker ระดับ DB บล็อก (ผู้อนุมัติ = ผู้ยื่นคำขอ)
+      setProcessingId(null);
+      alert("ไม่สามารถดำเนินการได้: " + updErr.message);
+      return;
+    }
 
     // Cascade logic based on workflow type
     if (log.workflow_type === "Installment_Review") {

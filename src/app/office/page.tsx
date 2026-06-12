@@ -244,6 +244,7 @@ function FinanceContent() {
       const { data: logRow } = await supabase.from("approval_logs").insert({
         workflow_type: "Finance_Approval",
         source_doc_index: `${finDocNum} | [${form.category}] ${form.description}${form.cost_center ? ` (${form.cost_center})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: data?.id ?? null,
         current_approver_role: amt >= 500000 ? "admin" : "manager",
         action_taken: "Pending",
@@ -1310,6 +1311,7 @@ function MarketingContent() {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
         source_doc_index: `${poDocNum} | ฝ่ายการตลาด — ${mktPRForm.supplier_name} — ${mktPRForm.description} | โดย ${user?.full_name ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: poData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -1892,6 +1894,7 @@ function HRContent() {
       await supabase.from("approval_logs").insert({
         workflow_type: "Leave_Request",
         source_doc_index: `${docNum} | ขอ${leaveForm.leave_type} ${days} วัน (${leaveForm.date_from} – ${leaveForm.date_to}) | โดย ${leaveForm.employee_name}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: leaveData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -1988,6 +1991,7 @@ function HRContent() {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
         source_doc_index: `${poDocNum} | ฝ่ายบุคคล — ${prForm.supplier_name} — ${prForm.description} | โดย ${user?.full_name ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: poData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -2899,6 +2903,7 @@ interface ApprovalLog {
   rejection_comment: string | null;
   amount: number | null;
   created_at: string;
+  submitted_by_user_id: string | null;
 }
 
 type ApprovalsFilterTab = "pending" | "approved" | "rejected";
@@ -2971,6 +2976,7 @@ function ApprovalsContent() {
         workflow_type: log.workflow_type,
         source_doc_index: `[2nd Approval] ${log.source_doc_index}`,
         source_record_id: log.source_record_id,
+        submitted_by_user_id: log.submitted_by_user_id ?? null,
         current_approver_role: "admin",
         action_taken: "Pending",
         amount: log.amount,
@@ -3251,6 +3257,7 @@ function MaterialsContent() {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
         source_doc_index: `${poDocNum} | PO — ${poForm.supplier_name}${poForm.delivery_date ? ` (กำหนดส่ง ${poForm.delivery_date})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: poData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -4035,6 +4042,7 @@ function DocumentsContent() {
         workflow_type: "Document_Approval",
         source_doc_index: form.name,
         source_record_id: docData.id,
+        submitted_by_user_id: user?.id ?? null,
         current_approver_role: "manager",
         action_taken: "Pending",
         amount: null,

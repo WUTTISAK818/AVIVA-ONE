@@ -53,6 +53,8 @@ export default function CommunityPage() {
   const totalFee = members.reduce((s, m) => s + Number(m.annual_fee), 0);
   const paidCount = members.filter((m) => m.fee_status === "Paid").length;
   const unpaidCount = members.filter((m) => m.fee_status === "Unpaid").length;
+  const collectedAmt = members.filter((m) => m.fee_status === "Paid").reduce((s, m) => s + Number(m.annual_fee || 0), 0);
+  const outstandingAmt = members.filter((m) => m.fee_status === "Unpaid").reduce((s, m) => s + Number(m.annual_fee || 0), 0);
   const filtered = filterStatus === "all" ? members : members.filter((m) => m.fee_status === filterStatus);
 
   const handleAdd = async () => {
@@ -105,11 +107,13 @@ export default function CommunityPage() {
             <CheckCircle size={16} className="text-green-400 mx-auto mb-1" />
             <p className="text-xl font-bold text-green-400">{paidCount}</p>
             <p className="text-[10px] text-aviva-secondary">ชำระแล้ว</p>
+            <p className="text-[9px] text-green-400/70 mt-0.5">{fmt(collectedAmt)}</p>
           </GlassCard>
           <GlassCard className="p-3 text-center">
             <DollarSign size={16} className="text-red-400 mx-auto mb-1" />
             <p className="text-xl font-bold text-red-400">{unpaidCount}</p>
             <p className="text-[10px] text-aviva-secondary">ค้างชำระ</p>
+            <p className="text-[9px] text-red-400/70 mt-0.5">{fmt(outstandingAmt)}</p>
           </GlassCard>
         </div>
 

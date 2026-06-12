@@ -61,7 +61,6 @@ export default function UsersPage() {
   const [resetting, setResetting] = useState(false);
   const [resetOk, setResetOk] = useState(false);
 
-  // Admin/CEO/Director เท่านั้นที่เพิ่ม/แก้ไข/ลบ
   const canManage = ["admin", "ceo", "director"].includes(currentUser?.role ?? "");
 
   useEffect(() => {
@@ -139,7 +138,6 @@ export default function UsersPage() {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         setSavedOk(true);
-        // รอ 1.5 วิ ให้ Supabase Auth sync ก่อน refresh รายการ
         setShowModal(false);
         fetchUsers(1500);
       }

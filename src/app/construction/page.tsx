@@ -18,6 +18,7 @@ import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
 import SignedImg from "@/components/SignedImg";
+import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
@@ -701,7 +702,12 @@ export default function ConstructionPage() {
     w.document.close();
   };
 
-  const printDailyReport = () => {
+  const printDailyReport = async () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:sans-serif;padding:24px;color:#666">กำลังเตรียมรายงาน...</body></html>');
+    const signedPhotos: Record<string, string> = {};
+    await Promise.all([...new Set(reports.map(r => r.photo_url).filter(Boolean) as string[])].map(async (purl) => { const u = await toSignedUrl(purl); if (u) signedPhotos[purl] = u; }));
     const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
     const uniqueHouseIds = new Set(reports.map(r => r.house_id)).size;
     const avgProgress = reports.length > 0 ? Math.round(reports.reduce((s, r) => s + r.progress, 0) / reports.length) : 0;
@@ -709,11 +715,11 @@ export default function ConstructionPage() {
       const house = houses.find(h => h.id === r.house_id);
       const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
       const t = new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-      const photo = r.photo_url ? `<img src="${r.photo_url}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid #ddd;" />` : "—";
+      const purl = r.photo_url ? signedPhotos[r.photo_url] : null;
+      const photo = purl ? `<img src="${purl}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid #ddd;" />` : "—";
       return `<tr><td style="white-space:nowrap">${d}<br><span style="color:#888;font-size:10px">${t}</span></td><td style="font-weight:600">${house?.house_number ?? "—"}</td><td>${r.work_type ?? "—"}</td><td>${r.work_detail ?? "—"}</td><td style="text-align:center;font-weight:700">${r.progress ?? 0}%</td><td style="color:#c0392b">${r.issue || "—"}</td><td style="text-align:center">${r.reported_by ?? "—"}</td><td style="text-align:center">${photo}</td></tr>`;
     }).join("");
-    const w = window.open("", "_blank");
-    if (!w) return;
+    w.document.open();
     w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}.summary{display:flex;gap:12px;margin:12px 0 16px}.sb{background:#f5f5f5;border-radius:8px;padding:10px 14px;flex:1;border-left:3px solid #1E4A35}.sb .num{font-size:20px;font-weight:900;color:#1E4A35}.sb .lbl{font-size:10px;color:#666;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:11px}thead tr{background:#1E4A35}th{color:#D4AF37;padding:7px 8px;text-align:left;font-size:11px;font-weight:600}td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end}.sig{text-align:center;width:200px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่พิมพ์: ${dateStr}</div></div><div class="summary"><div class="sb"><div class="num">${reports.length}</div><div class="lbl">รายการทั้งหมด</div></div><div class="sb"><div class="num">${uniqueHouseIds}</div><div class="lbl">ยูนิตที่รายงาน</div></div><div class="sb"><div class="num">${avgProgress}%</div><div class="lbl">เฉลี่ยความคืบหน้า</div></div></div><table><thead><tr><th>วันที่/เวลา</th><th>ยูนิต</th><th>ประเภทงาน</th><th>รายละเอียดงาน</th><th style="text-align:center">คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th style="text-align:center">ผู้รายงาน</th><th style="text-align:center">รูป</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">ผู้จัดทำรายงาน</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
     w.document.close();
   };
@@ -1446,9 +1452,9 @@ export default function ConstructionPage() {
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
                           {r.photo_url && (
-                            <a href={r.photo_url} target="_blank" rel="noreferrer" className="mt-2 block">
-                              <img src={r.photo_url} alt="รูปตรวจงาน" className="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
-                            </a>
+                            <div className="mt-2">
+                              <SignedImg src={r.photo_url} alt="รูปตรวจงาน" link imgClassName="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">

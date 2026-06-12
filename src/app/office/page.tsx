@@ -294,6 +294,12 @@ function FinanceContent() {
   const handleApprove = async (id: string, approved: boolean) => {
     const approval = approvals.find(a => a.id === id);
     if (!approval) return;
+    // Maker-Checker: ผู้อนุมัติ/ปฏิเสธ ต้องไม่ใช่ผู้ขอ
+    const requester = (approval as { requested_by?: string | null }).requested_by;
+    if (requester && user?.full_name && requester === user.full_name) {
+      alert("ไม่สามารถดำเนินการกับรายการที่ท่านเป็นผู้ขอได้ (Maker-Checker)");
+      return;
+    }
     await supabase.from("approvals").update({
       status: approved ? "approved" : "rejected",
       approved_by: user?.full_name ?? user?.email ?? "Admin",

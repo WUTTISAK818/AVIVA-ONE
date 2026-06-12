@@ -202,13 +202,20 @@ export async function POST(req: NextRequest) {
     db.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
     db.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
     db.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+    db.from("loan_applications").select("status").then(r => r.data ?? []),
   ]).catch(() => null);
 
   if (!results) {
     return NextResponse.json({ response: "ไม่สามารถดึงข้อมูลโครงการได้ในขณะนี้ กรุณาลองใหม่ค่ะ" });
   }
 
-  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments] = results;
+  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments, loanApps] = results;
+  const loans = (loanApps as { status: string }[]) ?? [];
+  const loanStat = {
+    submitted: loans.filter(l => l.status === "submitted").length,
+    approved: loans.filter(l => l.status === "approved").length,
+    rejected: loans.filter(l => l.status === "rejected").length,
+  };
 
   if (!project) {
     return NextResponse.json({ response: "ไม่พบข้อมูลโครงการ กรุณาตรวจสอบการตั้งค่าค่ะ" });
@@ -256,6 +263,7 @@ export async function POST(req: NextRequest) {
 👥 CRM:
 - Leads ทั้งหมด: ${leads.length} ราย | New Lead: ${newLeads.length} | Booking+Loan: ${bookingLeads.length} | ปิดการขาย: ${closedLeads.length}
 - อัตราปิดการขาย: ${leads.length > 0 ? Math.round((closedLeads.length / leads.length) * 100) : 0}%
+- สินเชื่อ (การยื่นกู้): ยื่นแล้วรอผล ${loanStat.submitted} | อนุมัติ ${loanStat.approved} | ไม่อนุมัติ ${loanStat.rejected}
 
 📣 การตลาด:
 - แคมเปญ Active: ${activeCampaigns.length} แคมเปญ (${activeCampaigns.map(c => c.platform).join(", ") || "ไม่มี"})

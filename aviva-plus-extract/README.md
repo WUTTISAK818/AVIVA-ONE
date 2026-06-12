@@ -76,3 +76,35 @@ git push -u origin main
 - ลบ branch `claude/aviva-plus-resident-app-wdPCx` ใน wuttisak818/aviva-one
 - ลบ `aviva-plus-extract/` folder + `AVIVA-PLUS-EXTRACTION.md`
 - Unpause Supabase `WinVote` project
+
+---
+
+## 📊 สถานะ Supabase `aviva-plus` (azstncqpwyrabwvcuxjf) — verified 12 Jun 2026
+
+| Item | Count | Note |
+|---|---|---|
+| public tables | 37 | schema complete |
+| auth tables | 23 | standard Supabase auth |
+| houses | 55 | full village |
+| residents | 3 | seed (ไม่มี auth_user_id ผูก) |
+| facilities | 3 | seed |
+| visitor_passes | 1 | test data |
+| bills / announcements / polls / resolutions | 0 | สร้างผ่าน app |
+| **auth.users** | **0** | ⚠️ ต้อง signup ก่อนใช้งาน |
+
+## ⚠️ RLS state — ทุก table มี RLS เปิดอยู่แต่ยังไม่มี policy
+
+40+ tables มี `rls_enabled_no_policy` warning จาก Supabase advisor:
+- **ผลกระทบ:** anon/authenticated client query ผ่าน supabase-js → ได้ผลลัพธ์ว่างเปล่า
+- **ทางออก:** API routes ใช้ service role → ทำงานได้ปกติ (ปัจจุบันโค้ดทำแบบนี้อยู่)
+- **Session 2:** หลัง deploy แล้วถ้าพบหน้าไหน query ว่าง ต้อง:
+  1. ตรวจว่า page ใช้ client supabase หรือ API route
+  2. ถ้า client → ย้ายเป็น API route + service role
+  3. หรือเขียน RLS policy ที่เหมาะสม
+
+## ⚠️ Function security warnings
+2 functions มี mutable search_path:
+- `public.normalize_plate`
+- `public.set_updated_at`
+
+แก้ด้วย `ALTER FUNCTION ... SET search_path = ''` หลัง deploy

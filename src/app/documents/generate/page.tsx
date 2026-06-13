@@ -2,10 +2,13 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Printer, FileText, Search } from "lucide-react";
+import { ArrowLeft, Printer, FileText, Search, Save, Loader2, Check } from "lucide-react";
 import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
 import { PLOTS, findPlot, PAYMENT_DEFAULTS, PROJECT, todayISO, makeContractNo } from "@/lib/aviva-doc-data";
+import { recordGeneratedDocument } from "@/lib/doc-attach";
+import { generateDocNumber } from "@/lib/doc-numbers";
+import { useCurrentUser } from "@/lib/user-context";
 import { DocData, emptyDocData } from "@/components/docs/types";
 import QuotationDoc from "@/components/docs/QuotationDoc";
 import BookingDoc from "@/components/docs/BookingDoc";
@@ -46,6 +49,10 @@ function GenerateInner() {
   const [leadResults, setLeadResults] = useState<LeadLite[]>([]);
   const [leadSearch, setLeadSearch] = useState("");
   const [showLeadList, setShowLeadList] = useState(false);
+  const [leadId, setLeadId] = useState<string | null>(params.get("lead"));
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+  const user = useCurrentUser();
 
   const set = useCallback((patch: Partial<DocData>) => setD((p) => ({ ...p, ...patch })), []);
 
@@ -82,6 +89,7 @@ function GenerateInner() {
   }, [leadSearch]);
 
   const applyLead = useCallback((l: LeadLite) => {
+    setLeadId(l.id);
     set({
       customerName: l.customer_name,
       customerPhone: l.phone ?? "",
@@ -117,6 +125,24 @@ function GenerateInner() {
 
   const num = (v: string) => (v === "" ? 0 : Number(v.replace(/,/g, "")) || 0);
 
+  // บันทึกเอกสารที่สร้าง (โหมด A) เข้าประวัติลูกค้า — รวมกับไฟล์ที่แนบในระบบเดียว
+  const saveToHistory = async () => {
+    if (!leadId || saving) return;
+    setSaving(true);
+    try {
+      const label = DOC_TABS.find((t) => t.key === docType)?.label ?? "เอกสารขาย";
+      const docNumber =
+        docType === "contract" ? (d.contractNo || makeContractNo(1))
+        : docType === "booking" ? await generateDocNumber("BOOK")
+        : await generateDocNumber("DOC");
+      await recordGeneratedDocument("lead", leadId, docType, docNumber, label, user?.full_name ?? user?.email ?? "ฝ่ายขาย");
+      setSavedMsg(`บันทึก ${label} (${docNumber}) เข้าประวัติลูกค้าแล้ว`);
+      setTimeout(() => setSavedMsg(""), 3500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       {/* Header */}
@@ -125,11 +151,22 @@ function GenerateInner() {
           <button onClick={() => router.back()} className="text-aviva-secondary active:scale-90"><ArrowLeft size={20} /></button>
           <FileText size={18} className="text-aviva-gold" />
           <h1 className="text-base font-bold text-aviva-text">ออกเอกสารขาย</h1>
+          {leadId && (
+            <button onClick={saveToHistory} disabled={saving}
+              className="ml-auto flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold font-bold text-sm px-3 py-1.5 rounded-lg active:scale-95 disabled:opacity-50">
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} บันทึกเข้าประวัติ
+            </button>
+          )}
           <button onClick={() => window.print()}
-            className="ml-auto flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold text-sm px-3 py-1.5 rounded-lg active:scale-95">
+            className={clsx("flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold text-sm px-3 py-1.5 rounded-lg active:scale-95", !leadId && "ml-auto")}>
             <Printer size={15} /> พิมพ์ / PDF
           </button>
         </div>
+        {savedMsg && (
+          <div className="max-w-5xl mx-auto px-4 pb-2 flex items-center gap-1.5 text-xs text-emerald-400">
+            <Check size={13} /> {savedMsg}
+          </div>
+        )}
         <div className="max-w-5xl mx-auto px-4 pb-2 flex gap-2">
           {DOC_TABS.map((t) => (
             <button key={t.key} onClick={() => setDocType(t.key)}

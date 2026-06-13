@@ -491,6 +491,9 @@ function FinanceContent() {
                     </button>
                   </div>
                 )}
+                <div className="mt-2 pt-2 border-t border-aviva-gold/10">
+                  <AttachDocButton entityType="approval_log" entityId={ap.id} attachedBy={user?.full_name ?? ""} templates={approvalTemplates(ap)} />
+                </div>
               </GlassCard>
             ))
           }
@@ -774,6 +777,39 @@ function receiptTemplates(r: ReceiptRow): DocTemplate[] {
           <tr><td style="text-align:right">จำนวนเงิน</td><td style="text-align:right;font-weight:700">${(r.amount ?? 0).toLocaleString()} บาท</td></tr>
         </tbody></table>`;
       return renderDocShell({ title, docNumber, bodyHtml: body, signLabels: isExpense ? ["ผู้จ่ายเงิน", "ผู้รับเงิน"] : ["ผู้รับเงิน"] });
+    },
+  }];
+}
+
+// โหมด A — ใบขออนุมัติจ่ายเงิน จากคำขออนุมัติ (การเงิน)
+function approvalTemplates(ap: Approval): DocTemplate[] {
+  return [{
+    key: "approval", label: "ใบขออนุมัติจ่าย", docType: "payment_approval", prefix: "FIN",
+    render: (docNumber) => {
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ผู้ขออนุมัติ</th><td>${esc(ap.requested_by)}</td></tr>
+          <tr><th>รายละเอียด</th><td>${esc(ap.description)}</td></tr>
+          <tr><th>จำนวนเงินที่ขอ</th><td>${(ap.amount ?? 0).toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบขออนุมัติจ่ายเงิน", docNumber, bodyHtml: body, signLabels: ["ผู้ขออนุมัติ", "ผู้จัดการ", "ผู้บริหาร"] });
+    },
+  }];
+}
+
+// โหมด A — ใบลา จากคำขอลา (บุคคล)
+function leaveTemplates(l: { employee_name: string; leave_type: string; date_from: string; date_to: string; reason: string }): DocTemplate[] {
+  return [{
+    key: "leave", label: "ใบลา", docType: "leave_form", prefix: "LEAVE",
+    render: (docNumber) => {
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ชื่อผู้ลา</th><td>${esc(l.employee_name)}</td></tr>
+          <tr><th>ประเภทการลา</th><td>${esc(l.leave_type)}</td></tr>
+          <tr><th>ตั้งแต่วันที่</th><td>${esc(l.date_from)} ถึง ${esc(l.date_to)}</td></tr>
+          <tr><th>เหตุผล</th><td>${esc(l.reason || "-")}</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบลา", docNumber, bodyHtml: body, signLabels: ["ผู้ลา", "ผู้บังคับบัญชา", "ฝ่ายบุคคล"] });
     },
   }];
 }
@@ -2170,7 +2206,7 @@ function HRContent() {
                     )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
                   </div>
                   <div className="mt-1.5">
-                    <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} />
+                    <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} templates={leaveTemplates(l)} />
                   </div>
                 </GlassCard>
               );
@@ -3259,6 +3295,29 @@ interface PurchaseOrder {
   total_amount: number; status: string; requested_by: string; created_at: string;
 }
 
+// โหมด A — ใบสั่งซื้อวัสดุ (PO) ฝั่งจัดซื้อสำนักงาน
+function poTemplates(po: PurchaseOrder): DocTemplate[] {
+  return [{
+    key: "po", label: "ใบสั่งซื้อวัสดุ", docType: "po",
+    fixedNumber: po.po_number ?? undefined,
+    render: (docNumber) => {
+      const items = po.items ?? [];
+      const rows = items.map((it, i) => [i + 1, it.name, it.qty, it.unit, it.unit_price, it.qty * it.unit_price]);
+      const total = po.total_amount ?? items.reduce((s, it) => s + it.qty * it.unit_price, 0);
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ผู้จำหน่าย</th><td>${esc(po.supplier_name)}</td></tr>
+          <tr><th>ผู้ขอซื้อ</th><td>${esc(po.requested_by ?? "-")}</td></tr>
+        </tbody></table>
+        ${renderItemsTable(["ลำดับ", "รายการ", "จำนวน", "หน่วย", "ราคา/หน่วย", "รวม"], rows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเป็นเงินทั้งสิ้น</td><td style="text-align:right;font-weight:700">${total.toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบสั่งซื้อวัสดุ", docNumber, bodyHtml: body, signLabels: ["ผู้ขอซื้อ", "ผู้อนุมัติ", "ผู้จำหน่าย"] });
+    },
+  }];
+}
+
 function MaterialsContent() {
   const user = useCurrentUser();
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -3477,7 +3536,7 @@ function MaterialsContent() {
                   </div>
                 )}
                 <div className="mt-0.5">
-                  <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} />
+                  <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} templates={poTemplates(po)} />
                 </div>
                 {po.status === "pending_approval" && (user?.isManager || user?.isAdmin) && (
                   <button onClick={() => handlePOApprove(po.id)}

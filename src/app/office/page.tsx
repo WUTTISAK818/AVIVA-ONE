@@ -16,6 +16,7 @@ import SectionHeader from "@/components/SectionHeader";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import AttachDocButton from "@/components/AttachDocButton";
+import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/doc-templates";
 import { supabase } from "@/lib/supabase";
 import { postJv } from "@/lib/jv";
 import { logAction } from "@/lib/audit";
@@ -729,6 +730,54 @@ const emptyReceiptForm = {
   receipt_number: "",
 };
 
+// โหมด A — ใบสำคัญลงบัญชี (JV voucher) จากรายการบัญชีก่อสร้าง
+function jvTemplates(e: ConstructionJv): DocTemplate[] {
+  return [{
+    key: "jv", label: "ใบสำคัญลงบัญชี (JV)", docType: "jv_voucher",
+    fixedNumber: e.jv_number ?? undefined,
+    render: (docNumber) => {
+      const amt = e.total_debit ?? 0;
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">วันที่</th><td>${esc(e.jv_date)}</td></tr>
+          <tr><th>รายการ</th><td>${esc(e.description)}</td></tr>
+          ${e.ref_number ? `<tr><th>อ้างอิง</th><td>${esc(e.ref_number)}</td></tr>` : ""}
+        </tbody></table>
+        ${renderItemsTable(["รหัสบัญชี", "ชื่อบัญชี", "เดบิต", "เครดิต"], [
+          ["2100", "เจ้าหนี้ผู้รับเหมา", amt, 0],
+          ["1100", "เงินสด/เงินฝากธนาคาร", 0, amt],
+        ])}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวม</td><td style="text-align:right;font-weight:700">${amt.toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบสำคัญลงบัญชี", docNumber, bodyHtml: body, signLabels: ["ผู้จัดทำ", "ผู้ตรวจสอบ", "ผู้อนุมัติ"] });
+    },
+  }];
+}
+
+// โหมด A — ใบเสร็จรับเงิน / ใบสำคัญจ่าย จากบิล/ใบเสร็จ
+function receiptTemplates(r: ReceiptRow): DocTemplate[] {
+  const isExpense = r.receipt_type === "expense";
+  const title = isExpense ? "ใบสำคัญจ่าย" : "ใบเสร็จรับเงิน";
+  return [{
+    key: "receipt", label: title, docType: isExpense ? "payment_voucher" : "receipt",
+    fixedNumber: r.receipt_number ?? undefined,
+    render: (docNumber) => {
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">${isExpense ? "ผู้รับเงิน / ผู้ขาย" : "ได้รับเงินจาก"}</th><td>${esc(r.vendor_name)}</td></tr>
+          <tr><th>หมวด</th><td>${esc(r.category)}</td></tr>
+          ${r.description ? `<tr><th>รายละเอียด</th><td>${esc(r.description)}</td></tr>` : ""}
+          <tr><th>วันที่</th><td>${esc(r.receipt_date)}</td></tr>
+        </tbody></table>
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">จำนวนเงิน</td><td style="text-align:right;font-weight:700">${(r.amount ?? 0).toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title, docNumber, bodyHtml: body, signLabels: isExpense ? ["ผู้จ่ายเงิน", "ผู้รับเงิน"] : ["ผู้รับเงิน"] });
+    },
+  }];
+}
+
 function AccountingContent() {
   const user = useCurrentUser();
   const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
@@ -941,7 +990,7 @@ function AccountingContent() {
                     Dr: 2100 เจ้าหนี้ผู้รับเหมา / Cr: 1100 เงินสด/เงินฝากธนาคาร
                   </div>
                   <div className="mt-1.5">
-                    <AttachDocButton entityType="jv_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} />
+                    <AttachDocButton entityType="jv_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} templates={jvTemplates(e)} />
                   </div>
                 </div>
                 <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.total_debit.toLocaleString()}</p>
@@ -980,7 +1029,7 @@ function AccountingContent() {
                     )}
                     <p className="text-[10px] text-aviva-secondary/60 mt-0.5">{r.receipt_date} · {r.receipt_number}</p>
                     <div className="mt-1.5">
-                      <AttachDocButton entityType="receipt" entityId={r.id} attachedBy={user?.full_name ?? ""} />
+                      <AttachDocButton entityType="receipt" entityId={r.id} attachedBy={user?.full_name ?? ""} templates={receiptTemplates(r)} />
                     </div>
                   </div>
                   <p className={clsx("text-sm font-bold flex-shrink-0",

@@ -17,6 +17,7 @@ import { maskPhone } from "@/lib/mask";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
+import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/doc-templates";
 import SignedImg from "@/components/SignedImg";
 import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
@@ -145,6 +146,61 @@ interface PrLineItem {
   qty: string;
   unit: string;
   unit_price: string;
+}
+
+// โหมด A — template "ใบสั่งซื้อวัสดุ" สำหรับ PO (ใช้เลข po_number เดิม)
+function poTemplates(po: PurchaseOrder): DocTemplate[] {
+  return [{
+    key: "po",
+    label: "ใบสั่งซื้อวัสดุ",
+    docType: "po",
+    fixedNumber: po.po_number ?? undefined,
+    render: (docNumber) => {
+      const items = (po.items ?? []) as { name: string; qty: number; unit: string; unit_price: number }[];
+      const rows = items.map((it, i) => [i + 1, it.name, it.qty, it.unit, it.unit_price, it.qty * it.unit_price]);
+      const total = po.total_amount ?? items.reduce((s, it) => s + it.qty * it.unit_price, 0);
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ผู้จำหน่าย</th><td>${esc(po.supplier_name)}</td></tr>
+          <tr><th>ผู้ขอซื้อ</th><td>${esc(po.requested_by ?? "-")}</td></tr>
+        </tbody></table>
+        ${renderItemsTable(["ลำดับ", "รายการ", "จำนวน", "หน่วย", "ราคา/หน่วย", "รวม"], rows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเป็นเงินทั้งสิ้น</td><td style="text-align:right;font-weight:700">${total.toLocaleString()} บาท</td></tr>
+        </tbody></table>
+        ${po.notes ? `<p style="margin-top:10px"><b>หมายเหตุ:</b> ${esc(po.notes)}</p>` : ""}`;
+      return renderDocShell({ title: "ใบสั่งซื้อวัสดุ", docNumber, bodyHtml: body, signLabels: ["ผู้ขอซื้อ", "ผู้อนุมัติ", "ผู้จำหน่าย"] });
+    },
+  }];
+}
+
+// โหมด A — template "ใบเบิกงวดงาน" สำหรับงวดงานผู้รับเหมา
+function installmentDocTemplates(inst: Installment, houseName: string): DocTemplate[] {
+  return [{
+    key: "inst_bill",
+    label: "ใบเบิกงวดงาน",
+    docType: "installment_bill",
+    prefix: "INST",
+    render: (docNumber) => {
+      const labor = inst.labor_cost ?? 0;
+      const material = inst.material_cost ?? 0;
+      const rows: (string | number)[][] = [];
+      if (labor) rows.push(["ค่าแรง", labor]);
+      if (material) rows.push(["ค่าวัสดุ", material]);
+      if (!rows.length) rows.push(["ค่างวดงาน", inst.amount ?? 0]);
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ยูนิต/บ้านเลขที่</th><td>${esc(houseName)}</td></tr>
+          <tr><th>งวดที่</th><td>${inst.installment_no} — ${esc(inst.name)}</td></tr>
+          ${inst.contractor_ack_name ? `<tr><th>ผู้รับเหมา</th><td>${esc(inst.contractor_ack_name)}</td></tr>` : ""}
+        </tbody></table>
+        ${renderItemsTable(["รายการ", "จำนวนเงิน (บาท)"], rows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเบิกงวดนี้</td><td style="text-align:right;font-weight:700">${(inst.amount ?? 0).toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบเบิกงวดงานก่อสร้าง", docNumber, bodyHtml: body, signLabels: ["ผู้รับเหมา", "ผู้ควบคุมงาน", "ผู้อนุมัติ"] });
+    },
+  }];
 }
 
 const statusConfig = {
@@ -1344,7 +1400,7 @@ export default function ConstructionPage() {
                               onUpload={uploadInspectionPhoto}
                             />
                             <div>
-                              <AttachDocButton entityType="contractor_installment" entityId={inst.id} attachedBy={user?.full_name ?? ""} />
+                              <AttachDocButton entityType="contractor_installment" entityId={inst.id} attachedBy={user?.full_name ?? ""} templates={installmentDocTemplates(inst, selectedHouse?.house_number ?? "")} />
                             </div>
                             <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
                               <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
@@ -1578,6 +1634,9 @@ export default function ConstructionPage() {
                   {po.status === "approved" && po.approved_by && (
                     <p className="text-[10px] text-green-400">✓ อนุมัติโดย {po.approved_by}</p>
                   )}
+                  <div className="pt-1 border-t border-aviva-gold/10">
+                    <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} templates={poTemplates(po)} />
+                  </div>
                 </GlassCard>
               );
             })}

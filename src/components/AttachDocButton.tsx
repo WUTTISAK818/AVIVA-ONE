@@ -56,7 +56,7 @@ export default function AttachDocButton({ entityType, entityId, attachedBy, temp
     setShowTpl(false);
     setGenerating(true);
     try {
-      const docNumber = tpl.prefix ? await generateDocNumber(tpl.prefix) : "";
+      const docNumber = tpl.fixedNumber ?? (tpl.prefix ? await generateDocNumber(tpl.prefix) : "");
       printDocument(tpl.render(docNumber));
       await recordGeneratedDocument(entityType, entityId, tpl.docType, docNumber, tpl.label, attachedBy);
       onAttached?.();

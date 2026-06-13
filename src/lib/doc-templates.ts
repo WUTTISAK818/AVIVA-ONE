@@ -9,7 +9,14 @@ export interface DocTemplate {
   label: string;     // ป้ายปุ่ม/รายการ เช่น "ใบสั่งซื้อวัสดุ"
   docType: string;   // machine type เก็บใน entity_documents.doc_type เช่น "po"
   prefix?: DocPrefix; // ถ้ามี -> ขอเลขรันอัตโนมัติ (FIN/PO/...)
+  fixedNumber?: string; // ถ้ามี -> ใช้เลขนี้เลย (เช่น PO ที่มีเลขอยู่แล้ว) ข้ามการรันใหม่
   render: (docNumber: string) => string; // คืน HTML (ใช้ renderDocShell ภายใน)
+}
+
+/** escape HTML กันค่าที่มี < > & " ทำ layout พัง */
+export function esc(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 export interface DocShellOpts {
@@ -99,9 +106,9 @@ export function renderItemsTable(
   cols: string[],
   rows: (string | number)[][]
 ): string {
-  const head = cols.map((c) => `<th>${c}</th>`).join("");
+  const head = cols.map((c) => `<th>${esc(c)}</th>`).join("");
   const body = rows
-    .map((r) => `<tr>${r.map((c) => `<td>${typeof c === "number" ? c.toLocaleString() : c}</td>`).join("")}</tr>`)
+    .map((r) => `<tr>${r.map((c) => `<td>${typeof c === "number" ? c.toLocaleString() : esc(c)}</td>`).join("")}</tr>`)
     .join("");
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }

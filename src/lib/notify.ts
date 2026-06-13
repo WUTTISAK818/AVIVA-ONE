@@ -5,6 +5,32 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 // ประเภทแจ้งเตือนที่ส่งเข้า LINE ส่วนตัวด้วย (รออนุมัติ/ผลอนุมัติ/เคลม/หมุดหมาย) — เว้น "info" กัน spam
 const LINE_TYPES = new Set(["approval", "claim", "success"]);
 
+/** จับคู่ชื่อแผนก (ไทย ใน to_dept) กับ users.role — คืน true ถ้า role นี้อยู่ในแผนกนั้น (ข้ามบัญชี AI/bot) */
+function roleInDept(roleRaw: string | null, dept: string): boolean {
+  const r = (roleRaw ?? "").toLowerCase().trim();
+  if (!r || r.endsWith("_ai")) return false; // ข้ามบัญชี AI/ผู้ช่วยอัตโนมัติ
+  const has = (...k: string[]) => k.some((s) => r.includes(s));
+  if (dept.includes("หลังการขาย")) return has("after");
+  if (dept.includes("ขาย")) return has("sales") && !has("after");
+  if (dept.includes("ก่อสร้าง")) return has("engineer", "construction", "qc");
+  if (dept.includes("การเงิน") || dept.includes("บัญชี")) return has("finance", "account");
+  if (dept.includes("บุคคล") || dept.includes("HR")) return has("hr");
+  if (dept.includes("การตลาด")) return has("market");
+  if (dept.includes("บริหาร")) return has("ceo", "director", "management", "admin", "executive") || r === "manager";
+  return false;
+}
+
+/** แปลงรายชื่อแผนก -> อีเมลผู้เกี่ยวข้อง (อิง users.role) สำหรับเจาะ LINE ส่วนตัว; ไม่เจอ -> undefined (fallback broadcast) */
+async function resolveDeptEmails(depts: string[]): Promise<string[] | undefined> {
+  const wanted = depts.filter(Boolean);
+  if (wanted.length === 0) return undefined;
+  const { data } = await supabase.from("users").select("email, role");
+  const emails = (data ?? [])
+    .filter((u) => u.email && wanted.some((d) => roleInDept(u.role, d)))
+    .map((u) => u.email as string);
+  return emails.length ? Array.from(new Set(emails)) : undefined;
+}
+
 /** ยิงแจ้งเตือนเข้า LINE ส่วนตัวของผู้ใช้ที่ผูกบัญชีไว้ (best-effort, ไม่ throw) */
 export async function notifyPersonalLine(title: string, body: string, url?: string, emails?: string[]) {
   try {
@@ -25,6 +51,8 @@ export async function createNotification(opts: {
   from_dept?: string;
   to_dept?: string;
   record_id?: string;
+  /** เจาะ LINE ส่วนตัวเฉพาะแผนกเหล่านี้ (ค่าเริ่มต้น = [to_dept]) */
+  line_to_depts?: string[];
 }) {
   await supabase.from("notifications").insert({
     project_id: PROJECT_ID,
@@ -36,9 +64,11 @@ export async function createNotification(opts: {
     is_read: false,
     record_id: opts.record_id ?? null,
   });
-  // เคสสำคัญ → ส่งเข้า LINE ส่วนตัวของผู้ที่ผูกบัญชีด้วย (best-effort)
+  // เคสสำคัญ → ส่งเข้า LINE ส่วนตัวของ "ผู้เกี่ยวข้องตามแผนก" (best-effort)
   if (LINE_TYPES.has(opts.type)) {
-    await notifyPersonalLine(opts.title, opts.message, opts.record_id ? `/crm?lead=${opts.record_id}` : undefined);
+    const depts = opts.line_to_depts ?? (opts.to_dept ? [opts.to_dept] : []);
+    const emails = await resolveDeptEmails(depts);
+    await notifyPersonalLine(opts.title, opts.message, opts.record_id ? `/crm?lead=${opts.record_id}` : undefined, emails);
   }
 }
 
@@ -60,6 +90,7 @@ export async function notifyMilestone(opts: {
     from_dept: "ฝ่ายขาย",
     to_dept: "ผู้บริหาร",
     record_id: opts.record_id,
+    line_to_depts: ["ฝ่ายขาย", "ผู้บริหาร"], // หมุดหมายขาย -> เจาะ LINE ฝ่ายขาย + ผู้บริหาร
   });
   const url = opts.url ?? (opts.record_id ? `/crm?lead=${opts.record_id}` : "/crm");
   // ส่งออกหลายช่องทาง (web push ฝ่ายขาย+ผู้บริหาร + LINE กลุ่มทีมขาย) — best-effort

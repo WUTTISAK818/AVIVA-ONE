@@ -2031,6 +2031,7 @@ function HRContent() {
       }).eq("id", editingEmployee.id);
       await logAction("hr", "edit_employee", `แก้ไขข้อมูลพนักงาน ${form.full_name}`);
     } else {
+      const empCode = `EMP-${new Date().getFullYear() % 100}${String(Date.now()).slice(-4)}`;
       await supabase.from("employees").insert({
         full_name: form.full_name,
         nickname: form.nickname,
@@ -2041,14 +2042,48 @@ function HRContent() {
         base_salary: Number(form.base_salary) || 0,
         commission_rate: Number(form.commission_rate) || 0,
         start_date: form.start_date,
+        employee_code: empCode,
         status: "active",
       });
-      await logAction("hr", "add_employee", `เพิ่มพนักงาน ${form.full_name} ${form.department}`);
+      await logAction("hr", "add_employee", `รับพนักงานใหม่ ${form.full_name} (${empCode}) ${form.department}`);
+      await createNotification({ type: "info", title: `พนักงานใหม่เข้าทำงาน — ${form.full_name}`, message: `${empCode} · ${form.department}${form.position ? ` · ${form.position}` : ""} · เริ่ม ${form.start_date}`, from_dept: "ฝ่ายบุคคล", to_dept: "ผู้บริหาร" });
     }
     setSaving(false);
     setShowModal(false);
     setEditingEmployee(null);
     setForm(emptyEmployeeForm);
+    fetchEmployees();
+  };
+
+  // คนออก — บันทึกการพ้นสภาพ (ลาออก/เลิกจ้าง) พร้อมวันที่+เหตุผล
+  const offboardEmployee = async (emp: Employee) => {
+    const reason = window.prompt(`บันทึกการพ้นสภาพของ ${emp.full_name}\nระบุเหตุผล (ลาออก / เลิกจ้าง / เกษียณ / อื่นๆ):`, "ลาออก");
+    if (reason === null) return;
+    const today = new Date().toISOString().split("T")[0];
+    setSaving(true);
+    const { error } = await supabase.from("employees").update({
+      status: "resigned", end_date: today, exit_reason: reason || null,
+      updated_at: new Date().toISOString(), updated_by: user?.full_name ?? user?.email ?? null,
+    }).eq("id", emp.id);
+    setSaving(false);
+    if (error) { setHrToast({ msg: "บันทึกไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    await logAction("hr", "offboard_employee", `พ้นสภาพ ${emp.full_name} — ${reason || "-"} (${today})`);
+    await createNotification({ type: "info", title: `พนักงานพ้นสภาพ — ${emp.full_name}`, message: `${emp.department}${emp.position ? ` · ${emp.position}` : ""} · ${reason || ""} · วันสุดท้าย ${today}`, from_dept: "ฝ่ายบุคคล", to_dept: "ผู้บริหาร" });
+    setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm);
+    fetchEmployees();
+  };
+
+  // คืนสภาพพนักงาน (กรณีกลับเข้าทำงาน/แก้ไขผิดพลาด)
+  const reactivateEmployee = async (emp: Employee) => {
+    setSaving(true);
+    const { error } = await supabase.from("employees").update({
+      status: "active", end_date: null, exit_reason: null,
+      updated_at: new Date().toISOString(), updated_by: user?.full_name ?? user?.email ?? null,
+    }).eq("id", emp.id);
+    setSaving(false);
+    if (error) { setHrToast({ msg: "ไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    await logAction("hr", "reactivate_employee", `คืนสภาพพนักงาน ${emp.full_name}`);
+    setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm);
     fetchEmployees();
   };
 
@@ -2463,8 +2498,21 @@ function HRContent() {
             </div>
             <button onClick={handleSave} disabled={saving || !form.full_name}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : "เพิ่มพนักงาน"}
+              {saving ? "กำลังบันทึก..." : editingEmployee ? "บันทึกการแก้ไข" : "เพิ่มพนักงาน"}
             </button>
+            {editingEmployee && (
+              editingEmployee.status === "active" ? (
+                <button onClick={() => offboardEmployee(editingEmployee)} disabled={saving}
+                  className="w-full bg-red-500/15 text-red-400 border border-red-500/30 font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
+                  บันทึกการพ้นสภาพ (ลาออก/เลิกจ้าง)
+                </button>
+              ) : (
+                <button onClick={() => reactivateEmployee(editingEmployee)} disabled={saving}
+                  className="w-full bg-green-500/15 text-green-400 border border-green-500/30 font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
+                  คืนสภาพ (กลับเข้าทำงาน)
+                </button>
+              )
+            )}
           </div>
         </div>
       )}

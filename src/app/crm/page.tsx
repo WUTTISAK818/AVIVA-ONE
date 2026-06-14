@@ -790,10 +790,29 @@ export default function CRMPage() {
     const today = new Date().toISOString().split("T")[0];
     const ref = payRef[inst.id]?.ref ?? "";
     const date = payRef[inst.id]?.date ?? today;
-    await supabase.from("customer_installments").update({ status: 'paid', paid_date: today, transfer_ref: ref || null, transfer_date: date || null }).eq("id", inst.id);
+    const byName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
+    const { error } = await supabase.from("customer_installments")
+      .update({ status: 'paid', paid_date: today, transfer_ref: ref || null, transfer_date: date || null, paid_by: byName })
+      .eq("id", inst.id);
+    if (error) { setToast({ msg: "บันทึกไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    // ลงบัญชีรับเงิน (รายรับ) อัตโนมัติ — งวดดาวน์/ผ่อน เข้าสมุดการเงินทันที
+    const custName = selectedLead?.customer_name ?? "";
+    const amt = Number(inst.amount) || 0;
+    if (amt > 0) {
+      await supabase.from("finance_transactions").insert({
+        transaction_type: "income", amount: amt, category: "รับชำระงวด/เงินดาวน์",
+        description: `รับชำระ ${inst.name}${custName ? ` — ${custName}` : ""}${ref ? ` (อ้างอิง ${ref})` : ""}`,
+        approved_by: user?.id ?? null, project_id: PROJECT_ID,
+      });
+    }
+    await createNotification({
+      type: "success", title: `รับชำระ ${inst.name}${custName ? ` — ${custName}` : ""}`,
+      message: `฿${amt.toLocaleString("th-TH")} เข้าบัญชีแล้ว โดย ${byName}`,
+      from_dept: "ฝ่ายการเงิน", to_dept: "ฝ่ายการเงิน",
+    });
     setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, status: 'paid', paid_date: today } : i));
     setPayRef(prev => { const next = { ...prev }; delete next[inst.id]; return next; });
-    setToast({ msg: `${inst.name} — บันทึกรับเงินแล้ว`, type: "success" });
+    setToast({ msg: `${inst.name} — บันทึกรับเงิน + ลงบัญชีแล้ว`, type: "success" });
   };
 
   const STATUS_TH: Record<string, string> = {

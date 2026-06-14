@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { postJv, yymm } from "@/lib/jv";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
+import ReceiptScanner from "@/components/ReceiptScanner";
 import clsx from "clsx";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -171,6 +172,11 @@ function DashboardTab() {
           </GlassCard>
         ))}
       </div>
+      <GlassCard gold className="p-4">
+        <p className="text-xs font-semibold text-aviva-gold mb-1">ลงบัญชีด่วนด้วย AI</p>
+        <p className="text-[11px] text-aviva-secondary mb-3">ถ่าย/อัปโหลดใบเสร็จหรือสลิปโอนเงิน ระบบจะอ่านยอด-วันที่-ร้านค้า แล้วจัดหมวดบัญชีให้อัตโนมัติ</p>
+        <ReceiptScanner />
+      </GlassCard>
       <GlassCard className="p-4">
         <p className="text-xs font-semibold text-aviva-gold mb-2">มาตรฐานที่ใช้</p>
         <div className="space-y-1.5 text-[11px] text-aviva-secondary">

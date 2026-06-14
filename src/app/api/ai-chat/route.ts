@@ -5,6 +5,7 @@ import { callClaudeText, anthropicEnabled } from "@/lib/claude";
 import { serverDb } from "@/lib/server-db";
 import { loadExpert } from "@/lib/dept-data";
 import { isManagerRole } from "@/lib/roles";
+import { buildDeptKnowledge, MENTOR_STYLE } from "@/lib/company-knowledge";
 import type { AIResponseBody } from "@/types/api";
 
 export const runtime = "nodejs";
@@ -299,15 +300,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
 
-  // ผูกแชตกับผู้เชี่ยวชาญฝ่ายเดียวกับบรีฟ (เช่น ฝ่ายขาย = Vee-SM) ถ้าจับคู่ฝ่ายได้
+  // ผูกแชตกับผู้เชี่ยวชาญฝ่ายเดียวกับบรีฟ (เช่น ฝ่ายขาย = คุณขายดี) ถ้าจับคู่ฝ่ายได้
   let persona = "";
   const expertKey = deptToExpertKey(userDept);
   if (expertKey) {
     try {
       const expert = await loadExpert(db, expertKey);
-      persona = `คุณคือ "${expert.expert_name}" ผู้ช่วย AI ${expert.persona}\nความเชี่ยวชาญ: ${expert.focus}\n\n`;
+      persona = `คุณคือ "${expert.expert_name}" ผู้ช่วย AI ${expert.persona}\nความเชี่ยวชาญ: ${expert.focus}\n`;
     } catch { /* ไม่มี persona ก็ใช้ AVIVA AI ปกติ */ }
   }
+  // ฐานความรู้องค์กร + บุคลิกผู้จัดการอาวุโส — ให้ AI เข้าใจโครงสร้างบริษัท/กระบวนการ
+  // และโค้ชพนักงานเมื่อติดขัด (ทุกฝ่าย รวมพนักงานทั่วไป)
+  persona = persona + MENTOR_STYLE + "\n\n" + buildDeptKnowledge(expertKey) + "\n\n";
 
   // บีบ context ให้สั้นลงเพื่อประหยัดโทเค็น แล้วต่อท้ายด้วยแนวทางการตอบ
   const compressionResult = compressContextForAPI(systemContext, isManager, 1200);

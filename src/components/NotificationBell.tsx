@@ -58,6 +58,8 @@ export default function NotificationBell() {
   const currentUser = useCurrentUser();
   const currentUserRef = useRef(currentUser);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  // per-user read state — แต่ละคนมีสถานะอ่านของตัวเอง ไม่กระทบคนอื่น
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -65,8 +67,12 @@ export default function NotificationBell() {
 
   useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
 
+  // ยังไม่อ่าน = ไม่เคยถูกปิดแบบ global (legacy is_read) และผู้ใช้คนนี้ยังไม่ได้อ่าน
+  const isUnread = (n: Notification) => !n.is_read && !readIds.has(n.id);
+
   const fetchNotifications = async () => {
     setLoading(true);
+    const user = currentUserRef.current;
     const { data } = await supabase
       .from("notifications")
       .select("*")
@@ -74,11 +80,22 @@ export default function NotificationBell() {
       .order("created_at", { ascending: false })
       .limit(50);
     const all = (data as Notification[]) ?? [];
-    const user = currentUserRef.current;
     const visible = user && !user.isManager
       ? all.filter(n => !n.to_dept || n.to_dept === user.department || n.from_dept === user.department)
       : all;
-    setNotifications(visible.slice(0, 30));
+    const shown = visible.slice(0, 30);
+    // ดึงสถานะอ่านรายคนของผู้ใช้ปัจจุบัน
+    let reads = new Set<string>();
+    if (user?.id && shown.length > 0) {
+      const { data: rd } = await supabase
+        .from("notification_reads")
+        .select("notification_id")
+        .eq("user_id", user.id)
+        .in("notification_id", shown.map(n => n.id));
+      reads = new Set((rd ?? []).map((r: { notification_id: string }) => r.notification_id));
+    }
+    setReadIds(reads);
+    setNotifications(shown);
     setLoading(false);
   };
 
@@ -109,35 +126,45 @@ export default function NotificationBell() {
     };
   }, [open]);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications.filter(isUnread).length;
 
   const markAllRead = async () => {
-    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
-    if (unreadIds.length === 0) return;
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    const { error } = await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
+    const uid = currentUserRef.current?.id;
+    const unread = notifications.filter(isUnread);
+    if (!uid || unread.length === 0) return;
+    setReadIds((prev) => { const s = new Set(prev); unread.forEach(n => s.add(n.id)); return s; });
+    const rows = unread.map(n => ({ notification_id: n.id, user_id: uid }));
+    const { error } = await supabase.from("notification_reads").upsert(rows, { onConflict: "notification_id,user_id" });
     if (error) fetchNotifications(); // เขียนไม่สำเร็จ — sync จาก DB จริง ไม่ค้างสถานะลวง
   };
 
   const markRead = async (id: string) => {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
-    const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    const uid = currentUserRef.current?.id;
+    if (!uid) return;
+    setReadIds((prev) => new Set(prev).add(id));
+    const { error } = await supabase.from("notification_reads").upsert({ notification_id: id, user_id: uid }, { onConflict: "notification_id,user_id" });
     if (error) fetchNotifications();
   };
 
   const handleNotifClick = async (n: Notification) => {
-    if (!n.is_read) await markRead(n.id);
+    if (isUnread(n)) await markRead(n.id);
     const href = getNotifHref(n);
     if (href) { setOpen(false); router.push(href); }
   };
 
+  // ซ่อนรายการที่อ่านแล้วออกจากกล่องของฉัน (per-user, ไม่กระทบคนอื่น)
+  // มาร์ก read ที่ฝั่ง notification_reads แล้วเอาออกจาก view — ผู้ใช้อื่นยังเห็นของเขาตามเดิม
   const clearRead = async () => {
-    const readIds = notifications.filter(n => n.is_read).map(n => n.id);
-    if (readIds.length === 0) { setConfirmClear(false); return; }
-    setNotifications((prev) => prev.filter((n) => !n.is_read));
+    const uid = currentUserRef.current?.id;
+    const readShown = notifications.filter((n) => !isUnread(n));
+    if (!uid || readShown.length === 0) { setConfirmClear(false); return; }
+    setNotifications((prev) => prev.filter(isUnread));
     setConfirmClear(false);
-    const { error } = await supabase.from("notifications").delete().in("id", readIds);
-    if (error) fetchNotifications(); // ลบไม่สำเร็จ — sync กลับมาให้ตรง DB จริง
+    const rows = readShown.filter((n) => !n.is_read).map((n) => ({ notification_id: n.id, user_id: uid }));
+    if (rows.length > 0) {
+      const { error } = await supabase.from("notification_reads").upsert(rows, { onConflict: "notification_id,user_id" });
+      if (error) fetchNotifications();
+    }
   };
 
   return (
@@ -168,7 +195,7 @@ export default function NotificationBell() {
                   <CheckCheck size={11} /> อ่านทั้งหมด
                 </button>
               )}
-              {notifications.some(n => n.is_read) && (
+              {notifications.some(n => !isUnread(n)) && (
                 <button onClick={() => setConfirmClear(true)} className="flex items-center gap-1 text-[10px] text-aviva-secondary hover:text-red-400 transition-colors">
                   <Trash2 size={11} /> ลบที่อ่านแล้ว
                 </button>
@@ -209,21 +236,21 @@ export default function NotificationBell() {
                 return (
                   <button key={n.id} onClick={() => handleNotifClick(n)}
                     className={clsx("w-full text-left px-4 py-3 flex items-start gap-3 transition-all hover:bg-aviva-gold/5",
-                      !n.is_read && "bg-aviva-gold/5 border-l-2 border-aviva-gold",
+                      isUnread(n) && "bg-aviva-gold/5 border-l-2 border-aviva-gold",
                       hasLink && "cursor-pointer"
                     )}>
                     <div className={clsx("w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5", tc.bg)}>
                       <Icon size={13} className={tc.color} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={clsx("text-xs font-semibold truncate", !n.is_read ? "text-aviva-text" : "text-aviva-secondary")}>{n.title}</p>
+                      <p className={clsx("text-xs font-semibold truncate", isUnread(n) ? "text-aviva-text" : "text-aviva-secondary")}>{n.title}</p>
                       <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{n.message}</p>
                       <div className="flex items-center gap-2 mt-1">
                         {n.from_dept && <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{n.from_dept}</span>}
                         <span className="text-[9px] text-aviva-secondary/50">{timeAgo(n.created_at)}</span>
                       </div>
                     </div>
-                    {!n.is_read && <div className="w-1.5 h-1.5 rounded-full bg-aviva-gold flex-shrink-0 mt-1.5" />}
+                    {isUnread(n) && <div className="w-1.5 h-1.5 rounded-full bg-aviva-gold flex-shrink-0 mt-1.5" />}
                   </button>
                 );
               })

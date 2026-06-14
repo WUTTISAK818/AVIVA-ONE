@@ -21,6 +21,7 @@ import LoanApplications from "@/components/LoanApplications";
 import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
+import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
@@ -299,6 +300,12 @@ export default function CRMPage() {
   const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
   const [celebration, setCelebration] = useState<{ event: "booking" | "contract" | "loan" | "transfer"; customerName: string; plotNumber: number | null; amount: number | null; salesPerson?: string | null } | null>(null);
   const [mapPlotModal, setMapPlotModal] = useState<number | null>(null);
+
+  // แสดง celebration ในจอตัวเอง + กระจาย realtime ให้เพื่อนร่วมงานทุกคน (#4)
+  const celebrate = (c: NonNullable<typeof celebration>) => {
+    setCelebration(c);
+    broadcastCelebration({ ...(c as CelebrationPayload), byUserId: user?.id ?? null });
+  };
 
   useEffect(() => {
     supabase.from("houses").select("plot_number,status,house_model,land_size")
@@ -655,8 +662,18 @@ export default function CRMPage() {
         revenue: ml.filter((l) => l.status === "Closed Deal").reduce((s, l) => s + Number(l.contract_price ?? l.budget), 0),
         closeRate: ml.length > 0 ? Math.round((ml.filter((l) => l.status === "Closed Deal").length / ml.length) * 100) : 0,
       }))
-      .sort((a, b) => b.closed - a.closed);
+      // จัดอันดับ leaderboard: ยอดขายเป็นหลัก → จำนวนปิดการขาย → อัตราปิด
+      .sort((a, b) => b.revenue - a.revenue || b.closed - a.closed || b.closeRate - a.closeRate);
   }, [leads]);
+
+  // KPI สรุปภาพรวมทีมขาย (ใช้หัวแท็บผลงานทีม)
+  const teamKpi = useMemo(() => {
+    const revenue = teamStats.reduce((s, t) => s + t.revenue, 0);
+    const closed = teamStats.reduce((s, t) => s + t.closed, 0);
+    const booking = teamStats.reduce((s, t) => s + t.booking, 0);
+    const avgClose = teamStats.length > 0 ? Math.round(teamStats.reduce((s, t) => s + t.closeRate, 0) / teamStats.length) : 0;
+    return { revenue, closed, booking, avgClose, top: teamStats[0]?.name ?? "—" };
+  }, [teamStats]);
 
   const closedCount = stageCounts["Closed Deal"] ?? 0;
   const closeRate = leads.length > 0 ? Math.round((closedCount / leads.length) * 100) : 0;
@@ -821,7 +838,7 @@ export default function CRMPage() {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
-            setCelebration({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: Number(form.budget) || null, salesPerson: byName });
+            celebrate({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: Number(form.budget) || null, salesPerson: byName });
             const docNum = await generateDocNumber("BOOK");
             await supabase.from("approval_logs").insert({
               workflow_type: "Booking_Deposit",
@@ -852,14 +869,14 @@ export default function CRMPage() {
           await createNotification({ type: "info", title: `${form.customer_name} — ${STATUS_TH[form.status] ?? form.status}`, message: `เปลี่ยนสถานะจาก "${STATUS_TH[editingLead.status] ?? editingLead.status}" โดย ${byName}`, from_dept: "ฝ่ายขาย", to_dept: "ฝ่ายขาย", record_id: editingLead.id });
         }
         if (form.status === "Contract") {
-          setCelebration({ event: "contract", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null, salesPerson: byName });
+          celebrate({ event: "contract", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.budget) || null, salesPerson: byName });
         }
         if (form.status === "Loan Approved") {
-          setCelebration({ event: "loan", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
+          celebrate({ event: "loan", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
           loanCelebrated = true;
         }
         if (form.status === "Closed Deal") {
-          setCelebration({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
+          celebrate({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
           await recordTransfer(plotNum, form.customer_name, Number(form.contract_price) || Number(form.budget) || null);
         }
       }
@@ -870,7 +887,7 @@ export default function CRMPage() {
           message: [plotNum ? `แปลง ${plotNum}` : "", `อนุมัติ ${new Date(form.loan_approved_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`, `โดย ${byName}`].filter(Boolean).join(" · "),
           record_id: editingLead.id,
         });
-        setCelebration({ event: "loan", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
+        celebrate({ event: "loan", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
@@ -956,16 +973,16 @@ export default function CRMPage() {
         });
       }
       if (newStatus === "Booking") {
-        setCelebration({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
+        celebrate({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
       }
       if (newStatus === "Contract") {
-        setCelebration({ event: "contract", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
+        celebrate({ event: "contract", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
       }
       if (newStatus === "Loan Approved") {
-        setCelebration({ event: "loan", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
+        celebrate({ event: "loan", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
       }
       if (newStatus === "Closed Deal") {
-        setCelebration({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
+        celebrate({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
         await recordTransfer(lead.plot_number ?? null, lead.customer_name, lead.contract_price ?? lead.budget ?? null);
         const docNum = await generateDocNumber("CONTRACT");
         await supabase.from("approval_logs").insert({
@@ -1284,6 +1301,27 @@ export default function CRMPage() {
                 <Plus size={13} /> บันทึกกิจกรรม
               </button>
             </div>
+            {teamStats.length > 0 && (
+              <GlassCard gold className="p-4">
+                <p className="text-xs font-semibold text-aviva-gold mb-3">ภาพรวมทีม (KPI)</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "ยอดขายรวม", value: `฿${(teamKpi.revenue / 1_000_000).toFixed(1)}M`, color: "text-aviva-gold" },
+                    { label: "ปิดได้", value: teamKpi.closed, color: "text-green-400" },
+                    { label: "จองอยู่", value: teamKpi.booking, color: "text-blue-400" },
+                    { label: "อัตราปิดเฉลี่ย", value: `${teamKpi.avgClose}%`, color: "text-aviva-text" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="text-center bg-aviva-bg rounded-xl p-2">
+                      <p className={clsx("text-base font-bold", color)}>{value}</p>
+                      <p className="text-[9px] text-aviva-secondary mt-0.5 leading-tight">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-aviva-secondary mt-2.5 flex items-center gap-1">
+                  <TrendingUp size={11} className="text-aviva-gold" /> ผู้ทำยอดสูงสุด: <b className="text-aviva-text">{teamKpi.top}</b>
+                </p>
+              </GlassCard>
+            )}
             {salesActs.length > 0 && (
               <GlassCard className="p-4">
                 <p className="text-xs font-semibold text-aviva-gold mb-2">กิจกรรมล่าสุด</p>
@@ -1317,12 +1355,20 @@ export default function CRMPage() {
                 <p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูลในช่วงนี้</p>
               </GlassCard>
             ) : (
-              teamStats.map((s) => (
-                <GlassCard key={s.name} className="p-4">
+              teamStats.map((s, i) => {
+                const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+                return (
+                <GlassCard key={s.name} gold={i === 0} className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <p className="text-sm font-bold text-aviva-text">{s.name}</p>
-                      <p className="text-xs text-aviva-secondary">{s.total} Leads ทั้งหมด</p>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={clsx(
+                        "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold",
+                        i === 0 ? "bg-aviva-gold/20 text-aviva-gold" : "bg-aviva-bg text-aviva-secondary"
+                      )}>{medal ?? i + 1}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-aviva-text truncate">{s.name}</p>
+                        <p className="text-xs text-aviva-secondary">{s.total} Leads ทั้งหมด</p>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-aviva-gold">{s.closeRate}%</p>
@@ -1343,7 +1389,8 @@ export default function CRMPage() {
                     ))}
                   </div>
                 </GlassCard>
-              ))
+                );
+              })
             )}
           </div>
         )}

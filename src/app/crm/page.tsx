@@ -1623,6 +1623,53 @@ export default function CRMPage() {
               )}
             </div>
 
+            {/* Timeline เส้นทางลูกค้า — ดูระยะเวลาแต่ละขั้นเพื่อประเมินความเร็วการทำงาน */}
+            {(() => {
+              const fmt = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+              const steps = ([
+                { label: "เริ่มดูแล / เยี่ยมชม", date: selectedLead.created_at ?? selectedLead.created_at_default ?? null, icon: "📍" },
+                { label: "จอง", date: selectedLead.booking_date ?? null, icon: "📌" },
+                { label: "ทำสัญญา", date: selectedLead.contract_signed_date ?? null, icon: "📝" },
+                { label: "อนุมัติสินเชื่อ", date: selectedLead.loan_approved_date ?? null, icon: "🏦" },
+                { label: "โอนกรรมสิทธิ์", date: selectedLead.transfer_date ?? null, icon: "🏆" },
+              ].filter(s => s.date) as { label: string; date: string; icon: string }[]);
+              if (steps.length < 1) return null;
+              const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+              return (
+                <div className="bg-aviva-bg rounded-xl p-3 border border-aviva-gold/10">
+                  <p className="text-xs font-semibold text-aviva-gold mb-2">🕒 Timeline เส้นทางลูกค้า</p>
+                  <div>
+                    {steps.map((s, i) => {
+                      const gap = i > 0 ? daysBetween(steps[i - 1].date, s.date) : null;
+                      const slow = gap !== null && gap > 30;
+                      return (
+                        <div key={s.label} className="flex gap-2">
+                          <div className="flex flex-col items-center">
+                            <span className="text-sm leading-none">{s.icon}</span>
+                            {i < steps.length - 1 && <span className="w-px flex-1 bg-aviva-gold/20 my-0.5" />}
+                          </div>
+                          <div className="flex-1 pb-3">
+                            <p className="text-xs text-aviva-text font-medium">{s.label}</p>
+                            <p className="text-[10px] text-aviva-secondary">{fmt(s.date)}</p>
+                            {gap !== null && (
+                              <span className={clsx("text-[9px] font-medium", slow ? "text-red-400" : "text-green-400")}>
+                                +{gap} วันจากขั้นก่อน{slow ? " ⚠ ช้ากว่าปกติ" : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {steps.length >= 2 && (
+                    <p className="text-[10px] text-aviva-secondary/70 mt-1 pt-2 border-t border-aviva-gold/10">
+                      รวม {daysBetween(steps[0].date, steps[steps.length - 1].date)} วัน ตั้งแต่เริ่มจนถึงขั้นล่าสุด
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Customer Installment Section */}
             {BOOKING_STATUSES.includes(selectedLead.status) && (
               <div>

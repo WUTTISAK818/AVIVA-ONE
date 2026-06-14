@@ -22,6 +22,7 @@ type MainTab = "approvals" | "registry";
 
 interface ApprovalLog {
   id: string;
+  approval_id: string;
   workflow_type: string;
   source_doc_index: string | null;
   source_record_id: string | null;
@@ -305,7 +306,8 @@ function ApprovalsContent() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(PAGE_SIZE);
-    const newLogs = (data as ApprovalLog[]) ?? [];
+    // ตาราง approval_logs ใช้ PK ชื่อ approval_id (ไม่มีคอลัมน์ id) — map ให้โค้ดที่อ้าง id ทำงานต่อได้
+    const newLogs = ((data ?? []) as ApprovalLog[]).map(l => ({ ...l, id: l.approval_id }));
     setLogs(newLogs);
     setHasMore(newLogs.length === PAGE_SIZE);
     setLoading(false);
@@ -318,7 +320,7 @@ function ApprovalsContent() {
       .select("*")
       .order("created_at", { ascending: false })
       .range(logs.length, logs.length + PAGE_SIZE - 1);
-    const more = (data as ApprovalLog[]) ?? [];
+    const more = ((data ?? []) as ApprovalLog[]).map(l => ({ ...l, id: l.approval_id }));
     setLogs(prev => [...prev, ...more]);
     setHasMore(more.length === PAGE_SIZE);
     setLoadingMore(false);
@@ -347,7 +349,7 @@ function ApprovalsContent() {
       action_timestamp: new Date().toISOString(),
       approver_email: user.email,
       ...(approved ? {} : { rejection_comment: note }),
-    }).eq("id", log.id);
+    }).eq("approval_id", log.id);
     if (updErr) {
       // เช่น โดน Maker-Checker ระดับ DB บล็อก (ผู้อนุมัติ = ผู้ยื่นคำขอ)
       setProcessingId(null);

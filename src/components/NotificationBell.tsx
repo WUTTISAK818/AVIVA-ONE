@@ -39,14 +39,17 @@ function timeAgo(ts: string): string {
 }
 
 function getNotifHref(n: Notification): string | null {
-  // ลิงก์ไปยัง record ที่เกี่ยวข้องโดยตรงถ้ามี record_id
-  const rec = n.record_id ? `?lead=${n.record_id}` : "";
-  if (n.type === "approval") return "/approvals";
+  // ลิงก์ไปการ์ดลูกค้าโดยตรงถ้ามี record_id (เรื่องลูกค้า/ขายส่วนใหญ่)
+  const lead = n.record_id ? `/crm?lead=${n.record_id}` : null;
+  // รายการรออนุมัติ / ผลการอนุมัติ
+  if (n.type === "approval" || n.from_dept === "ฝ่ายอนุมัติ" || n.to_dept === "ฝ่ายอนุมัติ") return "/approvals";
   if (n.type === "claim") return "/office";
   if (n.type === "document") return "/office";
+  if (n.from_dept === "ฝ่ายขาย" || n.to_dept === "ฝ่ายขาย") return lead ?? "/crm";
   if (n.from_dept === "ฝ่ายก่อสร้าง") return "/construction";
-  if (n.from_dept === "ฝ่ายขาย") return `/crm${rec}`;
   if (n.from_dept === "ฝ่ายการเงิน" || n.from_dept === "ฝ่ายบัญชี" || n.from_dept === "ฝ่ายออฟฟิศ") return "/office";
+  // มี record_id แต่ไม่เข้าเงื่อนไขด้านบน — เปิดการ์ดลูกค้า
+  if (lead) return lead;
   return null;
 }
 
@@ -111,13 +114,15 @@ export default function NotificationBell() {
   const markAllRead = async () => {
     const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
     if (unreadIds.length === 0) return;
-    await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    const { error } = await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
+    if (error) fetchNotifications(); // เขียนไม่สำเร็จ — sync จาก DB จริง ไม่ค้างสถานะลวง
   };
 
   const markRead = async (id: string) => {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    if (error) fetchNotifications();
   };
 
   const handleNotifClick = async (n: Notification) => {
@@ -129,9 +134,10 @@ export default function NotificationBell() {
   const clearRead = async () => {
     const readIds = notifications.filter(n => n.is_read).map(n => n.id);
     if (readIds.length === 0) { setConfirmClear(false); return; }
-    await supabase.from("notifications").delete().in("id", readIds);
     setNotifications((prev) => prev.filter((n) => !n.is_read));
     setConfirmClear(false);
+    const { error } = await supabase.from("notifications").delete().in("id", readIds);
+    if (error) fetchNotifications(); // ลบไม่สำเร็จ — sync กลับมาให้ตรง DB จริง
   };
 
   return (

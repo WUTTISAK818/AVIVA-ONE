@@ -22,6 +22,7 @@ import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
+import { closeWorkQueue } from "@/lib/workflow-events";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
@@ -878,6 +879,7 @@ export default function CRMPage() {
         if (form.status === "Closed Deal") {
           celebrate({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: Number(form.contract_price) || Number(form.budget) || null, salesPerson: byName });
           await recordTransfer(plotNum, form.customer_name, Number(form.contract_price) || Number(form.budget) || null);
+          await closeWorkQueue(editingLead.id, "sales_ai", byName); // ปิดงานติดตามค้างเมื่อปิดดีล (กัน orphan)
         }
       }
       // Notify + celebrate when loan is newly approved via the date field (สถานะ "อนุมัติสินเชื่อ" จัดการแยกด้านบนแล้ว)
@@ -923,7 +925,7 @@ export default function CRMPage() {
     if (cv > 0) await supabase.from("finance_transactions").insert({
       transaction_type: "income", amount: cv, category: "รายได้จากการขาย",
       description: `รายได้โอนกรรมสิทธิ์ — ${customerName}${plot ? ` แปลง ${plot}` : ""}`,
-      approved_by: user?.full_name ?? user?.email ?? null, project_id: PROJECT_ID,
+      approved_by: user?.id ?? null, project_id: PROJECT_ID,
     });
   };
 
@@ -984,6 +986,7 @@ export default function CRMPage() {
       if (newStatus === "Closed Deal") {
         celebrate({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
         await recordTransfer(lead.plot_number ?? null, lead.customer_name, lead.contract_price ?? lead.budget ?? null);
+        await closeWorkQueue(lead.id, "sales_ai", byName); // ปิดงานติดตามค้างเมื่อปิดดีล (กัน orphan)
         const docNum = await generateDocNumber("CONTRACT");
         await supabase.from("approval_logs").insert({
           workflow_type: "Contract_Approval",

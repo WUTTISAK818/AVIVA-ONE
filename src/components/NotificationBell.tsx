@@ -27,6 +27,9 @@ const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string
   document: { Icon: FileText,    color: "text-blue-400",   bg: "bg-blue-500/10" },
   success:  { Icon: CheckCircle, color: "text-green-400",  bg: "bg-green-500/10" },
   info:     { Icon: Info,        color: "text-blue-400",   bg: "bg-blue-500/10" },
+  ai_briefing:     { Icon: Info, color: "text-aviva-gold", bg: "bg-aviva-gold/10" },
+  ai_meeting:      { Icon: Info, color: "text-aviva-gold", bg: "bg-aviva-gold/10" },
+  workflow_update: { Icon: CheckCircle, color: "text-teal-400", bg: "bg-teal-500/10" },
 };
 
 function timeAgo(ts: string): string {
@@ -43,6 +46,9 @@ function getNotifHref(n: Notification): string | null {
   const lead = n.record_id ? `/crm?lead=${n.record_id}` : null;
   // รายการรออนุมัติ / ผลการอนุมัติ
   if (n.type === "approval" || n.from_dept === "ฝ่ายอนุมัติ" || n.to_dept === "ฝ่ายอนุมัติ") return "/approvals";
+  if (n.type === "ai_briefing") return "/reports";
+  if (n.type === "ai_meeting") return "/ai-council";
+  if (n.type === "workflow_update") return "/inbox";
   if (n.type === "claim") return "/office";
   if (n.type === "document") return "/office";
   if (n.from_dept === "ฝ่ายขาย" || n.to_dept === "ฝ่ายขาย") return lead ?? "/crm";

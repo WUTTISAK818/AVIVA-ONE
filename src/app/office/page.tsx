@@ -1967,12 +1967,12 @@ function HRContent() {
         .reduce((s, l) => s + leaveDays(l.date_from, l.date_to), 0);
       if (usedSoFar + days > quota) {
         setHrToast({ msg: `เกินสิทธิ ${leaveForm.leave_type} (${quota} วัน/ปี) — ใช้ไปแล้ว ${usedSoFar} + ขอใหม่ ${days} = ${usedSoFar + days} วัน`, type: "error" });
+        setLeaveSaving(false);
         return;
       }
     }
     const docNum = await generateDocNumber("LEAVE");
-    const { data: leaveData } = await supabase.from("leave_requests").insert({
-      doc_number: docNum,
+    const { data: leaveData, error: leaveErr } = await supabase.from("leave_requests").insert({
       employee_name: leaveForm.employee_name,
       leave_type: leaveForm.leave_type,
       date_from: leaveForm.date_from,
@@ -1981,6 +1981,11 @@ function HRContent() {
       reason: leaveForm.reason || null,
       status: "pending",
     }).select("id").single();
+    if (leaveErr) {
+      setHrToast({ msg: "ยื่นใบลาไม่สำเร็จ: " + leaveErr.message, type: "error" });
+      setLeaveSaving(false);
+      return;
+    }
     if (leaveData?.id) {
       await supabase.from("approval_logs").insert({
         workflow_type: "Leave_Request",
@@ -3097,7 +3102,7 @@ function ApprovalsContent() {
       else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved", approved_by: user?.full_name ?? user?.email }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "approved" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_by_role: user?.role, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
@@ -3126,7 +3131,7 @@ function ApprovalsContent() {
       else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "rejected", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "rejected" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "rejected", approved_by: user?.full_name ?? user?.email, approved_by_role: user?.role, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Booking_Deposit") {
         // ปฏิเสธเงินจอง → คืนสถานะลูกค้าเป็น New Lead + ปล่อยแปลงกลับเป็นว่าง (ให้ตรงกับหน้า /approvals)
         const { data: lead } = await supabase.from("leads").select("plot_number").eq("id", log.source_record_id).maybeSingle();
@@ -4152,10 +4157,12 @@ function DocumentsContent() {
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
+    const docNum = await generateDocNumber("DOC");
     const { data: docData } = await supabase.from("documents").insert({
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
+      doc_number: docNum,
       uploaded_by: form.uploaded_by || user?.full_name || user?.email || "ไม่ทราบ",
       file_url: form.file_url || null,
       description: form.description || null,
@@ -4191,6 +4198,7 @@ function DocumentsContent() {
     await supabase.from("documents").update({
       status: approve ? "approved" : "rejected",
       approved_by: user?.full_name ?? "Admin",
+      updated_at: new Date().toISOString(),
     }).eq("id", id);
     await supabase.from("approval_logs").update({ action_taken: approve ? "Approved" : "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Document_Approval").eq("action_taken", "Pending");
     if (doc) {

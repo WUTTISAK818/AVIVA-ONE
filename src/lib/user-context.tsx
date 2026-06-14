@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
+import { isSuperRole, isManagerRole } from "./roles";
 
 export interface AppUser {
   id: string;
@@ -31,8 +32,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       full_name: um.full_name ?? u.email ?? "ผู้ใช้",
       role,
       department,
-      isAdmin: ["admin", "ceo"].includes(role),
-      isManager: ["admin", "ceo", "manager", "director", "project_manager"].includes(role),
+      isAdmin: isSuperRole(role),
+      isManager: isManagerRole(role),
       isProjectManager: role === "project_manager",
     };
   }

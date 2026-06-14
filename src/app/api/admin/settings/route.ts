@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { callClaudeJSON, anthropicEnabled } from "@/lib/claude";
 import { clearSettingCache } from "@/lib/app-config";
 import { serverDb } from "@/lib/server-db";
+import { MANAGER_ROLES } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,6 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placehol
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const MANAGER_ROLES = ["admin", "ceo", "manager", "director", "project_manager"];
 // secret ที่อนุญาตให้ตั้งผ่านหน้า settings (เพิ่ม key อื่นในอนาคตได้ที่นี่)
 const ALLOWED_KEYS = ["ANTHROPIC_API_KEY", "line_channel_access_token"];
 

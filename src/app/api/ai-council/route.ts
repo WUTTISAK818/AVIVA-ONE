@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { generateExecutiveBriefing } from "@/lib/dept-data";
 import { anthropicEnabled } from "@/lib/claude";
 import { serverDb } from "@/lib/server-db";
+import { MANAGER_ROLES } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,8 +14,6 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholde
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const MANAGER_ROLES = ["admin", "ceo", "manager", "director", "project_manager"];
 
 // สภา AI: ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน → สรุปเสนอผู้บริหาร (เฉพาะผู้บริหารเรียกได้)
 export async function POST(req: NextRequest) {

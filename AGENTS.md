@@ -4,6 +4,19 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+<!-- BEGIN:role-access-rule -->
+# Role & Access Policy (PERMANENT — กฎสิทธิ์การเข้าถึง)
+
+**CEO และ COO มีสิทธิ์สูงสุด — เข้าถึงข้อมูลได้ทุกส่วน และทำได้ทุกอย่าง (เทียบเท่า/เหนือ admin)**
+
+บังคับใช้ 3 ชั้น (ถ้าเพิ่ม role ผู้บริหารใหม่ ต้องอัปเดตให้ครบทั้ง 3):
+1. **UI/หน้าจอ** — `src/lib/roles.ts` (`SUPER_ROLES`, `MANAGER_ROLES`, `isSuperRole`, `isManagerRole`) ใช้ผ่าน `user-context.tsx` (`isAdmin`/`isManager`)
+2. **API/server** — import `MANAGER_ROLES`/`isManagerRole` จาก `@/lib/roles` (ai-chat, ai-council, admin/settings ฯลฯ) และ edge function `admin-user-management` (`MANAGER_ROLES`/`ADMIN_ROLES` ต้องมี `coo`)
+3. **ฐานข้อมูล/RLS** — ฟังก์ชัน Postgres `public.auth_role()` map `ceo`/`coo` → `admin` ครอบคลุมทุก RLS policy ที่ gate ด้วย `auth_role()`
+
+ค่า role ที่ใช้: `admin`, `ceo`, `coo`, `director`, `manager`, `project_manager`, และ role ระดับปฏิบัติการอื่น ๆ
+<!-- END:role-access-rule -->
+
 <!-- BEGIN:preflight-rule -->
 # Pre-flight Check (MANDATORY — ทำก่อนเริ่มงานทุกครั้ง)
 

@@ -16,7 +16,7 @@ function roleInDept(roleRaw: string | null, dept: string): boolean {
   if (dept.includes("การเงิน") || dept.includes("บัญชี")) return has("finance", "account");
   if (dept.includes("บุคคล") || dept.includes("HR")) return has("hr");
   if (dept.includes("การตลาด")) return has("market");
-  if (dept.includes("บริหาร")) return has("ceo", "director", "management", "admin", "executive") || r === "manager";
+  if (dept.includes("บริหาร")) return has("ceo", "coo", "director", "management", "admin", "executive") || r === "manager";
   return false;
 }
 

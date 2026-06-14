@@ -11,7 +11,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
 const ROLES = [
   { value: "admin",           label: "ผู้ดูแลระบบ (Admin)" },
-  { value: "ceo",             label: "CEO / ผู้บริหาร" },
+  { value: "ceo",             label: "CEO / ประธานเจ้าหน้าที่บริหาร" },
+  { value: "coo",             label: "COO / ประธานเจ้าหน้าที่ปฏิบัติการ" },
   { value: "director",        label: "ผู้อำนวยการ (Director)" },
   { value: "manager",         label: "ผู้จัดการ" },
   { value: "project_manager", label: "ผู้จัดการโครงการ" },
@@ -62,7 +63,7 @@ export default function UsersPage() {
   const [resetOk, setResetOk] = useState(false);
 
   // Admin/CEO/Director เท่านั้นที่เพิ่ม/แก้ไข/ลบ
-  const canManage = ["admin", "ceo", "director"].includes(currentUser?.role ?? "");
+  const canManage = ["admin", "ceo", "coo", "director"].includes(currentUser?.role ?? "");
 
   useEffect(() => {
     if (!currentUser) return;
@@ -253,7 +254,7 @@ export default function UsersPage() {
             <GlassCard key={u.id} className="p-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center flex-shrink-0">
-                  {["admin", "ceo"].includes(u.role)
+                  {["admin", "ceo", "coo"].includes(u.role)
                     ? <Shield size={14} className="text-aviva-gold" />
                     : <User size={14} className="text-aviva-secondary" />}
                 </div>

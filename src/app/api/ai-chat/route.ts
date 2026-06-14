@@ -4,6 +4,7 @@ import { compressContextForAPI, compressChatHistory } from "@/lib/prompt-compres
 import { callClaudeText, anthropicEnabled } from "@/lib/claude";
 import { serverDb } from "@/lib/server-db";
 import { loadExpert } from "@/lib/dept-data";
+import { isManagerRole } from "@/lib/roles";
 import type { AIResponseBody } from "@/types/api";
 
 export const runtime = "nodejs";
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
   const userRole: string = dbUser?.role ?? "user";
   const userDept: string = dbUser?.department ?? "";
   const userName: string = dbUser?.full_name ?? "พนักงาน";
-  const isManager = ["admin", "ceo", "manager", "director", "project_manager"].includes(userRole);
+  const isManager = isManagerRole(userRole);
 
   let message: string;
   let history: { role: string; content: string }[] = [];

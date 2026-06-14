@@ -15,10 +15,20 @@ export const SUPER_ROLES = ["admin", "ceo", "coo"] as const;
 // ระดับผู้จัดการขึ้นไป (เห็นข้อมูลเชิงบริหาร, อนุมัติ ฯลฯ)
 export const MANAGER_ROLES = ["admin", "ceo", "coo", "manager", "director", "project_manager"] as const;
 
+// normalize ค่า role ก่อนเทียบ — กันปัญหาตัวพิมพ์ใหญ่/เล็กและช่องว่าง
+// (ข้อมูลจริงใน DB/JWT มีทั้ง "CEO"/"ceo", "Sales Manager", "Finance" ปนกัน)
+function normRole(role?: string | null): string {
+  return (role ?? "").toLowerCase().trim();
+}
+
 export function isSuperRole(role?: string | null): boolean {
-  return !!role && (SUPER_ROLES as readonly string[]).includes(role);
+  return (SUPER_ROLES as readonly string[]).includes(normRole(role));
 }
 
 export function isManagerRole(role?: string | null): boolean {
-  return !!role && (MANAGER_ROLES as readonly string[]).includes(role);
+  const r = normRole(role);
+  if (!r) return false;
+  if ((MANAGER_ROLES as readonly string[]).includes(r)) return true;
+  // ตำแหน่งหัวหน้า/ผู้จัดการที่ระบุฝ่าย เช่น "Sales Manager", "Construction Manager", "QC Manager", "ผู้จัดการฝ่ายขาย"
+  return /manager|director|management|executive|ผู้จัดการ|ผู้บริหาร|หัวหน้า/.test(r);
 }

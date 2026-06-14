@@ -25,12 +25,18 @@ interface WorkQueueItem {
 const ROLE_LABEL: Record<string, string> = {
   manager: "รออนุมัติ (ผู้จัดการ)",
   finance: "รอจ่ายเงิน (การเงิน)",
+  sales_ai: "ติดตามลูกค้า (ฝ่ายขาย)",
+  construction_ai: "งานก่อสร้าง",
+  engineer: "งานวิศวกรรม",
 };
 
 // where each queue should send the user to act
 const ROLE_LINK: Record<string, string> = {
   manager: "/approvals",
   finance: "/construction",
+  sales_ai: "/crm",
+  construction_ai: "/construction",
+  engineer: "/construction",
 };
 
 function slaInfo(sla: string | null): { text: string; cls: string } | null {
@@ -76,7 +82,7 @@ export default function InboxPage() {
     <main className="min-h-screen px-4 pt-6 pb-24 max-w-2xl mx-auto">
       <SectionHeader
         title="กล่องงานของฉัน"
-        subtitle="งานที่ส่งต่อมาให้ฝ่ายของคุณดำเนินการ"
+        subtitle={loading ? "งานที่ส่งต่อมาให้ฝ่ายของคุณดำเนินการ" : `งานค้าง ${items.length} ชิ้น — เรียงตามกำหนด SLA`}
         action={<InboxIcon size={20} className="text-aviva-gold" />}
       />
 

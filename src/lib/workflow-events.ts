@@ -94,6 +94,12 @@ export async function closeWorkQueue(
 }
 
 /** Map a logged-in user to the work_queue.assigned_role values they should see. */
+/**
+ * Map a user to every work_queue.assigned_role they should action in their inbox.
+ * Covers human roles (manager/finance) AND the per-department task queues that the
+ * automation seeds under "*_ai" roles (sales follow-ups, construction tasks) so the
+ * work that lands there is actually visible to the responsible team, not stranded.
+ */
 export function rolesForUser(user: {
   role?: string;
   department?: string;
@@ -102,12 +108,27 @@ export function rolesForUser(user: {
 }): string[] {
   const roles = new Set<string>();
   const dept = user.department ?? "";
+  const role = (user.role ?? "").toLowerCase();
+  const inDept = (...k: string[]) => k.some((s) => dept.includes(s));
+  const isRole = (...k: string[]) => k.some((s) => role.includes(s));
+
   if (user.isManager || user.isAdmin) roles.add("manager");
-  if (dept.includes("การเงิน") || dept.includes("finance") || dept.includes("บัญชี")) roles.add("finance");
-  // Admins / executives oversee every queue.
+
+  // ฝ่ายการเงิน/บัญชี — งานรอจ่ายเงิน
+  if (inDept("การเงิน", "finance", "บัญชี") || isRole("finance", "account")) roles.add("finance");
+
+  // ฝ่ายขาย (ไม่รวมหลังการขาย) — งานติดตามลูกค้า (Lead_Followup → sales_ai)
+  if ((inDept("ขาย") && !inDept("หลังการขาย")) || isRole("sales")) roles.add("sales_ai");
+
+  // ฝ่ายก่อสร้าง/วิศวกรรม/QC — งานก่อสร้าง
+  if (inDept("ก่อสร้าง", "วิศว", "construction") || isRole("engineer", "construction", "qc")) {
+    roles.add("construction_ai");
+    roles.add("engineer");
+  }
+
+  // ผู้บริหาร/แอดมิน เห็นทุกกล่องงานเพื่อกำกับดูแล
   if (user.isAdmin) {
-    roles.add("manager");
-    roles.add("finance");
+    ["finance", "sales_ai", "construction_ai", "engineer"].forEach((r) => roles.add(r));
   }
   return Array.from(roles);
 }

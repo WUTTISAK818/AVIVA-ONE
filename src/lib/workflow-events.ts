@@ -4,6 +4,7 @@
 // Every helper is best-effort and never throws, so it can be layered onto
 // existing approval/construction flows without changing their behaviour.
 import { supabase } from "./supabase";
+import { calcSlaDueAt } from "./approval-matrix";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -91,6 +92,70 @@ export async function closeWorkQueue(
   } catch {
     /* best-effort */
   }
+}
+
+/**
+ * เชื่อมคำขออนุมัติเข้ากล่องงานผู้จัดการ (/inbox) + audit trail (timeline).
+ * เรียกคู่กับการ insert approval_logs ทุกจุด submit เพื่อให้ทุก workflow โผล่ใน /inbox
+ * และมี timeline เหมือน Installment_Review (best-effort, ไม่ throw)
+ */
+export async function submitApprovalQueue(opts: {
+  workflowType: string;
+  sourceRecordId: string;
+  docIndex?: string | null;
+  title: string;
+  amount?: number | null;
+  actorName?: string | null;
+  actorRole?: string | null;
+}): Promise<void> {
+  await createWorkQueue({
+    workflowType: opts.workflowType,
+    sourceRecordId: opts.sourceRecordId,
+    docIndex: opts.docIndex ?? null,
+    title: opts.title,
+    amount: opts.amount ?? null,
+    assignedRole: "manager",
+    slaDueAt: calcSlaDueAt(opts.workflowType),
+  });
+  await logWorkflowEvent({
+    workflowType: opts.workflowType,
+    sourceRecordId: opts.sourceRecordId,
+    docIndex: opts.docIndex ?? null,
+    eventType: "submitted",
+    stageTo: "in_review",
+    actorName: opts.actorName ?? null,
+    actorRole: opts.actorRole ?? null,
+    routedToRole: "manager",
+    routedToName: "ผู้จัดการ",
+    amount: opts.amount ?? null,
+  });
+}
+
+/**
+ * ปิดงานในกล่องผู้จัดการ + บันทึกผลอนุมัติ/ปฏิเสธลง timeline.
+ * เรียกคู่กับการ update approval_logs ทุกจุดอนุมัติ/ปฏิเสธ เพื่อปิด loop (กัน orphan)
+ */
+export async function resolveApprovalQueue(opts: {
+  workflowType: string;
+  sourceRecordId: string;
+  docIndex?: string | null;
+  approved: boolean;
+  actorName?: string | null;
+  actorRole?: string | null;
+  conditionNote?: string | null;
+}): Promise<void> {
+  await closeWorkQueue(opts.sourceRecordId, "manager", opts.actorName ?? null);
+  await logWorkflowEvent({
+    workflowType: opts.workflowType,
+    sourceRecordId: opts.sourceRecordId,
+    docIndex: opts.docIndex ?? null,
+    eventType: opts.approved ? "approved" : "rejected",
+    stageFrom: "in_review",
+    stageTo: opts.approved ? "approved" : "rejected",
+    actorName: opts.actorName ?? null,
+    actorRole: opts.actorRole ?? null,
+    conditionNote: opts.conditionNote ?? undefined,
+  });
 }
 
 /** Map a logged-in user to the work_queue.assigned_role values they should see. */

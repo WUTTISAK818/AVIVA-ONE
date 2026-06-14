@@ -14,7 +14,7 @@ import { SLA_DAYS, calcSlaDueAt, summarizeApproval } from "@/lib/approval-matrix
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
-import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
+import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor, resolveApprovalQueue } from "@/lib/workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -528,6 +528,19 @@ function ApprovalsContent() {
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
         to_dept: "ฝ่ายขาย",
+      });
+    }
+
+    // ปิดงานในกล่องผู้จัดการ + บันทึก timeline (Installment_Review จัดการเองด้านบนแล้ว — กัน event ซ้ำ)
+    if (log.workflow_type !== "Installment_Review") {
+      await resolveApprovalQueue({
+        workflowType: log.workflow_type,
+        sourceRecordId: log.source_record_id ?? log.id,
+        docIndex: log.source_doc_index,
+        approved,
+        actorName: user.full_name ?? user.email,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: approved ? undefined : (note ?? undefined),
       });
     }
 

@@ -63,7 +63,46 @@ export default function InboxPage() {
       .eq("status", "open")
       .in("assigned_role", roles)
       .order("sla_due_at", { ascending: true, nullsFirst: false });
-    setItems((data as WorkQueueItem[]) ?? []);
+    const queueItems = (data as WorkQueueItem[]) ?? [];
+    let merged: WorkQueueItem[] = queueItems;
+
+    // ผู้จัดการ/ผู้บริหาร: รวม "รายการรออนุมัติ" (approval_logs Pending) ที่ยังไม่มีใน work_queue
+    // เพื่อให้ทุก workflow (จอง/สัญญา/การเงิน/จัดซื้อ/ลา/เอกสาร) โผล่ในกล่องงานครบ
+    if (roles.includes("manager")) {
+      const { data: appr } = await supabase
+        .from("approval_logs")
+        .select("approval_id, workflow_type, source_record_id, source_doc_index, amount, sla_due_at, created_at")
+        .eq("action_taken", "Pending");
+      const seen = new Set(queueItems.map((q) => q.source_record_id));
+      const apprItems: WorkQueueItem[] = (
+        (appr as {
+          approval_id: string; workflow_type: string; source_record_id: string | null;
+          source_doc_index: string | null; amount: number | null;
+          sla_due_at: string | null; created_at: string;
+        }[]) ?? []
+      )
+        .filter((a) => !a.source_record_id || !seen.has(a.source_record_id))
+        .map((a) => ({
+          id: a.approval_id,
+          workflow_type: a.workflow_type,
+          source_record_id: a.source_record_id ?? a.approval_id,
+          doc_index: a.source_doc_index,
+          title: (a.source_doc_index ?? "").split(" | ")[1] || a.source_doc_index || a.workflow_type,
+          amount: a.amount,
+          assigned_role: "manager",
+          status: "open",
+          sla_due_at: a.sla_due_at,
+          created_at: a.created_at,
+        }));
+      merged = [...queueItems, ...apprItems];
+    }
+
+    merged.sort((x, y) => {
+      const ax = x.sla_due_at ? new Date(x.sla_due_at).getTime() : Infinity;
+      const ay = y.sla_due_at ? new Date(y.sla_due_at).getTime() : Infinity;
+      return ax - ay;
+    });
+    setItems(merged);
     setLoading(false);
   }, [roles]);
 
@@ -74,6 +113,7 @@ export default function InboxPage() {
     const ch = supabase
       .channel("work_queue_inbox")
       .on("postgres_changes", { event: "*", schema: "public", table: "work_queue" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "approval_logs" }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load]);

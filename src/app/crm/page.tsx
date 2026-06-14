@@ -22,7 +22,7 @@ import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
-import { closeWorkQueue } from "@/lib/workflow-events";
+import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
@@ -852,6 +852,8 @@ export default function CRMPage() {
               sla_due_at: calcSlaDueAt("Booking_Deposit"),
               assigned_to_name: "ผู้จัดการ",
             });
+            await submitApprovalQueue({ workflowType: "Booking_Deposit", sourceRecordId: editingLead.id, docIndex: docNum, title: `อนุมัติเงินจอง: ${form.customer_name}`, amount: form.budget ? Number(form.budget) : null, actorName: byName, actorRole: "sales" });
+            await createNotification({ type: "approval", title: `รออนุมัติเงินจอง — ${form.customer_name}`, message: `${docNum} · แปลง ${effectivePlot}${form.budget ? ` · ฿${Number(form.budget).toLocaleString("th-TH")}` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
           } else if (editingLead.status === "Booking" && !["Booking", "Contract", "Loan Approved"].includes(form.status)) {
             await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
           }
@@ -999,6 +1001,8 @@ export default function CRMPage() {
           sla_due_at: calcSlaDueAt("Contract_Approval"),
           assigned_to_name: "ผู้จัดการ",
         });
+        await submitApprovalQueue({ workflowType: "Contract_Approval", sourceRecordId: lead.id, docIndex: docNum, title: `อนุมัติสัญญา: ${lead.customer_name}`, amount: lead.budget ?? null, actorName: byName, actorRole: "sales" });
+        await createNotification({ type: "approval", title: `รออนุมัติสัญญา — ${lead.customer_name}`, message: `${docNum}${lead.plot_number ? ` · แปลง ${lead.plot_number}` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: lead.id });
       }
     }
     setSelectedLead(null);

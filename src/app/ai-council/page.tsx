@@ -76,7 +76,7 @@ export default function AICouncilPage() {
         body: JSON.stringify({ period }),
       });
       const json = await res.json();
-      if (!res.ok || !json.briefing) setError(json.error ?? "ประชุมสภาไม่สำเร็จ");
+      if (!res.ok || !json.briefing) setError(json.error ?? "ประชุมคณะที่ปรึกษาไม่สำเร็จ");
       else await load();
     } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่ค่ะ");
@@ -101,7 +101,7 @@ export default function AICouncilPage() {
     }).eq("id", exec.id);
     await supabase.from("notifications").insert({
       project_id: "aaaaaaaa-0000-0000-0000-000000000001", type: "info", from_dept: "ผู้บริหาร",
-      title: "ผู้บริหารสั่งการจากบรีฟสภา AI", message: note.slice(0, 200), is_read: false,
+      title: "ผู้บริหารสั่งการจากบรีฟคณะที่ปรึกษา AI", message: note.slice(0, 200), is_read: false,
     });
     setExec({ ...exec, exec_note: note, status: "actioned" });
     setSavingNote(false);
@@ -115,7 +115,7 @@ export default function AICouncilPage() {
         <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto">
           <Link href="/dashboard" className="text-aviva-gold hover:text-aviva-gold/80"><ArrowLeft size={20} /></Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-aviva-text flex items-center gap-2"><Users size={16} className="text-aviva-gold" /> สภา AI — สรุปเสนอผู้บริหาร</h1>
+            <h1 className="text-base font-bold text-aviva-text flex items-center gap-2"><Users size={16} className="text-aviva-gold" /> คณะที่ปรึกษา AI — สรุปเสนอผู้บริหาร</h1>
             <p className="text-[11px] text-aviva-secondary">ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน แล้วสรุปประเด็นที่ต้องตัดสินใจ</p>
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function AICouncilPage() {
         <div className="flex gap-2">
           <button onClick={() => runCouncil("weekly")} disabled={running}
             className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
-            <RefreshCw size={15} className={running ? "animate-spin" : ""} /> {running ? "กำลังประชุม..." : "เรียกประชุมสภา (สัปดาห์)"}
+            <RefreshCw size={15} className={running ? "animate-spin" : ""} /> {running ? "กำลังประชุม..." : "เรียกประชุมคณะที่ปรึกษา (สัปดาห์)"}
           </button>
           <button onClick={() => runCouncil("monthly")} disabled={running}
             className="flex items-center gap-1.5 border border-aviva-gold/30 text-aviva-gold px-4 py-3 rounded-2xl text-sm font-medium disabled:opacity-50">
@@ -144,7 +144,7 @@ export default function AICouncilPage() {
         ) : !exec ? (
           <GlassCard className="p-8 text-center">
             <Sparkles size={28} className="text-aviva-gold/40 mx-auto mb-2" />
-            <p className="text-aviva-secondary text-sm">ยังไม่มีบรีฟจากสภา AI — กด “เรียกประชุมสภา” เพื่อให้ผู้เชี่ยวชาญแต่ละฝ่ายสรุปเสนอผู้บริหารค่ะ</p>
+            <p className="text-aviva-secondary text-sm">ยังไม่มีบรีฟจากคณะที่ปรึกษา AI — กด “เรียกประชุมคณะที่ปรึกษา” เพื่อให้ผู้เชี่ยวชาญแต่ละฝ่ายสรุปเสนอผู้บริหารค่ะ</p>
           </GlassCard>
         ) : (
           <>

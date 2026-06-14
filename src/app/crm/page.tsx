@@ -157,7 +157,8 @@ function formatBudget(n: number) {
 function getChatLink(lead: Lead): string {
   if (lead.source === "TikTok") return `tiktok://user?username=${encodeURIComponent(lead.customer_name)}`;
   if (lead.source === "Instagram") return `instagram://user?username=${encodeURIComponent(lead.customer_name)}`;
-  return `https://line.me/R/oaMessage/@`;
+  // LINE OA ของโครงการ (เปิดแชต OA — การแชตถึงลูกค้ารายบุคคลต้องผูก LINE userId ก่อน)
+  return `https://line.me/R/ti/p/@avivaprivate`;
 }
 
 // จัดรูปแบบเบอร์โทรเป็น xxx-xxx-xxxx (รับเฉพาะตัวเลข สูงสุด 10 หลัก)
@@ -256,7 +257,7 @@ export default function CRMPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
-  const [activeStage, setActiveStage] = useState<LeadStatus>("New Lead");
+  const [activeStage, setActiveStage] = useState<LeadStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState<Period>("all");
   const [dateStart, setDateStart] = useState("");
@@ -634,7 +635,7 @@ export default function CRMPage() {
   ) as Record<LeadStatus, number>, [leads]);
 
   const filtered = useMemo(() => leads.filter(
-    (l) => l.status === activeStage && (search === "" || l.customer_name.includes(search))
+    (l) => (activeStage === "all" || l.status === activeStage) && (search === "" || l.customer_name.includes(search))
   ), [leads, activeStage, search]);
 
   const teamStats = useMemo(() => {
@@ -673,6 +674,9 @@ export default function CRMPage() {
 
   const openCall = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
+    // Click-to-call: เปิด dialer ของเครื่องด้วยเบอร์ลูกค้า แล้วเปิดฟอร์มบันทึกผลการโทร
+    const digits = (lead.phone ?? "").replace(/\D/g, "");
+    if (digits) window.location.href = `tel:${digits}`;
     setCrmLogLead(lead);
     setCrmLogForm({ channel: "Phone", callStatus: "", note: "", photo: null, photoPreview: "" });
   };
@@ -680,6 +684,9 @@ export default function CRMPage() {
   const openChat = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     const channel = ["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE";
+    // Click-to-chat: เปิดแอปแชตตามช่องทาง แล้วเปิดฟอร์มบันทึกผลการติดต่อ
+    const link = getChatLink(lead);
+    if (link) window.open(link, "_blank");
     setCrmLogLead(lead);
     setCrmLogForm({ channel, callStatus: "", note: "", photo: null, photoPreview: "" });
   };
@@ -867,7 +874,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: computeAiScore(form.status, Number(form.budget) || 0, !!form.next_follow_up_date), next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, assigned_to: user?.full_name ?? user?.email ?? null, ai_score: computeAiScore(form.status, Number(form.budget) || 0, !!form.next_follow_up_date), next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -993,6 +1000,12 @@ export default function CRMPage() {
     URL.revokeObjectURL(url);
   };
 
+  // ตรวจเบอร์โทรซ้ำขณะกรอกฟอร์ม — กันเซลล์คนละคนเพิ่มลูกค้ารายเดียวกัน
+  const formPhoneDigits = form.phone.replace(/\D/g, "");
+  const dupLead = formPhoneDigits.length >= 9
+    ? leads.find(l => l.phone.replace(/\D/g, "") === formPhoneDigits && l.id !== editingLead?.id)
+    : null;
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
@@ -1009,10 +1022,10 @@ export default function CRMPage() {
                 <Bot size={13} /> AI
               </button>
               <button onClick={exportCSV} className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
-                <Download size={13} /> CSV
+                <Download size={13} /> ส่งออกข้อมูล
               </button>
               <button onClick={openAdd} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-                <Plus size={14} /> เพิ่ม Lead
+                <Plus size={14} /> เพิ่มลูกค้า
               </button>
             </div>
           </div>
@@ -1082,7 +1095,7 @@ export default function CRMPage() {
 
         {/* Main tabs */}
         <div className="flex gap-2">
-          {([[ "pipeline", "Pipeline"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
+          {([[ "pipeline", "รายชื่อลูกค้า"], ["map", "แผนผัง"], ["team", "ผลงานทีม"]] as [MainTab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setMainTab(k)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all flex items-center justify-center gap-1",
                 mainTab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -1101,21 +1114,25 @@ export default function CRMPage() {
             </div>
 
             <div>
-              <SectionHeader title="Sales Pipeline" subtitle="แตะเพื่อกรอง" />
+              <SectionHeader title="รายชื่อลูกค้า" subtitle="แตะเพื่อกรองตามสถานะ" />
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                {crmStages.map((stage) => (
-                  <button key={stage} onClick={() => setActiveStage(stage)}
-                    className={clsx("flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                      activeStage === stage ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-                    )}>
-                    {STATUS_TH[stage] ?? stage}
-                    <span className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                      activeStage === stage ? "bg-aviva-bg/20 text-aviva-bg" : "bg-aviva-gold/10 text-aviva-gold"
-                    )}>
-                      {stageCounts[stage] ?? 0}
-                    </span>
-                  </button>
-                ))}
+                {(["all", ...crmStages] as (LeadStatus | "all")[]).map((stage) => {
+                  const label = stage === "all" ? "ทั้งหมด" : (STATUS_TH[stage] ?? stage);
+                  const count = stage === "all" ? leads.length : (stageCounts[stage] ?? 0);
+                  return (
+                    <button key={stage} onClick={() => setActiveStage(stage)}
+                      className={clsx("flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                        activeStage === stage ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+                      )}>
+                      {label}
+                      <span className={clsx("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                        activeStage === stage ? "bg-aviva-bg/20 text-aviva-bg" : "bg-aviva-gold/10 text-aviva-gold"
+                      )}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1123,7 +1140,7 @@ export default function CRMPage() {
               {loading ? [1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />) :
                 filtered.length === 0 ? (
                   <GlassCard className="p-8 text-center">
-                    <p className="text-aviva-secondary text-sm">ยังไม่มี Lead ในขั้นนี้</p>
+                    <p className="text-aviva-secondary text-sm">ยังไม่มีลูกค้าในขั้นนี้</p>
                   </GlassCard>
                 ) : (
                   filtered.map((lead) => (
@@ -1145,6 +1162,7 @@ export default function CRMPage() {
                             )}
                           </div>
                           {lead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>}
+                          <p className="text-[10px] mt-1 text-aviva-secondary/80">👤 เซลล์: <span className="text-aviva-text font-medium">{lead.assigned_to || "ยังไม่ระบุ"}</span></p>
                           {lead.plot_number && (
                             <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/20 px-1.5 py-0.5 rounded-md">
                               <MapPin size={8} /> แปลง {lead.plot_number}
@@ -1472,6 +1490,7 @@ export default function CRMPage() {
                   <h2 className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
                 </div>
                 <p className="text-xs text-aviva-secondary mt-0.5">{selectedLead.phone} · {selectedLead.source}</p>
+                <p className="text-[11px] text-aviva-gold mt-0.5">👤 เซลล์ผู้ดูแล: {selectedLead.assigned_to || "ยังไม่ระบุ"}</p>
               </div>
               <button onClick={() => setSelectedLead(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
@@ -1728,9 +1747,20 @@ export default function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={requestCloseModal}>
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[88vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่ม Lead ใหม่"}</h2>
+              <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่มลูกค้าใหม่"}</h2>
               <button onClick={requestCloseModal}><X size={20} className="text-aviva-secondary" /></button>
             </div>
+
+            {dupLead && (
+              <div className="mb-4 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
+                <p className="text-[11px] font-bold text-orange-400">⚠ เบอร์นี้มีในระบบแล้ว</p>
+                <p className="text-[11px] text-aviva-text mt-0.5">
+                  {dupLead.customer_name} · ดูแลโดย <span className="font-semibold">{dupLead.assigned_to || "ยังไม่ระบุ"}</span>
+                  {dupLead.lead_code ? ` (${dupLead.lead_code})` : ""}
+                </p>
+                <p className="text-[10px] text-aviva-secondary/80 mt-0.5">ตรวจสอบก่อนบันทึก เพื่อเลี่ยงการเพิ่มลูกค้าซ้ำ</p>
+              </div>
+            )}
 
             <div className="space-y-5">
               {/* หมวด 1 — ข้อมูลลูกค้า */}
@@ -1932,7 +1962,7 @@ export default function CRMPage() {
 
               <button onClick={handleSave} disabled={saving || !form.customer_name || !form.phone}
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
-                {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "เพิ่ม Lead"}
+                {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "เพิ่มลูกค้า"}
               </button>
             </div>
           </div>

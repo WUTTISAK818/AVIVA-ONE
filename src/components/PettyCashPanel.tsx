@@ -35,11 +35,20 @@ interface Entry {
   balance_after: number;
   created_by: string | null;
   created_at: string;
+  txn_date: string | null;
 }
 
 const baht = (n: number) => `฿${n.toLocaleString("th-TH")}`;
 const fmtDate = (s: string) =>
   new Date(s).toLocaleString("th-TH", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+// วันที่ทำรายการ (เฉพาะวัน) — ใช้ txn_date ถ้ามี ไม่งั้น fallback เป็นวันที่ของ created_at
+const fmtTxnDate = (txn: string | null, createdAt: string) =>
+  new Date(txn ? `${txn}T00:00:00` : createdAt).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "2-digit" });
+// วันนี้ในรูปแบบ YYYY-MM-DD ตามเขตเวลาไทย
+const todayISO = () => {
+  const d = new Date(Date.now() + 7 * 3600 * 1000);
+  return d.toISOString().split("T")[0];
+};
 
 export default function PettyCashPanel() {
   const user = useCurrentUser();
@@ -52,9 +61,11 @@ export default function PettyCashPanel() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   // แก้ไขรายการ (เฉพาะรายละเอียด/หมวด — ยอดเงินล็อกเพื่อรักษายอดคงเหลือ)
+  const [txnDate, setTxnDate] = useState(todayISO());
   const [editing, setEditing] = useState<Entry | null>(null);
   const [editDesc, setEditDesc] = useState("");
   const [editCat, setEditCat] = useState(PETTY_CATEGORIES[0]);
+  const [editDate, setEditDate] = useState(todayISO());
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -73,7 +84,7 @@ export default function PettyCashPanel() {
   const low = balance < LOW_THRESHOLD;
 
   const openForm = (m: "expense" | "replenish") => {
-    setMode(m); setAmount(""); setDesc(""); setCategory(PETTY_CATEGORIES[0]); setErr("");
+    setMode(m); setAmount(""); setDesc(""); setCategory(PETTY_CATEGORIES[0]); setTxnDate(todayISO()); setErr("");
   };
 
   const submit = async () => {
@@ -97,6 +108,7 @@ export default function PettyCashPanel() {
     const newBal = mode === "replenish" ? curBal + amt : curBal - amt;
     const who = user?.full_name ?? user?.email ?? "ผู้ใช้";
 
+    const useDate = txnDate || todayISO();
     const { error } = await supabase.from("petty_cash_entries").insert({
       project_id: PROJECT_ID,
       entry_type: mode,
@@ -105,11 +117,12 @@ export default function PettyCashPanel() {
       amount: amt,
       balance_after: newBal,
       created_by: who,
+      txn_date: useDate,
     });
     if (error) { setErr("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง"); setSaving(false); return; }
 
-    // ลงบัญชีอัตโนมัติแบบ double-entry
-    const jvDate = new Date().toISOString().split("T")[0];
+    // ลงบัญชีอัตโนมัติแบบ double-entry — ใช้วันที่ทำรายการจริงที่ผู้ใช้เลือก
+    const jvDate = useDate;
     if (mode === "replenish") {
       await postJv({
         project_id: PROJECT_ID, jv_date: jvDate,
@@ -152,7 +165,8 @@ export default function PettyCashPanel() {
   };
 
   const openEdit = (e: Entry) => {
-    setEditing(e); setEditDesc(e.description); setEditCat(e.category ?? PETTY_CATEGORIES[0]); setErr("");
+    setEditing(e); setEditDesc(e.description); setEditCat(e.category ?? PETTY_CATEGORIES[0]);
+    setEditDate(e.txn_date ?? todayISO()); setErr("");
   };
 
   const saveEdit = async () => {
@@ -164,6 +178,7 @@ export default function PettyCashPanel() {
       .update({
         description: editDesc.trim(),
         category: editing.entry_type === "expense" ? editCat : null,
+        txn_date: editDate || editing.txn_date,
       })
       .eq("id", editing.id);
     if (error) { setErr("แก้ไขไม่สำเร็จ"); setSaving(false); return; }
@@ -224,7 +239,7 @@ export default function PettyCashPanel() {
                   {e.description}
                 </div>
                 <div className="text-[10px] text-aviva-secondary/70 mt-0.5">
-                  {fmtDate(e.created_at)} น.
+                  {e.entry_type === "replenish" ? "เติมเมื่อ " : ""}{fmtTxnDate(e.txn_date, e.created_at)}
                   {e.created_by ? ` · ${e.created_by}` : ""}
                   {" · คงเหลือ "}{baht(e.balance_after)}
                 </div>
@@ -272,6 +287,16 @@ export default function PettyCashPanel() {
                   type="number" inputMode="decimal" value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="เช่น 350"
+                  className="w-full mt-1 bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-aviva-secondary">
+                  {mode === "replenish" ? "วันที่เติมเงิน" : "วันที่ทำรายการ"}
+                </label>
+                <input
+                  type="date" value={txnDate} max={todayISO()}
+                  onChange={(e) => setTxnDate(e.target.value)}
                   className="w-full mt-1 bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text"
                 />
               </div>
@@ -333,6 +358,13 @@ export default function PettyCashPanel() {
                   </select>
                 </div>
               )}
+              <div>
+                <label className="text-[11px] text-aviva-secondary">
+                  {editing.entry_type === "replenish" ? "วันที่เติมเงิน" : "วันที่ทำรายการ"}
+                </label>
+                <input type="date" value={editDate} max={todayISO()} onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full mt-1 bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text" />
+              </div>
               <div>
                 <label className="text-[11px] text-aviva-secondary">รายละเอียด</label>
                 <input type="text" value={editDesc} onChange={(e) => setEditDesc(e.target.value)}

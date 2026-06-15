@@ -35,6 +35,7 @@ import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import PettyCashPanel from "@/components/PettyCashPanel";
+import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
 import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, CASH, INPUT_VAT, WHT_PAYABLE } from "@/lib/gl-accounts";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
@@ -418,6 +419,8 @@ function FinanceContent() {
       />
 
       <PettyCashPanel />
+
+      <PurchaseRequestPanel />
 
       <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
 

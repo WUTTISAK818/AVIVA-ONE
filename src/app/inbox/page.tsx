@@ -29,6 +29,7 @@ const TYPE_LABEL: Record<string, string> = {
   Defect_Followup: "งานแก้ไข (ก่อสร้าง)",
   Leave_Request: "อนุมัติใบลา (ผู้บริหาร)",
   Warranty_Claim: "เคลมประกัน (หลังการขาย)",
+  Purchase_Request: "ขออนุมัติก่อนซื้อ (ผู้บริหาร)",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -59,6 +60,8 @@ function linkFor(it: WorkQueueItem): string {
       return "/construction";
     case "Leave_Request":
       return "/office?tab=hr";
+    case "Purchase_Request":
+      return "/office?tab=finance";
     case "Warranty_Claim":
       return "/after-sales";
     default:
@@ -73,6 +76,7 @@ function priority(it: WorkQueueItem): number {
     case "Installment_Review":
     case "Leave_Request":
     case "Warranty_Claim":
+    case "Purchase_Request":
       return 0; // งานรออนุมัติของผู้บริหาร — บนสุด
     case "Defect_Followup":
       return 1; // งานแก้ไขหน้างาน

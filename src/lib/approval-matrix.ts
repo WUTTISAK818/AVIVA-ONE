@@ -8,6 +8,7 @@ export const SLA_DAYS: Record<string, number> = {
   Contract_Approval:  5,
   Booking_Deposit:    2,
   Marketing_Budget:   3,
+  Purchase_Request:   2,
 };
 
 export function calcSlaDueAt(workflowType: string): string {

@@ -34,6 +34,7 @@ import { broadcastCelebration } from "@/lib/celebrate";
 import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
+import PettyCashPanel from "@/components/PettyCashPanel";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -101,7 +102,7 @@ interface Approval {
   created_at: string;
 }
 
-const FINANCE_CATEGORIES = ["ค่าก่อสร้าง", "ค่าวัสดุ", "ค่าการตลาด", "เงินเดือน", "ค่าดำเนินการ", "รายรับจากการขาย", "อื่นๆ"];
+const FINANCE_CATEGORIES = ["ค่าก่อสร้าง", "ค่าวัสดุ", "ค่าการตลาด", "เงินเดือน", "ค่าดำเนินการ", "ค่าใช้จ่ายสำนักงาน", "ซ่อมบำรุงสำนักงาน", "สวัสดิการ/ต้อนรับลูกค้า", "รายรับจากการขาย", "อื่นๆ"];
 
 const emptyFinanceForm = {
   transaction_type: "expense",
@@ -391,6 +392,8 @@ function FinanceContent() {
         title="AI: วิเคราะห์การเงิน"
         message="รายจ่ายเดือนนี้ควรตรวจสอบหมวดก่อสร้าง แนะนำทบทวนงบประมาณผู้รับเหมาก่อนสิ้นไตรมาส"
       />
+
+      <PettyCashPanel />
 
       <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
 

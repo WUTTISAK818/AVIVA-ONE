@@ -15,6 +15,8 @@ import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor, resolveApprovalQueue } from "@/lib/workflow-events";
+import { finalizeSale } from "@/lib/sales-finalize";
+import { broadcastCelebration } from "@/lib/celebrate";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -518,13 +520,18 @@ function ApprovalsContent() {
         to_dept: "ฝ่ายขาย",
       });
     } else if (log.workflow_type === "Contract_Approval") {
-      // ปฏิเสธสัญญา → คืนสถานะลูกค้าเป็น Booking (จอง)
-      if (!approved && log.source_record_id) {
-        await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
+      if (approved && log.source_record_id) {
+        // Group C: อนุมัติแล้วจึง "ปิดการขายจริง" — รับรู้รายได้ + บ้าน sold + lead=Closed Deal
+        const fin = await finalizeSale(log.source_record_id, user.full_name ?? user.email, user.id);
+        await closeWorkQueue(log.source_record_id, "sales_ai", user.full_name ?? user.email);
+        broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: user.full_name ?? user.email, byUserId: user.id });
+      } else if (!approved && log.source_record_id) {
+        // ปฏิเสธปิดการขาย → คืนสถานะเป็น "อนุมัติสินเชื่อ" (ขั้นก่อนปิด) ไม่รับรู้รายได้
+        await supabase.from("leads").update({ status: "Loan Approved" }).eq("id", log.source_record_id);
       }
       await createNotification({
         type: approved ? "success" : "info",
-        title: approved ? "อนุมัติสัญญาแล้ว" : "ปฏิเสธสัญญา — คืนสถานะเป็นจอง",
+        title: approved ? "อนุมัติปิดการขายแล้ว — รับรู้รายได้" : "ปฏิเสธปิดการขาย — คืนสถานะ",
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
         to_dept: "ฝ่ายขาย",

@@ -29,6 +29,8 @@ import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { resolveApprovalQueue } from "@/lib/workflow-events";
+import { finalizeSale } from "@/lib/sales-finalize";
+import { broadcastCelebration } from "@/lib/celebrate";
 import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
@@ -3152,6 +3154,11 @@ function ApprovalsContent() {
       else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved", approved_by: user?.full_name ?? user?.email }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_by_role: user?.role, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Contract_Approval") {
+        // Group C: อนุมัติแล้วจึงปิดการขายจริง (รับรู้รายได้ + บ้าน sold + lead=Closed Deal)
+        const fin = await finalizeSale(log.source_record_id, user?.full_name ?? user?.email ?? "ผู้จัดการ", user?.id);
+        broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: user?.full_name ?? user?.email, byUserId: user?.id });
+      }
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
@@ -3191,7 +3198,7 @@ function ApprovalsContent() {
         const plot = (lead as { plot_number?: number } | null)?.plot_number;
         if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
       }
-      else if (log.workflow_type === "Contract_Approval") await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Contract_Approval") await supabase.from("leads").update({ status: "Loan Approved" }).eq("id", log.source_record_id);
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";

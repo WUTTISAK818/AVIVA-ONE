@@ -826,6 +826,11 @@ export default function CRMPage() {
       setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
       return;
     }
+    // Group C: ปิดการขายต้องผ่านการอนุมัติ — ห้ามปิดผ่านฟอร์มแก้ไขโดยตรง
+    if (editingLead && form.status === "Closed Deal" && editingLead.status !== "Closed Deal") {
+      setToast({ msg: "การปิดการขายต้องส่งอนุมัติ — ใช้ปุ่มเปลี่ยนสถานะเป็น 'โอนแล้ว' ในหน้ารายละเอียดลูกค้า", type: "error" });
+      return;
+    }
     setSaving(true);
     const today = new Date().toISOString().split("T")[0];
     const byName = user?.full_name ?? user?.email ?? "ทีมขาย";
@@ -961,6 +966,31 @@ export default function CRMPage() {
     }
     const today = new Date().toISOString().split("T")[0];
     const byName = user?.full_name ?? user?.email ?? "ทีมขาย";
+
+    // Group C: ปิดการขายต้องผ่านการอนุมัติก่อน — ส่งคำขอ ไม่รับรู้รายได้/ไม่เลื่อนเป็น Closed Deal ทันที
+    if (newStatus === "Closed Deal" && lead.status !== "Closed Deal") {
+      const amt = lead.contract_price ?? lead.budget ?? null;
+      const docNum = await generateDocNumber("CONTRACT");
+      const { error: apErr } = await supabase.from("approval_logs").insert({
+        workflow_type: "Contract_Approval",
+        source_doc_index: `${docNum} | ปิดการขาย ${lead.customer_name}${lead.plot_number ? ` แปลง ${lead.plot_number}` : ""} | โดย ${byName}`,
+        submitted_by_user_id: user?.id ?? null,
+        source_record_id: lead.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: amt,
+        sla_due_at: calcSlaDueAt("Contract_Approval"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      if (apErr) { setToast({ msg: "ส่งอนุมัติไม่สำเร็จ: " + apErr.message, type: "error" }); return; }
+      await submitApprovalQueue({ workflowType: "Contract_Approval", sourceRecordId: lead.id, docIndex: docNum, title: `อนุมัติปิดการขาย: ${lead.customer_name}`, amount: amt, actorName: byName, actorRole: "sales" });
+      await createNotification({ type: "approval", title: `รออนุมัติปิดการขาย — ${lead.customer_name}`, message: `${docNum}${lead.plot_number ? ` · แปลง ${lead.plot_number}` : ""}${amt ? ` · ฿${Number(amt).toLocaleString("th-TH")}` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: lead.id });
+      setToast({ msg: "ส่งขออนุมัติปิดการขายแล้ว — รอผู้จัดการอนุมัติก่อนรับรู้รายได้", type: "success" });
+      setSelectedLead(null);
+      fetchLeads(dateStart, dateEnd, leadsLimit);
+      return;
+    }
+
     const upd: Record<string, unknown> = { status: newStatus, ai_score: computeAiScore(newStatus, lead.budget ?? 0, !!lead.next_follow_up_date), updated_at: new Date().toISOString() };
     if (newStatus === "Booking" && lead.status !== "Booking") { upd.booking_date = lead.booking_date ?? today; upd.booking_by = byName; }
     if (newStatus === "Closed Deal" && lead.status !== "Closed Deal") { upd.transfer_date = lead.transfer_date ?? today; upd.transfer_by = byName; }

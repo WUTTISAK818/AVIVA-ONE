@@ -6,7 +6,7 @@
 // - "เติมเงิน" เพิ่มวงเงิน + ลงบัญชี (เดบิต เงินสดย่อย / เครดิต เงินฝากธนาคาร)
 // - เตือนเมื่อยอดคงเหลือใกล้หมด
 import { useEffect, useState, useCallback } from "react";
-import { Wallet, ArrowDownCircle, ArrowUpCircle, AlertTriangle, X } from "lucide-react";
+import { Wallet, ArrowDownCircle, ArrowUpCircle, AlertTriangle, X, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import { postJv } from "@/lib/jv";
@@ -38,6 +38,8 @@ interface Entry {
 }
 
 const baht = (n: number) => `฿${n.toLocaleString("th-TH")}`;
+const fmtDate = (s: string) =>
+  new Date(s).toLocaleString("th-TH", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export default function PettyCashPanel() {
   const user = useCurrentUser();
@@ -49,6 +51,10 @@ export default function PettyCashPanel() {
   const [category, setCategory] = useState(PETTY_CATEGORIES[0]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  // แก้ไขรายการ (เฉพาะรายละเอียด/หมวด — ยอดเงินล็อกเพื่อรักษายอดคงเหลือ)
+  const [editing, setEditing] = useState<Entry | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editCat, setEditCat] = useState(PETTY_CATEGORIES[0]);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -145,6 +151,28 @@ export default function PettyCashPanel() {
     load();
   };
 
+  const openEdit = (e: Entry) => {
+    setEditing(e); setEditDesc(e.description); setEditCat(e.category ?? PETTY_CATEGORIES[0]); setErr("");
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!editDesc.trim()) { setErr("กรุณาระบุรายละเอียด"); return; }
+    setSaving(true);
+    const { error } = await supabase
+      .from("petty_cash_entries")
+      .update({
+        description: editDesc.trim(),
+        category: editing.entry_type === "expense" ? editCat : null,
+      })
+      .eq("id", editing.id);
+    if (error) { setErr("แก้ไขไม่สำเร็จ"); setSaving(false); return; }
+    await logAction("finance", "petty_edit",
+      `แก้ไขรายการเงินสดย่อย ${baht(editing.amount)} — ${editDesc.trim()}`);
+    setSaving(false); setEditing(null);
+    load();
+  };
+
   return (
     <GlassCard className={`p-4 ${low ? "border border-orange-500/30 bg-orange-500/5" : ""}`}>
       <div className="flex items-center justify-between mb-3">
@@ -187,18 +215,28 @@ export default function PettyCashPanel() {
           ยังไม่มีรายการ — เริ่มจาก &quot;เติมเงิน&quot; เพื่อตั้งวงเงินสำรอง
         </div>
       ) : (
-        <div className="space-y-1.5">
-          {entries.slice(0, 5).map((e) => (
-            <div key={e.id} className="flex items-center justify-between text-xs">
+        <div className="space-y-2">
+          {entries.slice(0, 6).map((e) => (
+            <div key={e.id} className="flex items-start justify-between text-xs gap-2">
               <div className="min-w-0 flex-1">
-                <span className="text-aviva-text truncate">
+                <div className="text-aviva-text truncate">
                   {e.entry_type === "expense" ? (e.category ? `[${e.category}] ` : "") : "เติมเงิน — "}
                   {e.description}
-                </span>
+                </div>
+                <div className="text-[10px] text-aviva-secondary/70 mt-0.5">
+                  {fmtDate(e.created_at)} น.
+                  {e.created_by ? ` · ${e.created_by}` : ""}
+                  {" · คงเหลือ "}{baht(e.balance_after)}
+                </div>
               </div>
-              <span className={`font-semibold ml-2 shrink-0 ${e.entry_type === "expense" ? "text-red-400" : "text-green-400"}`}>
-                {e.entry_type === "expense" ? "−" : "+"}{baht(e.amount)}
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className={`font-semibold ${e.entry_type === "expense" ? "text-red-400" : "text-green-400"}`}>
+                  {e.entry_type === "expense" ? "−" : "+"}{baht(e.amount)}
+                </span>
+                <button onClick={() => openEdit(e)} className="text-aviva-secondary/60 hover:text-aviva-gold p-1" title="แก้ไขรายละเอียด/หมวด">
+                  <Pencil size={12} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -264,6 +302,46 @@ export default function PettyCashPanel() {
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50"
               >
                 {saving ? "กำลังบันทึก…" : mode === "expense" ? "บันทึกเบิกจ่าย" : "บันทึกเติมเงิน"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* แก้ไขรายการ (รายละเอียด/หมวด) */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4" onClick={() => !saving && setEditing(null)}>
+          <div className="w-full max-w-sm bg-aviva-bg border border-aviva-gold/20 rounded-2xl p-5" onClick={(ev) => ev.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-aviva-text">แก้ไขรายการเงินสดย่อย</h3>
+              <button onClick={() => !saving && setEditing(null)} className="text-aviva-secondary"><X size={18} /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="text-[11px] text-aviva-secondary">
+                {fmtDate(editing.created_at)} น. · ยอด{" "}
+                <span className={editing.entry_type === "expense" ? "text-red-400" : "text-green-400"}>
+                  {editing.entry_type === "expense" ? "−" : "+"}{baht(editing.amount)}
+                </span>{" "}
+                <span className="text-aviva-secondary/60">(ยอดเงินแก้ไม่ได้ — หากผิดให้บันทึกรายการปรับปรุงแทน)</span>
+              </div>
+              {editing.entry_type === "expense" && (
+                <div>
+                  <label className="text-[11px] text-aviva-secondary">หมวดค่าใช้จ่าย</label>
+                  <select value={editCat} onChange={(e) => setEditCat(e.target.value)}
+                    className="w-full mt-1 bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text">
+                    {PETTY_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="text-[11px] text-aviva-secondary">รายละเอียด</label>
+                <input type="text" value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full mt-1 bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text" />
+              </div>
+              {err && <div className="text-[11px] text-red-400">{err}</div>}
+              <button onClick={saveEdit} disabled={saving}
+                className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50">
+                {saving ? "กำลังบันทึก…" : "บันทึกการแก้ไข"}
               </button>
             </div>
           </div>

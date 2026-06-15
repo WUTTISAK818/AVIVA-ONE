@@ -420,7 +420,7 @@ export default function ManualPage() {
       <div className="px-4 py-6 max-w-lg mx-auto space-y-3">
         <GlassCard className="p-4">
           <p className="text-xs text-aviva-secondary">
-            คู่มือการใช้งาน AVIVA ONE ครบทุกฝ่าย — กดหัวข้อเพื่อดูรายละเอียดขั้นตอนการทำงานและการประสานงานข้ามฝ่าย
+            คู่มือการใช้งาน AVIVA Plus — กดหัวข้อเพื่อดูรายละเอียดบริการสำหรับลูกบ้านและงานนิติบุคคล
           </p>
         </GlassCard>
         {sections.map((section) => {

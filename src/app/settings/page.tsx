@@ -180,8 +180,8 @@ export default function SettingsPage() {
           </GlassCard>
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
-          <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 4.14</p>
+          <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA Plus</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 1.0.0</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

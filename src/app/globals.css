@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-aviva-bg: #0D1F1B;
+  --color-aviva-card: #17332D;
+  --color-aviva-nav: #102923;
+  --color-aviva-gold: #D4AF37;
+  --color-aviva-gold-soft: #E6C77A;
+  --color-aviva-text: #FFFFFF;
+  --color-aviva-secondary: #D1D5DB;
+  --font-sans: var(--font-ibm-plex-sans-thai);
+}
+
+html {
+  font-size: 18px;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--color-aviva-bg);
+  color: var(--color-aviva-text);
+  font-family: var(--font-ibm-plex-sans-thai), "Noto Sans Thai", sans-serif;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+}
+
+/* Day / light theme overrides */
+.theme-light {
+  --color-aviva-bg:       #EFF3EF;
+  --color-aviva-card:     #FFFFFF;
+  --color-aviva-nav:      #E4EBE4;
+  --color-aviva-text:     #1A2E28;
+  --color-aviva-secondary:#4A5568;
+  --color-aviva-gold:     #6B5512;
+  --color-aviva-gold-soft:#8A6D18;
+}
+
+/* Light mode — card depth & border visibility */
+.theme-light .bg-aviva-card,
+.theme-light [class*="bg-aviva-card"] {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.09), 0 0 0 1px rgba(0,0,0,0.06);
+}
+
+/* Light mode — inputs get a visible border */
+.theme-light input:not([class*="bg-aviva-gold"]),
+.theme-light textarea,
+.theme-light select {
+  border-color: #B8C4B8 !important;
+}
+.theme-light input:focus:not([class*="bg-aviva-gold"]),
+.theme-light textarea:focus {
+  border-color: #6B5512 !important;
+}
+
+/* Light mode — sticky headers get a real shadow instead of faint border */
+.theme-light .sticky {
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+
+/* Light mode — GlassCard (bg-aviva-bg/50 overlays) */
+.theme-light [class*="bg-aviva-bg/50"] {
+  background-color: rgba(239,243,239,0.7) !important;
+}
+
+/* Light mode — modal backdrop less aggressive */
+.theme-light [class*="bg-black/60"] {
+  background-color: rgba(0,0,0,0.35) !important;
+}
+.theme-light [class*="bg-black/50"] {
+  background-color: rgba(0,0,0,0.25) !important;
+}
+
+/* Scrollbar — dark mode */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #0D1F1B; }
+::-webkit-scrollbar-thumb { background: #D4AF37; border-radius: 2px; }
+
+/* Scrollbar — light mode */
+.theme-light ::-webkit-scrollbar-track { background: #E4EBE4; }
+.theme-light ::-webkit-scrollbar-thumb { background: #8A6D18; border-radius: 2px; }
+
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  nav, [data-bottom-nav], .sticky, header, button { display: none !important; }
+  [class*="pb-24"] { padding-bottom: 0 !important; }
+  .print-area { display: block !important; }
+  * { color: #000 !important; border-color: #ccc !important; background: transparent !important; box-shadow: none !important; }
+  img { display: block; max-width: 80px; }
+}

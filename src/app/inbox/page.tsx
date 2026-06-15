@@ -22,6 +22,15 @@ interface WorkQueueItem {
   created_at: string;
 }
 
+// ป้ายชนิดงาน — ใช้ workflow_type ก่อน (ตรงกว่า role) แล้วค่อย fallback เป็น role
+const TYPE_LABEL: Record<string, string> = {
+  Lead_Followup: "ติดตามลูกค้า (ขาย)",
+  Installment_Review: "อนุมัติงวดงาน (ผู้บริหาร)",
+  Defect_Followup: "งานแก้ไข (ก่อสร้าง)",
+  Leave_Request: "อนุมัติใบลา (ผู้บริหาร)",
+  Warranty_Claim: "เคลมประกัน (หลังการขาย)",
+};
+
 const ROLE_LABEL: Record<string, string> = {
   manager: "รออนุมัติ (ผู้จัดการ)",
   finance: "รอจ่ายเงิน (การเงิน)",
@@ -30,7 +39,7 @@ const ROLE_LABEL: Record<string, string> = {
   engineer: "งานวิศวกรรม",
 };
 
-// where each queue should send the user to act
+// ปลายทางสำรองตาม role (เมื่อ workflow_type ไม่มี deep-link เฉพาะ)
 const ROLE_LINK: Record<string, string> = {
   manager: "/approvals",
   finance: "/construction",
@@ -38,6 +47,46 @@ const ROLE_LINK: Record<string, string> = {
   construction_ai: "/construction",
   engineer: "/construction",
 };
+
+// คลิกการ์ดแล้วเปิด "รายการนั้นจริง ๆ" ไม่ใช่หน้ารวมของแผนก
+// (/crm รองรับ ?lead=<id> เปิด detail · /office รองรับ ?tab=)
+function linkFor(it: WorkQueueItem): string {
+  switch (it.workflow_type) {
+    case "Lead_Followup":
+      return `/crm?lead=${it.source_record_id}`;
+    case "Installment_Review":   // อนุมัติงวดงานก่อสร้าง — panel อยู่หน้า construction
+    case "Defect_Followup":
+      return "/construction";
+    case "Leave_Request":
+      return "/office?tab=hr";
+    case "Warranty_Claim":
+      return "/after-sales";
+    default:
+      return ROLE_LINK[it.assigned_role] ?? "/approvals";
+  }
+}
+
+// จัดลำดับ: งานที่ต้องตัดสินใจ/อนุมัติ มาก่อนงานติดตามลูกค้าจำนวนมาก
+// (CEO/COO เห็นทุกคิว — กันงานอนุมัติจมใต้ลีดหลักร้อยใบ)
+function priority(it: WorkQueueItem): number {
+  switch (it.workflow_type) {
+    case "Installment_Review":
+    case "Leave_Request":
+    case "Warranty_Claim":
+      return 0; // งานรออนุมัติของผู้บริหาร — บนสุด
+    case "Defect_Followup":
+      return 1; // งานแก้ไขหน้างาน
+    default:
+      return 2; // Lead_Followup และอื่น ๆ
+  }
+}
+
+// แสดงจำนวนเงินให้ตรงความหมาย: ลีดเก็บ "งบ" เป็นล้านบาท ไม่ใช่บาท
+function amountText(it: WorkQueueItem): string | null {
+  if (it.amount == null || it.amount <= 0) return null;
+  if (it.workflow_type === "Lead_Followup") return `งบ ${it.amount} ล้าน`;
+  return `฿${it.amount.toLocaleString("th-TH")}`;
+}
 
 function slaInfo(sla: string | null): { text: string; cls: string } | null {
   if (!sla) return null;
@@ -48,10 +97,13 @@ function slaInfo(sla: string | null): { text: string; cls: string } | null {
   return { text: `อีก ${days} วัน`, cls: "bg-aviva-gold/10 text-aviva-gold" };
 }
 
+const INITIAL_VISIBLE = 20;
+
 export default function InboxPage() {
   const user = useCurrentUser();
   const [items, setItems] = useState<WorkQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   const roles = useMemo(() => (user ? rolesForUser(user) : []), [user]);
 
@@ -66,14 +118,15 @@ export default function InboxPage() {
     const queueItems = (data as WorkQueueItem[]) ?? [];
     let merged: WorkQueueItem[] = queueItems;
 
-    // ผู้จัดการ/ผู้บริหาร: รวม "รายการรออนุมัติ" (approval_logs Pending) ที่ยังไม่มีใน work_queue
-    // เพื่อให้ทุก workflow (จอง/สัญญา/การเงิน/จัดซื้อ/ลา/เอกสาร) โผล่ในกล่องงานครบ
+    // ผู้จัดการ/ผู้บริหาร: รวมงานรออนุมัติที่อยู่นอก work_queue เข้ากล่องงานให้ครบ
     if (roles.includes("manager")) {
+      const seen = new Set(queueItems.map((q) => q.source_record_id));
+
+      // (ก) approval_logs ที่ยัง Pending (จอง/สัญญา/จัดซื้อ/การเงิน/เอกสาร)
       const { data: appr } = await supabase
         .from("approval_logs")
         .select("approval_id, workflow_type, source_record_id, source_doc_index, amount, sla_due_at, created_at")
         .eq("action_taken", "Pending");
-      const seen = new Set(queueItems.map((q) => q.source_record_id));
       const apprItems: WorkQueueItem[] = (
         (appr as {
           approval_id: string; workflow_type: string; source_record_id: string | null;
@@ -94,10 +147,60 @@ export default function InboxPage() {
           sla_due_at: a.sla_due_at,
           created_at: a.created_at,
         }));
-      merged = [...queueItems, ...apprItems];
+
+      // (ข) ใบลาที่รออนุมัติ — ตาราง leave_requests (ไม่ได้ผ่าน approval_logs)
+      const { data: leaves } = await supabase
+        .from("leave_requests")
+        .select("id, employee_name, leave_type, date_from, date_to, days_count, created_at")
+        .eq("status", "pending");
+      const leaveItems: WorkQueueItem[] = (
+        (leaves as {
+          id: string; employee_name: string | null; leave_type: string | null;
+          date_from: string | null; date_to: string | null; days_count: number | null; created_at: string;
+        }[]) ?? []
+      ).map((l) => ({
+        id: `leave-${l.id}`,
+        workflow_type: "Leave_Request",
+        source_record_id: l.id,
+        doc_index: l.date_from ? `${l.date_from}${l.date_to ? " – " + l.date_to : ""}` : null,
+        title: `ใบลา: ${l.employee_name ?? "-"} — ${l.leave_type ?? "ลา"}${l.days_count ? ` (${l.days_count} วัน)` : ""}`,
+        amount: null,
+        assigned_role: "manager",
+        status: "open",
+        sla_due_at: null,
+        created_at: l.created_at,
+      }));
+
+      // (ค) เคลมประกันที่รอดำเนินการ — ตาราง warranty_claims
+      const { data: warr } = await supabase
+        .from("warranty_claims")
+        .select("id, customer_name, house_number, issue_type, created_at")
+        .eq("status", "pending");
+      const warrItems: WorkQueueItem[] = (
+        (warr as {
+          id: string; customer_name: string | null; house_number: string | null;
+          issue_type: string | null; created_at: string;
+        }[]) ?? []
+      ).map((w) => ({
+        id: `warranty-${w.id}`,
+        workflow_type: "Warranty_Claim",
+        source_record_id: w.id,
+        doc_index: w.house_number ? `บ้าน ${w.house_number}` : null,
+        title: `เคลม: ${w.customer_name ?? "-"}${w.issue_type ? " — " + w.issue_type : ""}`,
+        amount: null,
+        assigned_role: "manager",
+        status: "open",
+        sla_due_at: null,
+        created_at: w.created_at,
+      }));
+
+      merged = [...queueItems, ...apprItems, ...leaveItems, ...warrItems];
     }
 
+    // เรียงตามความสำคัญก่อน แล้วค่อยตามกำหนด SLA (ใหม่สุด/ด่วนสุดขึ้นก่อน)
     merged.sort((x, y) => {
+      const p = priority(x) - priority(y);
+      if (p !== 0) return p;
       const ax = x.sla_due_at ? new Date(x.sla_due_at).getTime() : Infinity;
       const ay = y.sla_due_at ? new Date(y.sla_due_at).getTime() : Infinity;
       return ax - ay;
@@ -118,11 +221,24 @@ export default function InboxPage() {
     return () => { supabase.removeChannel(ch); };
   }, [load]);
 
+  const overdue = useMemo(
+    () => items.filter((i) => i.sla_due_at && new Date(i.sla_due_at).getTime() < Date.now()).length,
+    [items]
+  );
+  const approvals = useMemo(() => items.filter((i) => priority(i) === 0).length, [items]);
+  const visible = showAll ? items : items.slice(0, INITIAL_VISIBLE);
+
+  const subtitle = loading
+    ? "งานที่ส่งต่อมาให้ฝ่ายของคุณดำเนินการ"
+    : `งานค้าง ${items.length} ชิ้น` +
+      (approvals > 0 ? ` · รออนุมัติ ${approvals}` : "") +
+      (overdue > 0 ? ` · เกินกำหนด ${overdue}` : "");
+
   return (
     <main className="min-h-screen px-4 pt-6 pb-24 max-w-2xl mx-auto">
       <SectionHeader
         title="กล่องงานของฉัน"
-        subtitle={loading ? "งานที่ส่งต่อมาให้ฝ่ายของคุณดำเนินการ" : `งานค้าง ${items.length} ชิ้น — เรียงตามกำหนด SLA`}
+        subtitle={subtitle}
         action={<InboxIcon size={20} className="text-aviva-gold" />}
       />
 
@@ -140,17 +256,17 @@ export default function InboxPage() {
         </GlassCard>
       ) : (
         <div className="space-y-3">
-          {items.map((it) => {
+          {visible.map((it) => {
             const sla = slaInfo(it.sla_due_at);
-            const link = ROLE_LINK[it.assigned_role] ?? "/approvals";
+            const amt = amountText(it);
             return (
-              <Link key={it.id} href={link}>
+              <Link key={it.id} href={linkFor(it)}>
                 <GlassCard className="p-4 hover:border-aviva-gold/30 transition-all">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20">
-                          {ROLE_LABEL[it.assigned_role] ?? it.assigned_role}
+                          {TYPE_LABEL[it.workflow_type] ?? ROLE_LABEL[it.assigned_role] ?? it.assigned_role}
                         </span>
                         {sla && (
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${sla.cls}`}>
@@ -160,9 +276,9 @@ export default function InboxPage() {
                       </div>
                       <div className="text-sm font-medium text-aviva-text truncate">{it.title}</div>
                       {it.doc_index && <div className="text-xs text-aviva-secondary truncate">{it.doc_index}</div>}
-                      {it.amount != null && it.amount > 0 && (
+                      {amt && (
                         <div className="text-xs text-aviva-secondary mt-1 inline-flex items-center gap-1">
-                          <Banknote size={12} /> ฿{it.amount.toLocaleString("th-TH")}
+                          <Banknote size={12} /> {amt}
                         </div>
                       )}
                     </div>
@@ -172,6 +288,15 @@ export default function InboxPage() {
               </Link>
             );
           })}
+
+          {!showAll && items.length > INITIAL_VISIBLE && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full py-3 text-sm font-medium text-aviva-gold border border-aviva-gold/20 rounded-xl hover:bg-aviva-gold/10 transition-all"
+            >
+              ดูงานที่เหลือทั้งหมด ({items.length - INITIAL_VISIBLE} ชิ้น)
+            </button>
+          )}
         </div>
       )}
     </main>

@@ -35,6 +35,7 @@ import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import PettyCashPanel from "@/components/PettyCashPanel";
+import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, CASH, INPUT_VAT, WHT_PAYABLE } from "@/lib/gl-accounts";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -110,6 +111,8 @@ const emptyFinanceForm = {
   description: "",
   category: "ค่าก่อสร้าง",
   cost_center: "",
+  vat_included: false,   // ยอดที่กรอกรวม VAT 7% แล้วหรือไม่ (มีใบกำกับภาษี)
+  wht_rate: "0",         // อัตราภาษีหัก ณ ที่จ่าย (%)
 };
 
 function FinanceContent() {
@@ -270,24 +273,44 @@ function FinanceContent() {
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
       await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `จาก ${user?.full_name ?? "ฝ่ายการเงิน"} · [${form.category}] ${form.description} ฿${amt.toLocaleString()} · ส่งให้${amt >= 500000 ? "ผู้บริหาร" : "ผู้จัดการ"}พิจารณา`, from_dept: "ฝ่ายการเงิน", to_dept: "ผู้บริหาร" });
     } else {
+      const isIncome = form.transaction_type === "income";
+      // คำนวณภาษี (เฉพาะรายจ่าย): VAT ซื้อ 7% + หัก ณ ที่จ่าย
+      const wht = Number(form.wht_rate) || 0;
+      const tax = !isIncome && (form.vat_included || wht > 0) ? calcTax(amt, form.vat_included, wht) : null;
+      const expenseRecognized = tax ? tax.base : amt; // ค่าใช้จ่ายจริง (ไม่รวม VAT ที่ขอคืนได้)
+
       const { data } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
         transaction_type: form.transaction_type,
-        amount: form.transaction_type === "expense" ? -amt : amt,
+        amount: isIncome ? amt : -expenseRecognized,
         description: `[${form.category}] ${form.description}`,
       }).select().single();
-      // Auto-create JV entry for accounting integration
-      const isIncome = form.transaction_type === "income";
-      await postJv({
-        project_id: PROJECT_ID,
-        jv_date: new Date().toISOString().split("T")[0],
-        description: `[${form.category}] ${form.description}`,
-        lines: [
-          { account_code: isIncome ? "1100" : "5000", account_name: isIncome ? "เงินสด/เงินฝากธนาคาร" : "ค่าใช้จ่าย", debit: amt, credit: 0 },
-          { account_code: isIncome ? "4000" : "1100", account_name: isIncome ? "รายได้จากการขาย" : "เงินสด/เงินฝากธนาคาร", debit: 0, credit: amt },
-        ],
-      });
-      await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
+
+      // Auto-create JV entry — map หมวด -> บัญชี GL ที่ถูกต้อง (ไม่ hardcode 5000/1100)
+      const jvDate = new Date().toISOString().split("T")[0];
+      if (isIncome) {
+        const rev = revenueAccountFor(form.category);
+        await postJv({
+          project_id: PROJECT_ID, jv_date: jvDate,
+          description: `[${form.category}] ${form.description}`,
+          lines: [
+            { account_code: CASH.code, account_name: CASH.name, debit: amt, credit: 0 },
+            { account_code: rev.code, account_name: rev.name, debit: 0, credit: amt },
+          ],
+        });
+      } else {
+        const exp = expenseAccountFor(form.category);
+        const lines = [{ account_code: exp.code, account_name: exp.name, debit: tax ? tax.base : amt, credit: 0 }];
+        if (tax && tax.vat > 0) lines.push({ account_code: INPUT_VAT.code, account_name: INPUT_VAT.name, debit: tax.vat, credit: 0 });
+        if (tax && tax.wht > 0) lines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: tax.wht });
+        lines.push({ account_code: CASH.code, account_name: CASH.name, debit: 0, credit: tax ? tax.net : amt });
+        await postJv({ project_id: PROJECT_ID, jv_date: jvDate, description: `[${form.category}] ${form.description}`, lines });
+      }
+
+      const taxNote = tax && (tax.vat > 0 || tax.wht > 0)
+        ? ` (ฐาน ฿${tax.base.toLocaleString()}${tax.vat > 0 ? `, VAT ฿${tax.vat.toLocaleString()}` : ""}${tax.wht > 0 ? `, หัก ณ ที่จ่าย ฿${tax.wht.toLocaleString()} จ่ายสุทธิ ฿${tax.net.toLocaleString()}` : ""})`
+        : "";
+      await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}${taxNote}`, data?.id);
     }
     setSaving(false);
     setShowModal(false);
@@ -317,14 +340,15 @@ function FinanceContent() {
         amount: -approval.amount,
         description: approval.description,
       });
-      // Auto-create JV for approved finance transaction
+      // Auto-create JV for approved finance transaction — map หมวด -> บัญชี GL ที่ถูกต้อง
+      const exp = expenseAccountFor(categoryFromDescription(approval.description));
       await postJv({
         project_id: PROJECT_ID,
         jv_date: new Date().toISOString().split("T")[0],
         description: `[อนุมัติแล้ว] ${approval.description}`,
         lines: [
-          { account_code: "5000", account_name: "ค่าใช้จ่าย", debit: approval.amount, credit: 0 },
-          { account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: approval.amount },
+          { account_code: exp.code, account_name: exp.name, debit: approval.amount, credit: 0 },
+          { account_code: CASH.code, account_name: CASH.name, debit: 0, credit: approval.amount },
         ],
       });
     }
@@ -617,7 +641,7 @@ function FinanceContent() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 {Number(form.amount) >= 50000 && (
                   <p className="text-[11px] text-yellow-400 mt-1 flex items-center gap-1">
-                    <Clock size={10} /> ≥ ฿100,000 จะเข้าระบบอนุมัติก่อน
+                    <Clock size={10} /> ≥ ฿50,000 จะเข้าระบบอนุมัติก่อน
                   </p>
                 )}
               </div>
@@ -642,6 +666,40 @@ function FinanceContent() {
                   placeholder="เช่น CC-001 ฝ่ายก่อสร้าง"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
+
+              {/* ภาษี (เฉพาะรายจ่าย) — VAT ซื้อ 7% + หัก ณ ที่จ่าย */}
+              {form.transaction_type === "expense" && (
+                <div className="rounded-xl border border-aviva-gold/15 bg-aviva-bg/40 p-3 space-y-2.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.vat_included}
+                      onChange={e => setForm({ ...form, vat_included: e.target.checked })}
+                      className="accent-aviva-gold w-4 h-4" />
+                    <span className="text-xs text-aviva-text">ราคารวม VAT 7% แล้ว (มีใบกำกับภาษี — ขอคืนภาษีซื้อได้)</span>
+                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-aviva-secondary">หัก ณ ที่จ่าย</span>
+                    <select value={form.wht_rate} onChange={e => setForm({ ...form, wht_rate: e.target.value })}
+                      className="bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      <option value="0">ไม่หัก</option>
+                      <option value="1">1% (ค่าขนส่ง)</option>
+                      <option value="2">2% (โฆษณา)</option>
+                      <option value="3">3% (บริการ/จ้างทำของ)</option>
+                      <option value="5">5% (ค่าเช่า)</option>
+                    </select>
+                  </div>
+                  {Number(form.amount) > 0 && (form.vat_included || Number(form.wht_rate) > 0) && (() => {
+                    const t = calcTax(Number(form.amount), form.vat_included, Number(form.wht_rate));
+                    return (
+                      <div className="text-[11px] text-aviva-secondary space-y-0.5 border-t border-aviva-gold/10 pt-2">
+                        <div className="flex justify-between"><span>ฐานก่อน VAT (ค่าใช้จ่าย)</span><span className="text-aviva-text">฿{t.base.toLocaleString()}</span></div>
+                        {t.vat > 0 && <div className="flex justify-between"><span>ภาษีซื้อ 7%</span><span className="text-aviva-text">฿{t.vat.toLocaleString()}</span></div>}
+                        {t.wht > 0 && <div className="flex justify-between"><span>หัก ณ ที่จ่าย {form.wht_rate}%</span><span className="text-red-400">−฿{t.wht.toLocaleString()}</span></div>}
+                        <div className="flex justify-between font-semibold"><span>จ่ายสุทธิ</span><span className="text-aviva-gold">฿{t.net.toLocaleString()}</span></div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             {Number(form.amount) >= 50000 && (

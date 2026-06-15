@@ -23,6 +23,7 @@ import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
+import { PAYMENT_PLAN, defaultInstallments } from "@/lib/payment-plan";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
@@ -456,7 +457,7 @@ export default function CRMPage() {
   const printBookingLetter = (lead: Lead) => {
     const dateStr = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
     const plotStr = lead.plot_number ? `แปลงที่ ${lead.plot_number}` : "..........";
-    const bookingDeposit = Math.round(Number(lead.budget) * 0.01);
+    const bookingDeposit = Math.round(Number(lead.budget) * PAYMENT_PLAN.booking);
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
       <title>ใบจอง — ${escapeHtml(lead.customer_name)}</title>
       <style>
@@ -512,7 +513,7 @@ export default function CRMPage() {
       : new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
     const plotStr = lead.plot_number ? `แปลงที่ ${lead.plot_number}` : "..........";
     const price = Number(lead.contract_price ?? lead.budget ?? 0);
-    const deposit = Math.round(price * 0.05);
+    const deposit = Math.round(price * PAYMENT_PLAN.contract);
     const remaining = price - deposit;
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
       <title>สัญญาจะซื้อจะขาย — ${escapeHtml(lead.customer_name)}</title>
@@ -770,17 +771,10 @@ export default function CRMPage() {
     else setShowModal(false);
   };
 
-  const DEFAULT_CUST_INST = (price: number) => [
-    { installment_no: 1, name: "งวดจอง", amount: Math.round(price * 0.02), due_date: null },
-    { installment_no: 2, name: "งวดทำสัญญา", amount: Math.round(price * 0.08), due_date: null },
-    { installment_no: 3, name: "งวดระหว่างก่อสร้าง", amount: Math.round(price * 0.10), due_date: null },
-    { installment_no: 4, name: "งวดโอนกรรมสิทธิ์", amount: Math.round(price * 0.80), due_date: null },
-  ];
-
   const createDefaultCustInsts = async (lead: Lead) => {
     if (custInsts.length > 0) return;
     const price = lead.contract_price ?? lead.budget ?? 0;
-    const rows = DEFAULT_CUST_INST(price).map(r => ({ ...r, lead_id: lead.id, house_id: null, status: 'pending' as const }));
+    const rows = defaultInstallments(price).map(r => ({ ...r, lead_id: lead.id, house_id: null, status: 'pending' as const }));
     const { data } = await supabase.from("customer_installments").insert(rows).select();
     setCustInsts((data ?? []) as CustomerInstallment[]);
     setToast({ msg: "สร้างตารางชำระเงินลูกค้าแล้ว", type: "success" });

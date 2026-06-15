@@ -4593,6 +4593,9 @@ export default function OfficePage() {
   });
 
   useEffect(() => {
+    // Deep-link: /office?tab=documents (ใช้ redirect จากหน้า /documents เดิม) — มาก่อน default ตามแผนก
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam && TABS.some(t => t.key === tabParam)) { setActiveTab(tabParam as OfficeTab); return; }
     if (user?.department === "ฝ่ายบัญชี") setActiveTab("accounting");
     else if (user?.department === "ฝ่ายการเงิน") setActiveTab("finance");
     else if (user?.department === "ฝ่ายบุคคล") setActiveTab("hr");

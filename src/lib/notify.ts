@@ -5,6 +5,23 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 // ประเภทแจ้งเตือนที่ส่งเข้า LINE ส่วนตัวด้วย (รออนุมัติ/ผลอนุมัติ/เคลม/หมุดหมาย) — เว้น "info" กัน spam
 const LINE_TYPES = new Set(["approval", "claim", "success"]);
 
+// ปรับชื่อแผนกให้เป็น "ภาษาไทยชุดเดียว" — กันค่าอังกฤษ/legacy (management/construction ฯลฯ)
+// หลุดเข้า to_dept/from_dept แล้วทำให้ filter รายแผนก + เจาะ LINE ส่วนตัว resolve ไม่เจอ
+const DEPT_ALIASES: Record<string, string> = {
+  management: "ผู้บริหาร", executive: "ผู้บริหาร", admin: "ผู้บริหาร", ceo: "ผู้บริหาร", coo: "ผู้บริหาร",
+  sales: "ฝ่ายขาย",
+  construction: "ฝ่ายก่อสร้าง", engineering: "ฝ่ายก่อสร้าง", engineer: "ฝ่ายก่อสร้าง",
+  finance: "ฝ่ายการเงิน", accounting: "ฝ่ายบัญชี", account: "ฝ่ายบัญชี",
+  hr: "ฝ่ายบุคคล",
+  marketing: "ฝ่ายการตลาด",
+  "after-sales": "ฝ่ายหลังการขาย", aftersales: "ฝ่ายหลังการขาย",
+};
+export function normalizeDept(dept?: string | null): string | null {
+  if (!dept) return null;
+  const key = dept.trim().toLowerCase();
+  return DEPT_ALIASES[key] ?? dept.trim();
+}
+
 /** จับคู่ชื่อแผนก (ไทย ใน to_dept) กับ users.role — คืน true ถ้า role นี้อยู่ในแผนกนั้น (ข้ามบัญชี AI/bot) */
 function roleInDept(roleRaw: string | null, dept: string): boolean {
   const r = (roleRaw ?? "").toLowerCase().trim();
@@ -54,19 +71,20 @@ export async function createNotification(opts: {
   /** เจาะ LINE ส่วนตัวเฉพาะแผนกเหล่านี้ (ค่าเริ่มต้น = [to_dept]) */
   line_to_depts?: string[];
 }) {
+  const toDept = normalizeDept(opts.to_dept);
   await supabase.from("notifications").insert({
     project_id: PROJECT_ID,
     type: opts.type,
     title: opts.title,
     message: opts.message,
-    from_dept: opts.from_dept ?? null,
-    to_dept: opts.to_dept ?? null,
+    from_dept: normalizeDept(opts.from_dept),
+    to_dept: toDept,
     is_read: false,
     record_id: opts.record_id ?? null,
   });
   // เคสสำคัญ → ส่งเข้า LINE ส่วนตัวของ "ผู้เกี่ยวข้องตามแผนก" (best-effort)
   if (LINE_TYPES.has(opts.type)) {
-    const depts = opts.line_to_depts ?? (opts.to_dept ? [opts.to_dept] : []);
+    const depts = (opts.line_to_depts ?? (toDept ? [toDept] : [])).map(normalizeDept).filter(Boolean) as string[];
     const emails = await resolveDeptEmails(depts);
     await notifyPersonalLine(opts.title, opts.message, opts.record_id ? `/crm?lead=${opts.record_id}` : undefined, emails);
   }

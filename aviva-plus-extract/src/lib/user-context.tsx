@@ -7,6 +7,10 @@ export interface AppUser {
   email: string;
   full_name: string;
   role: string;
+  department: string;
+  isAdmin: boolean;
+  isManager: boolean;
+  isProjectManager: boolean;
   isResident: boolean;
   isGuard: boolean;
   isJuristic: boolean;
@@ -25,6 +29,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       email: u.email ?? "",
       full_name: meta.full_name ?? u.email ?? "ผู้ใช้",
       role,
+      department: meta.department ?? "",
+      isAdmin: ["admin", "ceo", "juristic_manager"].includes(role),
+      isManager: ["admin", "ceo", "manager", "juristic_manager"].includes(role),
+      isProjectManager: false,
       isResident: role === "resident",
       isGuard: role === "guard",
       isJuristic: role === "juristic" || role === "juristic_manager",

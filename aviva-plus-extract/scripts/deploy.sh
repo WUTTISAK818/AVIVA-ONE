@@ -92,6 +92,7 @@ bash "$EXTRACT/scripts/copy-plus-files.sh" "$ONE" "$PLUS"
 
 # === Step 3: overlay Plus-only shared files ===
 echo "==> [3/6] Overlaying Plus-only shared files"
+mkdir -p "$PLUS/src/app/login" "$PLUS/src/components" "$PLUS/src/lib"
 cp "$EXTRACT/src/app/layout.tsx"          "$PLUS/src/app/layout.tsx"
 cp "$EXTRACT/src/app/manifest.ts"         "$PLUS/src/app/manifest.ts"
 cp "$EXTRACT/src/app/page.tsx"            "$PLUS/src/app/page.tsx"

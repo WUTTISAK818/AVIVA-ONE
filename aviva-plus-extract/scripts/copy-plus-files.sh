@@ -56,10 +56,14 @@ cp -r "$ONE/src/app/api/resolutions/[id]/vote" "$PLUS/src/app/api/resolutions/[i
 cp -r "$ONE/src/app/api/promptpay-qr" "$PLUS/src/app/api/"
 cp -r "$ONE/src/app/api/mock-alpr" "$PLUS/src/app/api/"
 
-# 6. Components — Plus only
+# 6. Components — Plus only + shared root components used by Plus pages
 mkdir -p "$PLUS/src/components/community" "$PLUS/src/components/security"
 cp -r "$ONE/src/components/community/." "$PLUS/src/components/community/"
 cp -r "$ONE/src/components/security/." "$PLUS/src/components/security/"
+# Shared UI primitives used across Plus pages
+cp "$ONE/src/components/GlassCard.tsx"     "$PLUS/src/components/"
+cp "$ONE/src/components/KPICard.tsx"       "$PLUS/src/components/"
+cp "$ONE/src/components/SectionHeader.tsx" "$PLUS/src/components/"
 
 # 7. Libs — Plus-only utilities
 mkdir -p "$PLUS/src/lib"

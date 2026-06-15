@@ -61,6 +61,8 @@ export default function UsersPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetOk, setResetOk] = useState(false);
+  const [confirmPw, setConfirmPw] = useState("");        // ยืนยันรหัสผ่านตอนสร้างบัญชี
+  const [confirmNewPw, setConfirmNewPw] = useState("");  // ยืนยันรหัสผ่านใหม่ตอนรีเซ็ต
 
   // Admin/CEO/Director เท่านั้นที่เพิ่ม/แก้ไข/ลบ
   const canManage = ["admin", "ceo", "coo", "director"].includes(currentUser?.role ?? "");
@@ -103,7 +105,7 @@ export default function UsersPage() {
     setEditUser(null);
     setForm({ ...BLANK_FORM });
     setError(""); setSavedOk(false); setConfirmDelete(false);
-    setShowPassword(false);
+    setShowPassword(false); setConfirmPw(""); setConfirmNewPw("");
     setShowModal(true);
   }
 
@@ -112,6 +114,7 @@ export default function UsersPage() {
     setForm({ email: u.email, password: "", full_name: u.full_name, role: u.role, department: u.department || "ฝ่ายบริหาร" });
     setError(""); setSavedOk(false); setConfirmDelete(false);
     setNewPassword(""); setShowNewPassword(false); setResetOk(false);
+    setConfirmPw(""); setConfirmNewPw("");
     setShowModal(true);
   }
 
@@ -132,6 +135,8 @@ export default function UsersPage() {
         fetchUsers();
       } else {
         if (!form.email || !form.password) { setError("กรุณากรอก Email และรหัสผ่าน"); setSaving(false); return; }
+        if (form.password.length < 6) { setError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); setSaving(false); return; }
+        if (form.password !== confirmPw) { setError("รหัสผ่านทั้งสองช่องไม่ตรงกัน"); setSaving(false); return; }
         const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-user-management`, {
           method: "POST",
           headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
@@ -156,6 +161,7 @@ export default function UsersPage() {
 
   async function resetPassword() {
     if (!editUser || newPassword.length < 6) { setError("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
+    if (newPassword !== confirmNewPw) { setError("รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน"); return; }
     setResetting(true); setError("");
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setResetting(false); return; }
@@ -167,7 +173,7 @@ export default function UsersPage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setNewPassword(""); setResetOk(true);
+      setNewPassword(""); setConfirmNewPw(""); setResetOk(true);
       setTimeout(() => setResetOk(false), 4000);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "รีเซ็ตรหัสผ่านไม่สำเร็จ");
@@ -316,6 +322,17 @@ export default function UsersPage() {
                       </button>
                     </div>
                   </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">ยืนยันรหัสผ่าน (กรอกอีกครั้ง)</label>
+                    <input value={confirmPw}
+                      onChange={e => setConfirmPw(e.target.value)}
+                      type={showPassword ? "text" : "password"}
+                      placeholder="กรอกรหัสผ่านซ้ำให้ตรงกัน"
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text focus:outline-none focus:border-aviva-gold/50" />
+                    {confirmPw.length > 0 && form.password !== confirmPw && (
+                      <p className="text-[11px] text-red-400 mt-1">รหัสผ่านยังไม่ตรงกัน</p>
+                    )}
+                  </div>
                 </>
               )}
               <div>
@@ -361,8 +378,8 @@ export default function UsersPage() {
                     <KeyRound size={13} className="text-aviva-secondary" />
                     <label className="text-xs text-aviva-secondary">รีเซ็ตรหัสผ่าน</label>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
+                  <div className="space-y-2">
+                    <div className="relative">
                       <input value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
                         type={showNewPassword ? "text" : "password"}
@@ -373,10 +390,20 @@ export default function UsersPage() {
                         {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
-                    <button onClick={resetPassword} disabled={resetting || newPassword.length < 6}
-                      className="flex-shrink-0 text-xs font-semibold text-aviva-gold border border-aviva-gold/30 rounded-lg px-3 disabled:opacity-40 hover:bg-aviva-gold/5 transition-all">
-                      {resetting ? "กำลัง..." : "ตั้งใหม่"}
-                    </button>
+                    <div className="flex gap-2">
+                      <input value={confirmNewPw}
+                        onChange={e => setConfirmNewPw(e.target.value)}
+                        type={showNewPassword ? "text" : "password"}
+                        placeholder="ยืนยันรหัสใหม่ (กรอกอีกครั้ง)"
+                        className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text focus:outline-none focus:border-aviva-gold/50" />
+                      <button onClick={resetPassword} disabled={resetting || newPassword.length < 6 || newPassword !== confirmNewPw}
+                        className="flex-shrink-0 text-xs font-semibold text-aviva-gold border border-aviva-gold/30 rounded-lg px-3 disabled:opacity-40 hover:bg-aviva-gold/5 transition-all">
+                        {resetting ? "กำลัง..." : "ตั้งใหม่"}
+                      </button>
+                    </div>
+                    {confirmNewPw.length > 0 && newPassword !== confirmNewPw && (
+                      <p className="text-[11px] text-red-400">รหัสผ่านใหม่ยังไม่ตรงกัน</p>
+                    )}
                   </div>
                   {resetOk && <p className="text-xs text-green-400">✓ ตั้งรหัสผ่านใหม่เรียบร้อย</p>}
                 </div>

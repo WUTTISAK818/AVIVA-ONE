@@ -37,3 +37,8 @@ create policy authenticated_insert_pr on public.purchase_requests
 drop policy if exists authenticated_update_pr on public.purchase_requests;
 create policy authenticated_update_pr on public.purchase_requests
   for update to authenticated using (true) with check (true);
+
+-- ลงทะเบียนเลขที่เอกสาร PR ในตัวนับ (next_doc_number ต้องมีแถวนี้ ไม่งั้นจะ RAISE + เลขซ้ำ)
+insert into public.document_sequences (workflow_type, prefix, last_seq, year, total_issued)
+values ('Purchase_Request', 'PR', 0, extract(year from now())::int, 0)
+on conflict (workflow_type) do nothing;

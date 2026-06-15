@@ -229,9 +229,10 @@ export async function notifyPush(
   tag?: string
 ): Promise<void> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
     await fetch("/api/push/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` },
       body: JSON.stringify({ department, title, body, url, tag }),
     });
   } catch {

@@ -122,3 +122,12 @@ This rule is PERMANENT and applies to every deploy session without exception.
 - ผู้ใช้ทุกคนเสนอผ่าน `src/app/settings/suggestions/page.tsx` (ตาราง `app_suggestions`)
 - ทุกข้อเสนอที่จะนำมาพัฒนา **ต้องผ่านการอนุมัติของผู้บริหาร (status `approved`) ก่อน** จึงลงมือแก้ไข
 - ยึดหลัก "ความถูกต้อง + โครงสร้างหลักของแอป" เป็นสำคัญก่อนเสมอ
+# AVIVA Plus Separation Rule (PERMANENT — แยกเด็ดขาด ห้ามปน)
+
+**AVIVA Plus (resident/นิติบุคคล/guard portal) ต้องแยกออกจาก AVIVA ONE โดยเด็ดขาด — ห้ามนำโค้ด Plus มาปนใน AVIVA ONE (branch `main` / `claude/move-work-location-2CfBA` / `claude/project-continuation-7pex98`)**
+
+- ห้าม merge งาน AVIVA Plus (เช่น branch `claude/aviva-plus-resident-app-*`) เข้า `main` ของ AVIVA ONE
+- โค้ดที่ถือว่าเป็น Plus (ห้ามมีใน AVIVA ONE): `src/proxy.ts` (middleware แยกแอป), `src/lib/supabase-server.ts`, `src/lib/gate-events.ts`, `src/components/security/*`, `src/components/community/*` (เวอร์ชัน Plus), หน้า `guard|security|v` และ subroute Plus ใต้ `community`, API `announcements|bills|gate-events|gates|juristic-journals|residents|resolutions|visitor-passes|mock-alpr|promptpay-qr`
+- ห้ามใส่ branding ตาม `NEXT_PUBLIC_TARGET === "plus"` ในโค้ด AVIVA ONE — AVIVA ONE เป็น "AVIVA ONE" เสมอ
+- `/community` ของ AVIVA ONE = หน้าจัดการสมาชิก/ค่าส่วนกลางโครงการ (ของเดิม) เท่านั้น
+- AVIVA Plus ให้พัฒนา/ดีพลอยบน branch ของตัวเอง ไม่ยุ่งกับ pipeline ของ AVIVA ONE

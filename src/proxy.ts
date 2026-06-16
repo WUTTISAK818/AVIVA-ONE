@@ -1,61 +1,12 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
-// Routes that belong to AVIVA ONE (sales/dev-ops persona).
-const ONE_PREFIXES = [
-  "/accounting",
-  "/admin",
-  "/after-sales",
-  "/ai",
-  "/approvals",
-  "/construction",
-  "/crm",
-  "/dashboard",
-  "/documents",
-  "/finance",
-  "/hr",
-  "/marketing",
-  "/office",
-  "/api/ai-chat",
-  "/api/mock-alpr",
-];
-
-// Routes that belong to AVIVA Plus (resident / guard / juristic persona).
-const PLUS_PREFIXES = [
-  "/community",
-  "/guard",
-  "/security",
-  "/v",
-  "/api/announcements",
-  "/api/bills",
-  "/api/gate-events",
-  "/api/gates",
-  "/api/juristic-journals",
-  "/api/residents",
-  "/api/resolutions",
-  "/api/visitor-passes",
-];
-
-// /login, /settings, /api/promptpay-qr — visible on both deployments.
-
-function hasPrefix(pathname: string, prefixes: readonly string[]) {
-  return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
-}
-
-export function proxy(request: NextRequest) {
-  const target = process.env.NEXT_PUBLIC_TARGET;
-
-  if (target !== "one" && target !== "plus") {
-    return NextResponse.next();
-  }
-
-  const { pathname } = request.nextUrl;
-  const blockedPrefixes = target === "one" ? PLUS_PREFIXES : ONE_PREFIXES;
-
-  if (hasPrefix(pathname, blockedPrefixes)) {
-    return new NextResponse(null, { status: 404 });
-  }
-
+// ⚠️ การซ่อน route ข้ามแอป (AVIVA ONE ↔ AVIVA Plus) ถูกปิดไว้
+// เหตุผล: ตรรกะเดิมตอบ route ที่ถูกบล็อกเป็น HTTP 404 ที่ body ว่าง (ไม่มี content-type)
+// → เบราว์เซอร์/มือถือดาวน์โหลดเป็นไฟล์เปล่า (เช่น เปิด /dashboard ได้ไฟล์ "dashboard" 0 KB)
+// และถ้า NEXT_PUBLIC_TARGET ของ deployment ตั้งไม่ตรง จะบล็อกทั้งแอปจนใช้งานไม่ได้
+// → ปล่อยผ่านทุก request เพื่อให้ทุก deployment เปิดใช้งานได้เสมอ
+// (หากต้องการแยกการมองเห็น route จริง ๆ ให้ทำที่ระดับเมนู/การนำทาง ไม่ใช่บล็อกใน middleware)
+export function proxy() {
   return NextResponse.next();
 }
 

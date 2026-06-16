@@ -3,12 +3,12 @@
 // ขั้นตอน: เปิดคำขอ + ราคา → (≥ THRESHOLD ต้องอนุมัติ) → ผู้บริหารอนุมัติ → การเงินบันทึกจ่าย + ลงบัญชี
 // ต่ำกว่าเกณฑ์ = อนุมัติอัตโนมัติ (ผ่านเงินสดย่อย/จ่ายได้เลย)
 import { useCallback, useEffect, useState } from "react";
-import { ShoppingCart, Plus, X, Check, Ban, Wallet, FileText, Clock } from "lucide-react";
+import { ShoppingCart, Plus, X, Check, Ban, Wallet, FileText, Clock, Bell } from "lucide-react";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { postJv } from "@/lib/jv";
-import { resolveApprovalQueue } from "@/lib/workflow-events";
+import { resolveApprovalQueue, notifyPush } from "@/lib/workflow-events";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
@@ -63,6 +63,10 @@ export default function PurchaseRequestPanel() {
   const [rejecting, setRejecting] = useState<PR | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  // ทวงถาม (ผู้ขอกดเตือนผู้อนุมัติ) — จำว่าทวงเรื่องไหนไปแล้ว + กำลังส่ง
+  const [nudged, setNudged] = useState<Set<string>>(new Set());
+  const [nudging, setNudging] = useState<string | null>(null);
+
   const canApprove = !!(user?.isManager || user?.isAdmin);
   const dept = user?.department ?? "";
   const role = (user?.role ?? "").toLowerCase();
@@ -87,6 +91,41 @@ export default function PurchaseRequestPanel() {
   const openForm = () => {
     setCategory(PR_CATEGORIES[0]); setItem(""); setReason(""); setAmount(""); setQuoteUrl("");
     setErr(""); setShowForm(true);
+  };
+
+  const waitDays = (createdAt: string) => Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000));
+
+  // ผู้ขอกด "ทวงถาม" → เตือนผู้บริหารให้รีบอนุมัติ (จำกัด 1 ครั้ง/วัน/เรื่อง)
+  const nudge = async (pr: PR) => {
+    if (nudging) return;
+    setNudging(pr.id); setErr("");
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from("workflow_events")
+      .select("id", { count: "exact", head: true })
+      .eq("source_record_id", pr.id).eq("event_type", "reminded")
+      .gte("created_at", todayStart.toISOString());
+    if ((count ?? 0) > 0) {
+      setNudged((s) => new Set(s).add(pr.id));
+      setErr(`${pr.pr_number} — ทวงถามไปแล้ววันนี้ รอผู้บริหารดำเนินการค่ะ`);
+      setNudging(null);
+      return;
+    }
+    const d = waitDays(pr.created_at);
+    await supabase.from("workflow_events").insert({
+      project_id: PROJECT_ID, workflow_type: "Purchase_Request",
+      source_record_id: pr.id, doc_index: pr.pr_number,
+      event_type: "reminded", condition_note: `ผู้ขอทวงถาม (รอ ${d} วัน)`,
+      actor_name: who, actor_role: user?.role ?? null,
+    });
+    await createNotification({
+      type: "approval", title: "🔔 ทวงถามอนุมัติคำขอซื้อ",
+      message: `${pr.pr_number} · ${pr.item} ${baht(pr.estimated_amount)} — รอมาแล้ว ${d} วัน (โดย ${who})`,
+      from_dept: dept || undefined, to_dept: "ฝ่ายบริหาร", record_id: pr.id, link: "/office?tab=finance",
+    });
+    await notifyPush("ฝ่ายบริหาร", "🔔 ทวงถามอนุมัติ", `${pr.pr_number} · ${pr.item} — รอ ${d} วัน`, "/office?tab=finance", `nudge-${pr.id}`);
+    setNudged((s) => new Set(s).add(pr.id));
+    setNudging(null);
   };
 
   const submit = async () => {
@@ -248,8 +287,14 @@ export default function PurchaseRequestPanel() {
                   </div>
                 )}
                 {pr.status === "pending" && !canApprove && (
-                  <div className="flex items-center gap-1 text-[10px] text-yellow-400/80 mt-1.5">
-                    <Clock size={10} /> รอผู้บริหารอนุมัติ
+                  <div className="flex items-center justify-between gap-2 mt-1.5">
+                    <span className={`flex items-center gap-1 text-[10px] ${waitDays(pr.created_at) >= 2 ? "text-red-400" : "text-yellow-400/80"}`}>
+                      <Clock size={10} /> รออนุมัติ · {waitDays(pr.created_at)} วัน{waitDays(pr.created_at) >= 2 ? " (เกินกำหนด)" : ""}
+                    </span>
+                    <button onClick={() => nudge(pr)} disabled={nudging === pr.id || nudged.has(pr.id)}
+                      className="flex items-center gap-1 text-[10px] font-semibold bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/25 px-2 py-1 rounded-lg disabled:opacity-50">
+                      <Bell size={10} /> {nudged.has(pr.id) ? "ทวงแล้ว" : nudging === pr.id ? "กำลังส่ง…" : "ทวงถาม"}
+                    </button>
                   </div>
                 )}
                 {pr.status === "approved" && canPay && (

@@ -3,6 +3,7 @@ import Script from "next/script";
 import { IBM_Plex_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
+import HelpAssistant from "@/components/HelpAssistant";
 import AuthProvider from "@/components/AuthProvider";
 import SWRegister from "@/components/SWRegister";
 import { UserProvider } from "@/lib/user-context";
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <UserProvider>
             <AuthProvider>{children}</AuthProvider>
             <BottomNav />
+            <HelpAssistant />
             <SWRegister />
             <CelebrationBroadcaster />
           </UserProvider>

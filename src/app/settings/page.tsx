@@ -205,7 +205,7 @@ export default function SettingsPage() {
             {process.env.NEXT_PUBLIC_TARGET === "plus" ? "AVIVA Plus" : "AVIVA ONE"}
           </p>
           <p className="text-[11px] text-aviva-secondary/60">
-            Version {process.env.NEXT_PUBLIC_TARGET === "plus" ? "1.0.0" : "5.45"}
+            Version {process.env.NEXT_PUBLIC_TARGET === "plus" ? "1.0.0" : "5.46"}
           </p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>

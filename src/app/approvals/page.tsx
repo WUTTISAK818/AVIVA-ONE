@@ -8,6 +8,7 @@ import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
+import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { SLA_DAYS, calcSlaDueAt, summarizeApproval } from "@/lib/approval-matrix";
@@ -284,6 +285,7 @@ function SourceDetail({ log }: { log: ApprovalLog }) {
 
 function ApprovalsContent() {
   const user = useCurrentUser();
+  useFocusHighlight();
   const [logs, setLogs] = useState<ApprovalLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -644,7 +646,7 @@ function ApprovalsContent() {
             const canAct = isPending && (user?.isManager || user?.isAdmin);
 
             return (
-              <GlassCard key={log.id} className={clsx("p-3 border", cfg.border)}>
+              <GlassCard key={log.id} dataFocus={log.source_record_id ?? log.id} className={clsx("p-3 border", cfg.border)}>
                 <div className="flex items-start gap-2.5">
                   <div className={clsx("w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0", cfg.bg)}>
                     <Icon size={14} className={cfg.color} />

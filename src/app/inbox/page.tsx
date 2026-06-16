@@ -50,22 +50,29 @@ const ROLE_LINK: Record<string, string> = {
 };
 
 // คลิกการ์ดแล้วเปิด "รายการนั้นจริง ๆ" ไม่ใช่หน้ารวมของแผนก
-// (/crm รองรับ ?lead=<id> เปิด detail · /office รองรับ ?tab=)
+// /crm รองรับ ?lead=<id> · หน้าปลายทางอื่นรองรับ ?focus=<id> (เลื่อน+ไฮไลต์รายการ ผ่าน useFocusHighlight)
 function linkFor(it: WorkQueueItem): string {
+  const rid = it.source_record_id;
   switch (it.workflow_type) {
     case "Lead_Followup":
-      return `/crm?lead=${it.source_record_id}`;
+      return `/crm?lead=${rid}`;
     case "Installment_Review":   // อนุมัติงวดงานก่อสร้าง — panel อยู่หน้า construction
     case "Defect_Followup":
-      return "/construction";
+      return `/construction?focus=${rid}`;
     case "Leave_Request":
-      return "/office?tab=hr";
+      return `/office?tab=hr&focus=${rid}`;
     case "Purchase_Request":
-      return "/office?tab=finance";
+      return `/office?tab=finance&focus=${rid}`;
     case "Warranty_Claim":
-      return "/after-sales";
+      return `/after-sales?focus=${rid}`;
+    case "Finance_Approval":
+    case "Material_Purchase":
+    case "Document_Approval":
+      return `/approvals?focus=${rid}`;
     default:
-      return ROLE_LINK[it.assigned_role] ?? "/approvals";
+      return it.assigned_role === "manager"
+        ? `/approvals?focus=${rid}`
+        : (ROLE_LINK[it.assigned_role] ?? "/approvals");
   }
 }
 

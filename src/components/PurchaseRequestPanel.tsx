@@ -12,6 +12,7 @@ import { generateDocNumber } from "@/lib/doc-numbers";
 import { submitApprovalQueue, resolveApprovalQueue } from "@/lib/workflow-events";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
+import { useFocusHighlight } from "@/lib/use-focus-highlight";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const THRESHOLD = 2000; // เกณฑ์ที่ต้องขออนุมัติก่อนซื้อ
@@ -94,6 +95,7 @@ export default function PurchaseRequestPanel() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useFocusHighlight();
 
   const openForm = () => {
     setCategory(PR_CATEGORIES[0]); setItem(""); setReason(""); setAmount(""); setQuoteUrl("");
@@ -267,7 +269,7 @@ export default function PurchaseRequestPanel() {
           {active.map((pr) => {
             const b = STATUS_BADGE[pr.status];
             return (
-              <div key={pr.id} className="border border-aviva-gold/10 rounded-xl p-2.5">
+              <div key={pr.id} data-focus={pr.id} className="border border-aviva-gold/10 rounded-xl p-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-xs text-aviva-text font-medium truncate">{pr.item}</div>

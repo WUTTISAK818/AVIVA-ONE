@@ -6,6 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import HelpAssistant from "@/components/HelpAssistant";
 import AuthProvider from "@/components/AuthProvider";
 import SWRegister from "@/components/SWRegister";
+import ErrorLogger from "@/components/ErrorLogger";
 import { UserProvider } from "@/lib/user-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import CelebrationBroadcaster from "@/components/CelebrationBroadcaster";

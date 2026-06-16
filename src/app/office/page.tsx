@@ -6,26 +6,48 @@ import {
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
-  FolderOpen, Upload, Search, Home,
+  FolderOpen, Upload, Search, Home, BookOpen, Pencil, ShoppingCart, Paperclip,
 } from "lucide-react";
+import Link from "next/link";
 import clsx from "clsx";
+import { downloadCsv } from "@/lib/export-csv";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import AttachDocButton from "@/components/AttachDocButton";
+import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/doc-templates";
 import { supabase } from "@/lib/supabase";
+import { postJv } from "@/lib/jv";
 import { logAction } from "@/lib/audit";
+import { attachDocumentToEntity } from "@/lib/doc-attach";
 import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
+import DeptAIChat from "@/components/DeptAIChat";
+import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
-import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
+import { resolveApprovalQueue } from "@/lib/workflow-events";
+import { finalizeSale } from "@/lib/sales-finalize";
+import { broadcastCelebration } from "@/lib/celebrate";
+import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from "@/lib/approval-matrix";
+import ApprovalRouteBar from "@/components/ApprovalRouteBar";
+import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
+import PettyCashPanel from "@/components/PettyCashPanel";
+import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
+import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, WIP, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+// สิทธิวันลาต่อปี (ตาม พ.ร.บ.คุ้มครองแรงงาน) สำหรับติดตามโควต้า
+const LEAVE_QUOTA: Record<string, number> = { "ลาป่วย": 30, "ลากิจ": 3, "ลาพักร้อน": 6 };
+function leaveDays(from: string, to: string) {
+  const d = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+  return d > 0 ? d : 1;
+}
 const today = new Date().toISOString().split("T")[0];
 
 // ─── Shared formatters ──────────────────────────────────────────────────────────────────────────────────
@@ -48,22 +70,20 @@ interface ContractorInstallmentPay {
   status: string;
   house_id: string;
   house_number?: string;
+  contractor_ack_name?: string | null;
+  labor_cost?: number | null;
+  material_cost?: number | null;
 }
 
-interface AccountingEntry {
+// รายการจ่ายงวดก่อสร้าง — อ่านจาก jv_entries (แหล่งบัญชีเดียว ไม่ใช้ accounting_entries ซ้อนอีก)
+interface ConstructionJv {
   id: string;
-  contractor_installment_id: string;
-  amount: number;
-  account_debit: string;
-  account_credit: string;
-  payment_method: string | null;
-  reference_number: string | null;
-  entry_date: string;
-  entered_by: string | null;
-  notes: string | null;
-  created_at: string;
-  inst_name?: string;
-  house_number?: string;
+  jv_number: string;
+  jv_date: string;
+  description: string;
+  ref_number: string | null;
+  total_debit: number;
+  lines?: { account_code: string; account_name: string; debit: number; credit: number }[];
 }
 
 // ─── Finance ──────────────────────────────────────────────────────────────────────────────────
@@ -85,7 +105,7 @@ interface Approval {
   created_at: string;
 }
 
-const FINANCE_CATEGORIES = ["ค่าก่อสร้าง", "ค่าวัสดุ", "ค่าการตลาด", "เงินเดือน", "ค่าดำเนินการ", "รายรับจากการขาย", "อื่นๆ"];
+const FINANCE_CATEGORIES = ["ค่าก่อสร้าง", "ค่าวัสดุ", "ค่าการตลาด", "เงินเดือน", "ค่าดำเนินการ", "ค่าใช้จ่ายสำนักงาน", "ซ่อมบำรุงสำนักงาน", "สวัสดิการ/ต้อนรับลูกค้า", "รายรับจากการขาย", "อื่นๆ"];
 
 const emptyFinanceForm = {
   transaction_type: "expense",
@@ -93,6 +113,8 @@ const emptyFinanceForm = {
   description: "",
   category: "ค่าก่อสร้าง",
   cost_center: "",
+  vat_included: false,   // ยอดที่กรอกรวม VAT 7% แล้วหรือไม่ (มีใบกำกับภาษี)
+  wht_rate: "0",         // อัตราภาษีหัก ณ ที่จ่าย (%)
 };
 
 function FinanceContent() {
@@ -103,6 +125,7 @@ function FinanceContent() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyFinanceForm);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"txn" | "approval" | "construction">("txn");
   const [period, setPeriod] = useState<Period>("month");
@@ -113,7 +136,7 @@ function FinanceContent() {
   const [approvedInsts, setApprovedInsts] = useState<ContractorInstallmentPay[]>([]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [payingInst, setPayingInst] = useState<ContractorInstallmentPay | null>(null);
-  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "" });
+  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
 
   const fetchData = (limit = finLimit) => {
     let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
@@ -124,7 +147,7 @@ function FinanceContent() {
       supabase.from("approvals").select("*").eq("module", "finance")
         .order("created_at", { ascending: false }),
       supabase.from("approval_logs").select("approval_id", { count: "exact", head: true })
-        .eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending"),
+        .eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending").eq("project_id", PROJECT_ID),
     ]).then(([txnRes, apprRes, matRes]) => {
       setTransactions((txnRes.data as Transaction[]) ?? []);
       setApprovals((apprRes.data as Approval[]) ?? []);
@@ -135,7 +158,7 @@ function FinanceContent() {
 
   const fetchApprovedInsts = async () => {
     const { data } = await supabase.from("contractor_installments")
-      .select("id,installment_no,name,amount,status,house_id,houses(house_number)")
+      .select("id,installment_no,name,amount,status,house_id,contractor_ack_name,labor_cost,material_cost,houses(house_number)")
       .eq("status", "approved")
       .order("installment_no");
     const rows = ((data ?? []) as Record<string, unknown>[]).map(r => ({
@@ -146,6 +169,9 @@ function FinanceContent() {
       status: r.status as string,
       house_id: r.house_id as string,
       house_number: ((r.houses as Record<string, unknown> | null)?.house_number as string) ?? undefined,
+      contractor_ack_name: r.contractor_ack_name as string | null ?? undefined,
+      labor_cost: r.labor_cost as number | null ?? undefined,
+      material_cost: r.material_cost as number | null ?? undefined,
     }));
     setApprovedInsts(rows);
   };
@@ -153,28 +179,41 @@ function FinanceContent() {
   const handlePayInstallment = async () => {
     if (!payingInst) return;
     setSaving(true);
-    await supabase.from("accounting_entries").insert({
-      contractor_installment_id: payingInst.id,
-      amount: payingInst.amount,
-      account_debit: "2100 เจ้าหนี้ผู้รับเหมา",
-      account_credit: "1100 เงินสด/เงินฝากธนาคาร",
-      payment_method: payForm.payment_method || null,
-      reference_number: payForm.reference_number || null,
-      entry_date: payForm.entry_date,
-      entered_by: user?.full_name ?? user?.email ?? null,
-      notes: payForm.notes || null,
+    // บันทึกเป็น JV เดียว (jv_entries/jv_lines) — แหล่งบัญชีเดียว ไม่เขียนซ้ำลง accounting_entries
+    // ฝัง payment_method / notes ไว้ในคำอธิบายเพื่อคงข้อมูลเดิม โดยขึ้นต้นด้วย "จ่ายงวดก่อสร้าง:" สำหรับ filter
+    const unit = payingInst.house_number ?? payingInst.house_id;
+    // หัก WHT (ค่าจ้างทำของ) + เงินประกันผลงาน (retention) จากมูลค่างานงวด
+    const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate);
+    let jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${unit} (${payForm.payment_method})`;
+    jvDesc += ` — หัก ณ ที่จ่าย ${payForm.wht_rate}% ฿${pay.wht.toLocaleString()}, ประกันผลงาน ${payForm.retention_rate}% ฿${pay.retention.toLocaleString()}, จ่ายสุทธิ ฿${pay.net.toLocaleString()}`;
+    if (payForm.notes) jvDesc += ` — ${payForm.notes}`;
+    // เดบิตงานระหว่างก่อสร้าง (สินค้าคงเหลือ) — ต้นทุนสะสมจนตัดเป็นต้นทุนขายตอนโอน
+    // หัก WHT/ประกันผลงาน ฝั่งเครดิต จ่ายสุทธิเข้าธนาคาร
+    const payLines = [
+      { account_code: WIP.code, account_name: WIP.name, debit: pay.gross, credit: 0 },
+    ];
+    if (pay.wht > 0) payLines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: pay.wht });
+    if (pay.retention > 0) payLines.push({ account_code: RETENTION_PAYABLE.code, account_name: RETENTION_PAYABLE.name, debit: 0, credit: pay.retention });
+    payLines.push({ account_code: BANK.code, account_name: BANK.name, debit: 0, credit: pay.net });
+    await postJv({
+      project_id: PROJECT_ID,
+      jv_date: payForm.entry_date,
+      description: jvDesc,
+      ref_number: payForm.reference_number || null,
+      lines: payLines,
     });
-    await supabase.from("contractor_installments").update({ status: "paid" }).eq("id", payingInst.id);
+    const paidByName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
+    await supabase.from("contractor_installments").update({ status: "paid", paid_by: paidByName, paid_at: new Date().toISOString() }).eq("id", payingInst.id);
     await createNotification({
       type: "success",
       title: `${payingInst.name} — บันทึกจ่ายแล้ว`,
-      message: `ยูนิต ${payingInst.house_number ?? payingInst.house_id} — ฿${payingInst.amount.toLocaleString()}`,
+      message: `ยูนิต ${payingInst.house_number ?? payingInst.house_id} — งานงวด ฿${pay.gross.toLocaleString()} หัก WHT ฿${pay.wht.toLocaleString()} + ประกันผลงาน ฿${pay.retention.toLocaleString()} = จ่ายสุทธิ ฿${pay.net.toLocaleString()} โดย ${paidByName}`,
       from_dept: "ฝ่ายการเงิน",
     });
     setSaving(false);
     setShowPayModal(false);
     setPayingInst(null);
-    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "" });
+    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
     fetchApprovedInsts();
   };
 
@@ -210,7 +249,7 @@ function FinanceContent() {
     if (!form.amount || !form.description) return;
     setSaving(true);
     const amt = Number(form.amount);
-    if (amt >= 100000) {
+    if (amt >= 50000) {
       const finDocNum = await generateDocNumber("FIN");
       const { data } = await supabase.from("approvals").insert({
         module: "finance",
@@ -220,39 +259,103 @@ function FinanceContent() {
         status: "pending",
         requested_by: user?.full_name ?? "Admin",
       }).select().single();
-      await supabase.from("approval_logs").insert({
+      const { data: logRow } = await supabase.from("approval_logs").insert({
         workflow_type: "Finance_Approval",
         source_doc_index: `${finDocNum} | [${form.category}] ${form.description}${form.cost_center ? ` (${form.cost_center})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: data?.id ?? null,
         current_approver_role: amt >= 500000 ? "admin" : "manager",
         action_taken: "Pending",
         amount: amt,
         sla_due_at: calcSlaDueAt("Finance_Approval"),
         assigned_to_name: "ผู้จัดการ",
-      });
+      }).select("approval_id").single();
+      // แนบใบเสร็จ/สลิป เข้ากับคำขออนุมัติ (ให้ผู้อนุมัติเปิดดูในหน้าตรวจสอบ)
+      if (receiptFile && logRow?.approval_id) {
+        const ext = receiptFile.name.split(".").pop() ?? "jpg";
+        const path = `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("document-attachments").upload(path, receiptFile, { upsert: true });
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
+          await attachDocumentToEntity("approval_log", logRow.approval_id, publicUrl, receiptFile.name, user?.full_name ?? user?.email ?? "ผู้ขอ");
+        }
+      }
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
-      await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `[${form.category}] ${form.description} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการเงิน" });
+      await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `จาก ${user?.full_name ?? "ฝ่ายการเงิน"} · [${form.category}] ${form.description} ฿${amt.toLocaleString()} · ส่งให้${amt >= 500000 ? "ผู้บริหาร" : "ผู้จัดการ"}พิจารณา`, from_dept: "ฝ่ายการเงิน", to_dept: "ผู้บริหาร" });
     } else {
+      const isIncome = form.transaction_type === "income";
+      // คำนวณภาษี (เฉพาะรายจ่าย): VAT ซื้อ 7% + หัก ณ ที่จ่าย
+      const wht = Number(form.wht_rate) || 0;
+      const tax = !isIncome && (form.vat_included || wht > 0) ? calcTax(amt, form.vat_included, wht) : null;
+      const expenseRecognized = tax ? tax.base : amt; // ค่าใช้จ่ายจริง (ไม่รวม VAT ที่ขอคืนได้)
+
       const { data } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
         transaction_type: form.transaction_type,
-        amount: form.transaction_type === "expense" ? -amt : amt,
+        amount: isIncome ? amt : -expenseRecognized,
         description: `[${form.category}] ${form.description}`,
       }).select().single();
-      await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
+
+      // Auto-create JV entry — map หมวด -> บัญชี GL ที่ถูกต้อง (ไม่ hardcode 5000/1100)
+      const jvDate = new Date().toISOString().split("T")[0];
+      if (isIncome) {
+        const rev = revenueAccountFor(form.category);
+        await postJv({
+          project_id: PROJECT_ID, jv_date: jvDate,
+          description: `[${form.category}] ${form.description}`,
+          lines: [
+            { account_code: CASH.code, account_name: CASH.name, debit: amt, credit: 0 },
+            { account_code: rev.code, account_name: rev.name, debit: 0, credit: amt },
+          ],
+        });
+      } else {
+        const exp = expenseAccountFor(form.category);
+        const lines = [{ account_code: exp.code, account_name: exp.name, debit: tax ? tax.base : amt, credit: 0 }];
+        if (tax && tax.vat > 0) lines.push({ account_code: INPUT_VAT.code, account_name: INPUT_VAT.name, debit: tax.vat, credit: 0 });
+        if (tax && tax.wht > 0) lines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: tax.wht });
+        lines.push({ account_code: CASH.code, account_name: CASH.name, debit: 0, credit: tax ? tax.net : amt });
+        await postJv({ project_id: PROJECT_ID, jv_date: jvDate, description: `[${form.category}] ${form.description}`, lines });
+        // บันทึกทะเบียนภาษีซื้ออัตโนมัติ (กัน VAT ตกหล่น — เดิมต้องกรอกซ้ำในแท็บภาษี)
+        if (tax && tax.vat > 0) {
+          await supabase.from("vat_register").insert({
+            vat_type: "input",
+            invoice_no: `AUTO-${Date.now().toString().slice(-8)}`,
+            invoice_date: jvDate,
+            party_name: (form.description || form.category).slice(0, 80),
+            base_amount: tax.base,
+            vat_amount: tax.vat,
+            total_amount: tax.gross,
+            period: `${jvDate.slice(2, 4)}${jvDate.slice(5, 7)}`,
+            etax_status: "pending",
+            project_id: PROJECT_ID,
+          });
+        }
+      }
+
+      const taxNote = tax && (tax.vat > 0 || tax.wht > 0)
+        ? ` (ฐาน ฿${tax.base.toLocaleString()}${tax.vat > 0 ? `, VAT ฿${tax.vat.toLocaleString()}` : ""}${tax.wht > 0 ? `, หัก ณ ที่จ่าย ฿${tax.wht.toLocaleString()} จ่ายสุทธิ ฿${tax.net.toLocaleString()}` : ""})`
+        : "";
+      await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}${taxNote}`, data?.id);
     }
     setSaving(false);
     setShowModal(false);
     setForm(emptyFinanceForm);
+    setReceiptFile(null);
     fetchData();
   };
 
   const handleApprove = async (id: string, approved: boolean) => {
     const approval = approvals.find(a => a.id === id);
     if (!approval) return;
+    // Maker-Checker: ผู้อนุมัติ/ปฏิเสธ ต้องไม่ใช่ผู้ขอ
+    const requester = (approval as { requested_by?: string | null }).requested_by;
+    if (requester && user?.full_name && requester === user.full_name) {
+      alert("ไม่สามารถดำเนินการกับรายการที่ท่านเป็นผู้ขอได้ (Maker-Checker)");
+      return;
+    }
     await supabase.from("approvals").update({
       status: approved ? "approved" : "rejected",
-      approved_by: "Admin",
+      approved_by: user?.full_name ?? user?.email ?? "Admin",
       approved_at: new Date().toISOString(),
     }).eq("id", id);
     if (approved) {
@@ -261,6 +364,17 @@ function FinanceContent() {
         transaction_type: "expense",
         amount: -approval.amount,
         description: approval.description,
+      });
+      // Auto-create JV for approved finance transaction — map หมวด -> บัญชี GL ที่ถูกต้อง
+      const exp = expenseAccountFor(categoryFromDescription(approval.description));
+      await postJv({
+        project_id: PROJECT_ID,
+        jv_date: new Date().toISOString().split("T")[0],
+        description: `[อนุมัติแล้ว] ${approval.description}`,
+        lines: [
+          { account_code: exp.code, account_name: exp.name, debit: approval.amount, credit: 0 },
+          { account_code: CASH.code, account_name: CASH.name, debit: 0, credit: approval.amount },
+        ],
       });
     }
     await logAction("finance", approved ? "approve" : "reject",
@@ -276,6 +390,8 @@ function FinanceContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptAIChat dept="finance" label="AI ฝ่ายการเงิน" />
+      <DeptBriefingPanel dept="finance" label="ฝ่ายการเงิน" />
       {materialPurchasePending > 0 && (
         <GlassCard className="p-3 border border-orange-500/20 bg-orange-500/5">
           <div className="flex items-center gap-2">
@@ -325,6 +441,10 @@ function FinanceContent() {
         title="AI: วิเคราะห์การเงิน"
         message="รายจ่ายเดือนนี้ควรตรวจสอบหมวดก่อสร้าง แนะนำทบทวนงบประมาณผู้รับเหมาก่อนสิ้นไตรมาส"
       />
+
+      <PettyCashPanel />
+
+      <PurchaseRequestPanel />
 
       <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
 
@@ -428,6 +548,9 @@ function FinanceContent() {
                     </button>
                   </div>
                 )}
+                <div className="mt-2 pt-2 border-t border-aviva-gold/10">
+                  <AttachDocButton entityType="approval_log" entityId={ap.id} attachedBy={user?.full_name ?? ""} templates={approvalTemplates(ap)} />
+                </div>
               </GlassCard>
             ))
           }
@@ -468,7 +591,19 @@ function FinanceContent() {
               <h2 className="text-lg font-bold text-aviva-text">บันทึกจ่าย — {payingInst.name}</h2>
               <button onClick={() => { setShowPayModal(false); setPayingInst(null); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
-            <p className="text-sm text-aviva-secondary">จำนวนเงิน: <span className="text-aviva-gold font-bold">฿{payingInst.amount.toLocaleString()}</span></p>
+            <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl px-3 py-2.5 space-y-1">
+              <p className="text-sm text-aviva-secondary">จำนวนเงิน: <span className="text-aviva-gold font-bold text-base">฿{payingInst.amount.toLocaleString()}</span></p>
+              {payingInst.house_number && <p className="text-xs text-aviva-secondary">ยูนิต: <span className="text-aviva-text">{payingInst.house_number}</span></p>}
+              {payingInst.contractor_ack_name && (
+                <p className="text-xs text-green-400">✍ ผู้รับเหมารับทราบ: <span className="font-semibold">{payingInst.contractor_ack_name}</span></p>
+              )}
+              {!payingInst.contractor_ack_name && (
+                <p className="text-xs text-orange-400">⚠ ผู้รับเหมายังไม่ได้ลงชื่อรับทราบผลการตรวจ</p>
+              )}
+              {((payingInst.labor_cost ?? 0) > 0 || (payingInst.material_cost ?? 0) > 0) && (
+                <p className="text-[10px] text-aviva-secondary/70">ค่าแรง ฿{(payingInst.labor_cost ?? 0).toLocaleString()} · ค่าวัสดุ ฿{(payingInst.material_cost ?? 0).toLocaleString()}</p>
+              )}
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">วิธีการชำระเงิน</label>
@@ -488,6 +623,31 @@ function FinanceContent() {
                 <input type="date" value={payForm.entry_date} onChange={e => setPayForm({ ...payForm, entry_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">หัก ณ ที่จ่าย (%)</label>
+                  <input type="number" inputMode="decimal" value={payForm.wht_rate}
+                    onChange={e => setPayForm({ ...payForm, wht_rate: Number(e.target.value) })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">เงินประกันผลงาน (%)</label>
+                  <input type="number" inputMode="decimal" value={payForm.retention_rate}
+                    onChange={e => setPayForm({ ...payForm, retention_rate: Number(e.target.value) })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+              {payingInst && (() => {
+                const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate);
+                return (
+                  <div className="bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-4 py-2.5 text-xs space-y-1">
+                    <div className="flex justify-between text-aviva-secondary"><span>มูลค่างานงวด</span><span>฿{pay.gross.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-red-400/90"><span>หัก ณ ที่จ่าย {payForm.wht_rate}%</span><span>−฿{pay.wht.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-orange-400/90"><span>หักประกันผลงาน {payForm.retention_rate}%</span><span>−฿{pay.retention.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-aviva-gold font-bold border-t border-aviva-gold/10 pt-1"><span>จ่ายสุทธิ</span><span>฿{pay.net.toLocaleString()}</span></div>
+                  </div>
+                );
+              })()}
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
                 <input type="text" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
@@ -531,9 +691,9 @@ function FinanceContent() {
                   onChange={e => setForm({ ...form, amount: e.target.value })}
                   placeholder="0"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-                {Number(form.amount) >= 100000 && (
+                {Number(form.amount) >= 50000 && (
                   <p className="text-[11px] text-yellow-400 mt-1 flex items-center gap-1">
-                    <Clock size={10} /> ≥ ฿100,000 จะเข้าระบบอนุมัติก่อน
+                    <Clock size={10} /> ≥ ฿50,000 จะเข้าระบบอนุมัติก่อน
                   </p>
                 )}
               </div>
@@ -558,11 +718,57 @@ function FinanceContent() {
                   placeholder="เช่น CC-001 ฝ่ายก่อสร้าง"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
+
+              {/* ภาษี (เฉพาะรายจ่าย) — VAT ซื้อ 7% + หัก ณ ที่จ่าย */}
+              {form.transaction_type === "expense" && (
+                <div className="rounded-xl border border-aviva-gold/15 bg-aviva-bg/40 p-3 space-y-2.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.vat_included}
+                      onChange={e => setForm({ ...form, vat_included: e.target.checked })}
+                      className="accent-aviva-gold w-4 h-4" />
+                    <span className="text-xs text-aviva-text">ราคารวม VAT 7% แล้ว (มีใบกำกับภาษี — ขอคืนภาษีซื้อได้)</span>
+                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-aviva-secondary">หัก ณ ที่จ่าย</span>
+                    <select value={form.wht_rate} onChange={e => setForm({ ...form, wht_rate: e.target.value })}
+                      className="bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      <option value="0">ไม่หัก</option>
+                      <option value="1">1% (ค่าขนส่ง)</option>
+                      <option value="2">2% (โฆษณา)</option>
+                      <option value="3">3% (บริการ/จ้างทำของ)</option>
+                      <option value="5">5% (ค่าเช่า)</option>
+                    </select>
+                  </div>
+                  {Number(form.amount) > 0 && (form.vat_included || Number(form.wht_rate) > 0) && (() => {
+                    const t = calcTax(Number(form.amount), form.vat_included, Number(form.wht_rate));
+                    return (
+                      <div className="text-[11px] text-aviva-secondary space-y-0.5 border-t border-aviva-gold/10 pt-2">
+                        <div className="flex justify-between"><span>ฐานก่อน VAT (ค่าใช้จ่าย)</span><span className="text-aviva-text">฿{t.base.toLocaleString()}</span></div>
+                        {t.vat > 0 && <div className="flex justify-between"><span>ภาษีซื้อ 7%</span><span className="text-aviva-text">฿{t.vat.toLocaleString()}</span></div>}
+                        {t.wht > 0 && <div className="flex justify-between"><span>หัก ณ ที่จ่าย {form.wht_rate}%</span><span className="text-red-400">−฿{t.wht.toLocaleString()}</span></div>}
+                        <div className="flex justify-between font-semibold"><span>จ่ายสุทธิ</span><span className="text-aviva-gold">฿{t.net.toLocaleString()}</span></div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
+
+            {Number(form.amount) >= 50000 && (
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสร็จ / สลิป (ให้ผู้อนุมัติตรวจสอบ)</label>
+                <label className="flex items-center gap-2 cursor-pointer bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-secondary hover:border-aviva-gold/50">
+                  <Paperclip size={14} className="text-aviva-gold" />
+                  <span className="truncate">{receiptFile ? receiptFile.name : "แตะเพื่อแนบรูป/ไฟล์ PDF"}</span>
+                  <input type="file" accept="image/*,application/pdf" className="hidden"
+                    onChange={e => setReceiptFile(e.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            )}
 
             <button onClick={handleSave} disabled={saving || !form.amount || !form.description}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : Number(form.amount) >= 100000 ? "ส่งขออนุมัติ" : "บันทึก"}
+              {saving ? "กำลังบันทึก..." : Number(form.amount) >= 50000 ? "ส่งขออนุมัติ" : "บันทึก"}
             </button>
           </div>
         </div>
@@ -643,6 +849,91 @@ const emptyReceiptForm = {
   receipt_number: "",
 };
 
+// โหมด A — ใบสำคัญลงบัญชี (JV voucher) จากรายการบัญชีก่อสร้าง
+function jvTemplates(e: ConstructionJv): DocTemplate[] {
+  return [{
+    key: "jv", label: "ใบสำคัญลงบัญชี (JV)", docType: "jv_voucher",
+    fixedNumber: e.jv_number ?? undefined,
+    render: (docNumber) => {
+      const amt = e.total_debit ?? 0;
+      // ใช้บรรทัดบัญชีจริงจาก jv_lines ถ้ามี (ครบทุกบรรทัด) มิฉะนั้น fallback แบบเดิม
+      const lineRows = (e.lines && e.lines.length > 0)
+        ? e.lines.map(l => [l.account_code, l.account_name, l.debit, l.credit] as (string | number)[])
+        : [
+          ["2100", "เจ้าหนี้ผู้รับเหมา", amt, 0],
+          ["1120", "เงินฝากธนาคาร", 0, amt],
+        ];
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">วันที่</th><td>${esc(e.jv_date)}</td></tr>
+          <tr><th>รายการ</th><td>${esc(e.description)}</td></tr>
+          ${e.ref_number ? `<tr><th>อ้างอิง</th><td>${esc(e.ref_number)}</td></tr>` : ""}
+        </tbody></table>
+        ${renderItemsTable(["รหัสบัญชี", "ชื่อบัญชี", "เดบิต", "เครดิต"], lineRows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเดบิต</td><td style="text-align:right;font-weight:700">${amt.toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบสำคัญลงบัญชี", docNumber, bodyHtml: body, signLabels: ["ผู้จัดทำ", "ผู้ตรวจสอบ", "ผู้อนุมัติ"] });
+    },
+  }];
+}
+
+// โหมด A — ใบเสร็จรับเงิน / ใบสำคัญจ่าย จากบิล/ใบเสร็จ
+function receiptTemplates(r: ReceiptRow): DocTemplate[] {
+  const isExpense = r.receipt_type === "expense";
+  const title = isExpense ? "ใบสำคัญจ่าย" : "ใบเสร็จรับเงิน";
+  return [{
+    key: "receipt", label: title, docType: isExpense ? "payment_voucher" : "receipt",
+    fixedNumber: r.receipt_number ?? undefined,
+    render: (docNumber) => {
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">${isExpense ? "ผู้รับเงิน / ผู้ขาย" : "ได้รับเงินจาก"}</th><td>${esc(r.vendor_name)}</td></tr>
+          <tr><th>หมวด</th><td>${esc(r.category)}</td></tr>
+          ${r.description ? `<tr><th>รายละเอียด</th><td>${esc(r.description)}</td></tr>` : ""}
+          <tr><th>วันที่</th><td>${esc(r.receipt_date)}</td></tr>
+        </tbody></table>
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">จำนวนเงิน</td><td style="text-align:right;font-weight:700">${(r.amount ?? 0).toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title, docNumber, bodyHtml: body, signLabels: isExpense ? ["ผู้จ่ายเงิน", "ผู้รับเงิน"] : ["ผู้รับเงิน"] });
+    },
+  }];
+}
+
+// โหมด A — ใบขออนุมัติจ่ายเงิน จากคำขออนุมัติ (การเงิน)
+function approvalTemplates(ap: Approval): DocTemplate[] {
+  return [{
+    key: "approval", label: "ใบขออนุมัติจ่าย", docType: "payment_approval", prefix: "FIN",
+    render: (docNumber) => {
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ผู้ขออนุมัติ</th><td>${esc(ap.requested_by)}</td></tr>
+          <tr><th>รายละเอียด</th><td>${esc(ap.description)}</td></tr>
+          <tr><th>จำนวนเงินที่ขอ</th><td>${(ap.amount ?? 0).toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบขออนุมัติจ่ายเงิน", docNumber, bodyHtml: body, signLabels: ["ผู้ขออนุมัติ", "ผู้จัดการ", "ผู้บริหาร"] });
+    },
+  }];
+}
+
+// โหมด A — ใบลา จากคำขอลา (บุคคล)
+function leaveTemplates(l: { employee_name: string; leave_type: string; date_from: string; date_to: string; reason: string }): DocTemplate[] {
+  return [{
+    key: "leave", label: "ใบลา", docType: "leave_form", prefix: "LEAVE",
+    render: (docNumber) => {
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ชื่อผู้ลา</th><td>${esc(l.employee_name)}</td></tr>
+          <tr><th>ประเภทการลา</th><td>${esc(l.leave_type)}</td></tr>
+          <tr><th>ตั้งแต่วันที่</th><td>${esc(l.date_from)} ถึง ${esc(l.date_to)}</td></tr>
+          <tr><th>เหตุผล</th><td>${esc(l.reason || "-")}</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบลา", docNumber, bodyHtml: body, signLabels: ["ผู้ลา", "ผู้บังคับบัญชา", "ฝ่ายบุคคล"] });
+    },
+  }];
+}
+
 function AccountingContent() {
   const user = useCurrentUser();
   const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
@@ -656,7 +947,7 @@ function AccountingContent() {
   const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [acctLimit, setAcctLimit] = useState(50);
   const [kpiModalAcct, setKpiModalAcct] = useState<"all" | "income" | "expense" | null>(null);
-  const [acctEntries, setAcctEntries] = useState<AccountingEntry[]>([]);
+  const [acctEntries, setAcctEntries] = useState<ConstructionJv[]>([]);
   const [acctView, setAcctView] = useState<"receipts" | "construction">("receipts");
 
   const fetchReceipts = (limit = acctLimit) => {
@@ -670,15 +961,32 @@ function AccountingContent() {
       });
   };
 
-  const fetchAccountingEntries = async () => {
-    const { data } = await supabase.from("accounting_entries")
-      .select("*")
-      .order("entry_date", { ascending: false })
+  const fetchConstructionJvs = async () => {
+    const { data } = await supabase.from("jv_entries")
+      .select("id,jv_number,jv_date,description,ref_number,total_debit")
+      .eq("project_id", PROJECT_ID)
+      .like("description", "จ่ายงวดก่อสร้าง%")
+      .order("jv_date", { ascending: false })
       .limit(50);
-    setAcctEntries((data as AccountingEntry[]) ?? []);
+    const entries = (data as ConstructionJv[]) ?? [];
+    // ดึงบรรทัดบัญชีจริง (jv_lines) มาแนบ เพื่อให้ใบสำคัญลงบัญชีแสดงครบทุกบรรทัด (WHT/ประกันผลงาน/ธนาคาร)
+    if (entries.length > 0) {
+      const { data: lineData } = await supabase.from("jv_lines")
+        .select("jv_id,account_code,account_name,debit,credit")
+        .in("jv_id", entries.map(e => e.id));
+      if (lineData) {
+        const byJv = new Map<string, ConstructionJv["lines"]>();
+        for (const l of lineData as { jv_id: string; account_code: string; account_name: string; debit: number; credit: number }[]) {
+          if (!byJv.has(l.jv_id)) byJv.set(l.jv_id, []);
+          byJv.get(l.jv_id)!.push({ account_code: l.account_code, account_name: l.account_name, debit: Number(l.debit), credit: Number(l.credit) });
+        }
+        entries.forEach(e => { e.lines = byJv.get(e.id); });
+      }
+    }
+    setAcctEntries(entries);
   };
 
-  useEffect(() => { setAcctLimit(50); fetchReceipts(50); fetchAccountingEntries(); }, [acctStart, acctEnd]);
+  useEffect(() => { setAcctLimit(50); fetchReceipts(50); fetchConstructionJvs(); }, [acctStart, acctEnd]);
 
   const totalExpense = receipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
   const totalIncome = receipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
@@ -707,6 +1015,7 @@ function AccountingContent() {
   const handleSave = async () => {
     if (!form.vendor_name || !form.amount) return;
     setSaving(true);
+    const rcptNum = form.receipt_number || `RC-${Date.now().toString().slice(-6)}`;
     await supabase.from("receipts").insert({
       project_id: PROJECT_ID,
       receipt_date: form.receipt_date,
@@ -715,8 +1024,26 @@ function AccountingContent() {
       amount: Number(form.amount),
       category: form.category,
       receipt_type: form.receipt_type,
-      receipt_number: form.receipt_number || `RC-${Date.now().toString().slice(-6)}`,
+      receipt_number: rcptNum,
     });
+    // When recording income receipt, also create AR invoice for accounting integration
+    if (form.receipt_type === "income") {
+      const invNum = `INV-${Date.now().toString().slice(-6)}`;
+      await supabase.from("ar_invoices").insert({
+        invoice_number: invNum,
+        customer_name: form.vendor_name,
+        invoice_date: form.receipt_date,
+        due_date: form.receipt_date,
+        base_amount: Number(form.amount),
+        vat_amount: 0,
+        total_amount: Number(form.amount),
+        paid_amount: Number(form.amount),
+        status: "paid",
+        description: form.description || form.category,
+        project_id: PROJECT_ID,
+        ref_number: rcptNum,
+      });
+    }
     setSaving(false);
     setShowModal(false);
     setForm(emptyReceiptForm);
@@ -725,6 +1052,8 @@ function AccountingContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptAIChat dept="accounting" label="AI ฝ่ายบัญชี" />
+      <DeptBriefingPanel dept="accounting" label="ฝ่ายบัญชี" />
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <button onClick={() => setKpiModalAcct("all")} className="active:scale-[0.96] transition-transform w-full text-left">
@@ -756,6 +1085,18 @@ function AccountingContent() {
         title="AI: รายรับสูงขึ้น"
         message="ยอดรับเงินเดือนนี้เพิ่มขึ้นจากเดือนก่อน แนะนำตรวจสอบการจับคู่ใบเสร็จกับสัญญาให้ครบถ้วน"
       />
+
+      {/* Full accounting system link */}
+      <Link
+        href="/office/accounting"
+        className="flex items-center justify-between w-full bg-aviva-gold/10 border border-aviva-gold/30 text-aviva-gold px-4 py-3 rounded-2xl text-sm font-semibold"
+      >
+        <span className="flex items-center gap-2">
+          <BookOpen size={16} />
+          ระบบบัญชีเต็มรูปแบบ (JV · AR · AP · ภาษี · TFRS15)
+        </span>
+        <span className="text-aviva-gold/60">→</span>
+      </Link>
 
       <PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} />
 
@@ -813,17 +1154,19 @@ function AccountingContent() {
             <GlassCard key={e.id} className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-aviva-text truncate">{e.notes ?? e.account_debit}</p>
-                  <p className="text-xs text-aviva-secondary mt-0.5">{e.entry_date} · {e.payment_method ?? "—"}</p>
-                  {e.reference_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.reference_number}</p>}
+                  <p className="text-sm font-medium text-aviva-text truncate">{e.description}</p>
+                  <p className="text-xs text-aviva-secondary mt-0.5">{e.jv_date} · {e.jv_number}</p>
+                  {e.ref_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.ref_number}</p>}
                   <div className="text-[10px] text-aviva-secondary/60 mt-0.5">
-                    Dr: {e.account_debit} / Cr: {e.account_credit}
+                    {e.lines && e.lines.length > 0
+                      ? e.lines.map(l => `${l.debit > 0 ? "Dr" : "Cr"} ${l.account_code} ${l.account_name}`).join(" / ")
+                      : "Dr: 2100 เจ้าหนี้ผู้รับเหมา / Cr: 1120 เงินฝากธนาคาร"}
                   </div>
                   <div className="mt-1.5">
-                    <AttachDocButton entityType="accounting_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} />
+                    <AttachDocButton entityType="jv_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} templates={jvTemplates(e)} />
                   </div>
                 </div>
-                <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.amount.toLocaleString()}</p>
+                <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.total_debit.toLocaleString()}</p>
               </div>
             </GlassCard>
           ))}
@@ -858,6 +1201,9 @@ function AccountingContent() {
                       <p className="text-xs text-aviva-secondary mt-0.5 truncate">{r.description}</p>
                     )}
                     <p className="text-[10px] text-aviva-secondary/60 mt-0.5">{r.receipt_date} · {r.receipt_number}</p>
+                    <div className="mt-1.5">
+                      <AttachDocButton entityType="receipt" entityId={r.id} attachedBy={user?.full_name ?? ""} templates={receiptTemplates(r)} />
+                    </div>
                   </div>
                   <p className={clsx("text-sm font-bold flex-shrink-0",
                     r.receipt_type === "expense" ? "text-red-400" : "text-green-400")}>
@@ -1032,9 +1378,8 @@ const statusLabel: Record<string, string> = {
   ended:  "สิ้นสุดแล้ว",
 };
 
-function roi(campaign: Campaign) {
-  const avgHousePrice = 9_500_000;
-  const revenue = campaign.conversions * avgHousePrice;
+function roi(campaign: Campaign, avgPrice = 9_500_000) {
+  const revenue = campaign.conversions * avgPrice;
   return campaign.spent > 0 ? Math.round((revenue / campaign.spent) * 100) : 0;
 }
 
@@ -1049,9 +1394,20 @@ const emptyCampaignForm = { name: "", platform: "Facebook", budget: "", start_da
 const MONTH_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 
 function MarketingContent() {
+  const user = useCurrentUser();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [budgets, setBudgets] = useState<MarketingBudget[]>([]);
   const [loading, setLoading] = useState(true);
+  // B4: ราคาขายเฉลี่ยจริง (จากลูกค้าที่ปิดการขาย) ใช้คำนวณ ROI แทน hardcode
+  const [avgUnitPrice, setAvgUnitPrice] = useState(9_500_000);
+  useEffect(() => {
+    supabase.from("leads").select("contract_price,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal")
+      .then(({ data }) => {
+        const vals = ((data ?? []) as { contract_price: number | null; budget: number | null }[])
+          .map(r => Number(r.contract_price ?? r.budget) || 0).filter(v => v > 0);
+        if (vals.length) setAvgUnitPrice(Math.round(vals.reduce((s, v) => s + v, 0) / vals.length));
+      });
+  }, []);
   const [activeView, setActiveView] = useState<"campaigns" | "budget">("campaigns");
   const [filter, setFilter] = useState<"all" | "Facebook" | "TikTok" | "Google">("all");
   const [showModal, setShowModal] = useState(false);
@@ -1059,9 +1415,14 @@ function MarketingContent() {
   const [form, setForm] = useState(emptyCampaignForm);
   const [budgetForm, setBudgetForm] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1, budget_amount: "", executive_name: "", notes: "" });
   const [saving, setSaving] = useState(false);
+  const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
+  const [editCampForm, setEditCampForm] = useState({ spent: "", leads_generated: "", impressions: "", clicks: "", conversions: "", status: "active" });
   const [mktPeriod, setMktPeriod] = useState<Period>("month");
   const [mktStart, setMktStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [mktEnd, setMktEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [showMktPRModal, setShowMktPRModal] = useState(false);
+  const [mktPRForm, setMktPRForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
+  const [mktPRSaving, setMktPRSaving] = useState(false);
 
   const fetchCampaigns = () => {
     let q = supabase.from("campaigns").select("*").eq("project_id", PROJECT_ID);
@@ -1079,12 +1440,33 @@ function MarketingContent() {
 
   useEffect(() => { fetchCampaigns(); fetchBudgets(); }, [mktStart, mktEnd]);
 
+  const openEditCampaign = (c: Campaign) => {
+    setEditCampaign(c);
+    setEditCampForm({ spent: String(c.spent), leads_generated: String(c.leads_generated), impressions: String(c.impressions ?? 0), clicks: String(c.clicks ?? 0), conversions: String(c.conversions), status: c.status });
+  };
+
+  const handleUpdateCampaign = async () => {
+    if (!editCampaign) return;
+    setSaving(true);
+    await supabase.from("campaigns").update({
+      spent: Number(editCampForm.spent) || 0,
+      leads_generated: Number(editCampForm.leads_generated) || 0,
+      impressions: Number(editCampForm.impressions) || 0,
+      clicks: Number(editCampForm.clicks) || 0,
+      conversions: Number(editCampForm.conversions) || 0,
+      status: editCampForm.status,
+    }).eq("id", editCampaign.id);
+    setSaving(false);
+    setEditCampaign(null);
+    fetchCampaigns();
+  };
+
   const filtered = filter === "all" ? campaigns : campaigns.filter(c => c.platform === filter);
   const totalLeads = campaigns.reduce((s, c) => s + c.leads_generated, 0);
   const totalSpent = campaigns.reduce((s, c) => s + c.spent, 0);
   const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
   const avgROI = campaigns.length
-    ? Math.round(campaigns.reduce((s, c) => s + roi(c), 0) / campaigns.length)
+    ? Math.round(campaigns.reduce((s, c) => s + roi(c, avgUnitPrice), 0) / campaigns.length)
     : 0;
   const totalBudgetAllocated = budgets.reduce((s, b) => s + Number(b.budget_amount), 0);
 
@@ -1126,11 +1508,61 @@ function MarketingContent() {
     }, { onConflict: "project_id,year,month" });
     setSaving(false);
     setShowBudgetModal(false);
+    setBudgetForm({ year: new Date().getFullYear(), month: new Date().getMonth() + 1, budget_amount: "", executive_name: "", notes: "" });
     fetchBudgets();
+  };
+
+  const exportCampaignsCSV = () => {
+    const rows = [["ชื่อแคมเปญ", "Platform", "งบ", "ใช้ไป", "Leads", "Conversion", "ROI%", "สถานะ"]];
+    campaigns.forEach(c => rows.push([c.name, c.platform, String(c.budget), String(c.spent), String(c.leads_generated), String(c.conversions), String(roi(c, avgUnitPrice)), c.status]));
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(csv); a.download = "campaigns.csv"; a.click();
+  };
+
+  const handleCreateMktPR = async () => {
+    if (!mktPRForm.supplier_name || !mktPRForm.description) return;
+    setMktPRSaving(true);
+    const poDocNum = await generateDocNumber("PO");
+    const total = Number(mktPRForm.amount) || 0;
+    const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      po_number: poDocNum,
+      supplier_name: mktPRForm.supplier_name,
+      items: [{ name: mktPRForm.description, qty: 1, unit: "รายการ", unit_price: total }],
+      total_amount: total,
+      status: "draft",
+      requested_by: user?.full_name ?? user?.email ?? "Unknown",
+      notes: mktPRForm.notes,
+    }).select().single();
+    if (poErr) { setMktPRSaving(false); return; }
+    if (poData) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `${poDocNum} | ฝ่ายการตลาด — ${mktPRForm.supplier_name} — ${mktPRForm.description} | โดย ${user?.full_name ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
+        source_record_id: poData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: total,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      await createNotification({
+        type: "approval",
+        title: "ขอสั่งซื้อ/จ้างบริการ (ฝ่ายการตลาด)",
+        message: `จาก ${user?.full_name ?? "ฝ่ายการตลาด"} · ${mktPRForm.supplier_name}${total > 0 ? ` ฿${total.toLocaleString("th-TH")}` : ""} · ส่งให้ผู้จัดการพิจารณา`,
+        from_dept: "ฝ่ายการตลาด",
+      });
+    }
+    setMktPRSaving(false);
+    setShowMktPRModal(false);
+    setMktPRForm({ supplier_name: "", description: "", amount: "", notes: "" });
   };
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptAIChat dept="marketing" label="AI ฝ่ายการตลาด" />
+      <DeptBriefingPanel dept="marketing" label="ฝ่ายการตลาด" />
       {/* KPI Summary */}
       <div className="grid grid-cols-2 gap-3">
         <GlassCard className="p-3">
@@ -1183,10 +1615,51 @@ function MarketingContent() {
             title="AI: Facebook ROI สูงสุด"
             message="แคมเปญ Facebook มี ROI เฉลี่ยสูงสุด แนะนำเพิ่มงบอีก 20% และทดสอบ Creative ใหม่ในกลุ่มเป้าหมาย 35-50 ปีครับ" />
           <PeriodFilter period={mktPeriod} onChange={(p, s, e) => { setMktPeriod(p); setMktStart(s); setMktEnd(e); }} />
-          <button onClick={() => setShowModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
-            <Plus size={16} /> สร้างแคมเปญ
+          <div className="flex gap-2">
+            <button onClick={() => setShowModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
+              <Plus size={16} /> สร้างแคมเปญ
+            </button>
+            <button onClick={exportCampaignsCSV}
+              className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary px-3 py-3 rounded-2xl text-xs">
+              <Download size={14} /> CSV
+            </button>
+          </div>
+          <button onClick={() => setShowMktPRModal(true)}
+            className="w-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold py-2.5 rounded-2xl text-sm">
+            <ShoppingCart size={15} /> ขอสั่งซื้อ/จ้างบริการ
           </button>
+          {campaigns.length > 0 && (() => {
+            const maxLeads = Math.max(...campaigns.map(c => c.leads_generated || 0), 1);
+            return (
+              <GlassCard className="p-4">
+                <p className="text-xs font-semibold text-aviva-gold mb-3">📊 ประสิทธิภาพแคมเปญ (Leads · งบที่ใช้/งบ)</p>
+                <div className="space-y-2.5">
+                  {campaigns.slice(0, 8).map(c => {
+                    const spentPct = c.budget > 0 ? Math.min(100, Math.round((c.spent / c.budget) * 100)) : 0;
+                    return (
+                      <div key={c.id}>
+                        <div className="flex items-center justify-between text-[10px] mb-0.5">
+                          <span className="text-aviva-text truncate max-w-[60%]">{c.name}</span>
+                          <span className="text-aviva-secondary">{c.leads_generated || 0} leads · ฿{Number(c.spent).toLocaleString()}/{Number(c.budget).toLocaleString()}</span>
+                        </div>
+                        <div className="h-2 bg-aviva-bg rounded-full overflow-hidden">
+                          <div className="h-full bg-aviva-gold rounded-full" style={{ width: `${Math.round(((c.leads_generated || 0) / maxLeads) * 100)}%` }} />
+                        </div>
+                        <div className="h-1 bg-aviva-bg rounded-full overflow-hidden mt-0.5">
+                          <div className={clsx("h-full rounded-full", spentPct > 90 ? "bg-red-400" : "bg-blue-400")} style={{ width: `${spentPct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3 mt-3 text-[9px] text-aviva-secondary">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-aviva-gold inline-block" /> Leads</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> งบที่ใช้ (% ของงบ)</span>
+                </div>
+              </GlassCard>
+            );
+          })()}
           <div>
             <SectionHeader title="แคมเปญ" subtitle="กรองตาม Platform" />
             <div className="flex gap-2 mb-4">
@@ -1222,9 +1695,13 @@ function MarketingContent() {
                                 className="text-[10px] text-blue-400 underline mt-0.5 inline-block">ดูข้อมูลแคมเปญ</a>
                             )}
                           </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-lg font-bold text-aviva-gold">{roi(c)}%</p>
+                          <div className="text-right flex-shrink-0 space-y-1">
+                            <p className="text-lg font-bold text-aviva-gold">{roi(c, avgUnitPrice)}%</p>
                             <p className="text-[10px] text-aviva-secondary">ROI</p>
+                            <button onClick={() => openEditCampaign(c)}
+                              className="text-[10px] bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 px-2 py-0.5 rounded-lg">
+                              แก้ไข
+                            </button>
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-3">
@@ -1407,6 +1884,106 @@ function MarketingContent() {
           </div>
         </div>
       )}
+
+      {/* Edit Campaign Modal */}
+      {editCampaign && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">อัปเดตแคมเปญ</h2>
+                <p className="text-xs text-aviva-secondary">{editCampaign.name}</p>
+              </div>
+              <button onClick={() => setEditCampaign(null)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                <select value={editCampForm.status} onChange={e => setEditCampForm(p => ({ ...p, status: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="active">กำลังทำงาน</option>
+                  <option value="paused">หยุดชั่วคราว</option>
+                  <option value="ended">สิ้นสุดแล้ว</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ยอดใช้จ่าย (฿)</label>
+                  <input type="number" value={editCampForm.spent} onChange={e => setEditCampForm(p => ({ ...p, spent: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Leads ที่ได้</label>
+                  <input type="number" value={editCampForm.leads_generated} onChange={e => setEditCampForm(p => ({ ...p, leads_generated: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Impressions</label>
+                  <input type="number" value={editCampForm.impressions} onChange={e => setEditCampForm(p => ({ ...p, impressions: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Clicks</label>
+                  <input type="number" value={editCampForm.clicks} onChange={e => setEditCampForm(p => ({ ...p, clicks: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">Conversions</label>
+                  <input type="number" value={editCampForm.conversions} onChange={e => setEditCampForm(p => ({ ...p, conversions: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+            </div>
+            <button onClick={handleUpdateCampaign} disabled={saving}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : "บันทึกข้อมูลแคมเปญ"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase Request Modal — Marketing */}
+      {showMktPRModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">ขอสั่งซื้อ/จ้างบริการ</h2>
+              <button onClick={() => setShowMktPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / บริษัทรับจ้าง *</label>
+                <input type="text" value={mktPRForm.supplier_name} onChange={e => setMktPRForm(p => ({ ...p, supplier_name: e.target.value }))}
+                  placeholder="ชื่อร้าน / บริษัท"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
+                <input type="text" value={mktPRForm.description} onChange={e => setMktPRForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="เช่น ค่าจ้างทำกราฟิก, ค่าโฆษณา Facebook"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
+                <input type="number" value={mktPRForm.amount} onChange={e => setMktPRForm(p => ({ ...p, amount: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea value={mktPRForm.notes} onChange={e => setMktPRForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="รายละเอียดเพิ่มเติม"
+                  rows={2}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+            <button onClick={handleCreateMktPR} disabled={mktPRSaving || !mktPRForm.supplier_name || !mktPRForm.description}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {mktPRSaving ? "กำลังส่งคำขอ..." : "ส่งคำขออนุมัติ"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1452,11 +2029,13 @@ const emptyEmployeeForm = {
 };
 
 function HRContent() {
+  const user = useCurrentUser();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyEmployeeForm);
   const [saving, setSaving] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [filterDept, setFilterDept] = useState("ทั้งหมด");
   const [kpiModalHR, setKpiModalHR] = useState<"employees" | "probation" | "salary" | null>(null);
   const [hrTab, setHrTab] = useState<"บุคคล" | "เงินเดือน" | "การลา">("บุคคล");
@@ -1465,7 +2044,9 @@ function HRContent() {
   const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string}[]>([]);
   const [hrToast, setHrToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
-  const [selectedLeave, setSelectedLeave] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string} | null>(null);
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [prForm, setPrForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
+  const [prSaving, setPrSaving] = useState(false);
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -1478,9 +2059,21 @@ function HRContent() {
 
   const fetchLeave = () => {
     setLeaveLoading(true);
-    supabase.from("leave_requests").select("id,employee_name,leave_type,date_from,date_to,reason,status,created_at")
-      .order("created_at", { ascending: false }).limit(30)
-      .then(({ data }) => { setLeaveList((data as typeof leaveList) ?? []); setLeaveLoading(false); });
+    // C4: sync สถานะล่าสุดจาก approval_logs ให้ตรงกับหน้า /approvals
+    Promise.all([
+      supabase.from("leave_requests").select("id,employee_name,leave_type,date_from,date_to,reason,status,created_at").order("created_at", { ascending: false }).limit(30),
+      supabase.from("approval_logs").select("source_record_id,action_taken").eq("workflow_type", "Leave_Request"),
+    ]).then(([lvRes, apRes]) => {
+      const apMap: Record<string, string> = {};
+      ((apRes.data ?? []) as { source_record_id: string | null; action_taken: string }[]).forEach(a => { if (a.source_record_id) apMap[a.source_record_id] = a.action_taken; });
+      const merged = ((lvRes.data ?? []) as typeof leaveList).map(l => {
+        const act = apMap[l.id];
+        const synced = act === "Approved" ? "approved" : act === "Rejected" ? "rejected" : act === "Pending" ? "pending" : l.status;
+        return { ...l, status: synced };
+      });
+      setLeaveList(merged);
+      setLeaveLoading(false);
+    });
   };
 
   useEffect(() => { fetchEmployees(); }, []);
@@ -1503,9 +2096,20 @@ function HRContent() {
       return;
     }
     const days = Math.max(1, Math.ceil((new Date(leaveForm.date_to).getTime() - new Date(leaveForm.date_from).getTime()) / 86400000) + 1);
+    // C3: เตือน/บล็อกเมื่อยื่นลาเกินสิทธิต่อปี (สะสมจากใบลาที่อนุมัติแล้ว + ที่ขอใหม่)
+    const quota = LEAVE_QUOTA[leaveForm.leave_type];
+    if (quota != null) {
+      const usedSoFar = leaveList
+        .filter(l => l.employee_name === leaveForm.employee_name && l.leave_type === leaveForm.leave_type && l.status === "approved")
+        .reduce((s, l) => s + leaveDays(l.date_from, l.date_to), 0);
+      if (usedSoFar + days > quota) {
+        setHrToast({ msg: `เกินสิทธิ ${leaveForm.leave_type} (${quota} วัน/ปี) — ใช้ไปแล้ว ${usedSoFar} + ขอใหม่ ${days} = ${usedSoFar + days} วัน`, type: "error" });
+        setLeaveSaving(false);
+        return;
+      }
+    }
     const docNum = await generateDocNumber("LEAVE");
-    await supabase.from("leave_requests").insert({
-      doc_number: docNum,
+    const { data: leaveData, error: leaveErr } = await supabase.from("leave_requests").insert({
       employee_name: leaveForm.employee_name,
       leave_type: leaveForm.leave_type,
       date_from: leaveForm.date_from,
@@ -1513,7 +2117,25 @@ function HRContent() {
       days_count: days,
       reason: leaveForm.reason || null,
       status: "pending",
-    });
+    }).select("id").single();
+    if (leaveErr) {
+      setHrToast({ msg: "ยื่นใบลาไม่สำเร็จ: " + leaveErr.message, type: "error" });
+      setLeaveSaving(false);
+      return;
+    }
+    if (leaveData?.id) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Leave_Request",
+        source_doc_index: `${docNum} | ขอ${leaveForm.leave_type} ${days} วัน (${leaveForm.date_from} – ${leaveForm.date_to}) | โดย ${leaveForm.employee_name}`,
+        submitted_by_user_id: user?.id ?? null,
+        source_record_id: leaveData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: 0,
+        sla_due_at: calcSlaDueAt("Leave_Request"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+    }
     await createNotification({ type: "info", title: `คำขอลาใหม่ — ${docNum}`, message: `${leaveForm.employee_name} ขอ${leaveForm.leave_type} ${days} วัน`, from_dept: "ฝ่ายบุคคล" });
     setLeaveSaving(false);
     setLeaveForm({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
@@ -1532,30 +2154,139 @@ function HRContent() {
   const handleSave = async () => {
     if (!form.full_name) return;
     setSaving(true);
-    await supabase.from("employees").insert({
-      full_name: form.full_name,
-      nickname: form.nickname,
-      phone: form.phone,
-      email: form.email,
-      department: form.department,
-      position: form.position,
-      base_salary: Number(form.base_salary) || 0,
-      commission_rate: Number(form.commission_rate) || 0,
-      start_date: form.start_date,
-      status: "active",
-    });
-    await logAction("hr", "add_employee", `เพิ่มพนักงาน ${form.full_name} ${form.department}`);
+    if (editingEmployee) {
+      await supabase.from("employees").update({
+        full_name: form.full_name,
+        nickname: form.nickname,
+        phone: form.phone,
+        email: form.email,
+        department: form.department,
+        position: form.position,
+        base_salary: Number(form.base_salary) || 0,
+        commission_rate: Number(form.commission_rate) || 0,
+      }).eq("id", editingEmployee.id);
+      await logAction("hr", "edit_employee", `แก้ไขข้อมูลพนักงาน ${form.full_name}`);
+    } else {
+      const empCode = `EMP-${new Date().getFullYear() % 100}${String(Date.now()).slice(-4)}`;
+      await supabase.from("employees").insert({
+        full_name: form.full_name,
+        nickname: form.nickname,
+        phone: form.phone,
+        email: form.email,
+        department: form.department,
+        position: form.position,
+        base_salary: Number(form.base_salary) || 0,
+        commission_rate: Number(form.commission_rate) || 0,
+        start_date: form.start_date,
+        employee_code: empCode,
+        status: "active",
+      });
+      await logAction("hr", "add_employee", `รับพนักงานใหม่ ${form.full_name} (${empCode}) ${form.department}`);
+      await createNotification({ type: "info", title: `พนักงานใหม่เข้าทำงาน — ${form.full_name}`, message: `${empCode} · ${form.department}${form.position ? ` · ${form.position}` : ""} · เริ่ม ${form.start_date}`, from_dept: "ฝ่ายบุคคล", to_dept: "ผู้บริหาร" });
+    }
     setSaving(false);
     setShowModal(false);
+    setEditingEmployee(null);
     setForm(emptyEmployeeForm);
     fetchEmployees();
+  };
+
+  // คนออก — บันทึกการพ้นสภาพ (ลาออก/เลิกจ้าง) พร้อมวันที่+เหตุผล
+  const offboardEmployee = async (emp: Employee) => {
+    const reason = window.prompt(`บันทึกการพ้นสภาพของ ${emp.full_name}\nระบุเหตุผล (ลาออก / เลิกจ้าง / เกษียณ / อื่นๆ):`, "ลาออก");
+    if (reason === null) return;
+    const today = new Date().toISOString().split("T")[0];
+    setSaving(true);
+    const { error } = await supabase.from("employees").update({
+      status: "resigned", end_date: today, exit_reason: reason || null,
+      updated_at: new Date().toISOString(), updated_by: user?.full_name ?? user?.email ?? null,
+    }).eq("id", emp.id);
+    setSaving(false);
+    if (error) { setHrToast({ msg: "บันทึกไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    await logAction("hr", "offboard_employee", `พ้นสภาพ ${emp.full_name} — ${reason || "-"} (${today})`);
+    await createNotification({ type: "info", title: `พนักงานพ้นสภาพ — ${emp.full_name}`, message: `${emp.department}${emp.position ? ` · ${emp.position}` : ""} · ${reason || ""} · วันสุดท้าย ${today}`, from_dept: "ฝ่ายบุคคล", to_dept: "ผู้บริหาร" });
+    setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm);
+    fetchEmployees();
+  };
+
+  // คืนสภาพพนักงาน (กรณีกลับเข้าทำงาน/แก้ไขผิดพลาด)
+  const reactivateEmployee = async (emp: Employee) => {
+    setSaving(true);
+    const { error } = await supabase.from("employees").update({
+      status: "active", end_date: null, exit_reason: null,
+      updated_at: new Date().toISOString(), updated_by: user?.full_name ?? user?.email ?? null,
+    }).eq("id", emp.id);
+    setSaving(false);
+    if (error) { setHrToast({ msg: "ไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    await logAction("hr", "reactivate_employee", `คืนสภาพพนักงาน ${emp.full_name}`);
+    setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm);
+    fetchEmployees();
+  };
+
+  const openEditEmployee = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setForm({
+      full_name: emp.full_name,
+      nickname: emp.nickname ?? "",
+      phone: emp.phone ?? "",
+      email: emp.email ?? "",
+      department: emp.department,
+      position: emp.position ?? "",
+      base_salary: String(emp.base_salary ?? ""),
+      commission_rate: String(emp.commission_rate ?? ""),
+      start_date: emp.start_date ?? today,
+    });
+    setShowModal(true);
+  };
+
+  const handleCreateHRPR = async () => {
+    if (!prForm.supplier_name || !prForm.description) return;
+    setPrSaving(true);
+    const poDocNum = await generateDocNumber("PO");
+    const total = Number(prForm.amount) || 0;
+    const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      po_number: poDocNum,
+      supplier_name: prForm.supplier_name,
+      items: [{ name: prForm.description, qty: 1, unit: "รายการ", unit_price: total }],
+      total_amount: total,
+      status: "draft",
+      requested_by: user?.full_name ?? user?.email ?? "Unknown",
+      notes: prForm.notes,
+    }).select().single();
+    if (poErr) { setPrSaving(false); return; }
+    if (poData) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `${poDocNum} | ฝ่ายบุคคล — ${prForm.supplier_name} — ${prForm.description} | โดย ${user?.full_name ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
+        source_record_id: poData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: total,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      await createNotification({
+        type: "approval",
+        title: "ขอสั่งซื้ออุปกรณ์สำนักงาน (ฝ่ายบุคคล)",
+        message: `จาก ${user?.full_name ?? "ฝ่ายบุคคล"} · ${prForm.supplier_name}${total > 0 ? ` ฿${total.toLocaleString("th-TH")}` : ""} · ส่งให้ผู้จัดการพิจารณา`,
+        from_dept: "ฝ่ายบุคคล",
+      });
+    }
+    setPrSaving(false);
+    setShowPRModal(false);
+    setPrForm({ supplier_name: "", description: "", amount: "", notes: "" });
+    setHrToast({ msg: "ส่งคำขออนุมัติแล้ว", type: "success" });
   };
 
   return (
     <>
       {hrToast && <Toast message={hrToast.msg} type={hrToast.type} onClose={() => setHrToast(null)} />}
       <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
-        <div className="flex gap-2">
+        <DeptAIChat dept="hr" label="AI ฝ่ายบุคคล" />
+        <DeptBriefingPanel dept="hr" label="ฝ่ายบุคคล" />
+        <div className="mt-3 flex gap-2">
           {(["บุคคล", "เงินเดือน", "การลา"] as const).map(t => (
             <button key={t} onClick={() => setHrTab(t)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
@@ -1573,9 +2304,13 @@ function HRContent() {
             <p className="text-sm font-semibold text-aviva-text">ยื่นคำขอลา</p>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ชื่อพนักงาน *</label>
-              <input type="text" value={leaveForm.employee_name} onChange={e => setLeaveForm({...leaveForm, employee_name: e.target.value})}
-                placeholder="ชื่อ-นามสกุล"
-                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              <select value={leaveForm.employee_name} onChange={e => setLeaveForm({...leaveForm, employee_name: e.target.value})}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <option value="">— เลือกพนักงาน —</option>
+                {employees.filter(e => e.status === "active").map(e => (
+                  <option key={e.id} value={e.full_name}>{e.full_name} ({e.department})</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา</label>
@@ -1607,21 +2342,53 @@ function HRContent() {
               {leaveSaving ? "กำลังส่ง..." : "ส่งคำขอลา"}
             </button>
           </GlassCard>
-          <SectionHeader title="ประวัติคำขอลา" />
+          <div className="flex items-center justify-between">
+            <SectionHeader title="ประวัติคำขอลา" />
+            {leaveList.length > 0 && (
+              <button onClick={() => downloadCsv(`leave-requests-${new Date().toISOString().slice(0, 10)}`,
+                ["พนักงาน", "ประเภทลา", "ตั้งแต่", "ถึง", "เหตุผล", "สถานะ", "วันที่ยื่น"],
+                leaveList.map(l => [l.employee_name, l.leave_type, l.date_from, l.date_to, l.reason, l.status, l.created_at ? new Date(l.created_at).toLocaleDateString("th-TH") : ""]))}
+                className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
+                CSV
+              </button>
+            )}
+          </div>
           {leaveLoading ? <div className="h-12 rounded-xl bg-aviva-card/50 animate-pulse" /> : leaveList.length === 0 ? (
             <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีคำขอลา</p></GlassCard>
-          ) : leaveList.map(l => (
-            <GlassCard key={l.id} className="p-3 flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
-                <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
-              </div>
-              <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0",
-                l.status === "approved" ? "bg-green-500/20 text-green-400" :
-                l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
-              )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
-            </GlassCard>
-          ))}
+          ) : (() => {
+            const used: Record<string, number> = {};
+            leaveList.filter(x => x.status === "approved").forEach(x => {
+              const k = `${x.employee_name}|${x.leave_type}`;
+              used[k] = (used[k] ?? 0) + leaveDays(x.date_from, x.date_to);
+            });
+            return leaveList.map(l => {
+              const quota = LEAVE_QUOTA[l.leave_type];
+              const u = used[`${l.employee_name}|${l.leave_type}`] ?? 0;
+              const over = quota != null && u > quota;
+              return (
+                <GlassCard key={l.id} className="p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
+                      <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
+                      {quota != null && (
+                        <p className={clsx("text-[10px] mt-0.5", over ? "text-red-400 font-semibold" : "text-aviva-secondary/70")}>
+                          {l.leave_type}สะสม {u}/{quota} วัน{over ? " ⚠ เกินสิทธิ์" : ""}
+                        </p>
+                      )}
+                    </div>
+                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0",
+                      l.status === "approved" ? "bg-green-500/20 text-green-400" :
+                      l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
+                    )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
+                  </div>
+                  <div className="mt-1.5">
+                    <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} templates={leaveTemplates(l)} />
+                  </div>
+                </GlassCard>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -1679,12 +2446,24 @@ function HRContent() {
         </GlassCard>
       )}
 
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> เพิ่มพนักงาน
+      {/* Add button + Export */}
+      <div className="flex gap-2">
+        <button onClick={() => setShowModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm">
+          <Plus size={16} /> เพิ่มพนักงาน
+        </button>
+        <button onClick={() => {
+          const rows = [["ชื่อ","ฝ่าย","ตำแหน่ง","เงินเดือน","สถานะ","วันเริ่มงาน"]];
+          employees.forEach(e => rows.push([e.full_name, e.department, e.position, String(e.base_salary), e.status, e.start_date]));
+          const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+          const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(csv); a.download = "employees.csv"; a.click();
+        }} className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary px-3 py-3 rounded-2xl text-xs">
+          <Download size={14} /> CSV
+        </button>
+      </div>
+      <button onClick={() => setShowPRModal(true)}
+        className="w-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-semibold py-2.5 rounded-2xl text-sm">
+        <ShoppingCart size={15} /> ขอสั่งซื้ออุปกรณ์สำนักงาน
       </button>
 
       {/* Dept Filter */}
@@ -1751,13 +2530,21 @@ function HRContent() {
                       )}
                     </div>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-1 rounded-full flex-shrink-0",
-                    emp.status === "active"
-                      ? "bg-green-500/20 text-green-400"
-                      : "bg-gray-500/20 text-gray-400"
-                  )}>
-                    {emp.status === "active" ? "ทำงานอยู่" : "ลาออก"}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span className={clsx("text-[10px] px-2 py-1 rounded-full",
+                      emp.status === "active"
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-gray-500/20 text-gray-400"
+                    )}>
+                      {emp.status === "active" ? "ทำงานอยู่" : "ลาออก"}
+                    </span>
+                    {(user?.isAdmin || user?.isManager) && (
+                      <button onClick={() => openEditEmployee(emp)}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 flex items-center gap-1">
+                        <Pencil size={9} /> แก้ไข
+                      </button>
+                    )}
+                  </div>
                 </div>
               </GlassCard>
             ))
@@ -1772,8 +2559,8 @@ function HRContent() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">เพิ่มพนักงาน</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <h2 className="text-lg font-bold text-aviva-text">{editingEmployee ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มพนักงาน"}</h2>
+              <button onClick={() => { setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -1847,8 +2634,21 @@ function HRContent() {
             </div>
             <button onClick={handleSave} disabled={saving || !form.full_name}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : "เพิ่มพนักงาน"}
+              {saving ? "กำลังบันทึก..." : editingEmployee ? "บันทึกการแก้ไข" : "เพิ่มพนักงาน"}
             </button>
+            {editingEmployee && (
+              editingEmployee.status === "active" ? (
+                <button onClick={() => offboardEmployee(editingEmployee)} disabled={saving}
+                  className="w-full bg-red-500/15 text-red-400 border border-red-500/30 font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
+                  บันทึกการพ้นสภาพ (ลาออก/เลิกจ้าง)
+                </button>
+              ) : (
+                <button onClick={() => reactivateEmployee(editingEmployee)} disabled={saving}
+                  className="w-full bg-green-500/15 text-green-400 border border-green-500/30 font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
+                  คืนสภาพ (กลับเข้าทำงาน)
+                </button>
+              )
+            )}
           </div>
         </div>
       )}
@@ -1903,6 +2703,49 @@ function HRContent() {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase Request Modal — HR */}
+      {showPRModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">ขอสั่งซื้ออุปกรณ์สำนักงาน</h2>
+              <button onClick={() => setShowPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / ร้านค้า *</label>
+                <input type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
+                  placeholder="ชื่อร้าน / บริษัท"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
+                <input type="text" value={prForm.description} onChange={e => setPrForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="เช่น กระดาษ A4 x 10 รีม, ปากกา x 20 ด้าม"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
+                <input type="number" value={prForm.amount} onChange={e => setPrForm(p => ({ ...p, amount: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="รายละเอียดเพิ่มเติม"
+                  rows={2}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+            <button onClick={handleCreateHRPR} disabled={prSaving || !prForm.supplier_name || !prForm.description}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {prSaving ? "กำลังส่งคำขอ..." : "ส่งคำขออนุมัติ"}
+            </button>
           </div>
         </div>
       )}
@@ -1971,7 +2814,7 @@ function AfterSalesContent() {
   const [form, setForm] = useState(emptyClaimForm);
   const [saving, setSaving] = useState(false);
   const [kpiModalAS, setKpiModalAS] = useState<"all" | "pending" | "in_progress" | "resolved" | null>(null);
-  const [asToast, setAsToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [resolveScore, setResolveScore] = useState<number | null>(null);
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
@@ -1980,6 +2823,23 @@ function AfterSalesContent() {
   };
 
   useEffect(() => { fetchClaims(); }, []);
+
+  // UX-10: ดึงผู้รับผิดชอบจากพนักงานฝ่ายก่อสร้าง (fallback เป็นรายการเริ่มต้นถ้าไม่มีข้อมูล)
+  const [assignees, setAssignees] = useState<string[]>(ASSIGNED_TO_OPTIONS);
+  useEffect(() => {
+    supabase.from("employees").select("full_name").eq("status", "active").eq("department", "ฝ่ายก่อสร้าง")
+      .then(({ data }) => {
+        const names = ((data ?? []) as { full_name: string }[]).map(e => e.full_name).filter(Boolean);
+        if (names.length) setAssignees(names);
+      });
+  }, []);
+
+  // ผูกกับแปลงจริง (เลิก free-text) เพื่อวิเคราะห์ defect/เคลมต่อแปลงได้
+  const [houseOpts, setHouseOpts] = useState<{ plot_number: number | null; house_number: string }[]>([]);
+  useEffect(() => {
+    supabase.from("houses").select("plot_number,house_number").eq("project_id", PROJECT_ID).order("plot_number")
+      .then(({ data }) => setHouseOpts((data ?? []) as { plot_number: number | null; house_number: string }[]));
+  }, []);
 
   const counts = {
     pending:     claims.filter(c => c.status === "pending").length,
@@ -2013,8 +2873,9 @@ function AfterSalesContent() {
     await createNotification({
       type: "claim",
       title: `แจ้งซ่อมใหม่ — ${docNum}`,
-      message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description}`,
+      message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description} · ผู้รับผิดชอบ: ${form.assigned_to}`,
       from_dept: "ฝ่ายหลังการขาย",
+      to_dept: "ฝ่ายก่อสร้าง",
     });
     setSaving(false);
     setShowModal(false);
@@ -2024,7 +2885,14 @@ function AfterSalesContent() {
 
   const handleUpdateStatus = async (id: string, newStatus: Claim["status"]) => {
     const claim = claims.find(c => c.id === id);
-    await supabase.from("warranty_claims").update({ status: newStatus }).eq("id", id);
+    // C5: บังคับให้คะแนนความพึงพอใจก่อนปิดงาน (กันค่า null ทำให้ค่าเฉลี่ยไม่ครบ)
+    if (newStatus === "resolved" && !resolveScore) {
+      if (typeof window !== "undefined") window.alert("กรุณาให้คะแนนความพึงพอใจลูกค้า (1-5 ดาว) ก่อนปิดงาน");
+      return;
+    }
+    const updateData: Record<string, unknown> = { status: newStatus };
+    if (newStatus === "resolved" && resolveScore) updateData.satisfaction_score = resolveScore;
+    await supabase.from("warranty_claims").update(updateData).eq("id", id);
     const statusTh: Record<string, string> = { pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ", resolved: "แก้ไขแล้ว" };
     if (claim) {
       await createNotification({
@@ -2036,12 +2904,14 @@ function AfterSalesContent() {
       });
     }
     setSelectedClaim(null);
+    setResolveScore(null);
     fetchClaims();
   };
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-      {asToast && <Toast message={asToast.msg} type={asToast.type} onClose={() => setAsToast(null)} />}
+      <DeptAIChat dept="after-sales" label="AI ฝ่ายหลังการขาย" />
+      <DeptBriefingPanel dept="after-sales" label="ฝ่ายหลังการขาย" />
       {/* Status Summary */}
       <div className="grid grid-cols-4 gap-2">
         {([
@@ -2074,13 +2944,23 @@ function AfterSalesContent() {
         message="Claims ที่ค้างเกิน 7 วันควรได้รับการดำเนินการทันที ตรวจสอบสาเหตุและมอบหมายผู้รับผิดชอบให้ชัดเจน"
       />
 
-      {/* Add button */}
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
-      >
-        <Plus size={16} /> แจ้งซ่อม
-      </button>
+      {/* Add + Export */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm"
+        >
+          <Plus size={16} /> แจ้งซ่อม
+        </button>
+        <button
+          onClick={() => downloadCsv(`warranty-claims-${new Date().toISOString().slice(0, 10)}`,
+            ["ลูกค้า", "บ้านเลขที่", "ประเภท", "รายละเอียด", "สถานะ", "ผู้รับผิดชอบ", "นัดวันที่", "คะแนนพอใจ", "วันที่แจ้ง"],
+            claims.map(c => [c.customer_name, c.house_number, c.issue_type, c.description, c.status, c.assigned_to, c.scheduled_date, c.satisfaction_score, c.created_at ? new Date(c.created_at).toLocaleDateString("th-TH") : ""]))}
+          className="px-4 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary font-bold rounded-2xl text-xs"
+        >
+          CSV
+        </button>
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2">
@@ -2166,10 +3046,13 @@ function AfterSalesContent() {
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">บ้าน/แปลงที่</label>
-                <input type="text" value={form.house_number}
+                <select value={form.house_number}
                   onChange={e => setForm({ ...form, house_number: e.target.value })}
-                  placeholder="เช่น แปลงที่ 5"
-                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="">— เลือกแปลง —</option>
+                  {houseOpts.map(h => <option key={h.house_number} value={h.house_number}>{h.house_number}</option>)}
+                  <option value="ส่วนกลาง">ส่วนกลาง / อื่นๆ</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2183,7 +3066,7 @@ function AfterSalesContent() {
                   <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
                   <select value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    {ASSIGNED_TO_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                    {assignees.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
               </div>
@@ -2233,6 +3116,19 @@ function AfterSalesContent() {
                   {statusConfig[s].label}
                 </button>
               ))}
+            </div>
+            <div>
+              <p className="text-xs text-aviva-secondary mb-2">คะแนนความพึงพอใจลูกค้า (ถ้ามี):</p>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setResolveScore(resolveScore === n ? null : n)}
+                    className={clsx("flex-1 py-1.5 rounded-lg text-sm font-bold border transition-all",
+                      resolveScore === n ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                    )}>
+                    {n}⭐
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -2298,31 +3194,10 @@ interface ApprovalLog {
   rejection_comment: string | null;
   amount: number | null;
   created_at: string;
+  submitted_by_user_id: string | null;
 }
 
 type ApprovalsFilterTab = "pending" | "approved" | "rejected";
-
-const APPR_DEPT: Record<string, string> = {
-  Material_Purchase: "ฝ่ายก่อสร้าง",
-  Finance_Approval: "ฝ่ายการเงิน",
-  Installment_Review: "ฝ่ายก่อสร้าง",
-  Leave_Request: "ฝ่ายบุคคล",
-  Document_Approval: "ฝ่ายออฟฟิศ",
-  Booking_Deposit: "ฝ่ายขาย",
-  Contract_Approval: "ฝ่ายขาย",
-  Marketing_Budget: "ฝ่ายการตลาด",
-};
-
-const APPR_LABEL: Record<string, string> = {
-  Material_Purchase: "ขออนุมัติจัดซื้อวัสดุ",
-  Finance_Approval: "ขออนุมัติรายจ่าย",
-  Installment_Review: "ตรวจสอบงวดงาน",
-  Leave_Request: "ขออนุมัติการลา",
-  Document_Approval: "ขออนุมัติเอกสาร",
-  Booking_Deposit: "อนุมัติเงินจอง",
-  Contract_Approval: "อนุมัติสัญญาซื้อขาย",
-  Marketing_Budget: "อนุมัติงบการตลาด",
-};
 
 function fmtAmt(n: number) {
   if (n >= 1_000_000) return `฿${(n / 1_000_000).toFixed(1)}M`;
@@ -2347,10 +3222,12 @@ function ApprovalsContent() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
   const [saving, setSaving] = useState(false);
+  const [verifyLog, setVerifyLog] = useState<ApprovalLog | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   const fetchLogs = () => {
     supabase.from("approval_logs").select("*")
+      .eq("project_id", PROJECT_ID)
       .order("action_timestamp", { ascending: false, nullsFirst: true })
       .limit(100)
       .then(({ data }) => { setLogs((data as ApprovalLog[]) ?? []); setLoading(false); });
@@ -2390,6 +3267,7 @@ function ApprovalsContent() {
         workflow_type: log.workflow_type,
         source_doc_index: `[2nd Approval] ${log.source_doc_index}`,
         source_record_id: log.source_record_id,
+        submitted_by_user_id: log.submitted_by_user_id ?? null,
         current_approver_role: "admin",
         action_taken: "Pending",
         amount: log.amount,
@@ -2405,20 +3283,30 @@ function ApprovalsContent() {
     const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log?.source_record_id) {
-      if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
+      if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
-      else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "approved", approved_by: user?.full_name ?? user?.email }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_by_role: user?.role, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Contract_Approval") {
+        // Group C: อนุมัติแล้วจึงปิดการขายจริง (รับรู้รายได้ + บ้าน sold + lead=Closed Deal)
+        const fin = await finalizeSale(log.source_record_id, user?.full_name ?? user?.email ?? "ผู้จัดการ", user?.id);
+        broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: user?.full_name ?? user?.email, byUserId: user?.id });
+      }
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
       setToast({ msg: `อนุมัติแล้ว — ${log.source_doc_index}`, type: "success" });
       await createNotification({ type: "success", title: `อนุมัติแล้ว — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`, from_dept: dept, to_dept: dept });
     }
+    if (log?.source_record_id) {
+      await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: true, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager" });
+    }
     setSaving(false);
     fetchLogs();
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (id: string, commentArg?: string) => {
     setSaving(true);
     const log = logs.find(l => l.approval_id === id);
 
@@ -2429,17 +3317,30 @@ function ApprovalsContent() {
       return;
     }
 
-    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
+    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: commentArg ?? rejectComment }).eq("approval_id", id);
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log?.source_record_id) {
       if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Material_Purchase") await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Document_Approval") await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Finance_Approval") await supabase.from("approvals").update({ status: "rejected", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "rejected", approved_by: user?.full_name ?? user?.email, approved_by_role: user?.role, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+      else if (log.workflow_type === "Booking_Deposit") {
+        // ปฏิเสธเงินจอง → คืนสถานะลูกค้าเป็น New Lead + ปล่อยแปลงกลับเป็นว่าง (ให้ตรงกับหน้า /approvals)
+        const { data: lead } = await supabase.from("leads").select("plot_number").eq("id", log.source_record_id).maybeSingle();
+        await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
+        const plot = (lead as { plot_number?: number } | null)?.plot_number;
+        if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+      }
+      else if (log.workflow_type === "Contract_Approval") await supabase.from("leads").update({ status: "Loan Approved" }).eq("id", log.source_record_id);
     }
     if (log) {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
       setToast({ msg: `ปฏิเสธแล้ว — ${log.source_doc_index}`, type: "info" });
       await createNotification({ type: "info", title: `ปฏิเสธ — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`, from_dept: dept, to_dept: dept });
+    }
+    if (log?.source_record_id) {
+      await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: false, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager", conditionNote: (commentArg ?? rejectComment) || undefined });
     }
     setSaving(false);
     setRejectingId(null);
@@ -2480,7 +3381,6 @@ function ApprovalsContent() {
           filtered.map((log) => {
             const docParts = log.source_doc_index.split(" | ");
             const docNum = docParts[0];
-            const docDesc = docParts.slice(1).join(" | ");
             const slaBadge = getSlaBadge(log);
             return (
             <GlassCard key={log.approval_id} className={clsx("p-4 space-y-3", slaBadge?.cls.includes("red") && "border border-red-500/30")}>
@@ -2499,10 +3399,8 @@ function ApprovalsContent() {
                       </span>
                     )}
                   </div>
-                  {docDesc && <p className="text-xs text-aviva-text mt-0.5">{docDesc}</p>}
-                  <p className="text-xs text-aviva-secondary">{APPR_LABEL[log.workflow_type] ?? log.workflow_type} · {log.current_approver_role}</p>
                   {log.action_timestamp && (
-                    <p className="text-[10px] text-aviva-secondary/60">
+                    <p className="text-[10px] text-aviva-secondary/60 mt-0.5">
                       {new Date(log.action_timestamp).toLocaleDateString("th-TH")}
                     </p>
                   )}
@@ -2519,6 +3417,8 @@ function ApprovalsContent() {
                 </div>
               </div>
 
+              <ApprovalRouteBar log={log} />
+
               {log.rejection_comment && (
                 <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
                   เหตุผล: {log.rejection_comment}
@@ -2526,16 +3426,10 @@ function ApprovalsContent() {
               )}
 
               {log.action_taken === "Pending" && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleApprove(log.approval_id)} disabled={saving}
-                    className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <CheckCircle size={12} /> อนุมัติ
-                  </button>
-                  <button onClick={() => { setRejectingId(log.approval_id); setRejectComment(""); }} disabled={saving}
-                    className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
-                    <XCircle size={12} /> ปฏิเสธ
-                  </button>
-                </div>
+                <button onClick={() => setVerifyLog(log)} disabled={saving}
+                  className="w-full py-2.5 bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  <ClipboardCheck size={13} /> ตรวจสอบ &amp; อนุมัติ
+                </button>
               )}
             </GlassCard>
           );})
@@ -2559,6 +3453,31 @@ function ApprovalsContent() {
           </div>
         </div>
       )}
+      {verifyLog && (
+        <ApprovalVerifyModal
+          log={verifyLog as VerifyLog}
+          logId={verifyLog.approval_id}
+          attachedBy={user?.full_name ?? user?.email ?? "ผู้ใช้"}
+          busy={saving}
+          onClose={() => setVerifyLog(null)}
+          onApprove={async (items) => {
+            const lg = verifyLog; setVerifyLog(null);
+            await handleApprove(lg.approval_id);
+            const s = summarizeApproval(lg);
+            await logAction("approvals", "verify_approve",
+              `ตรวจสอบ & อนุมัติ — ${s.subject} (จาก ${s.fromName})${lg.amount ? ` ฿${Number(lg.amount).toLocaleString("th-TH")}` : ""} · ยืนยัน: ${items.join(", ")}`,
+              lg.source_record_id ?? undefined, { department: user?.department });
+          }}
+          onReject={async (c) => {
+            const lg = verifyLog; setVerifyLog(null);
+            await handleReject(lg.approval_id, c);
+            const s = summarizeApproval(lg);
+            await logAction("approvals", "verify_reject",
+              `ตรวจสอบ & ปฏิเสธ — ${s.subject} (จาก ${s.fromName}) · เหตุผล: ${c}`,
+              lg.source_record_id ?? undefined, { department: user?.department });
+          }}
+        />
+      )}
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
@@ -2577,6 +3496,29 @@ interface PurchaseOrder {
   total_amount: number; status: string; requested_by: string; created_at: string;
 }
 
+// โหมด A — ใบสั่งซื้อวัสดุ (PO) ฝั่งจัดซื้อสำนักงาน
+function poTemplates(po: PurchaseOrder): DocTemplate[] {
+  return [{
+    key: "po", label: "ใบสั่งซื้อวัสดุ", docType: "po",
+    fixedNumber: po.po_number ?? undefined,
+    render: (docNumber) => {
+      const items = po.items ?? [];
+      const rows = items.map((it, i) => [i + 1, it.name, it.qty, it.unit, it.unit_price, it.qty * it.unit_price]);
+      const total = po.total_amount ?? items.reduce((s, it) => s + it.qty * it.unit_price, 0);
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ผู้จำหน่าย</th><td>${esc(po.supplier_name)}</td></tr>
+          <tr><th>ผู้ขอซื้อ</th><td>${esc(po.requested_by ?? "-")}</td></tr>
+        </tbody></table>
+        ${renderItemsTable(["ลำดับ", "รายการ", "จำนวน", "หน่วย", "ราคา/หน่วย", "รวม"], rows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเป็นเงินทั้งสิ้น</td><td style="text-align:right;font-weight:700">${total.toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบสั่งซื้อวัสดุ", docNumber, bodyHtml: body, signLabels: ["ผู้ขอซื้อ", "ผู้อนุมัติ", "ผู้จำหน่าย"] });
+    },
+  }];
+}
+
 function MaterialsContent() {
   const user = useCurrentUser();
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -2584,7 +3526,8 @@ function MaterialsContent() {
   const [activeView, setActiveView] = useState<"stock" | "po">("stock");
   const [loading, setLoading] = useState(true);
   const [showPOModal, setShowPOModal] = useState(false);
-  const [poForm, setPoForm] = useState({ supplier_name: "", items: "", notes: "", delivery_date: "" });
+  const [poForm, setPoForm] = useState({ supplier_name: "", notes: "", delivery_date: "" });
+  const [poItemRows, setPoItemRows] = useState([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
   const [saving, setSaving] = useState(false);
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
@@ -2618,14 +3561,14 @@ function MaterialsContent() {
   };
 
   const handleCreatePO = async () => {
-    if (!poForm.supplier_name || !poForm.items) return;
+    if (!poForm.supplier_name || poItemRows.every(r => !r.name)) return;
     setSaving(true);
     const poDocNum = await generateDocNumber("PO");
-    let parsedItems = [];
-    try { parsedItems = JSON.parse(poForm.items); } catch { parsedItems = [{ name: poForm.items, qty: 1, unit: "ชิ้น", unit_price: 0 }]; }
-    const total = parsedItems.reduce((s: number, i: { qty: number; unit_price: number }) => s + (i.qty * i.unit_price), 0);
+    const parsedItems = poItemRows.filter(r => r.name).map(r => ({ name: r.name, qty: Number(r.qty) || 1, unit: r.unit || "ชิ้น", unit_price: Number(r.unit_price) || 0 }));
+    const total = parsedItems.reduce((s, i) => s + (i.qty * i.unit_price), 0);
     const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
       project_id: PROJECT_ID,
+      po_number: poDocNum,
       supplier_name: poForm.supplier_name,
       items: parsedItems,
       total_amount: total,
@@ -2639,6 +3582,7 @@ function MaterialsContent() {
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
         source_doc_index: `${poDocNum} | PO — ${poForm.supplier_name}${poForm.delivery_date ? ` (กำหนดส่ง ${poForm.delivery_date})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        submitted_by_user_id: user?.id ?? null,
         source_record_id: poData.id,
         current_approver_role: "manager",
         action_taken: "Pending",
@@ -2650,12 +3594,13 @@ function MaterialsContent() {
     await createNotification({
       type: "approval",
       title: "ใบสั่งซื้อ (PO) ใหม่",
-      message: `${poForm.supplier_name} — ฿${total.toLocaleString("th-TH")} — โดย ${user?.full_name ?? "Unknown"}`,
+      message: `จาก ${user?.full_name ?? "ฝ่ายจัดซื้อ"} · ${poForm.supplier_name} ฿${total.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
       from_dept: "ฝ่ายก่อสร้าง",
     });
     setSaving(false);
     setShowPOModal(false);
-    setPoForm({ supplier_name: "", items: "", notes: "", delivery_date: "" });
+    setPoForm({ supplier_name: "", notes: "", delivery_date: "" });
+    setPoItemRows([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
     fetchMaterialsData();
   };
 
@@ -2671,6 +3616,24 @@ function MaterialsContent() {
         from_dept: "ฝ่ายก่อสร้าง",
       });
     }
+    fetchMaterialsData();
+  };
+
+  // A4: รับของจาก PO ที่อนุมัติ → อัปเดตสต็อกวัสดุ + บันทึก goods_receipts + PO=received
+  const handleReceivePO = async (po: PurchaseOrder) => {
+    if (!Array.isArray(po.items) || po.items.length === 0) return;
+    for (const item of po.items) {
+      const mat = materials.find(m => m.name === item.name);
+      if (mat) await supabase.from("materials").update({ current_stock: (mat.current_stock ?? 0) + Number(item.qty) }).eq("id", mat.id);
+    }
+    await supabase.from("goods_receipts").insert({
+      grn_number: `GRN-${Date.now().toString().slice(-8)}`, po_id: po.id,
+      received_by: user?.full_name ?? user?.email ?? null,
+      received_date: new Date().toISOString().split("T")[0],
+      items: po.items, status: "received", project_id: PROJECT_ID,
+    });
+    await supabase.from("purchase_orders").update({ status: "received" }).eq("id", po.id);
+    await createNotification({ type: "success", title: "รับของเข้าสต็อกแล้ว", message: `${po.po_number ?? ""} — ${po.supplier_name} (อัปเดตสต็อก ${po.items.length} รายการ)`, from_dept: "ฝ่ายก่อสร้าง" });
     fetchMaterialsData();
   };
 
@@ -2773,10 +3736,19 @@ function MaterialsContent() {
                     ))}
                   </div>
                 )}
+                <div className="mt-0.5">
+                  <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} templates={poTemplates(po)} />
+                </div>
                 {po.status === "pending_approval" && (user?.isManager || user?.isAdmin) && (
                   <button onClick={() => handlePOApprove(po.id)}
                     className="w-full py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
                     <CheckCircle size={12} /> อนุมัติ PO
+                  </button>
+                )}
+                {po.status === "approved" && (
+                  <button onClick={() => handleReceivePO(po)}
+                    className="w-full py-1.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                    📦 รับของเข้าสต็อก
                   </button>
                 )}
               </GlassCard>
@@ -2801,9 +3773,28 @@ function MaterialsContent() {
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
-                <textarea value={poForm.items} onChange={e => setPoForm(p => ({ ...p, items: e.target.value }))}
-                  placeholder={'[{"name":"เหล็กเส้น 12mm","qty":100,"unit":"เส้น","unit_price":85}]'}
-                  rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 resize-none" />
+                <div className="space-y-2">
+                  <datalist id="po-mat-names">{materials.map(m => <option key={m.id} value={m.name} />)}</datalist>
+                  {poItemRows.map((row, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-1.5 items-center">
+                      <input value={row.name} list="po-mat-names" onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                        placeholder="ชื่อวัสดุ" className="col-span-4 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <input type="number" value={row.qty} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, qty: e.target.value } : x))}
+                        placeholder="จำนวน" className="col-span-2 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <input value={row.unit} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, unit: e.target.value } : x))}
+                        placeholder="หน่วย" className="col-span-2 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <input type="number" value={row.unit_price} onChange={e => setPoItemRows(r => r.map((x, i) => i === idx ? { ...x, unit_price: e.target.value } : x))}
+                        placeholder="ราคา/หน่วย" className="col-span-3 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/60" />
+                      <button onClick={() => setPoItemRows(r => r.filter((_, i) => i !== idx))} disabled={poItemRows.length === 1}
+                        className="col-span-1 text-red-400/60 disabled:opacity-20 flex items-center justify-center"><X size={12} /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => setPoItemRows(r => [...r, { name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }])}
+                    className="text-xs text-aviva-gold/70 flex items-center gap-1 mt-1"><Plus size={12} /> เพิ่มรายการ</button>
+                  {poItemRows.some(r => r.name) && (
+                    <p className="text-xs text-aviva-secondary text-right">รวม: ฿{poItemRows.filter(r => r.name).reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.unit_price) || 0), 0).toLocaleString("th-TH")}</p>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">กำหนดส่งของ</label>
@@ -2816,7 +3807,7 @@ function MaterialsContent() {
                   placeholder="หมายเหตุเพิ่มเติม" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
-            <button onClick={handleCreatePO} disabled={saving || !poForm.supplier_name}
+            <button onClick={handleCreatePO} disabled={saving || !poForm.supplier_name || poItemRows.every(r => !r.name)}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
               {saving ? "กำลังบันทึก..." : "สร้าง PO"}
             </button>
@@ -2833,6 +3824,7 @@ function MaterialsContent() {
 interface PayrollEmployee extends Employee {
   commission_amount?: number;
   sso?: number;
+  tax?: number;
   net?: number;
 }
 
@@ -2842,7 +3834,14 @@ function PayrollContent() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payslipEmp, setPayslipEmp] = useState<PayrollEmployee | null>(null);
-  const [specialIncomes, setSpecialIncomes] = useState<Record<string, string>>({});
+  // UX-04: persist รายได้พิเศษไว้ใน sessionStorage กันหายเมื่อสลับแท็บ (PayrollContent unmount/remount)
+  const [specialIncomes, setSpecialIncomes] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(sessionStorage.getItem("aviva_special_incomes") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem("aviva_special_incomes", JSON.stringify(specialIncomes)); } catch { /* ignore */ }
+  }, [specialIncomes]);
 
   useEffect(() => {
     supabase.from("employees").select("*").eq("status", "active")
@@ -2851,15 +3850,33 @@ function PayrollContent() {
   }, []);
 
   const calcSSO = (base: number) => Math.min(base * 0.05, 750);
-  const calcCommission = (emp: Employee) => 0;
+  const calcCommission = (emp: Employee) => Math.round((emp.base_salary * (emp.commission_rate ?? 0)) / 100);
+
+  const calcIncomeTax = (annual: number): number => {
+    if (annual <= 150000) return 0;
+    let tax = 0;
+    const brackets: [number, number, number][] = [
+      [150001, 300000, 0.05],
+      [300001, 500000, 0.10],
+      [500001, 750000, 0.15],
+      [750001, 1000000, 0.20],
+      [1000001, 2000000, 0.25],
+      [2000001, Infinity, 0.35],
+    ];
+    for (const [lo, hi, rate] of brackets) {
+      if (annual < lo) break;
+      tax += (Math.min(annual, hi) - lo) * rate;
+    }
+    return Math.round(tax / 12);
+  };
 
   const calcPayroll = (emp: Employee): PayrollEmployee => {
     const special = parseFloat(specialIncomes[emp.id] ?? "0") || 0;
     const commission = calcCommission(emp);
     const sso = calcSSO(emp.base_salary);
     const gross = emp.base_salary + commission + special;
-    const tax = gross > 26000 ? Math.round((gross - 26000) * 0.05) : 0;
-    return { ...emp, commission_amount: commission, sso, net: gross - sso - tax };
+    const tax = calcIncomeTax(gross * 12);
+    return { ...emp, commission_amount: commission, sso, tax, net: gross - sso - tax };
   };
 
   const totalNetPayroll = employees.reduce((sum, emp) => sum + (calcPayroll(emp).net ?? 0), 0);
@@ -2906,6 +3923,7 @@ function PayrollContent() {
       <p class="section-title">รายหัก</p>
       <table>
         <tr><td class="deduct">ประกันสังคม (5%, สูงสุด ฿750)</td><td class="deduct">-฿${(pr.sso ?? 0).toLocaleString("th-TH")}</td></tr>
+        <tr><td class="deduct">ภาษีเงินได้หัก ณ ที่จ่าย</td><td class="deduct">-฿${(pr.tax ?? 0).toLocaleString("th-TH")}</td></tr>
         <tr class="total-row"><td>เงินได้สุทธิ</td><td>฿${(pr.net ?? 0).toLocaleString("th-TH")}</td></tr>
       </table>
       <div class="sign">
@@ -2957,6 +3975,10 @@ function PayrollContent() {
                 <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
                   <p className="text-aviva-secondary">ประกันสังคม</p>
                   <p className="text-red-400 font-medium">-฿{(pr.sso ?? 0).toLocaleString("th-TH")}</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
+                  <p className="text-aviva-secondary">ภาษีหัก ณ ที่จ่าย</p>
+                  <p className="text-red-400 font-medium">-฿{(pr.tax ?? 0).toLocaleString("th-TH")}</p>
                 </div>
                 <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
                   <p className="text-aviva-secondary">รายได้พิเศษ</p>
@@ -3053,11 +4075,14 @@ interface CommunityMember {
   transferred_at: string | null;
 }
 
+interface CommunityHouse { id: string; house_number: string; land_size: number | null; }
+
 function CommunityContent() {
   const [members, setMembers] = useState<CommunityMember[]>([]);
+  const [houses, setHouses] = useState<CommunityHouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ owner_name: "", owner_phone: "", area_sqw: "" });
+  const [form, setForm] = useState({ house_id: "", owner_name: "", owner_phone: "", area_sqw: "" });
   const [saving, setSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "Paid" | "Unpaid">("all");
 
@@ -3066,7 +4091,11 @@ function CommunityContent() {
       .then(({ data }) => { setMembers((data as CommunityMember[]) ?? []); setLoading(false); });
   };
 
-  useEffect(() => { fetchMembers(); }, []);
+  useEffect(() => {
+    fetchMembers();
+    supabase.from("houses").select("id,house_number,land_size").eq("project_id", PROJECT_ID).order("plot_number").limit(31)
+      .then(({ data }) => setHouses((data as CommunityHouse[]) ?? []));
+  }, []);
 
   const fmtFee = (n: number) => `฿${Number(n).toLocaleString("th-TH")}`;
   const totalFee = members.reduce((s, m) => s + Number(m.annual_fee), 0);
@@ -3078,19 +4107,25 @@ function CommunityContent() {
     if (!form.owner_name || !form.area_sqw) return;
     setSaving(true);
     await supabase.from("community_members").insert({
+      house_id: form.house_id || null,
       owner_name: form.owner_name,
       owner_phone: form.owner_phone,
       area_sqw: Number(form.area_sqw),
+      annual_fee: Number(form.area_sqw) * 30,
       fee_status: "Unpaid",
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ owner_name: "", owner_phone: "", area_sqw: "" });
+    setForm({ house_id: "", owner_name: "", owner_phone: "", area_sqw: "" });
     fetchMembers();
   };
 
-  const handleMarkPaid = async (id: string) => {
-    await supabase.from("community_members").update({ fee_status: "Paid" }).eq("member_id", id);
+  const handleMarkPaid = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "Paid" ? "Unpaid" : "Paid";
+    await supabase.from("community_members").update({
+      fee_status: newStatus,
+      transferred_at: newStatus === "Paid" ? new Date().toISOString() : null,
+    }).eq("member_id", id);
     fetchMembers();
   };
 
@@ -3101,10 +4136,18 @@ function CommunityContent() {
         <p className="text-xs text-aviva-secondary">
           {loading ? "กำลังโหลด..." : `${members.length} สมาชิก · รวม ${fmtFee(totalFee)}`}
         </p>
-        <button onClick={() => { setForm({ owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-          <Plus size={14} /> เพิ่มสมาชิก
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => downloadCsv(`community-members-${new Date().toISOString().slice(0, 10)}`,
+            ["เจ้าของ", "เบอร์โทร", "พื้นที่(ตร.ว.)", "ค่าส่วนกลาง", "สถานะ", "วันที่ชำระ"],
+            members.map(m => [m.owner_name, m.owner_phone, m.area_sqw, m.annual_fee, m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ", m.transferred_at ? new Date(m.transferred_at).toLocaleDateString("th-TH") : ""]))}
+            className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
+            CSV
+          </button>
+          <button onClick={() => { setForm({ house_id: "", owner_name: "", owner_phone: "", area_sqw: "" }); setShowModal(true); }}
+            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            <Plus size={14} /> เพิ่มสมาชิก
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -3161,8 +4204,18 @@ function CommunityContent() {
                   )}>
                     {m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ"}
                   </span>
-                  {m.fee_status === "Unpaid" && (
-                    <button onClick={() => handleMarkPaid(m.member_id)}
+                  {m.fee_status === "Paid" ? (
+                    <>
+                      {m.transferred_at && (
+                        <span className="text-[9px] text-aviva-secondary">ชำระเมื่อ {new Date(m.transferred_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      )}
+                      <button onClick={() => handleMarkPaid(m.member_id, m.fee_status)}
+                        className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-lg">
+                        ยกเลิกการชำระ
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => handleMarkPaid(m.member_id, m.fee_status)}
                       className="text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg">
                       บันทึกรับชำระ
                     </button>
@@ -3183,6 +4236,20 @@ function CommunityContent() {
             <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
           </div>
           <div className="space-y-3">
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">แปลงบ้าน (ผูกกับทะเบียนบ้าน)</label>
+              <select value={form.house_id}
+                onChange={(e) => {
+                  const h = houses.find(h => h.id === e.target.value);
+                  setForm({ ...form, house_id: e.target.value, area_sqw: h?.land_size != null ? String(h.land_size) : form.area_sqw });
+                }}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <option value="">— ไม่ผูกแปลง (กรอกพื้นที่เอง) —</option>
+                {houses.map(h => (
+                  <option key={h.id} value={h.id}>{h.house_number}{h.land_size != null ? ` · ${h.land_size} ตร.ว.` : ""}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเจ้าของ *</label>
               <input type="text" value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
@@ -3262,7 +4329,7 @@ function DocumentsContent() {
   const [filter, setFilter] = useState<DocFilterCat>("all");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
+  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "", file_url: "", description: "" });
   const [saving, setSaving] = useState(false);
 
   const fetchDocs = () => {
@@ -3286,11 +4353,13 @@ function DocumentsContent() {
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
+    const docNum = await generateDocNumber("DOC");
     const { data: docData } = await supabase.from("documents").insert({
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
-      uploaded_by: form.uploaded_by,
+      doc_number: docNum,
+      uploaded_by: form.uploaded_by || user?.full_name || user?.email || "ไม่ทราบ",
       file_url: form.file_url || null,
       description: form.description || null,
       status: "pending",
@@ -3300,6 +4369,7 @@ function DocumentsContent() {
         workflow_type: "Document_Approval",
         source_doc_index: form.name,
         source_record_id: docData.id,
+        submitted_by_user_id: user?.id ?? null,
         current_approver_role: "manager",
         action_taken: "Pending",
         amount: null,
@@ -3315,7 +4385,7 @@ function DocumentsContent() {
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
+    setForm({ name: "", category: "Contract", uploaded_by: "", file_url: "", description: "" });
     fetchDocs();
   };
 
@@ -3324,6 +4394,7 @@ function DocumentsContent() {
     await supabase.from("documents").update({
       status: approve ? "approved" : "rejected",
       approved_by: user?.full_name ?? "Admin",
+      updated_at: new Date().toISOString(),
     }).eq("id", id);
     await supabase.from("approval_logs").update({ action_taken: approve ? "Approved" : "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Document_Approval").eq("action_taken", "Pending");
     if (doc) {
@@ -3340,6 +4411,7 @@ function DocumentsContent() {
   return (
     <>
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <DeptBriefingPanel dept="document" label="ฝ่ายเอกสาร" />
       <div className="flex items-center justify-between">
         <p className="text-xs text-aviva-secondary">
           {loading ? "กำลังโหลด..." : `${docs.length} ไฟล์`}
@@ -3527,9 +4599,16 @@ const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; construction
   { key: "after-sales", label: "หลังการขาย",    dept: "ฝ่ายหลังการขาย" },
   { key: "approvals",   label: "อนุมัติ",        managerOnly: true },
   { key: "materials",   label: "คลังวัสดุ",      constructionOnly: true },
-  { key: "documents",   label: "เอกสาร" },
+  { key: "documents",   label: "คลังเอกสาร" },
   { key: "community",   label: "ค่าส่วนกลาง",    adminOnly: true },
   { key: "audit",       label: "Audit Log",       adminOnly: true },
+];
+
+// ทางลัดสำหรับผู้บริหาร/ผจก.โครงการ — ย้ายมาจากแถบเมนูล่างเพื่อลดความแออัด
+// (ลิงก์ไปหน้าเต็ม ไม่ใช่ tab content)
+const MANAGER_LINKS: { label: string; href: string }[] = [
+  { label: "รายงาน", href: "/reports" },
+  { label: "ออกเอกสารขาย", href: "/documents/generate" },
 ];
 
 // ─── Audit Log Viewer ─────────────────────────────────────────────────────────
@@ -3575,7 +4654,17 @@ function AuditLogContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
-      <SectionHeader title="Audit Log" subtitle="ประวัติการดำเนินงานในระบบ" />
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Audit Log" subtitle="ประวัติการดำเนินงานในระบบ" />
+        {logs.length > 0 && (
+          <button onClick={() => downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}`,
+            ["โมดูล", "การกระทำ", "รายละเอียด", "ผู้ดำเนินการ", "บทบาท", "ฝ่าย", "เวลา"],
+            logs.map(l => [l.module, l.action, l.description, l.performed_by, l.performed_by_role, l.performed_by_dept, l.created_at ? new Date(l.created_at).toLocaleString("th-TH") : ""]))}
+            className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
+            CSV
+          </button>
+        )}
+      </div>
       <div className="flex gap-1.5 flex-wrap">
         {MODULES.map(m => (
           <button key={m} onClick={() => setFilterModule(m)}
@@ -3638,6 +4727,9 @@ export default function OfficePage() {
   });
 
   useEffect(() => {
+    // Deep-link: /office?tab=documents (ใช้ redirect จากหน้า /documents เดิม) — มาก่อน default ตามแผนก
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam && TABS.some(t => t.key === tabParam)) { setActiveTab(tabParam as OfficeTab); return; }
     if (user?.department === "ฝ่ายบัญชี") setActiveTab("accounting");
     else if (user?.department === "ฝ่ายการเงิน") setActiveTab("finance");
     else if (user?.department === "ฝ่ายบุคคล") setActiveTab("hr");
@@ -3666,6 +4758,15 @@ export default function OfficePage() {
               >
                 {label}
               </button>
+            ))}
+            {(user?.isManager || user?.isAdmin) && MANAGER_LINKS.map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="py-1.5 px-3 rounded-xl text-[11px] font-semibold border border-aviva-gold/30 bg-aviva-gold/10 text-aviva-gold transition-all whitespace-nowrap inline-flex items-center gap-1"
+              >
+                {label} <span className="text-[9px]">↗</span>
+              </Link>
             ))}
           </div>
         </div>

@@ -24,23 +24,25 @@ const PARTICLES: { left: number; top: number; delay: number; dur: number; e: str
   { left: 40, top: 92, delay: 0.1,  dur: 1.5, e: "🌟" },
 ];
 
-type EventType = "booking" | "contract" | "transfer";
+type EventType = "booking" | "contract" | "loan" | "transfer";
 
 interface Props {
   event: EventType | null;
   customerName?: string;
   plotNumber?: number | null;
   amount?: number | null;
+  salesPerson?: string | null;
   onClose: () => void;
 }
 
 const CONFIG: Record<EventType, { icon: string; title: string; subtitle: string; accent: string }> = {
   booking:  { icon: "🎉", title: "จองสำเร็จ!",           subtitle: "ลูกค้ายืนยันการจองเรียบร้อยแล้ว", accent: "text-yellow-400" },
   contract: { icon: "📝", title: "ทำสัญญาสำเร็จ!",       subtitle: "ลงนามสัญญาจะซื้อจะขายเรียบร้อยแล้ว", accent: "text-blue-400" },
+  loan:     { icon: "🏦", title: "อนุมัติสินเชื่อแล้ว!",  subtitle: "ธนาคารอนุมัติเงินกู้เรียบร้อย พร้อมเดินหน้าโอน", accent: "text-green-400" },
   transfer: { icon: "🏆", title: "ปิดการขายสำเร็จ! 🎊",  subtitle: "โอนกรรมสิทธิ์เรียบร้อย ยินดีด้วย!", accent: "text-green-400" },
 };
 
-export default function CelebrationModal({ event, customerName, plotNumber, amount, onClose }: Props) {
+export default function CelebrationModal({ event, customerName, plotNumber, amount, salesPerson, onClose }: Props) {
   useEffect(() => {
     if (!event) return;
     const t = setTimeout(onClose, 6000);
@@ -70,6 +72,9 @@ export default function CelebrationModal({ event, customerName, plotNumber, amou
             {plotNumber && <p className="text-xs text-aviva-gold mt-0.5">แปลงที่ {plotNumber}</p>}
             {amount && amount > 0 && (
               <p className="text-sm font-bold text-green-400 mt-1">฿{Number(amount).toLocaleString("th-TH")} บาท</p>
+            )}
+            {salesPerson && (
+              <p className="text-[11px] text-aviva-secondary mt-2 pt-2 border-t border-aviva-gold/10">พนักงานขาย: <span className="font-bold text-aviva-gold">{salesPerson}</span></p>
             )}
           </div>
         )}

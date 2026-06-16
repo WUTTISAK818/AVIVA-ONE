@@ -1,10 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList } from "lucide-react";
+import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList, HardHat, Bot, Lightbulb } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { useTheme } from "@/lib/theme-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import PushSetupCard from "@/components/PushSetupCard";
+import LineLinkCard from "@/components/LineLinkCard";
+import LineConfigCard from "@/components/LineConfigCard";
 import Link from "next/link";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -107,6 +110,9 @@ export default function SettingsPage() {
             ))}
           </div>
         </GlassCard>
+        <PushSetupCard />
+        <LineConfigCard />
+        <LineLinkCard />
         <GlassCard className="p-0 overflow-hidden">
           <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">ข้อมูลองค์กร</p>
           <Link href="/settings/manual" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
@@ -129,6 +135,11 @@ export default function SettingsPage() {
             <div className="flex-1"><p className="text-sm text-aviva-text">แบบฟอร์มมาตรฐาน</p><p className="text-xs text-aviva-secondary">8 แบบฟอร์ม FIN / INST / PO / WR / LEAVE / MKTG / BOOK / DOC</p></div>
             <ChevronRight size={16} className="text-aviva-secondary/50" />
           </Link>
+          <Link href="/settings/suggestions" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+            <div className="w-8 h-8 rounded-full bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center"><Lightbulb size={14} className="text-yellow-400" /></div>
+            <div className="flex-1"><p className="text-sm text-aviva-text">ข้อเสนอแนะ / ปรับปรุงแอป</p><p className="text-xs text-aviva-secondary">เสนอไอเดียพัฒนาแอป — ผู้บริหารพิจารณาอนุมัติก่อนส่งให้ผู้พัฒนา</p></div>
+            <ChevronRight size={16} className="text-aviva-secondary/50" />
+          </Link>
         </GlassCard>
 
         {user?.isManager && (
@@ -137,6 +148,16 @@ export default function SettingsPage() {
             <Link href="/settings/users" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
               <div className="w-8 h-8 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Users size={14} className="text-blue-400" /></div>
               <div className="flex-1"><p className="text-sm text-aviva-text">จัดการผู้ใช้</p><p className="text-xs text-aviva-secondary">เพิ่ม / แก้ไขผู้ใช้งานในระบบ</p></div>
+              <ChevronRight size={16} className="text-aviva-secondary/50" />
+            </Link>
+            <Link href="/settings/ai-experts" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+              <div className="w-8 h-8 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center"><Bot size={14} className="text-aviva-gold" /></div>
+              <div className="flex-1"><p className="text-sm text-aviva-text">ผู้เชี่ยวชาญ AI ประจำฝ่าย</p><p className="text-xs text-aviva-secondary">ตั้งชื่อ บทบาท น้ำเสียง และโมเดลของ AI แต่ละฝ่าย</p></div>
+              <ChevronRight size={16} className="text-aviva-secondary/50" />
+            </Link>
+            <Link href="/settings/contractors" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center"><HardHat size={14} className="text-amber-400" /></div>
+              <div className="flex-1"><p className="text-sm text-aviva-text">ผู้รับเหมา</p><p className="text-xs text-aviva-secondary">จัดการผู้รับเหมา + ผูกแปลง สำหรับแจ้งเตือน LINE/SMS</p></div>
               <ChevronRight size={16} className="text-aviva-secondary/50" />
             </Link>
           </GlassCard>
@@ -184,7 +205,7 @@ export default function SettingsPage() {
             {process.env.NEXT_PUBLIC_TARGET === "plus" ? "AVIVA Plus" : "AVIVA ONE"}
           </p>
           <p className="text-[11px] text-aviva-secondary/60">
-            Version {process.env.NEXT_PUBLIC_TARGET === "plus" ? "1.0.0" : "4.14"}
+            Version {process.env.NEXT_PUBLIC_TARGET === "plus" ? "1.0.0" : "5.39"}
           </p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>

@@ -31,6 +31,19 @@ interface ConstReport {
   created_at: string;
 }
 
+interface ApprovalEvt {
+  id: string;
+  workflow_type: string;
+  source_doc_index: string | null;
+  date: string;
+}
+
+interface LeadEvt {
+  id: string;
+  customer_name: string;
+  date: string;
+}
+
 const EVENT_TYPES = [
   { value: "general",      label: "ทั่วไป",      dot: "bg-blue-400" },
   { value: "meeting",      label: "ประชุม",       dot: "bg-yellow-400" },
@@ -64,8 +77,31 @@ const LEGEND = [
   { color: "bg-blue-400",   label: "ทั่วไป" },
   { color: "bg-purple-400", label: "บุคคล" },
   { color: "bg-amber-400",  label: "อนุมัติ" },
+  { color: "bg-aviva-gold", label: "ส่งมอบ" },
   { color: "bg-red-400",    label: "กำหนดส่ง" },
 ];
+
+// Map an event_type / source to the responsible department for role-scoped visibility.
+// Types not listed here (general, meeting, management, deadline) are shared → everyone sees them.
+const EVENT_DEPT: Record<string, string> = {
+  sales:        "ฝ่ายขาย",
+  construction: "ฝ่ายก่อสร้าง",
+  site_visit:   "ฝ่ายก่อสร้าง",
+  finance:      "ฝ่ายการเงิน",
+  hr:           "ฝ่ายบุคคล",
+  approval:     "ฝ่ายอนุมัติ",
+};
+
+const WF_LABEL: Record<string, string> = {
+  Booking_Deposit:         "เงินจอง",
+  Contract_Approval:       "อนุมัติสัญญา",
+  Material_Purchase:       "จัดซื้อวัสดุ",
+  Document_Approval:       "อนุมัติเอกสาร",
+  Finance_Approval:        "อนุมัติรายจ่าย",
+  Leave_Request:           "อนุมัติการลา",
+  Construction_Installment: "งวดงานก่อสร้าง",
+  Installment_Approval:    "อนุมัติงวดงาน",
+};
 
 const DAYS_TH   = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 const MONTHS_TH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
@@ -80,6 +116,9 @@ export default function CalendarWidget() {
   const [events,      setEvents]      = useState<CalEvent[]>([]);
   const [salesActs,   setSalesActs]   = useState<SalesAct[]>([]);
   const [constReports, setConstReports] = useState<ConstReport[]>([]);
+  const [approvals,    setApprovals]    = useState<ApprovalEvt[]>([]);
+  const [leadFollows,  setLeadFollows]  = useState<LeadEvt[]>([]);
+  const [leadDeliveries, setLeadDeliveries] = useState<LeadEvt[]>([]);
   const [selected,     setSelected]     = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [form,   setForm]   = useState({ title: "", event_type: "general", description: "" });
@@ -95,7 +134,16 @@ export default function CalendarWidget() {
         .gte("activity_date", start + "T00:00:00").lte("activity_date", end + "T23:59:59"),
       supabase.from("construction_reports").select("id,house_id,work_detail,progress,issue,created_at")
         .gte("created_at", start + "T00:00:00").lte("created_at", end + "T23:59:59"),
-    ]).then(([evtRes, actRes, conRes]) => {
+      supabase.from("approval_logs").select("id,workflow_type,source_doc_index,sla_due_at")
+        .not("sla_due_at", "is", null)
+        .gte("sla_due_at", start + "T00:00:00").lte("sla_due_at", end + "T23:59:59"),
+      supabase.from("leads").select("id,customer_name,next_follow_up_date")
+        .not("next_follow_up_date", "is", null)
+        .gte("next_follow_up_date", start).lte("next_follow_up_date", end),
+      supabase.from("leads").select("id,customer_name,delivery_date")
+        .not("delivery_date", "is", null)
+        .gte("delivery_date", start).lte("delivery_date", end),
+    ]).then(([evtRes, actRes, conRes, apprRes, followRes, deliverRes]) => {
       setEvents((evtRes.data as CalEvent[]) ?? []);
       const acts = ((actRes.data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string }[])
         .map(a => ({ ...a, activity_date: a.activity_date.split("T")[0] }));
@@ -103,6 +151,12 @@ export default function CalendarWidget() {
       const reports = ((conRes.data ?? []) as ConstReport[])
         .map(r => ({ ...r, created_at: r.created_at.split("T")[0] }));
       setConstReports(reports);
+      setApprovals(((apprRes.data ?? []) as { id: string; workflow_type: string; source_doc_index: string | null; sla_due_at: string }[])
+        .map(a => ({ id: a.id, workflow_type: a.workflow_type, source_doc_index: a.source_doc_index, date: a.sla_due_at.split("T")[0] })));
+      setLeadFollows(((followRes.data ?? []) as { id: string; customer_name: string; next_follow_up_date: string }[])
+        .map(l => ({ id: l.id, customer_name: l.customer_name, date: l.next_follow_up_date.split("T")[0] })));
+      setLeadDeliveries(((deliverRes.data ?? []) as { id: string; customer_name: string; delivery_date: string }[])
+        .map(l => ({ id: l.id, customer_name: l.customer_name, date: l.delivery_date.split("T")[0] })));
     });
   };
 
@@ -119,13 +173,32 @@ export default function CalendarWidget() {
   const ds = (d: number) =>
     `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-  const dayEvents      = (d: number) => events.filter(e => e.event_date === ds(d));
-  const daySalesActs   = (d: number) => salesActs.filter(a => a.activity_date === ds(d));
-  const dayConstReports = (d: number) => constReports.filter(r => r.created_at === ds(d));
+  // Role-scoped visibility: managers/executives see every department's activity;
+  // regular staff see only their own department (+ shared general/meeting events).
+  const isMgr  = user?.isManager ?? false;
+  const myDept = user?.department ?? "";
+  const seeDept = (dept: string) => isMgr || myDept === dept;
 
-  const selectedEvents       = selected ? events.filter(e => e.event_date === selected) : [];
-  const selectedSalesActs    = selected ? salesActs.filter(a => a.activity_date === selected) : [];
-  const selectedConstReports = selected ? constReports.filter(r => r.created_at === selected) : [];
+  const visEvents       = events.filter(e => { const d = EVENT_DEPT[e.event_type]; return !d || seeDept(d); });
+  const visSalesActs    = seeDept("ฝ่ายขาย")      ? salesActs      : [];
+  const visConstReports = seeDept("ฝ่ายก่อสร้าง") ? constReports   : [];
+  const visApprovals    = seeDept("ฝ่ายอนุมัติ")  ? approvals      : [];
+  const visFollows      = seeDept("ฝ่ายขาย")      ? leadFollows    : [];
+  const visDeliveries   = seeDept("ฝ่ายขาย")      ? leadDeliveries : [];
+
+  const dayEvents       = (d: number) => visEvents.filter(e => e.event_date === ds(d));
+  const daySalesActs    = (d: number) => visSalesActs.filter(a => a.activity_date === ds(d));
+  const dayConstReports = (d: number) => visConstReports.filter(r => r.created_at === ds(d));
+  const dayApprovals    = (d: number) => visApprovals.filter(a => a.date === ds(d));
+  const dayFollows      = (d: number) => visFollows.filter(l => l.date === ds(d));
+  const dayDeliveries   = (d: number) => visDeliveries.filter(l => l.date === ds(d));
+
+  const selectedEvents       = selected ? visEvents.filter(e => e.event_date === selected) : [];
+  const selectedSalesActs    = selected ? visSalesActs.filter(a => a.activity_date === selected) : [];
+  const selectedConstReports = selected ? visConstReports.filter(r => r.created_at === selected) : [];
+  const selectedApprovals    = selected ? visApprovals.filter(a => a.date === selected) : [];
+  const selectedFollows      = selected ? visFollows.filter(l => l.date === selected) : [];
+  const selectedDeliveries   = selected ? visDeliveries.filter(l => l.date === selected) : [];
 
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0);  setYear(y => y + 1); } else setMonth(m => m + 1); };
@@ -158,9 +231,19 @@ export default function CalendarWidget() {
           <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronLeft size={16} className="text-aviva-secondary" />
           </button>
-          <h3 className="text-sm font-semibold text-aviva-text">
-            {MONTHS_TH[month]} {year + 543}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-aviva-text">
+              {MONTHS_TH[month]} {year + 543}
+            </h3>
+            {(year !== now.getFullYear() || month !== now.getMonth()) && (
+              <button
+                onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }}
+                className="text-[9px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-full font-bold hover:bg-aviva-gold/30 transition-colors"
+              >
+                วันนี้
+              </button>
+            )}
+          </div>
           <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronRight size={16} className="text-aviva-secondary" />
           </button>
@@ -177,12 +260,18 @@ export default function CalendarWidget() {
             const evts     = dayEvents(d);
             const acts     = daySalesActs(d);
             const cons     = dayConstReports(d);
+            const appr     = dayApprovals(d);
+            const fol      = dayFollows(d);
+            const del      = dayDeliveries(d);
             const isToday  = dateStr === today;
             const isSel    = dateStr === selected;
             const allDots  = [
               ...evts.slice(0, 2).map(e => DOT[e.event_type] ?? "bg-blue-400"),
               ...(acts.length > 0 ? ["bg-orange-400"] : []),
               ...(cons.length > 0 ? ["bg-green-400"] : []),
+              ...(appr.length > 0 ? ["bg-amber-400"] : []),
+              ...(fol.length  > 0 ? ["bg-orange-300"] : []),
+              ...(del.length  > 0 ? ["bg-aviva-gold"] : []),
             ].slice(0, 3);
             return (
               <button key={i}
@@ -225,7 +314,8 @@ export default function CalendarWidget() {
                 </button>
               )}
             </div>
-            {selectedEvents.length === 0 && selectedSalesActs.length === 0 && selectedConstReports.length === 0 ? (
+            {selectedEvents.length === 0 && selectedSalesActs.length === 0 && selectedConstReports.length === 0
+              && selectedApprovals.length === 0 && selectedFollows.length === 0 && selectedDeliveries.length === 0 ? (
               <p className="text-xs text-aviva-secondary/60">ไม่มีกิจกรรม</p>
             ) : (
               <div className="space-y-2">
@@ -274,6 +364,41 @@ export default function CalendarWidget() {
                       <p key={r.id} className="text-[10px] text-aviva-secondary ml-4">
                         · {r.work_detail.slice(0, 60)}{r.work_detail.length > 60 ? "…" : ""} ({r.progress}%)
                       </p>
+                    ))}
+                  </div>
+                )}
+                {selectedApprovals.length > 0 && (
+                  <div className="bg-amber-500/10 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <BadgeCheck size={11} className="text-amber-400" />
+                      <p className="text-xs text-amber-400 font-semibold">งานรออนุมัติ — ครบกำหนด ({selectedApprovals.length})</p>
+                    </div>
+                    {selectedApprovals.map(a => (
+                      <p key={a.id} className="text-[10px] text-aviva-secondary ml-4">
+                        · {WF_LABEL[a.workflow_type] ?? a.workflow_type}{a.source_doc_index ? ` — ${a.source_doc_index.split("|")[0].trim()}` : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {selectedFollows.length > 0 && (
+                  <div className="bg-orange-500/10 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <UserCheck size={11} className="text-orange-300" />
+                      <p className="text-xs text-orange-300 font-semibold">นัดติดตามลูกค้า ({selectedFollows.length})</p>
+                    </div>
+                    {selectedFollows.map(l => (
+                      <p key={l.id} className="text-[10px] text-aviva-secondary ml-4">· {l.customer_name}</p>
+                    ))}
+                  </div>
+                )}
+                {selectedDeliveries.length > 0 && (
+                  <div className="bg-aviva-gold/10 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <BadgeCheck size={11} className="text-aviva-gold" />
+                      <p className="text-xs text-aviva-gold font-semibold">นัดส่งมอบบ้าน ({selectedDeliveries.length})</p>
+                    </div>
+                    {selectedDeliveries.map(l => (
+                      <p key={l.id} className="text-[10px] text-aviva-secondary ml-4">· {l.customer_name}</p>
                     ))}
                   </div>
                 )}

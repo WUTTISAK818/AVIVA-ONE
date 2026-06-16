@@ -4,6 +4,19 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+<!-- BEGIN:role-access-rule -->
+# Role & Access Policy (PERMANENT — กฎสิทธิ์การเข้าถึง)
+
+**CEO และ COO มีสิทธิ์สูงสุด — เข้าถึงข้อมูลได้ทุกส่วน และทำได้ทุกอย่าง (เทียบเท่า/เหนือ admin)**
+
+บังคับใช้ 3 ชั้น (ถ้าเพิ่ม role ผู้บริหารใหม่ ต้องอัปเดตให้ครบทั้ง 3):
+1. **UI/หน้าจอ** — `src/lib/roles.ts` (`SUPER_ROLES`, `MANAGER_ROLES`, `isSuperRole`, `isManagerRole`) ใช้ผ่าน `user-context.tsx` (`isAdmin`/`isManager`)
+2. **API/server** — import `MANAGER_ROLES`/`isManagerRole` จาก `@/lib/roles` (ai-chat, ai-council, admin/settings ฯลฯ) และ edge function `admin-user-management` (`MANAGER_ROLES`/`ADMIN_ROLES` ต้องมี `coo`)
+3. **ฐานข้อมูล/RLS** — ฟังก์ชัน Postgres `public.auth_role()` map `ceo`/`coo` → `admin` ครอบคลุมทุก RLS policy ที่ gate ด้วย `auth_role()`
+
+ค่า role ที่ใช้: `admin`, `ceo`, `coo`, `director`, `manager`, `project_manager`, และ role ระดับปฏิบัติการอื่น ๆ
+<!-- END:role-access-rule -->
+
 <!-- BEGIN:preflight-rule -->
 # Pre-flight Check (MANDATORY — ทำก่อนเริ่มงานทุกครั้ง)
 
@@ -96,3 +109,16 @@ Report to the user:
 
 This rule is PERMANENT and applies to every deploy session without exception.
 <!-- END:deploy-report-rule -->
+# Docs Sync Rule (PERMANENT — ซิงก์คู่มือ/โครงสร้างทุกครั้งที่เปลี่ยนวิธีทำงาน)
+
+**ทุกครั้งที่มีการแก้ไขใด ๆ ที่กระทบ "วิธีการทำงาน / กระบวนการ / โครงสร้างแอป"** (เช่น เพิ่ม/แก้ flow อนุมัติ, เพิ่มฟีเจอร์/โมดูล, เปลี่ยนเกณฑ์วงเงิน, เปลี่ยนผังบัญชี/ภาษี, เปลี่ยนสายอนุมัติ) **ต้องอัปเดตข้อมูลในเมนูตั้งค่าให้ตรงกับปัจจุบันในรอบ deploy เดียวกัน**:
+1. **คู่มือการใช้งาน** — `src/app/settings/manual/page.tsx` (เพิ่ม/แก้ section หรือ topic/steps ให้ตรงปุ่ม/หน้าจอจริง)
+2. **โครงสร้างองค์กร / สายอนุมัติ** — `src/app/settings/org-chart/page.tsx` (ถ้ากระทบสายบังคับบัญชา/Matrix การอนุมัติ)
+3. **ดรรชนีเอกสาร** — `src/app/settings/doc-index/page.tsx` (ถ้าเพิ่ม/แก้ prefix เลขที่เอกสาร)
+
+ห้าม deploy การเปลี่ยน flow โดยไม่อัปเดตคู่มือให้ตรง — ถือเป็นส่วนหนึ่งของงานเดียวกัน
+
+## ข้อเสนอแนะจากผู้ใช้ (Suggestions → อนุมัติ → พัฒนา)
+- ผู้ใช้ทุกคนเสนอผ่าน `src/app/settings/suggestions/page.tsx` (ตาราง `app_suggestions`)
+- ทุกข้อเสนอที่จะนำมาพัฒนา **ต้องผ่านการอนุมัติของผู้บริหาร (status `approved`) ก่อน** จึงลงมือแก้ไข
+- ยึดหลัก "ความถูกต้อง + โครงสร้างหลักของแอป" เป็นสำคัญก่อนเสมอ

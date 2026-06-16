@@ -2,7 +2,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 
-export type Period = "today" | "week" | "month" | "custom";
+export type Period = "all" | "today" | "week" | "month" | "custom";
 
 interface PeriodFilterProps {
   period: Period;
@@ -12,6 +12,7 @@ interface PeriodFilterProps {
 function getRange(period: Period): { start: string; end: string } {
   const now = new Date();
   const end = now.toISOString().split("T")[0];
+  if (period === "all") return { start: "", end: "" };
   if (period === "today") return { start: end, end };
   if (period === "week") {
     const start = new Date(now);
@@ -28,6 +29,7 @@ function getRange(period: Period): { start: string; end: string } {
 }
 
 const OPTIONS: { key: Period; label: string }[] = [
+  { key: "all", label: "ทั้งหมด" },
   { key: "today", label: "วันนี้" },
   { key: "week", label: "สัปดาห์นี้" },
   { key: "month", label: "เดือนนี้" },

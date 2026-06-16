@@ -1,26 +1,34 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2, ShoppingCart } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
+import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
+import { maskPhone } from "@/lib/mask";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
+import AttachDocButton from "@/components/AttachDocButton";
+import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/doc-templates";
+import SignedImg from "@/components/SignedImg";
+import { toSignedUrl } from "@/lib/storage";
+import WorkflowTimeline from "@/components/WorkflowTimeline";
+import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 type HouseStatus = "complete" | "on-track" | "delayed";
 type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
 type Tab = "reports" | "defects";
-type Part = "inspect" | "daily";
+type Part = "inspect" | "daily" | "purchase";
 
 interface House {
   id: string;
@@ -35,6 +43,8 @@ interface House {
   plot_number: number | null;
   house_model: string | null;
   land_size: number | null;
+  contractor_line_id: string | null;
+  contractor_phone: string | null;
 }
 
 interface Report {
@@ -60,6 +70,7 @@ interface Defect {
   severity: string;
   assigned_to: string;
   due_date: string | null;
+  installment_no?: number | null;
 }
 
 interface Installment {
@@ -72,6 +83,12 @@ interface Installment {
   rejection_reason?: string | null;
   rejection_count?: number | null;
   created_by_name?: string | null;
+  contractor_ack_name?: string | null;
+  contractor_acknowledged_at?: string | null;
+  paid_by?: string | null;
+  paid_at?: string | null;
+  labor_cost?: number | null;
+  material_cost?: number | null;
 }
 
 interface WorkItem {
@@ -111,6 +128,81 @@ interface InstTask {
   notes: string | null;
 }
 
+interface PurchaseOrder {
+  id: string;
+  po_number: string | null;
+  supplier_name: string;
+  items: { name: string; qty: number; unit: string; unit_price: number }[];
+  total_amount: number | null;
+  status: string;
+  requested_by: string | null;
+  notes: string | null;
+  created_at: string;
+  approved_by?: string | null;
+}
+
+interface PrLineItem {
+  name: string;
+  qty: string;
+  unit: string;
+  unit_price: string;
+}
+
+// โหมด A — template "ใบสั่งซื้อวัสดุ" สำหรับ PO (ใช้เลข po_number เดิม)
+function poTemplates(po: PurchaseOrder): DocTemplate[] {
+  return [{
+    key: "po",
+    label: "ใบสั่งซื้อวัสดุ",
+    docType: "po",
+    fixedNumber: po.po_number ?? undefined,
+    render: (docNumber) => {
+      const items = (po.items ?? []) as { name: string; qty: number; unit: string; unit_price: number }[];
+      const rows = items.map((it, i) => [i + 1, it.name, it.qty, it.unit, it.unit_price, it.qty * it.unit_price]);
+      const total = po.total_amount ?? items.reduce((s, it) => s + it.qty * it.unit_price, 0);
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ผู้จำหน่าย</th><td>${esc(po.supplier_name)}</td></tr>
+          <tr><th>ผู้ขอซื้อ</th><td>${esc(po.requested_by ?? "-")}</td></tr>
+        </tbody></table>
+        ${renderItemsTable(["ลำดับ", "รายการ", "จำนวน", "หน่วย", "ราคา/หน่วย", "รวม"], rows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเป็นเงินทั้งสิ้น</td><td style="text-align:right;font-weight:700">${total.toLocaleString()} บาท</td></tr>
+        </tbody></table>
+        ${po.notes ? `<p style="margin-top:10px"><b>หมายเหตุ:</b> ${esc(po.notes)}</p>` : ""}`;
+      return renderDocShell({ title: "ใบสั่งซื้อวัสดุ", docNumber, bodyHtml: body, signLabels: ["ผู้ขอซื้อ", "ผู้อนุมัติ", "ผู้จำหน่าย"] });
+    },
+  }];
+}
+
+// โหมด A — template "ใบเบิกงวดงาน" สำหรับงวดงานผู้รับเหมา
+function installmentDocTemplates(inst: Installment, houseName: string): DocTemplate[] {
+  return [{
+    key: "inst_bill",
+    label: "ใบเบิกงวดงาน",
+    docType: "installment_bill",
+    prefix: "INST",
+    render: (docNumber) => {
+      const labor = inst.labor_cost ?? 0;
+      const material = inst.material_cost ?? 0;
+      const rows: (string | number)[][] = [];
+      if (labor) rows.push(["ค่าแรง", labor]);
+      if (material) rows.push(["ค่าวัสดุ", material]);
+      if (!rows.length) rows.push(["ค่างวดงาน", inst.amount ?? 0]);
+      const body = `
+        <table><tbody>
+          <tr><th style="width:28%">ยูนิต/บ้านเลขที่</th><td>${esc(houseName)}</td></tr>
+          <tr><th>งวดที่</th><td>${inst.installment_no} — ${esc(inst.name)}</td></tr>
+          ${inst.contractor_ack_name ? `<tr><th>ผู้รับเหมา</th><td>${esc(inst.contractor_ack_name)}</td></tr>` : ""}
+        </tbody></table>
+        ${renderItemsTable(["รายการ", "จำนวนเงิน (บาท)"], rows)}
+        <table class="totals"><tbody>
+          <tr><td style="text-align:right">รวมเบิกงวดนี้</td><td style="text-align:right;font-weight:700">${(inst.amount ?? 0).toLocaleString()} บาท</td></tr>
+        </tbody></table>`;
+      return renderDocShell({ title: "ใบเบิกงวดงานก่อสร้าง", docNumber, bodyHtml: body, signLabels: ["ผู้รับเหมา", "ผู้ควบคุมงาน", "ผู้อนุมัติ"] });
+    },
+  }];
+}
+
 const statusConfig = {
   complete: { label: "เสร็จแล้ว", icon: CheckCircle, color: "text-green-400", bg: "bg-green-400/10 border-green-400/20" },
   "on-track": { label: "ตามแผน", icon: Clock, color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
@@ -126,7 +218,7 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
 };
 
 const INSTALLMENT_NAMES = [
-  "งวด 1 — งานฐานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
+  "งวด 1 — งานฝานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
   "งวด 4 — งานผนังชั้น 1", "งวด 5 — งานโครงหลังคา", "งวด 6 — งานหลังคา",
   "งวด 7 — งานผนังภายนอก", "งวด 8 — งานระบบน้ำ-ไฟ", "งวด 9 — งานตกแต่งภายใน",
   "งวด 10 — งานส่งมอบ",
@@ -145,7 +237,7 @@ const progressColor = (pct: number): "gold" | "green" | "red" =>
   pct === 100 ? "green" : pct < 50 ? "red" : "gold";
 
 function houseLabel(h: House): string {
-  return `${h.house_model ?? "AVA"} ${String(h.plot_number ?? 0).padStart(2, "0")} / ${h.land_size ?? "—"} ตร.ว.`;
+  return `แปลงที่ ${h.plot_number ?? "—"} / ที่ดิน ${h.land_size ?? "—"} ตร.วา / ${h.house_model ?? "AVA"}`;
 }
 
 const filterBoxes: { key: FilterStatus; label: string; border: string; numColor: string }[] = [
@@ -249,7 +341,7 @@ function InspectionPanel({
               {uploadingInsp === insp.id
                 ? <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Loader2 size={12} className="text-aviva-gold animate-spin" /></div>
                 : insp.photo_url
-                  ? <img src={insp.photo_url} alt="รูปตรวจ" className="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
+                  ? <SignedImg src={insp.photo_url} alt="รูปตรวจ" imgClassName="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
                   : <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Camera size={12} className="text-aviva-secondary/50" /></div>
               }
             </label>
@@ -291,18 +383,27 @@ export default function ConstructionPage() {
   const [instTemplates, setInstTemplates] = useState<InstTemplate[]>([]);
   const [instWorkItems, setInstWorkItems] = useState<WorkItem[]>([]);
   const [uploadingInsp, setUploadingInsp] = useState<string | null>(null);
+  const fetchGenRef = useRef(0);
   const [savingInsp, setSavingInsp] = useState(false);
 
   const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "", planned_completion_date: "", site_engineer: "" });
   const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus, reported_by: "", work_type: "งานตรวจสอบ" });
-  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+  const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
 
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [uploadingTask, setUploadingTask] = useState<string | null>(null);
   const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+  const [showAckModal, setShowAckModal] = useState(false);
+  const [ackName, setAckName] = useState("");
+  const [ackInst, setAckInst] = useState<Installment | null>(null);
   const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
   const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
   const [showAI, setShowAI] = useState(false);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [savingPR, setSavingPR] = useState(false);
+  const [prForm, setPrForm] = useState({ supplier_name: "", notes: "" });
+  const [prItems, setPrItems] = useState<PrLineItem[]>([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
   const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -333,9 +434,10 @@ export default function ConstructionPage() {
       supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number"),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
-      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Loan Process", "Closed Deal"]),
+      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
     ]).then(([hRes, rRes, dRes, leadRes]) => {
-      setHouses((hRes.data as House[]) ?? []);
+      // D2: กัน null หลัง reset ข้อมูลก่อสร้าง (progress/contractor อาจเป็น null)
+      setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0 })));
       setReports((rRes.data as Report[]) ?? []);
       setDefects((dRes.data as Defect[]) ?? []);
       const plots = new Set<number>((leadRes.data ?? []).filter((d: { plot_number: number | null }) => d.plot_number != null).map((d: { plot_number: number }) => d.plot_number));
@@ -346,20 +448,29 @@ export default function ConstructionPage() {
 
   useEffect(() => { setRptLimit(50); fetchData(50); }, [rptStart, rptEnd]);
 
+  useEffect(() => {
+    supabase.from("purchase_orders").select("*")
+      .eq("project_id", PROJECT_ID)
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data }) => setPurchaseOrders((data as PurchaseOrder[]) ?? []));
+  }, []);
+
   const fetchInstallments = async (house: House) => {
+    const gen = ++fetchGenRef.current;
     setInstHouse(house);
     setHouseCustomer(null);
     setLoadingInst(true);
     setExpandedInst(null);
     setInspections([]);
-    // Fetch customer info for this plot (construction staff needs to know who the customer is)
     if (house.plot_number) {
       const { data: cust } = await supabase.from("leads")
         .select("customer_name,phone,status,notes,loan_approved_date,delivery_date")
         .eq("project_id", PROJECT_ID)
         .eq("plot_number", house.plot_number)
-        .in("status", ["Booking", "Loan Process", "Closed Deal"])
+        .in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"])
         .maybeSingle();
+      if (fetchGenRef.current !== gen) return;
       if (cust) setHouseCustomer(cust as { customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null });
     }
 
@@ -393,16 +504,19 @@ export default function ConstructionPage() {
       const { data: created } = await supabase.from("contractor_installments").insert(rows).select();
       insts = (created as Installment[]) ?? [];
     }
+    if (fetchGenRef.current !== gen) return;
     setInstallments(insts);
 
     if (insts.length > 0) {
       const { data: insps } = await supabase.from("installment_inspections")
         .select("*").in("contractor_installment_id", insts.map(i => i.id));
+      if (fetchGenRef.current !== gen) return;
       setInspections((insps as Inspection[]) ?? []);
     }
 
     const { data: tasks } = await supabase.from("installment_tasks")
       .select("*").in("installment_id", insts.map(i => i.id)).order("task_no");
+    if (fetchGenRef.current !== gen) return;
     setInstTasks((tasks as InstTask[]) ?? []);
 
     setLoadingInst(false);
@@ -463,9 +577,9 @@ export default function ConstructionPage() {
         setConfirmInst(null); return;
       }
       if (instHouse) {
-        const openDefs = defects.filter(d => d.house_id === instHouse.id && d.status === "Open");
+        const openDefs = defects.filter(d => d.house_id === instHouse.id && (d.status === "Open" || d.status === "In Progress"));
         if (openDefs.length > 0) {
-          setToast({ msg: `มี Defect เปิดอยู่ ${openDefs.length} รายการ — ต้องแก้ไขให้ครบก่อนส่งตรวจสอบ`, type: "error" });
+          setToast({ msg: `มี Defect ที่ยังไม่แก้ไข ${openDefs.length} รายการ — ต้องแก้ไขให้ครบ (Resolved) ก่อนส่งตรวจสอบ`, type: "error" });
           setConfirmInst(null); return;
         }
       }
@@ -486,22 +600,66 @@ export default function ConstructionPage() {
     const byName = user?.full_name ?? user?.email ?? "Unknown";
     const updatePayload: Record<string, string | null> = { status: newStatus };
     if (newStatus === "in_review") updatePayload.created_by_name = byName;
+    if (newStatus === "paid") { updatePayload.paid_by = byName; updatePayload.paid_at = new Date().toISOString(); }
     await supabase.from("contractor_installments").update(updatePayload).eq("id", inst.id);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus, ...(newStatus === "in_review" ? { created_by_name: byName } : {}) } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
     const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
     if (newStatus === "in_review") {
       const docNum = await generateDocNumber("INST");
+      const docIndex = `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${byName}`;
+      const slaDue = calcSlaDueAt("Installment_Review");
       await supabase.from("approval_logs").insert({
         workflow_type: "Installment_Review",
-        source_doc_index: `${docNum} | ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""} | โดย ${byName}`,
+        source_doc_index: docIndex,
         source_record_id: inst.id,
+        submitted_by_user_id: user?.id ?? null,
         current_approver_role: user?.isAdmin ? "admin" : "manager",
         action_taken: "Pending",
         amount: inst.amount ?? null,
-        sla_due_at: calcSlaDueAt("Installment_Review"),
+        sla_due_at: slaDue,
         assigned_to_name: "ผู้จัดการ",
       });
+      // Phase 1 — audit trail + route work to the manager's inbox
+      await logWorkflowEvent({
+        workflowType: "Installment_Review",
+        sourceRecordId: inst.id,
+        docIndex,
+        eventType: "submitted",
+        stageFrom: "pending",
+        stageTo: "in_review",
+        actorName: byName,
+        actorRole: user?.isManager ? "manager" : "engineer",
+        routedToRole: "manager",
+        routedToName: "ผู้จัดการ",
+        amount: inst.amount ?? null,
+      });
+      await createWorkQueue({
+        workflowType: "Installment_Review",
+        sourceRecordId: inst.id,
+        docIndex,
+        title: `อนุมัติงวดงาน: ${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`,
+        amount: inst.amount ?? null,
+        assignedRole: "manager",
+        slaDueAt: slaDue,
+      });
+      notifyPush("ฝ่ายบริหาร", "งวดงานรออนุมัติ", `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`, "/approvals", `inst-${inst.id}`);
+    }
+    if (newStatus === "paid") {
+      // Phase 1 — close the finance queue + record the payment event
+      await closeWorkQueue(inst.id, "finance", byName);
+      await logWorkflowEvent({
+        workflowType: "Installment_Review",
+        sourceRecordId: inst.id,
+        eventType: "paid",
+        stageFrom: "approved",
+        stageTo: "paid",
+        actorName: byName,
+        actorRole: "finance",
+        amount: inst.amount ?? null,
+      });
+      // Phase 3 — notify the contractor (LINE/SMS + track link)
+      notifyContractor(instHouse?.contractor_line_id, "paid", inst.name);
     }
     await createNotification({
       type: notifType[newStatus] ?? "info",
@@ -520,6 +678,19 @@ export default function ConstructionPage() {
     }).eq("id", inst.id);
     await supabase.from("approval_logs").update({ action_taken: "Rejected" })
       .eq("source_record_id", inst.id).eq("action_taken", "Pending");
+    await closeWorkQueue(inst.id, "manager", user?.full_name ?? user?.email ?? null);
+    await logWorkflowEvent({
+      workflowType: "Installment_Review",
+      sourceRecordId: inst.id,
+      eventType: "rejected",
+      actorName: user?.full_name ?? user?.email ?? "ผู้บริหาร",
+      actorRole: "manager",
+      routedToRole: "engineer",
+      conditionNote: reason || "ตีกลับให้แก้ไข",
+      amount: inst.amount ?? null,
+    });
+    notifyPush("ฝ่ายก่อสร้าง", "งวดงานถูกตีกลับ", `${inst.name} — ${reason || "กรุณาตรวจสอบ"}`, "/construction", `inst-${inst.id}`);
+    notifyContractor(instHouse?.contractor_line_id, "rejected", reason);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected", rejection_reason: reason } : i));
     await createNotification({ type: "info", title: `${inst.name} — ถูกปฏิเสธ`, message: reason || "กรุณาตรวจสอบและแก้ไขก่อนส่งใหม่", from_dept: "ผู้บริหาร" });
     setToast({ msg: "ปฏิเสธงวดงานแล้ว — แจ้งวิศวกรแล้ว", type: "success" });
@@ -528,10 +699,71 @@ export default function ConstructionPage() {
   const advanceInstStatus = (inst: Installment) => {
     const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved", approved: "paid" };
     if (!next[inst.status] || next[inst.status] === inst.status) return;
+    if (inst.status === "pending" || inst.status === "rejected") {
+      setAckInst(inst);
+      setAckName(instHouse?.contractor ?? "");
+      setShowAckModal(true);
+      return;
+    }
     setConfirmInst(inst);
   };
 
-  const printDailyReport = () => {
+  const handleAckAndSubmit = async () => {
+    if (!ackInst || !ackName.trim()) return;
+    const now = new Date().toISOString();
+    await supabase.from("contractor_installments").update({
+      contractor_ack_name: ackName.trim(),
+      contractor_acknowledged_at: now,
+    }).eq("id", ackInst.id);
+    setInstallments(prev => prev.map(i => i.id === ackInst.id ? { ...i, contractor_ack_name: ackName.trim(), contractor_acknowledged_at: now } : i));
+    await logWorkflowEvent({
+      workflowType: "Installment_Review",
+      sourceRecordId: ackInst.id,
+      eventType: "acknowledged",
+      actorName: ackName.trim(),
+      actorRole: "contractor",
+      conditionNote: "ผู้รับเหมารับทราบงวดงาน",
+    });
+    const inst = ackInst;
+    setShowAckModal(false);
+    setAckInst(null);
+    setAckName("");
+    setConfirmInst(inst);
+  };
+
+  const printCertificate = (inst: Installment) => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const passCount = instInsps.filter(i => i.result === "pass").length;
+    const rows = instInsps.map(i => `<tr><td>${i.work_item_name}</td><td style="color:${i.result === "pass" ? "#1E4A35" : "#c0392b"};font-weight:bold">${i.result === "pass" ? "✓ ผ่าน" : "✗ ไม่ผ่าน"}</td><td>${i.note ?? ""}</td><td>${i.inspected_by ?? ""}</td></tr>`).join("");
+    const ackDate = inst.contractor_acknowledged_at ? new Date(inst.contractor_acknowledged_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
+    const paidDate = inst.paid_at ? new Date(inst.paid_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
+    const laborLine = (inst.labor_cost || inst.material_cost) ? `<div><b>ค่าแรง:</b> ฿${(inst.labor_cost ?? 0).toLocaleString("th-TH")}</div><div><b>ค่าวัสดุ:</b> ฿${(inst.material_cost ?? 0).toLocaleString("th-TH")}</div>` : "";
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบรับรองผลงาน — ${inst.name}</title><style>*{box-sizing:border-box}body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:16px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:6px 0 0}.meta{font-size:11px;color:#666;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}th{background:#1E4A35;color:#D4AF37;padding:8px;text-align:left;font-size:11px}td{padding:7px 8px;border-bottom:1px solid #eee}tr:nth-child(even) td{background:#fafafa}.box{background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}.box-green{background:#f0f7f3;border-color:#1E4A35}.sig-row{display:flex;gap:32px;margin-top:48px;padding-top:16px;border-top:1px solid #eee}.sig{flex:1;text-align:center}.sig-line{border-top:1px solid #555;margin:40px 0 6px}.sig-role{font-size:11px;color:#444;font-weight:600}.sig-name{font-size:10px;color:#888;margin-top:2px}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>ใบรับรองผลงาน (Certificate of Completion)</h2><div class="meta">โครงการ AVIVA Private &nbsp;·&nbsp; วันที่พิมพ์: ${dateStr}</div></div><div class="box"><div><b>ยูนิต:</b> ${instHouse.house_number}</div><div><b>ผู้รับเหมา:</b> ${instHouse.contractor ?? "—"}</div><div><b>งวดงาน:</b> ${inst.name}</div><div><b>มูลค่างวด:</b> ฿${inst.amount.toLocaleString("th-TH")}</div><div><b>วิศวกรควบคุม:</b> ${instHouse.site_engineer ?? "—"}</div><div><b>สถานะ:</b> <span style="color:#1E4A35;font-weight:bold">จ่ายแล้ว ✓</span></div>${laborLine}</div><p style="font-size:12px;margin:8px 0">ผลการตรวจงาน: ผ่าน <b style="color:#1E4A35">${passCount}</b> / ${instInsps.length} รายการ</p><table><thead><tr><th>รายการงาน</th><th>ผล</th><th>หมายเหตุ</th><th>ตรวจโดย</th></tr></thead><tbody>${rows || "<tr><td colspan='4' style='text-align:center;color:#999'>ยังไม่มีรายการตรวจ</td></tr>"}</tbody></table><div class="box box-green"><div><b>ผู้รับเหมาลงชื่อรับทราบ:</b> ${inst.contractor_ack_name ?? "—"}</div><div><b>วันที่รับทราบ:</b> ${ackDate}</div><div><b>อนุมัติจ่ายโดย:</b> ${inst.paid_by ?? "—"}</div><div><b>วันที่จ่าย:</b> ${paidDate}</div></div><div class="sig-row"><div class="sig"><div class="sig-line"></div><div class="sig-role">วิศวกรควบคุมงาน</div><div class="sig-name">(${instHouse.site_engineer ?? "..................................."})</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้จัดการโครงการ</div><div class="sig-name">(...................................)</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้รับเหมา</div><div class="sig-name">(${inst.contractor_ack_name ?? "..................................."})</div></div></div><p style="margin-top:20px;font-size:10px;color:#bbb;text-align:center">จัดทำโดยระบบ AVIVA ONE &nbsp;·&nbsp; เอกสารนี้ออกโดยระบบอัตโนมัติหลังอนุมัติงวดงาน</p></body></html>`);
+    w.document.close();
+  };
+
+  const printRejectionNotice = (inst: Installment) => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const failItems = instInsps.filter(i => i.result === "fail");
+    const rows = failItems.map(i => `<tr><td>${i.work_item_name}</td><td style="color:#c0392b;font-weight:bold">✗ ไม่ผ่าน</td><td>${i.note ?? "—"}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>หนังสือแจ้งข้อบกพร่อง — ${inst.name}</title><style>*{box-sizing:border-box}body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #c0392b;padding-bottom:16px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:6px 0 0;color:#c0392b}.meta{font-size:11px;color:#666;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}th{background:#c0392b;color:#fff;padding:8px;text-align:left;font-size:11px}td{padding:7px 8px;border-bottom:1px solid #eee}.box{background:#fff5f5;border:1px solid #f5c6c6;border-radius:8px;padding:12px;margin:10px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px}.reason-box{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;margin:10px 0}.sig-row{display:flex;gap:32px;margin-top:48px;padding-top:16px;border-top:1px solid #eee}.sig{flex:1;text-align:center}.sig-line{border-top:1px solid #555;margin:40px 0 6px}.sig-role{font-size:11px;color:#444;font-weight:600}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#c0392b;color:#fff}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>หนังสือแจ้งข้อบกพร่อง (Defect Notice)</h2><div class="meta">โครงการ AVIVA Private &nbsp;·&nbsp; วันที่: ${dateStr}</div></div><div class="box"><div><b>ยูนิต:</b> ${instHouse.house_number}</div><div><b>ผู้รับเหมา:</b> ${instHouse.contractor ?? "—"}</div><div><b>งวดงาน:</b> ${inst.name}</div><div><b>มูลค่างวด:</b> ฿${inst.amount.toLocaleString("th-TH")}</div></div>${inst.rejection_reason ? `<div class="reason-box"><b>เหตุผลที่ปฏิเสธ:</b><p style="margin:6px 0 0;color:#795548">${inst.rejection_reason}</p></div>` : ""}<p style="font-size:12px;margin:16px 0 4px;font-weight:700">รายการงานที่ไม่ผ่านการตรวจ (${failItems.length} รายการ)</p><table><thead><tr><th>รายการงาน</th><th>ผล</th><th>หมายเหตุ/เหตุผล</th></tr></thead><tbody>${rows || "<tr><td colspan='3' style='text-align:center;color:#999'>ไม่มีรายการที่ระบุ</td></tr>"}</tbody></table><p style="font-size:12px;color:#555;margin:16px 0">กรุณาแก้ไขรายการข้างต้นให้เรียบร้อยแล้วส่งตรวจซ้ำอีกครั้ง ภายใน 7 วันทำงาน นับจากวันที่ได้รับหนังสือฉบับนี้</p><div class="sig-row"><div class="sig"><div class="sig-line"></div><div class="sig-role">วิศวกรควบคุมงาน</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้จัดการโครงการ</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้รับเหมา (รับทราบ)</div></div></div><p style="margin-top:20px;font-size:10px;color:#bbb;text-align:center">จัดทำโดยระบบ AVIVA ONE</p></body></html>`);
+    w.document.close();
+  };
+
+  const printDailyReport = async () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:sans-serif;padding:24px;color:#666">กำลังเตรียมรายงาน...</body></html>');
+    const signedPhotos: Record<string, string> = {};
+    await Promise.all([...new Set(reports.map(r => r.photo_url).filter(Boolean) as string[])].map(async (purl) => { const u = await toSignedUrl(purl); if (u) signedPhotos[purl] = u; }));
     const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
     const uniqueHouseIds = new Set(reports.map(r => r.house_id)).size;
     const avgProgress = reports.length > 0 ? Math.round(reports.reduce((s, r) => s + r.progress, 0) / reports.length) : 0;
@@ -539,11 +771,11 @@ export default function ConstructionPage() {
       const house = houses.find(h => h.id === r.house_id);
       const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
       const t = new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-      const photo = r.photo_url ? `<img src="${r.photo_url}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid #ddd;" />` : "—";
+      const purl = r.photo_url ? signedPhotos[r.photo_url] : null;
+      const photo = purl ? `<img src="${purl}" style="width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid #ddd;" />` : "—";
       return `<tr><td style="white-space:nowrap">${d}<br><span style="color:#888;font-size:10px">${t}</span></td><td style="font-weight:600">${house?.house_number ?? "—"}</td><td>${r.work_type ?? "—"}</td><td>${r.work_detail ?? "—"}</td><td style="text-align:center;font-weight:700">${r.progress ?? 0}%</td><td style="color:#c0392b">${r.issue || "—"}</td><td style="text-align:center">${r.reported_by ?? "—"}</td><td style="text-align:center">${photo}</td></tr>`;
     }).join("");
-    const w = window.open("", "_blank");
-    if (!w) return;
+    w.document.open();
     w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}.summary{display:flex;gap:12px;margin:12px 0 16px}.sb{background:#f5f5f5;border-radius:8px;padding:10px 14px;flex:1;border-left:3px solid #1E4A35}.sb .num{font-size:20px;font-weight:900;color:#1E4A35}.sb .lbl{font-size:10px;color:#666;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:11px}thead tr{background:#1E4A35}th{color:#D4AF37;padding:7px 8px;text-align:left;font-size:11px;font-weight:600}td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#fafafa}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end}.sig{text-align:center;width:200px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่พิมพ์: ${dateStr}</div></div><div class="summary"><div class="sb"><div class="num">${reports.length}</div><div class="lbl">รายการทั้งหมด</div></div><div class="sb"><div class="num">${uniqueHouseIds}</div><div class="lbl">ยูนิตที่รายงาน</div></div><div class="sb"><div class="num">${avgProgress}%</div><div class="lbl">เฉลี่ยความคืบหน้า</div></div></div><table><thead><tr><th>วันที่/เวลา</th><th>ยูนิต</th><th>ประเภทงาน</th><th>รายละเอียดงาน</th><th style="text-align:center">คืบหน้า</th><th>ปัญหา/หมายเหตุ</th><th style="text-align:center">ผู้รายงาน</th><th style="text-align:center">รูป</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">ผู้จัดทำรายงาน</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
     w.document.close();
   };
@@ -583,8 +815,14 @@ export default function ConstructionPage() {
     "on-track": houses.filter(h => h.status === "on-track").length,
     delayed: houses.filter(h => h.status === "delayed").length,
   };
-  const overallProgress = houses.length ? Math.round(houses.reduce((s, h) => s + h.progress, 0) / houses.length) : 0;
-  const filtered = filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === filterStatus);
+  const overallProgress = useMemo(
+    () => houses.length ? Math.round(houses.reduce((s, h) => s + h.progress, 0) / houses.length) : 0,
+    [houses]
+  );
+  const filtered = useMemo(
+    () => filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === filterStatus),
+    [houses, filterStatus]
+  );
   const openDefects = defects.filter(d => d.status === "Open").length;
   const reporterNames = [...new Set(reports.filter(r => r.reported_by).map(r => r.reported_by as string))];
 
@@ -645,7 +883,7 @@ export default function ConstructionPage() {
 
   const openDefectModal = (house: House) => {
     setDefectHouse(house);
-    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+    setDefectForm({ house_id: house.id, defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
     setShowDefectModal(true);
   };
 
@@ -698,11 +936,11 @@ export default function ConstructionPage() {
   const handleSaveDefect = async () => {
     if (!defectForm.description || !defectForm.house_id) return;
     setSaving(true);
-    await supabase.from("defects").insert({ house_id: defectForm.house_id, defect_category: defectForm.defect_category, description: defectForm.description, status: "Open", severity: defectForm.severity, assigned_to: defectForm.assigned_to || null, due_date: defectForm.due_date || null });
+    await supabase.from("defects").insert({ house_id: defectForm.house_id, defect_category: defectForm.defect_category, description: defectForm.description, status: "Open", severity: defectForm.severity, assigned_to: defectForm.assigned_to || null, due_date: defectForm.due_date || null, installment_no: defectForm.installment_no ? Number(defectForm.installment_no) : null });
     setSaving(false);
     setShowDefectModal(false);
     setDefectHouse(null);
-    setDefectForm({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "" });
+    setDefectForm({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
     fetchData();
   };
 
@@ -711,6 +949,57 @@ export default function ConstructionPage() {
     if (newStatus === "Resolved") update.resolved_at = new Date().toISOString();
     await supabase.from("defects").update(update).eq("defect_id", id);
     fetchData();
+  };
+
+  const handleSubmitPR = async () => {
+    const validItems = prItems.filter(it => it.name.trim());
+    if (!prForm.supplier_name || validItems.length === 0) return;
+    setSavingPR(true);
+    const itemsData = validItems.map(it => ({
+      name: it.name.trim(),
+      qty: Number(it.qty) || 1,
+      unit: it.unit || "ชิ้น",
+      unit_price: Number(it.unit_price) || 0,
+    }));
+    const totalAmount = itemsData.reduce((s, it) => s + it.qty * it.unit_price, 0);
+    const byName = user?.full_name ?? user?.email ?? "Unknown";
+    const docNum = await generateDocNumber("PO");
+    const { data: po } = await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      po_number: docNum,
+      supplier_name: prForm.supplier_name,
+      items: itemsData,
+      total_amount: totalAmount,
+      status: "pending",
+      requested_by: byName,
+      notes: prForm.notes || null,
+    }).select().single();
+    if (po) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `${docNum} | จัดซื้อจาก ${prForm.supplier_name} | โดย ${byName}`,
+        source_record_id: (po as PurchaseOrder).id,
+        submitted_by_user_id: user?.id ?? null,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: totalAmount || null,
+        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        assigned_to_name: "ผู้จัดการ",
+      });
+      await createNotification({
+        type: "approval",
+        title: `ขออนุมัติจัดซื้อ ${docNum}`,
+        message: `จาก ${byName} · ${prForm.supplier_name} ฿${totalAmount.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
+        from_dept: "ฝ่ายก่อสร้าง",
+        to_dept: "ผู้บริหาร",
+      });
+      setPurchaseOrders(prev => [po as PurchaseOrder, ...prev]);
+      setToast({ msg: `ส่งขออนุมัติ ${docNum} แล้ว ✓`, type: "success" });
+    }
+    setShowPRModal(false);
+    setPrForm({ supplier_name: "", notes: "" });
+    setPrItems([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
+    setSavingPR(false);
   };
 
   const openSummaryModal = async () => {
@@ -765,13 +1054,29 @@ export default function ConstructionPage() {
 
   const submitSummaryReport = async () => {
     setSendingSummary(true);
+    let photoUrl: string | null = null;
     if (summaryPhoto) {
       setUploadingSummaryPhoto(true);
       const ext = summaryPhoto.name.split(".").pop() ?? "jpg";
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(`daily/summary-${Date.now()}.${ext}`, summaryPhoto, { upsert: true });
-      if (error) setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      const filePath = `daily/summary-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, summaryPhoto, { upsert: true });
+      if (error) {
+        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
+      } else {
+        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(filePath);
+        photoUrl = publicUrl;
+      }
       setUploadingSummaryPhoto(false);
     }
+    // Persist summary report to construction_reports table
+    await supabase.from("construction_reports").insert({
+      work_type: "สรุปประจำวัน",
+      work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,
+      progress: overallProgress,
+      reported_by: summaryForm.reporter || null,
+      photo_url: photoUrl,
+      issue: summaryForm.problems || null,
+    });
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     await createNotification({
       type: "info",
@@ -781,7 +1086,9 @@ export default function ConstructionPage() {
     });
     setSendingSummary(false);
     setShowSummaryModal(false);
-    setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว", type: "success" });
+    setSummaryPhoto(null);
+    setSummaryPhotoPreview("");
+    setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว ✓", type: "success" });
   };
 
   return (
@@ -815,14 +1122,21 @@ export default function ConstructionPage() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={15} /> ตรวจงานผู้รับเหมา</button>
-            <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={15} /> งานรายวัน</button>
+          <div className="flex gap-1.5">
+            <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={13} /> ตรวจงาน</button>
+            <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={13} /> รายวัน</button>
+            <button onClick={() => setPart("purchase")} className={clsx("relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "purchase" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+              <ShoppingCart size={13} /> จัดซื้อ
+              {purchaseOrders.filter(p => p.status === "pending").length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-400 text-[9px] font-bold text-white flex items-center justify-center">{purchaseOrders.filter(p => p.status === "pending").length}</span>
+              )}
+            </button>
           </div>
         </div>
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        <DeptBriefingPanel dept="construction" label="ฝ่ายก่อสร้าง" />
         {counts.delayed > 0 && (
           <button className="w-full text-left" onClick={() => { setPart("inspect"); setFilterStatus("delayed"); }}>
             <AIInsightPanel type="alert" priority="high" title={`มี ${counts.delayed} ยูนิตล่าช้ากว่าแผน`} message="กดเพื่อดูรายการยูนิตที่ล่าช้า — ควรตรวจสอบผู้รับเหมาและวางแผนเร่งงาน" />
@@ -865,9 +1179,7 @@ export default function ConstructionPage() {
                 {aiMessages.length > 0 && (
                   <div className="space-y-2 max-h-52 overflow-y-auto">
                     {aiMessages.map((m, i) => (
-                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>
-                        {m.content}
-                      </div>
+                      <div key={i} className={clsx("rounded-xl px-3 py-2 text-xs leading-relaxed", m.role === "user" ? "bg-aviva-gold/20 text-aviva-gold ml-8 text-right" : "bg-aviva-bg text-aviva-text mr-8")}>{m.content}</div>
                     ))}
                     {aiLoading && <div className="bg-aviva-bg rounded-xl px-3 py-2 text-xs text-aviva-secondary mr-8">กำลังประมวลผล...</div>}
                   </div>
@@ -895,7 +1207,7 @@ export default function ConstructionPage() {
               ) : filtered.length === 0 ? (
                 <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-1.5">
                   {filtered.map(house => {
                     const isSelected = instHouse?.id === house.id;
                     const hasCustomer = house.plot_number != null && customerPlots.has(house.plot_number);
@@ -907,8 +1219,7 @@ export default function ConstructionPage() {
                         {hasCustomer && !isSelected && (
                           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-aviva-gold border border-aviva-bg" />
                         )}
-                        <span className={clsx("text-[10px] font-bold leading-tight text-center", isSelected ? "text-aviva-bg" : "text-aviva-text")}>{house.house_model ?? "AVA"}</span>
-                        <span className={clsx("text-base font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{String(house.plot_number ?? 0).padStart(2, "0")}</span>
+                        <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{(house.house_model ?? "A").charAt(0)}{house.plot_number ?? 0}</span>
                         <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
                       </button>
                     );
@@ -928,7 +1239,7 @@ export default function ConstructionPage() {
             {instHouse && (
               <div ref={instPanelRef} className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-aviva-text">{instHouse.house_number}</p>
+                  <p className="text-sm font-bold text-aviva-text">{houseLabel(instHouse)}</p>
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => openDefectModal(instHouse)} className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
                     <button onClick={() => openEditHouse(instHouse)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
@@ -943,10 +1254,11 @@ export default function ConstructionPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-bold text-aviva-text">{houseCustomer.customer_name}</p>
-                        <p className="text-xs text-aviva-gold font-medium mt-0.5">{houseCustomer.phone}</p>
+                        {/* PDPA: ฝ่ายก่อสร้างเห็นเบอร์แบบปิดบัง เฉพาะฝ่ายขาย/บริหารเห็นเต็ม */}
+                        <p className="text-xs text-aviva-gold font-medium mt-0.5">{(user?.isManager || user?.department === "ฝ่ายขาย") ? houseCustomer.phone : maskPhone(houseCustomer.phone)}</p>
                       </div>
                       <span className="text-[10px] bg-aviva-bg px-2 py-1 rounded-full text-aviva-secondary">
-                        {({ Booking: "จอง", "Loan Process": "กำลังกู้", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
+                        {({ Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
                       </span>
                     </div>
                     {houseCustomer.loan_approved_date && (
@@ -987,9 +1299,35 @@ export default function ConstructionPage() {
                             {inst.created_by_name && (
                               <p className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-2 py-1 rounded-lg inline-block">ส่งตรวจโดย {inst.created_by_name}</p>
                             )}
+                            {inst.contractor_ack_name && (
+                              <p className="text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-lg inline-flex items-center gap-1">
+                                ✍ ผู้รับเหมารับทราบ: <span className="font-semibold">{inst.contractor_ack_name}</span>
+                                {inst.contractor_acknowledged_at && (
+                                  <span className="text-green-400/60 ml-1">({new Date(inst.contractor_acknowledged_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })})</span>
+                                )}
+                              </p>
+                            )}
+                            {inst.paid_by && (
+                              <p className="text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-lg inline-flex items-center gap-1">
+                                💰 จ่ายโดย: <span className="font-semibold">{inst.paid_by}</span>
+                                {inst.paid_at && (
+                                  <span className="text-blue-400/60 ml-1">({new Date(inst.paid_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })})</span>
+                                )}
+                              </p>
+                            )}
+                            {inst.status === "paid" && (
+                              <button onClick={() => printCertificate(inst)} className="flex items-center gap-1 text-[11px] text-green-400 border border-green-500/30 px-2 py-1.5 rounded-xl bg-green-500/5 hover:bg-green-500/10 transition-all">
+                                <Printer size={11} /> ใบรับรองผลงาน
+                              </button>
+                            )}
                             {inst.status === "rejected" && inst.rejection_reason && (
                               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
-                                <p className="text-[10px] text-red-400 font-semibold mb-0.5">เหตุผลที่ปฏิเสธ</p>
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <p className="text-[10px] text-red-400 font-semibold">เหตุผลที่ปฏิเสธ</p>
+                                  <button onClick={() => printRejectionNotice(inst)} className="flex items-center gap-1 text-[10px] text-red-400/80 border border-red-500/20 px-1.5 py-0.5 rounded-lg hover:bg-red-500/10">
+                                    <Printer size={9} /> แจ้งผู้รับเหมา
+                                  </button>
+                                </div>
                                 <p className="text-xs text-red-300">{inst.rejection_reason}</p>
                                 {inst.rejection_count && inst.rejection_count > 0 && (
                                   <p className="text-[10px] text-red-400/70 mt-0.5">ถูกปฏิเสธ {inst.rejection_count} ครั้ง</p>
@@ -997,18 +1335,49 @@ export default function ConstructionPage() {
                               </div>
                             )}
                             {user?.isAdmin && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
-                                <input type="number" defaultValue={inst.amount}
-                                  onBlur={async e => {
-                                    const v = Number(e.target.value);
-                                    if (!isNaN(v)) {
-                                      await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
-                                      setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
-                                    }
-                                  }}
-                                  className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
+                                  <input type="number" defaultValue={inst.amount}
+                                    onBlur={async e => {
+                                      const v = Number(e.target.value);
+                                      if (!isNaN(v)) {
+                                        await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
+                                        setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
+                                      }
+                                    }}
+                                    className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <p className="text-[10px] text-aviva-secondary mb-0.5">ค่าแรง (บาท)</p>
+                                    <input type="number" defaultValue={inst.labor_cost ?? 0}
+                                      onBlur={async e => {
+                                        const v = Number(e.target.value);
+                                        if (!isNaN(v)) {
+                                          await supabase.from("contractor_installments").update({ labor_cost: v }).eq("id", inst.id);
+                                          setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, labor_cost: v } : i));
+                                        }
+                                      }}
+                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] text-aviva-secondary mb-0.5">ค่าวัสดุ (บาท)</p>
+                                    <input type="number" defaultValue={inst.material_cost ?? 0}
+                                      onBlur={async e => {
+                                        const v = Number(e.target.value);
+                                        if (!isNaN(v)) {
+                                          await supabase.from("contractor_installments").update({ material_cost: v }).eq("id", inst.id);
+                                          setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, material_cost: v } : i));
+                                        }
+                                      }}
+                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                  </div>
+                                </div>
                               </div>
+                            )}
+                            {((inst.labor_cost ?? 0) > 0 || (inst.material_cost ?? 0) > 0) && (
+                              <p className="text-[10px] text-aviva-secondary/70">ค่าแรง ฿{(inst.labor_cost ?? 0).toLocaleString("th-TH")} · ค่าวัสดุ ฿{(inst.material_cost ?? 0).toLocaleString("th-TH")}</p>
                             )}
                             <button
                               onClick={() => {
@@ -1030,7 +1399,9 @@ export default function ConstructionPage() {
                               onSave={saveInspectionResult}
                               onUpload={uploadInspectionPhoto}
                             />
-                            {/* Dynamic sub-tasks */}
+                            <div>
+                              <AttachDocButton entityType="contractor_installment" entityId={inst.id} attachedBy={user?.full_name ?? ""} templates={installmentDocTemplates(inst, selectedHouse?.house_number ?? "")} />
+                            </div>
                             <div className="space-y-2 pt-1 border-t border-aviva-gold/10">
                               <p className="text-[10px] text-aviva-secondary/60 font-semibold uppercase tracking-wider pt-1">รายการงานย่อย</p>
                               {tasks.map(task => (
@@ -1044,7 +1415,7 @@ export default function ConstructionPage() {
                                     {uploadingTask === task.id
                                       ? <Loader2 size={13} className="text-aviva-gold animate-spin" />
                                       : task.photo_url
-                                        ? <img src={task.photo_url} alt="" className="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
+                                        ? <SignedImg src={task.photo_url} alt="" imgClassName="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
                                         : <Camera size={13} className="text-aviva-secondary/40" />
                                     }
                                   </label>
@@ -1084,6 +1455,12 @@ export default function ConstructionPage() {
                                 ) : null}
                               </div>
                             )}
+                            {inst.status !== "pending" && (
+                              <div className="border-t border-aviva-gold/10 pt-2 mt-1">
+                                <p className="text-[10px] font-semibold text-aviva-secondary/70 mb-1">ประวัติการส่งต่องาน</p>
+                                <WorkflowTimeline sourceRecordId={inst.id} />
+                              </div>
+                            )}
                           </div>
                         )}
                       </GlassCard>
@@ -1098,8 +1475,10 @@ export default function ConstructionPage() {
         {part === "daily" && (
           <>
             <div className="flex gap-2">
-              {([[ "reports", `รายงาน (${reports.length})`], ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`]] as [Tab, string][]).map(([k, l]) => (
-                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{l}</button>
+              {(["reports", "defects"] as Tab[]).map(k => (
+                <button key={k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all", tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+                  {k === "reports" ? `รายงาน (${reports.length})` : openDefects ? `Defects (${openDefects})` : "Defects"}
+                </button>
               ))}
             </div>
 
@@ -1121,7 +1500,7 @@ export default function ConstructionPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
+                            <span className="text-xs font-bold text-aviva-gold">{house ? houseLabel(house) : "—"}</span>
                             {r.work_type && <span className="text-[10px] bg-aviva-gold/10 text-aviva-gold/80 px-1.5 py-0.5 rounded-full">{r.work_type}</span>}
                             <span className="text-[10px] text-aviva-secondary">{new Date(r.created_at).toLocaleDateString("th-TH")} {new Date(r.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
                           </div>
@@ -1129,9 +1508,9 @@ export default function ConstructionPage() {
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
                           {r.photo_url && (
-                            <a href={r.photo_url} target="_blank" rel="noreferrer" className="mt-2 block">
-                              <img src={r.photo_url} alt="รูปตรวจงาน" className="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
-                            </a>
+                            <div className="mt-2">
+                              <SignedImg src={r.photo_url} alt="รูปตรวจงาน" link imgClassName="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1170,7 +1549,7 @@ export default function ConstructionPage() {
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-aviva-gold">{house?.house_number ?? "—"}</span>
+                            <span className="text-xs font-bold text-aviva-gold">{house ? houseLabel(house) : "—"}</span>
                             <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full">{d.defect_category}</span>
                             <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", sev.color)}>{sev.label}</span>
                             {daysOpen !== null && daysOpen > 7 && <span className="text-[10px] text-red-400 font-bold">⚠ {daysOpen} วัน</span>}
@@ -1198,6 +1577,70 @@ export default function ConstructionPage() {
               </div>
             )}
           </>
+        )}
+
+        {part === "purchase" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <SectionHeader title={`ใบขอสั่งซื้อ (${purchaseOrders.length})`} subtitle="ขออนุมัติจัดซื้อวัสดุ-อุปกรณ์" />
+              <button onClick={() => setShowPRModal(true)}
+                className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+                <Plus size={14} /> ขอสั่งซื้อ
+              </button>
+            </div>
+            {purchaseOrders.length === 0 ? (
+              <GlassCard className="p-8 text-center">
+                <ShoppingCart size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
+                <p className="text-aviva-secondary text-sm">ยังไม่มีใบขอสั่งซื้อ</p>
+                <p className="text-xs text-aviva-secondary/60 mt-1">กด &quot;ขอสั่งซื้อ&quot; เพื่อส่งขออนุมัติ</p>
+              </GlassCard>
+            ) : purchaseOrders.map(po => {
+              const poStatusConfig: Record<string, { label: string; color: string }> = {
+                pending:  { label: "รออนุมัติ",   color: "bg-yellow-500/20 text-yellow-400" },
+                approved: { label: "อนุมัติแล้ว",  color: "bg-green-500/20 text-green-400" },
+                rejected: { label: "ถูกปฏิเสธ",   color: "bg-red-500/20 text-red-400" },
+                draft:    { label: "ร่าง",          color: "bg-gray-500/20 text-gray-400" },
+              };
+              const sc = poStatusConfig[po.status] ?? poStatusConfig.draft;
+              const items = (po.items ?? []) as { name: string; qty: number; unit: string; unit_price: number }[];
+              return (
+                <GlassCard key={po.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-aviva-gold font-mono">{po.po_number ?? "—"}</span>
+                        <span className={clsx("text-[10px] px-2 py-0.5 rounded-full font-medium", sc.color)}>{sc.label}</span>
+                      </div>
+                      <p className="text-sm text-aviva-text mt-0.5">จากบริษัท: {po.supplier_name}</p>
+                      {po.requested_by && <p className="text-[10px] text-aviva-secondary mt-0.5">ขอโดย: {po.requested_by}</p>}
+                      <p className="text-[10px] text-aviva-secondary/60">{new Date(po.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    </div>
+                    {po.total_amount != null && po.total_amount > 0 && (
+                      <p className="text-sm font-bold text-aviva-gold flex-shrink-0">฿{Number(po.total_amount).toLocaleString("th-TH")}</p>
+                    )}
+                  </div>
+                  {items.length > 0 && (
+                    <div className="bg-aviva-bg/50 rounded-xl p-2.5 space-y-1">
+                      {items.map((it, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-aviva-text flex-1 truncate">{it.name}</span>
+                          <span className="text-aviva-secondary">{it.qty} {it.unit}</span>
+                          {it.unit_price > 0 && <span className="text-aviva-gold font-medium">฿{(it.qty * it.unit_price).toLocaleString("th-TH")}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {po.notes && <p className="text-[10px] text-aviva-secondary/70 leading-relaxed">{po.notes}</p>}
+                  {po.status === "approved" && po.approved_by && (
+                    <p className="text-[10px] text-green-400">✓ อนุมัติโดย {po.approved_by}</p>
+                  )}
+                  <div className="pt-1 border-t border-aviva-gold/10">
+                    <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} templates={poTemplates(po)} />
+                  </div>
+                </GlassCard>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -1292,7 +1735,7 @@ export default function ConstructionPage() {
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
                   <select value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
-                    {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
+                    {houses.map(h => <option key={h.id} value={h.id}>{houseLabel(h)}</option>)}
                   </select>
                 </div>
               )}
@@ -1319,6 +1762,13 @@ export default function ConstructionPage() {
                 </div>
               </div>
               <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">งวดงานที่เกี่ยวข้อง</label>
+                <select value={defectForm.installment_no} onChange={e => setDefectForm({ ...defectForm, installment_no: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="">— ไม่ระบุ —</option>
+                  {INSTALLMENT_NAMES.map((n, i) => <option key={i + 1} value={String(i + 1)}>{n}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
                 <input type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })} placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
@@ -1341,7 +1791,7 @@ export default function ConstructionPage() {
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
                   <select value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
-                    {houses.map(h => <option key={h.id} value={h.id}>{h.house_number} ({h.progress}%)</option>)}
+                    {houses.map(h => <option key={h.id} value={h.id}>{houseLabel(h)} ({h.progress}%)</option>)}
                   </select>
                 </div>
               )}
@@ -1450,6 +1900,47 @@ export default function ConstructionPage() {
         </div>
       )}
 
+      {showAckModal && ackInst && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-aviva-text">ผู้รับเหมาลงชื่อรับทราบ</h2>
+                <p className="text-xs text-aviva-secondary mt-0.5">{ackInst.name} — {instHouse?.house_number}</p>
+              </div>
+              <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl p-3 space-y-1 text-[11px] text-aviva-secondary">
+              <p className="font-semibold text-aviva-gold mb-1">ผลการตรวจงาน</p>
+              {(() => {
+                const instInsps = inspections.filter(i => i.contractor_installment_id === ackInst.id);
+                const pass = instInsps.filter(i => i.result === "pass").length;
+                const total = instInsps.length;
+                return total > 0
+                  ? <p>ผ่าน <span className="text-green-400 font-bold">{pass}</span> / {total} รายการ {pass === total ? "✓ ครบทุกรายการ" : ""}</p>
+                  : <p className="text-aviva-secondary/60">ยังไม่มีรายการตรวจ</p>;
+              })()}
+              <p>มูลค่างวด: <span className="text-aviva-gold font-semibold">฿{ackInst.amount.toLocaleString("th-TH")}</span></p>
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1.5 block font-medium">ชื่อผู้รับเหมา (ลงชื่อรับทราบผลการตรวจ) *</label>
+              <input
+                type="text"
+                value={ackName}
+                onChange={e => setAckName(e.target.value)}
+                placeholder="กรอกชื่อ-นามสกุลผู้รับเหมา"
+                className="w-full bg-aviva-bg border border-aviva-gold/30 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/70"
+              />
+              <p className="text-[10px] text-aviva-secondary/60 mt-1">การกรอกชื่อและกด &quot;ยืนยันและส่งตรวจสอบ&quot; ถือเป็นการลงชื่อรับทราบผลการตรวจงานของผู้รับเหมา</p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
+              <button onClick={handleAckAndSubmit} disabled={!ackName.trim()} className="flex-1 py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">ยืนยันและส่งตรวจสอบ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmInst && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">
@@ -1459,6 +1950,98 @@ export default function ConstructionPage() {
               <button onClick={() => setConfirmInst(null)} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
               <button onClick={() => doAdvanceInst(confirmInst)} className="flex-1 py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm">ยืนยัน</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPRModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">ใบขอสั่งซื้อ</h2>
+                <p className="text-[11px] text-aviva-secondary mt-0.5">Purchase Request — ฝ่ายก่อสร้าง</p>
+              </div>
+              <button onClick={() => setShowPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดจำหน่าย / บริษัทที่สั่งซื้อ *</label>
+              <input type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
+                placeholder="ชื่อร้านค้า / บริษัท"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-aviva-secondary font-medium">รายการสั่งซื้อ *</label>
+                <button onClick={() => setPrItems(p => [...p, { name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }])}
+                  className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg bg-aviva-gold/5 hover:bg-aviva-gold/10 transition-all">
+                  <Plus size={11} /> เพิ่มรายการ
+                </button>
+              </div>
+              <div className="space-y-2">
+                {prItems.map((it, i) => (
+                  <div key={i} className="bg-aviva-bg/60 rounded-xl p-3 space-y-2">
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="ชื่อวัสดุ/อุปกรณ์ *" value={it.name}
+                        onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                        className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50" />
+                      {prItems.length > 1 && (
+                        <button onClick={() => setPrItems(p => p.filter((_, j) => j !== i))} className="text-red-400/60 hover:text-red-400 p-1 transition-colors">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <p className="text-[9px] text-aviva-secondary mb-1">จำนวน</p>
+                        <input type="number" min="1" value={it.qty}
+                          onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-aviva-secondary mb-1">หน่วย</p>
+                        <input type="text" value={it.unit}
+                          onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-aviva-secondary mb-1">ราคา/หน่วย</p>
+                        <input type="number" min="0" value={it.unit_price}
+                          onChange={e => setPrItems(p => p.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                      </div>
+                    </div>
+                    {Number(it.qty) > 0 && Number(it.unit_price) > 0 && (
+                      <p className="text-[11px] text-aviva-gold text-right">รวม: ฿{(Number(it.qty) * Number(it.unit_price)).toLocaleString("th-TH")}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {prItems.some(it => it.name.trim() && Number(it.unit_price) > 0) && (
+                <div className="flex justify-between items-center mt-2 px-1">
+                  <span className="text-xs text-aviva-secondary">มูลค่ารวมทั้งสิ้น</span>
+                  <span className="text-sm font-bold text-aviva-gold">
+                    ฿{prItems.filter(it => it.name.trim()).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.unit_price) || 0), 0).toLocaleString("th-TH")}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ / เหตุผลที่ต้องการสั่งซื้อ</label>
+              <textarea value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
+                placeholder="อธิบายความจำเป็นและการใช้งาน..."
+                rows={3}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+            </div>
+            <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl p-3 text-[11px] text-aviva-secondary space-y-0.5">
+              <p>ผู้ขอ: <span className="text-aviva-text font-medium">{user?.full_name ?? user?.email ?? "—"}</span></p>
+              <p>หลังส่งคำขอ ผู้จัดการจะได้รับแจ้งเตือนเพื่ออนุมัติในหน้า &quot;ระบบอนุมัติ&quot;</p>
+            </div>
+            <button onClick={handleSubmitPR}
+              disabled={savingPR || !prForm.supplier_name || !prItems.some(it => it.name.trim())}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              {savingPR ? <><Loader2 size={14} className="animate-spin" /> กำลังส่ง...</> : <><ShoppingCart size={14} /> ส่งขออนุมัติ</>}
+            </button>
           </div>
         </div>
       )}

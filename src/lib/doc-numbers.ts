@@ -1,10 +1,11 @@
 import { supabase } from "@/lib/supabase";
 
-export type DocPrefix = "FIN" | "PO" | "INST" | "DOC" | "LEAVE" | "BOOK" | "CONTRACT" | "MKTG" | "WR";
+export type DocPrefix = "FIN" | "PO" | "PR" | "INST" | "DOC" | "LEAVE" | "BOOK" | "CONTRACT" | "MKTG" | "WR";
 
 const PREFIX_TO_WORKFLOW: Record<DocPrefix, string> = {
   FIN:      "Finance_Approval",
   PO:       "Material_Purchase",
+  PR:       "Purchase_Request",
   INST:     "Installment_Review",
   DOC:      "Document_Approval",
   LEAVE:    "Leave_Request",

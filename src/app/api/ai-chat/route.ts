@@ -1,13 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { compressContextForAPI, compressChatHistory } from "@/lib/prompt-compression";
+import { callClaudeText, anthropicEnabled } from "@/lib/claude";
+import { serverDb } from "@/lib/server-db";
+import { loadExpert } from "@/lib/dept-data";
+import { isManagerRole } from "@/lib/roles";
+import { buildDeptKnowledge, MENTOR_STYLE } from "@/lib/company-knowledge";
+import type { AIResponseBody } from "@/types/api";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Placeholder fallbacks keep `createClient` from throwing during `next build`
+// page-data collection when secrets are absent (local/CI). Real env vars are
+// present at runtime in production, so live requests use the real credentials.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+// แมปฝ่ายของผู้ใช้ (ไทย/อังกฤษ) → คีย์ผู้เชี่ยวชาญ เพื่อให้แชตคุยกับ persona เดียวกับบรีฟ
+function deptToExpertKey(dept: string): string | null {
+  const d = (dept || "").toLowerCase();
+  if (d.includes("ขาย") || d.includes("sale") || d.includes("crm")) return "sales";
+  if (d.includes("ก่อสร้าง") || d.includes("construction")) return "construction";
+  if (d.includes("การเงิน") || d.includes("finance")) return "finance";
+  if (d.includes("บัญชี") || d.includes("account")) return "accounting";
+  if (d.includes("ตลาด") || d.includes("marketing")) return "marketing";
+  if (d.includes("บุคคล") || d.includes("hr")) return "hr";
+  if (d.includes("หลังการขาย") || d.includes("after") || d.includes("ซ่อม") || d.includes("warranty")) return "after-sales";
+  if (d.includes("เอกสาร") || d.includes("document")) return "document";
+  return null;
+}
 
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT = 10;
@@ -24,6 +51,28 @@ function checkRateLimit(ip: string): boolean {
     }
   }
   return true;
+}
+
+// SEC-01: rate limit แบบ persistent (ข้าม serverless cold start / หลาย instance)
+// fail-open: ถ้า DB error ปล่อยผ่าน (ไม่บล็อกผู้ใช้จริงจากปัญหา infra)
+async function checkRateLimitDb(ip: string): Promise<boolean> {
+  try {
+    const db = serverDb(); // service role ถ้ามี ไม่งั้น anon (fail-open อยู่แล้ว)
+    const since = new Date(Date.now() - RATE_WINDOW).toISOString();
+    const { count } = await db
+      .from("ai_rate_limits")
+      .select("id", { count: "exact", head: true })
+      .eq("ip", ip)
+      .gte("created_at", since);
+    if ((count ?? 0) >= RATE_LIMIT) return false;
+    await db.from("ai_rate_limits").insert({ ip });
+    if (Math.random() < 0.02) {
+      await db.from("ai_rate_limits").delete().lt("created_at", new Date(Date.now() - 10 * RATE_WINDOW).toISOString());
+    }
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 type HouseRow = { house_number: string; status: string; delayed_days?: number };
@@ -107,8 +156,9 @@ ${deptSection}
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
+  if (!checkRateLimit(ip) || !(await checkRateLimitDb(ip))) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -116,10 +166,17 @@ export async function POST(req: NextRequest) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userRole: string = user.user_metadata?.role ?? "user";
-  const userDept: string = user.user_metadata?.department ?? "";
-  const userName: string = user.user_metadata?.full_name ?? "พนักงาน";
-  const isManager = ["admin", "ceo", "manager", "director", "project_manager"].includes(userRole);
+  // ใช้ service role ถ้ามี ไม่งั้นใช้สิทธิ์ผู้ใช้ที่ล็อกอิน (RLS v473) — ไม่ต้องพึ่ง ENV ใน Vercel
+  const db = serverDb(token);
+  const { data: dbUser } = await db
+    .from("users")
+    .select("role, department, full_name")
+    .eq("id", user.id)
+    .single();
+  const userRole: string = dbUser?.role ?? "user";
+  const userDept: string = dbUser?.department ?? "";
+  const userName: string = dbUser?.full_name ?? "พนักงาน";
+  const isManager = isManagerRole(userRole);
 
   let message: string;
   let history: { role: string; content: string }[] = [];
@@ -138,29 +195,39 @@ export async function POST(req: NextRequest) {
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const results = await Promise.all([
-    supabase.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
-    supabase.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
-    supabase.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
-    supabase.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-    supabase.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+    db.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
+    db.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
+    db.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
+    db.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+    db.from("loan_applications").select("status").then(r => r.data ?? []),
   ]).catch(() => null);
 
   if (!results) {
     return NextResponse.json({ response: "ไม่สามารถดึงข้อมูลโครงการได้ในขณะนี้ กรุณาลองใหม่ค่ะ" });
   }
 
-  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments] = results;
+  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments, loanApps] = results;
+  const loans = (loanApps as { status: string }[]) ?? [];
+  const loanStat = {
+    submitted: loans.filter(l => l.status === "submitted").length,
+    approved: loans.filter(l => l.status === "approved").length,
+    rejected: loans.filter(l => l.status === "rejected").length,
+  };
 
   if (!project) {
     return NextResponse.json({ response: "ไม่พบข้อมูลโครงการ กรุณาตรวจสอบการตั้งค่าค่ะ" });
   }
 
+  type HouseRow = { house_number: string; status: string; delayed_days?: number };
+  type CampaignRow = { name: string; platform: string; status: string; leads_generated: number };
+
   const delayedHouses = (houses as HouseRow[]).filter(h => (h.delayed_days ?? 0) > 0);
-  const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Loan Process","Closed Deal"].includes(l.status));
+  const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Contract","Loan Approved","Closed Deal"].includes(l.status));
   const closedLeads  = (leads as {status:string}[]).filter(l => l.status === "Closed Deal");
   const newLeads     = (leads as {status:string}[]).filter(l => l.status === "New Lead");
 
@@ -198,6 +265,7 @@ export async function POST(req: NextRequest) {
 👥 CRM:
 - Leads ทั้งหมด: ${leads.length} ราย | New Lead: ${newLeads.length} | Booking+Loan: ${bookingLeads.length} | ปิดการขาย: ${closedLeads.length}
 - อัตราปิดการขาย: ${leads.length > 0 ? Math.round((closedLeads.length / leads.length) * 100) : 0}%
+- สินเชื่อ (การยื่นกู้): ยื่นแล้วรอผล ${loanStat.submitted} | อนุมัติ ${loanStat.approved} | ไม่อนุมัติ ${loanStat.rejected}
 
 📣 การตลาด:
 - แคมเปญ Active: ${activeCampaigns.length} แคมเปญ (${activeCampaigns.map(c => c.platform).join(", ") || "ไม่มี"})
@@ -209,7 +277,7 @@ export async function POST(req: NextRequest) {
 
 ตอบเป็นภาษาไทย กระชับ มืออาชีพ ให้คำแนะนำเชิงกลยุทธ์ที่นำไปใช้ได้จริง`
     : buildStaffContext(userName, userDept, {
-        project: project as ProjectRow,
+        project: project as any,
         houses: houses as HouseRow[],
         leads: leads as {status:string}[],
         installments: installments as unknown[],
@@ -227,36 +295,60 @@ export async function POST(req: NextRequest) {
 
   const fallbackData = { soldUnits: project?.sold_units ?? 0, totalUnits: project?.total_units ?? 0, delayedHouses, bookingLeads, monthIncome, monthExpense, pendingApprovals: pendingApprovals.length, employees: employees.length, empByDept, pendingClaims: pendingClaims.length, pendingInstallments: (installments as unknown[]).length };
 
-  if (!OPENAI_API_KEY) {
+  // ยังไม่ได้ตั้ง Claude key → ใช้ข้อความสำรองจากข้อมูลจริง (ไม่ให้ผู้ใช้เจอ error)
+  if (!(await anthropicEnabled(token))) {
     return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  // ผูกแชตกับผู้เชี่ยวชาญฝ่ายเดียวกับบรีฟ (เช่น ฝ่ายขาย = คุณขายดี) ถ้าจับคู่ฝ่ายได้
+  let persona = "";
+  const expertKey = deptToExpertKey(userDept);
+  if (expertKey) {
+    try {
+      const expert = await loadExpert(db, expertKey);
+      persona = `คุณคือ "${expert.expert_name}" ผู้ช่วย AI ${expert.persona}\nความเชี่ยวชาญ: ${expert.focus}\n`;
+    } catch { /* ไม่มี persona ก็ใช้ AVIVA AI ปกติ */ }
+  }
+  // ฐานความรู้องค์กร + บุคลิกผู้จัดการอาวุโส — ให้ AI เข้าใจโครงสร้างบริษัท/กระบวนการ
+  // และโค้ชพนักงานเมื่อติดขัด (ทุกฝ่าย รวมพนักงานทั่วไป)
+  persona = persona + MENTOR_STYLE + "\n\n" + buildDeptKnowledge(expertKey) + "\n\n";
 
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemContext },
-          ...history,
-          { role: "user", content: message },
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      }),
+  // บีบ context ให้สั้นลงเพื่อประหยัดโทเค็น แล้วต่อท้ายด้วยแนวทางการตอบ
+  const compressionResult = compressContextForAPI(systemContext, isManager, 1200);
+  const compressedHistory = compressChatHistory(history, message);
+  const system =
+    persona + compressionResult.compressed +
+    "\n\nตอบเป็นภาษาไทยที่เป็นธรรมชาติ กระชับ ตรงคำถาม " +
+    "เมื่ออ้างตัวเลข/ชื่อ ให้ใช้จากข้อมูลจริงด้านบนเท่านั้น ห้ามแต่งข้อมูลที่ไม่มี " +
+    "ถ้าผู้ใช้คุยเรื่องทั่วไปนอกเหนืองาน ก็ตอบอย่างเป็นมิตรได้ตามปกติ";
+
+  const { text, model, error } = await callClaudeText({
+    system,
+    messages: [...compressedHistory, { role: "user", content: message }],
+    model: "claude-haiku-4-5",
+    maxTokens: 900,
+    timeoutMs: 40_000,
+    accessToken: token,
+  });
+
+  // เรียก Claude ไม่สำเร็จ → ใช้ข้อความสำรองจากข้อมูลจริง แทนการโชว์ error
+  if (!text) {
+    return NextResponse.json({
+      response: generateFallback(message, fallbackData, isManager),
+      error: error ?? "AI_FAILED",
     });
-    clearTimeout(timeoutId);
-    const data = await res.json();
-    return NextResponse.json({ response: data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่" });
-  } catch {
-    clearTimeout(timeoutId);
-    return NextResponse.json({ response: generateFallback(message, fallbackData, isManager) });
   }
+
+  return NextResponse.json({
+    response: text,
+    metadata: {
+      model,
+      tokensUsed: compressionResult.compressedSize,
+      compressionApplied: true,
+      retryCount: 0,
+      responseTimeMs: Date.now() - startTime,
+    },
+  } as AIResponseBody);
 }
 
 function generateFallback(message: string, d: { soldUnits: number; totalUnits: number; delayedHouses: {house_number:string}[]; bookingLeads: unknown[]; monthIncome: number; monthExpense: number; pendingApprovals: number; employees: number; empByDept: Record<string,number>; pendingClaims: number; pendingInstallments: number; }, isManager: boolean) {

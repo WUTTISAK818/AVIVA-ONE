@@ -1,5 +1,5 @@
 "use client";
-import { ChevronLeft, Building2, ChevronDown, Shield, Star, Users, HardHat, Briefcase, TrendingUp, Wrench, Megaphone } from "lucide-react";
+import { ChevronLeft, Building2, ChevronDown, Shield, Star, Users, HardHat, Briefcase, TrendingUp, Wrench, Megaphone, Crown } from "lucide-react";
 import Link from "next/link";
 import GlassCard from "@/components/GlassCard";
 
@@ -15,19 +15,32 @@ interface OrgNode {
 }
 
 const orgData: OrgNode = {
-  title: "ผู้อำนวยการ / เจ้าของโครงการ",
-  role: "Director / Admin",
+  title: "ผู้บริหารสูงสุด — CEO / COO",
+  role: "CEO / COO · สิทธิ์สูงสุด (เหนือ Admin)",
   level: 1,
-  icon: Shield,
+  icon: Crown,
   color: "text-aviva-gold",
-  bg: "bg-aviva-gold/10 border-aviva-gold/30",
+  bg: "bg-aviva-gold/15 border-aviva-gold/40",
   approvals: [
-    "อนุมัติงบโครงการทุกประเภท",
-    "อนุมัติสัญญา (CONTRACT)",
-    "อนุมัติรายจ่ายเกิน 500,000 บาท",
-    "ตัดสินใจเชิงกลยุทธ์",
+    "เข้าถึงข้อมูลได้ทุกส่วน และทำได้ทุกอย่างทุกฝ่าย",
+    "อนุมัติได้ทุกประเภทและทุกวงเงิน (เหนือทุกระดับ)",
+    "กำหนดนโยบายและตัดสินใจเชิงกลยุทธ์สูงสุด",
   ],
   children: [
+    {
+      title: "ผู้อำนวยการ / เจ้าของโครงการ",
+      role: "Director / Admin",
+      level: 2,
+      icon: Shield,
+      color: "text-aviva-gold",
+      bg: "bg-aviva-gold/10 border-aviva-gold/30",
+      approvals: [
+        "อนุมัติงบโครงการทุกประเภท",
+        "อนุมัติสัญญา (CONTRACT)",
+        "อนุมัติรายจ่ายเกิน 500,000 บาท",
+        "ตัดสินใจเชิงกลยุทธ์",
+      ],
+      children: [
     {
       title: "ผู้จัดการโครงการ",
       role: "Manager",
@@ -118,6 +131,8 @@ const orgData: OrgNode = {
       ],
     },
   ],
+    },
+  ],
 };
 
 function OrgCard({ node }: { node: OrgNode }) {
@@ -166,8 +181,10 @@ const approvalMatrix = [
   { amount: "0 – 50,000 บาท",      approver: "ผู้จัดการโครงการ", time: "ภายใน 2 วัน" },
   { amount: "50,001 – 200,000 บาท", approver: "ผู้จัดการโครงการ (2 ชั้น)", time: "ภายใน 2 วัน" },
   { amount: "200,001 – 500,000 บาท", approver: "ผู้จัดการ + ผู้อำนวยการ", time: "ภายใน 3 วัน" },
-  { amount: "500,001 บาทขึ้นไป",   approver: "ผู้อำนวยการเท่านั้น", time: "ภายใน 5 วัน" },
+  { amount: "500,001 บาทขึ้นไป",   approver: "ผู้อำนวยการ / CEO / COO", time: "ภายใน 5 วัน" },
 ];
+
+// CEO/COO มีสิทธิ์สูงสุด อนุมัติได้ทุกวงเงินเหนือทุกระดับในตารางนี้
 
 export default function OrgChartPage() {
   return (
@@ -226,6 +243,7 @@ export default function OrgChartPage() {
             <p className="text-sm font-semibold text-aviva-text">กฎการสื่อสารและสั่งการ</p>
           </div>
           <ul className="space-y-2 text-xs text-aviva-secondary">
+            <li className="flex gap-2"><span className="text-aviva-gold flex-shrink-0">★</span><span><span className="text-aviva-gold font-semibold">CEO และ COO มีสิทธิ์สูงสุด</span> — เข้าถึงข้อมูลได้ทุกส่วน อนุมัติและทำได้ทุกอย่างทุกฝ่าย (เทียบเท่า/เหนือ Admin)</span></li>
             <li className="flex gap-2"><span className="text-aviva-gold flex-shrink-0">1.</span>การสั่งการเป็นลำดับชั้น — ห้ามข้ามสายงาน</li>
             <li className="flex gap-2"><span className="text-aviva-gold flex-shrink-0">2.</span>เอกสารทุกประเภทต้องบันทึกในระบบก่อนดำเนินการ</li>
             <li className="flex gap-2"><span className="text-aviva-gold flex-shrink-0">3.</span>การอนุมัติทางวาจาต้องตามด้วยเอกสารยืนยันใน 24 ชั่วโมง</li>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock, ClipboardList } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -20,7 +20,6 @@ interface Project {
   total_units: number;
   sold_units: number;
   available_units: number;
-  revenue_actual: number;
   revenue_target: number;
   construction_progress: number;
   sellout_forecast: string;
@@ -48,6 +47,28 @@ interface ConstructionStats {
 interface PendingBreakdown {
   workflow_type: string;
   count: number;
+}
+
+interface SalesFunnelMonth {
+  totalNew: number;
+  visitCount: number;
+  bookedCount: number;
+  loanCount: number;
+  loanApprovedCount: number;
+  transferCount: number;
+  hot: number;
+  warm: number;
+  cool: number;
+}
+
+interface ActiveHouseInfo {
+  house_number: string;
+  plot_number: number | null;
+  house_model: string | null;
+  land_size: number | null;
+  progress: number;
+  status: string;
+  contractor: string;
 }
 
 function formatMillions(n: number) {
@@ -94,16 +115,24 @@ export default function DashboardPage() {
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
-  const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number }[]>([]);
+  const [kpiError, setKpiError] = useState(false);
+  const [chartData, setChartData] = useState<{ month: string; revenue: number; expense: number; profit: number }[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [pendingBreakdown, setPendingBreakdown] = useState<PendingBreakdown[]>([]);
+  const [salesFunnel, setSalesFunnel] = useState<SalesFunnelMonth | null>(null);
+  const [activeHouses, setActiveHouses] = useState<ActiveHouseInfo[]>([]);
+  const [pendingPayouts, setPendingPayouts] = useState(0);
+  const [salesFunnelRange, setSalesFunnelRange] = useState<{ from: string; to: string } | null>(null);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
+  const aiMsgsRef = useRef<AiMsg[]>(aiMsgs);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
+  useEffect(() => { aiMsgsRef.current = aiMsgs; }, [aiMsgs]);
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMsgs]);
 
   useEffect(() => {
@@ -120,20 +149,29 @@ export default function DashboardPage() {
     setAiInput("");
     setAiMsgs(p => [...p, { role: "user", text: msg }]);
     setAiLoading(true);
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const currentMsgs = aiMsgs;
+      if (!session) {
+        setAiMsgs(p => [...p, { role: "assistant", text: "กรุณาเข้าสู่ระบบก่อนค่ะ" }]);
+        setAiLoading(false);
+        return;
+      }
       const res = await fetch("/api/ai-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
         body: JSON.stringify({
           message: msg,
-          history: currentMsgs.slice(-5).map(m => ({ role: m.role, content: m.text })),
+          history: aiMsgsRef.current.slice(-5).map(m => ({ role: m.role, content: m.text })),
         }),
       });
       const data = await res.json();
       setAiMsgs(p => [...p, { role: "assistant", text: data.response ?? "ขออภัย ไม่สามารถตอบได้ค่ะ" }]);
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setAiMsgs(p => [...p, { role: "assistant", text: "ขออภัย เกิดข้อผิดพลาด กรุณาลองใหม่ค่ะ" }]);
     }
     setAiLoading(false);
@@ -148,18 +186,27 @@ export default function DashboardPage() {
     setKpiModal(type);
     setKpiLoading(true);
     setKpiItems([]);
-    if (type === "units") {
-      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("plot_number");
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
-    } else if (type === "sold") {
-      const { data } = await supabase.from("leads").select("customer_name,phone,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
-    } else if (type === "available") {
-      const { data } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("house_number");
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
-    } else if (type === "revenue") {
-      const { data } = await supabase.from("receipts").select("amount,receipt_date,description").eq("project_id", PROJECT_ID).order("receipt_date", { ascending: false }).limit(20);
-      setKpiItems((data as Record<string, unknown>[]) ?? []);
+    setKpiError(false);
+    try {
+      if (type === "units") {
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("plot_number");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "sold") {
+        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget,created_at").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "available") {
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("plot_number");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "revenue") {
+        const { data, error } = await supabase.from("finance_transactions").select("amount,created_at,description,transaction_type").eq("project_id", PROJECT_ID).eq("transaction_type", "income").order("created_at", { ascending: false }).limit(20);
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      }
+    } catch {
+      setKpiError(true);
     }
     setKpiLoading(false);
   };
@@ -170,8 +217,6 @@ export default function DashboardPage() {
     const counts: Record<string, number> = {};
     data.forEach((r: { workflow_type: string }) => { counts[r.workflow_type] = (counts[r.workflow_type] ?? 0) + 1; });
     setPendingBreakdown(Object.entries(counts).map(([workflow_type, count]) => ({ workflow_type, count })));
-    const total = data.length;
-    setStats(prev => ({ ...prev, pendingApprovals: total }));
   };
 
   useEffect(() => {
@@ -179,29 +224,39 @@ export default function DashboardPage() {
       .then(({ data }) => { setProject(data); setLoading(false); }, () => setLoading(false));
 
     const year = new Date().getFullYear();
-    Promise.all([
+    const yearStr = String(year);
+
+    Promise.allSettled([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
-      supabase.from("receipts").select("amount,receipt_date,receipt_type").eq("project_id", PROJECT_ID),
+      supabase.from("finance_transactions").select("amount,created_at,transaction_type")
+        .eq("project_id", PROJECT_ID)
+        .gte("created_at", `${yearStr}-01-01`)
+        .lt("created_at", `${year + 1}-01-01`),
       supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("contractor_installments").select("status,amount").eq("project_id", PROJECT_ID),
-    ]).then(([approvals, receipts, employees, claims, leads, docs, installments]) => {
-      const allReceipts = (receipts.data ?? []) as { amount: number; receipt_date: string; receipt_type: string }[];
-      const receiptTotal = allReceipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
-      const expTotal = allReceipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
+    ]).then(([approvalsR, txnsR, employeesR, claimsR, leadsR, docsR, instsR]) => {
+      const allTxns = txnsR.status === "fulfilled"
+        ? (txnsR.value.data ?? []) as { amount: number; created_at: string; transaction_type: string }[]
+        : [];
+      const yearTxns = allTxns.filter(r => r.created_at?.startsWith(yearStr));
+      const receiptTotal = yearTxns.filter(r => r.transaction_type === "income").reduce((s, r) => s + Number(r.amount), 0);
+      const expTotal = yearTxns.filter(r => r.transaction_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
       setStats(prev => ({
         ...prev,
-        pendingApprovals: approvals.count ?? 0,
+        pendingApprovals: approvalsR.status === "fulfilled" ? (approvalsR.value.count ?? 0) : prev.pendingApprovals,
         totalReceipts: receiptTotal,
         expenseTotal: expTotal,
-        employeeCount: employees.count ?? 0,
-        pendingClaims: claims.count ?? 0,
-        totalLeads: leads.count ?? 0,
-        pendingDocs: docs.count ?? 0,
+        employeeCount: employeesR.status === "fulfilled" ? (employeesR.value.count ?? 0) : prev.employeeCount,
+        pendingClaims: claimsR.status === "fulfilled" ? (claimsR.value.count ?? 0) : prev.pendingClaims,
+        totalLeads: leadsR.status === "fulfilled" ? (leadsR.value.count ?? 0) : prev.totalLeads,
+        pendingDocs: docsR.status === "fulfilled" ? (docsR.value.count ?? 0) : prev.pendingDocs,
       }));
-      const insts = (installments.data ?? []) as { status: string }[];
+      const insts = instsR.status === "fulfilled"
+        ? (instsR.value.data ?? []) as { status: string }[]
+        : [];
       setConstructionStats({
         total: insts.length,
         inReview: insts.filter(i => i.status === "in_review").length,
@@ -211,17 +266,19 @@ export default function DashboardPage() {
       const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
       const incMap: Record<number, number> = {};
       const expMap: Record<number, number> = {};
-      allReceipts.filter(r => r.receipt_date?.startsWith(String(year))).forEach(r => {
-        const m = new Date(r.receipt_date).getMonth();
-        if (r.receipt_type === "income") incMap[m] = (incMap[m] ?? 0) + Number(r.amount) / 1_000_000;
+      yearTxns.forEach(r => {
+        const m = new Date(r.created_at).getMonth();
+        if (r.transaction_type === "income") incMap[m] = (incMap[m] ?? 0) + Number(r.amount) / 1_000_000;
         else expMap[m] = (expMap[m] ?? 0) + Number(r.amount) / 1_000_000;
       });
       setChartData(MONTHS.map((month, i) => ({
         month,
         revenue: +((incMap[i] ?? 0).toFixed(1)),
         expense: +((expMap[i] ?? 0).toFixed(1)),
+        profit: +(((incMap[i] ?? 0) - (expMap[i] ?? 0)).toFixed(1)),
       })));
-    }).catch(() => { setLoadError(true); });
+      if (txnsR.status === "rejected" || approvalsR.status === "rejected") setLoadError(true);
+    });
 
     fetchPendingBreakdown();
 
@@ -242,32 +299,115 @@ export default function DashboardPage() {
         }
       });
 
-    const channel = supabase.channel("dashboard_approvals_rt")
+    const refreshInsts = () => {
+      supabase.from("contractor_installments").select("status,amount").eq("project_id", PROJECT_ID)
+        .then(({ data }) => {
+          const insts = (data ?? []) as { status: string }[];
+          setConstructionStats({
+            total: insts.length,
+            inReview: insts.filter(i => i.status === "in_review").length,
+            approved: insts.filter(i => i.status === "approved").length,
+            paid: insts.filter(i => i.status === "paid").length,
+          });
+        });
+    };
+
+    const channel = supabase.channel("dashboard_rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "approval_logs" }, fetchPendingBreakdown)
+      .on("postgres_changes", { event: "*", schema: "public", table: "contractor_installments" }, refreshInsts)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { channel.unsubscribe(); supabase.removeChannel(channel); };
   }, []);
 
-  const totalUnits = project?.total_units ?? 0;
-  const soldUnits = project?.sold_units ?? 0;
-  const available = project?.available_units ?? 0;
-  const constructionProgress = project?.construction_progress ?? 0;
-  const selloutForecast = project?.sellout_forecast ?? "-";
-  const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
-  const noProjectData = !loading && project === null;
+  useEffect(() => {
+    let mounted = true;
+    const ORDER_MAP: Record<string, number> = {
+      "New Lead": 0, "Contacted": 1, "Site Visit": 2,
+      "Booking": 3, "Contract": 4, "Loan Approved": 5, "Transfer": 6, "Closed Deal": 7,
+    };
+    const rank = (s: string) => ORDER_MAP[s] ?? 0;
+    const emptyFunnel = { totalNew: 0, visitCount: 0, bookedCount: 0, loanCount: 0, loanApprovedCount: 0, transferCount: 0, hot: 0, warm: 0, cool: 0 };
 
-  const canSeeAll = !ctxUser || ctxUser.isManager || ctxUser.isAdmin;
+    supabase.from("leads")
+      .select("id,status,ai_score,loan_approved_date,created_at")
+      .eq("project_id", PROJECT_ID)
+      .then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) { setSalesFunnel(emptyFunnel); return; }
+        const leads = (data ?? []) as { id: string; status: string; ai_score: number; loan_approved_date: string | null; created_at: string }[];
+        setSalesFunnel({
+          totalNew: leads.length,
+          visitCount: leads.filter(l => rank(l.status) >= 2).length,
+          bookedCount: leads.filter(l => rank(l.status) >= 3).length,
+          loanCount: leads.filter(l => rank(l.status) >= 4).length,
+          loanApprovedCount: leads.filter(l => l.loan_approved_date != null).length,
+          transferCount: leads.filter(l => rank(l.status) >= 5).length,
+          hot: leads.filter(l => (l.ai_score ?? 0) >= 80).length,
+          warm: leads.filter(l => (l.ai_score ?? 0) >= 50 && (l.ai_score ?? 0) < 80).length,
+          cool: leads.filter(l => (l.ai_score ?? 0) < 50).length,
+        });
+        const dates = leads.map(l => l.created_at).filter(Boolean).sort();
+        if (dates.length > 0) {
+          const fmt = { day: "numeric" as const, month: "short" as const };
+          setSalesFunnelRange({
+            from: new Date(dates[0]).toLocaleDateString("th-TH", fmt),
+            to: new Date(dates[dates.length - 1]).toLocaleDateString("th-TH", fmt),
+          });
+        }
+      });
+
+    supabase.from("houses")
+      .select("house_number,plot_number,progress,status,contractor,house_model,land_size")
+      .eq("project_id", PROJECT_ID)
+      .neq("status", "complete")
+      .order("plot_number")
+      .limit(15)
+      .then(({ data, error }) => {
+        if (!mounted || error) return;
+        setActiveHouses((data ?? []) as ActiveHouseInfo[]);
+      });
+
+    supabase.from("contractor_installments")
+      .select("amount,status")
+      .eq("project_id", PROJECT_ID)
+      .eq("status", "approved")
+      .then(({ data, error }) => {
+        if (!mounted || error) return;
+        const total = ((data ?? []) as { amount: number }[]).reduce((s, i) => s + Number(i.amount), 0);
+        setPendingPayouts(total);
+      });
+
+    return () => { mounted = false; };
+  }, []);
+
+  const {
+    totalUnits, soldUnits, available, constructionProgress, selloutForecast,
+    selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct,
+  } = useMemo(() => {
+    const totalUnits = project?.total_units ?? 0;
+    const soldUnits = salesFunnel?.transferCount ?? (project?.sold_units ?? 0);
+    const bookedActive = Math.max((salesFunnel?.bookedCount ?? 0) - soldUnits, 0);
+    const available = totalUnits > 0 ? Math.max(totalUnits - soldUnits - bookedActive, 0) : (project?.available_units ?? 0);
+    const constructionProgress = project?.construction_progress ?? 0;
+    const selloutForecast = project?.sellout_forecast ?? "-";
+    const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
+    const noProjectData = !loading && project === null;
+    const projStart = new Date(2026, 3, 1);
+    const now = new Date();
+    const monthsElapsed = Math.max((now.getFullYear() - projStart.getFullYear()) * 12 + (now.getMonth() - projStart.getMonth()) + 1, 1);
+    const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
+    const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
+    const netPL = stats.totalReceipts - stats.expenseTotal;
+    const revenuePct = project && project.revenue_target > 0
+      ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
+      : null;
+    return { totalUnits, soldUnits, available, constructionProgress, selloutForecast, selloutPct, noProjectData, salesVelocity, monthsToSellout, netPL, revenuePct };
+  }, [project, loading, stats, salesFunnel]);
+
+  const canSeeAll = ctxUser?.isManager || ctxUser?.isAdmin || false;
   const canSeeFinance = canSeeAll || ctxUser?.department === "ฝ่ายการเงิน" || ctxUser?.department === "ฝ่ายบัญชี";
   const canSeeConstruction = canSeeAll || ctxUser?.department === "ฝ่ายก่อสร้าง";
   const canSeeCRM = canSeeAll || ctxUser?.department === "ฝ่ายขาย";
-
-  const monthsElapsed = new Date().getMonth() + 1;
-  const salesVelocity = monthsElapsed > 0 ? soldUnits / monthsElapsed : 0;
-  const monthsToSellout = salesVelocity > 0 ? Math.ceil(available / salesVelocity) : null;
-  const netPL = stats.totalReceipts - stats.expenseTotal;
-  const revenuePct = project && project.revenue_target > 0
-    ? Math.round((stats.totalReceipts / project.revenue_target) * 100)
-    : null;
 
   const isEmployee = !!ctxUser && !ctxUser.isManager && !ctxUser.isAdmin;
 
@@ -391,7 +531,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v4.14</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v5.39</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -399,7 +539,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            {ctxUser?.isAdmin && (
+            {ctxUser?.isManager && (
               <Link href="/approvals" className="p-2 rounded-full bg-aviva-gold/10 border border-aviva-gold/30">
                 <BadgeCheck size={18} className="text-aviva-gold" />
               </Link>
@@ -454,6 +594,23 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {ctxUser?.isManager && (
+          <Link href="/ai-council" className="block">
+            <GlassCard gold className="p-4 active:scale-[0.99] transition-transform">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-aviva-gold/15 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
+                  <Users size={16} className="text-aviva-gold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-aviva-text flex items-center gap-1.5">คณะที่ปรึกษา AI — สรุปเสนอผู้บริหาร <Sparkles size={12} className="text-aviva-gold" /></p>
+                  <p className="text-[11px] text-aviva-secondary">ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน + ประเด็นที่ต้องตัดสินใจ</p>
+                </div>
+                <span className="text-aviva-gold/60 text-lg">→</span>
+              </div>
+            </GlassCard>
+          </Link>
+        )}
 
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">
@@ -576,10 +733,55 @@ export default function DashboardPage() {
 
             {canSeeCRM && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
-                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium">ดูเพิ่มเติม →</Link>
+                <div>
+                  <SectionHeader title="ฝ่ายขาย — ภาพรวม"
+                    subtitle="ข้อมูล Leads ทั้งหมดตั้งแต่เริ่มโครงการ" />
+                </div>
+                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
               </div>
-              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
+              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต (คาดขายหมด: ${selloutForecast})`} value={selloutPct} />
+              {salesFunnel ? (
+                <>
+                  <div className="grid grid-cols-5 gap-1 mt-3">
+                    {([
+                      { label: "เยี่ยมชม", count: salesFunnel.visitCount, color: "text-blue-400" },
+                      { label: "จอง", count: salesFunnel.bookedCount, color: "text-yellow-400" },
+                      { label: "ยื่นกู้", count: salesFunnel.loanCount, color: "text-orange-400" },
+                      { label: "อนุมัติกู้", count: salesFunnel.loanApprovedCount, color: "text-green-400" },
+                      { label: "โอน", count: salesFunnel.transferCount, color: "text-aviva-gold" },
+                    ] as const).map(({ label, count, color }) => (
+                      <div key={label} className="bg-aviva-bg/60 rounded-xl p-2 text-center">
+                        <p className={`text-lg font-bold ${color}`}>{count}</p>
+                        <p className="text-[9px] text-aviva-secondary leading-tight mt-0.5">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-aviva-bg/40 rounded-xl p-3 mt-2">
+                    <p className="text-[10px] text-aviva-secondary/70 mb-2">ระดับความสนใจ ({salesFunnel.totalNew} ราย ทั้งหมด)</p>
+                    <div className="space-y-1.5">
+                      {([
+                        { label: "Hot", count: salesFunnel.hot, bar: "bg-red-400", text: "text-red-400" },
+                        { label: "Warm", count: salesFunnel.warm, bar: "bg-yellow-400", text: "text-yellow-400" },
+                        { label: "Cool", count: salesFunnel.cool, bar: "bg-blue-400", text: "text-blue-400" },
+                      ] as const).map(({ label, count, bar, text }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold ${text} w-7`}>{label}</span>
+                          <div className="flex-1 h-1.5 bg-aviva-bg rounded-full overflow-hidden">
+                            <div className={`h-full ${bar} rounded-full transition-all`}
+                              style={{ width: salesFunnel.totalNew > 0 ? `${Math.round((count / salesFunnel.totalNew) * 100)}%` : "0%" }} />
+                          </div>
+                          <span className={`text-[10px] font-bold ${text} w-4 text-right`}>{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2 mt-3">
+                  <div className="h-14 rounded-xl bg-aviva-bg/40 animate-pulse" />
+                  <div className="h-20 rounded-xl bg-aviva-bg/40 animate-pulse" />
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-2 mt-3">
                 <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
                   <p className="text-xl font-bold text-aviva-gold">{selloutPct}%</p>
@@ -594,10 +796,24 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-aviva-secondary">ยูนิตว่าง</p>
                 </div>
               </div>
+              {salesVelocity > 0 && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-aviva-gold">{salesVelocity.toFixed(1)}</p>
+                    <p className="text-[10px] text-aviva-secondary">ยูนิต/เดือน (ความเร็วขาย)</p>
+                  </div>
+                  <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                    <p className="text-lg font-bold text-blue-400">
+                      {available === 0 ? "ขายหมดแล้ว !" : monthsToSellout ? `~${monthsToSellout} เดือน` : "—"}
+                    </p>
+                    <p className="text-[10px] text-aviva-secondary">คาดขายหมด</p>
+                  </div>
+                </div>
+              )}
             </GlassCard>}
 
             {canSeeFinance && <GlassCard className="p-4">
-              <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
+              <SectionHeader title="ภาพรวมการเงิน" subtitle={`รายรับ-รายจ่าย ปี ${new Date().getFullYear() + 543}`} />
               {project && project.revenue_target > 0 && (
                 <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-1.5">
@@ -642,14 +858,18 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
+                  <span className="w-4 h-0.5 bg-green-400 rounded inline-block" />
                   <span className="text-[9px] text-aviva-secondary">รายรับ</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-4 h-0.5 bg-red-400 rounded inline-block" />
                   <span className="text-[9px] text-aviva-secondary">รายจ่าย</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">กำไรสุทธิ</span>
                 </div>
                 <span className="text-[9px] text-aviva-secondary/50 ml-auto">ล้านบาท / เดือน</span>
               </div>
@@ -657,9 +877,9 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
+                      <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#4ADE80" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#F87171" stopOpacity={0.25} />
@@ -670,12 +890,36 @@ export default function DashboardPage() {
                     <YAxis tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "11px" }}
-                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : "รายจ่าย"]}
+                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : name === "expense" ? "รายจ่าย" : "กำไรสุทธิ"]}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} fill="url(#goldGrad)" dot={false} />
+                    <Area type="monotone" dataKey="revenue" stroke="#4ADE80" strokeWidth={2} fill="url(#greenGrad)" dot={false} />
                     <Area type="monotone" dataKey="expense" stroke="#F87171" strokeWidth={1.5} fill="url(#redGrad)" dot={false} />
+                    <Area type="monotone" dataKey="profit" stroke="#D4AF37" strokeWidth={1.5} fill="none" dot={false} strokeDasharray="4 2" />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-3 bg-aviva-bg/50 rounded-xl p-3">
+                <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wide mb-2">กระแสเงินสด &amp; ภาระผูกพัน</p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <Link href="/office" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
+                    <p className="text-[10px] text-aviva-secondary">คงเหลือสุทธิ <span className="text-aviva-gold/50">→</span></p>
+                    <p className={`text-sm font-bold mt-0.5 ${netPL >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
+                    </p>
+                  </Link>
+                  <Link href="/approvals" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
+                    <p className="text-[10px] text-aviva-secondary">งวดงานค้างจ่าย <span className="text-aviva-gold/50">→</span></p>
+                    <p className="text-sm font-bold text-orange-400 mt-0.5">฿{formatMillions(pendingPayouts)}</p>
+                  </Link>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold ${netPL >= pendingPayouts ? "bg-green-500/10 border border-green-500/20 text-green-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                  {netPL >= pendingPayouts ? "✓ กระแสเงินสดเพียงพอสำหรับงวดค้าง" : "⚠ กระแสเงินสดอาจไม่เพียงพอสำหรับงวดค้าง"}
+                  <span className="ml-auto text-aviva-secondary/60 font-normal">
+                    {netPL >= pendingPayouts
+                      ? `เหลือ ฿${formatMillions(netPL - pendingPayouts)}`
+                      : `ขาด ฿${formatMillions(pendingPayouts - netPL)}`}
+                  </span>
+                </div>
               </div>
             </GlassCard>}
 
@@ -705,7 +949,7 @@ export default function DashboardPage() {
                 {constructionStats.inReview > 0 && (
                   <Link href="/approvals" className="flex items-start gap-2.5 p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 active:scale-[0.98] transition-transform">
                     <Clock size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div>
+<div>
                       <p className="text-xs font-bold text-yellow-400">งวดงานรออนุมัติ {constructionStats.inReview} งวด — กระทบกระแสเงินสดผู้รับเหมา</p>
                       <p className="text-[10px] text-aviva-secondary/80 mt-0.5">กดเพื่อไปอนุมัติ</p>
                     </div>
@@ -725,6 +969,35 @@ export default function DashboardPage() {
                     <p className="text-[10px] text-aviva-secondary">เบิกจ่ายแล้ว</p>
                   </div>
                 </div>
+                {activeHouses.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] text-aviva-secondary/70 font-semibold uppercase tracking-wider mb-2">
+                      กำลังก่อสร้าง {activeHouses.length} หลัง
+                    </p>
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                      {activeHouses.map(h => (
+                        <div key={h.house_number} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl ${h.status === "delayed" ? "bg-red-500/10 border border-red-500/15" : "bg-aviva-bg/50"}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-[11px] font-bold text-aviva-text truncate">
+                                {h.plot_number ? `แปลงที่ ${h.plot_number}${h.land_size ? ` / ${h.land_size} ตร.วา` : ""}${h.house_model ? ` / ${h.house_model}` : ""}` : h.house_number}
+                              </p>
+                              {h.status === "delayed" && <span className="text-[9px] text-red-400 flex-shrink-0 font-medium">ล่าช้า</span>}
+                            </div>
+                            <p className="text-[9px] text-aviva-secondary/60 truncate">{h.contractor || "ไม่ระบุผู้รับเหมา"}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="w-14 h-1.5 bg-aviva-bg rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${h.progress >= 80 ? "bg-green-400" : h.progress >= 40 ? "bg-yellow-400" : "bg-orange-400"}`}
+                                style={{ width: `${h.progress}%` }} />
+                            </div>
+                            <span className="text-[9px] text-aviva-secondary w-6 text-right">{h.progress}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </GlassCard>}
           </>
@@ -746,6 +1019,11 @@ export default function DashboardPage() {
             <div className="flex-1 overflow-y-auto space-y-2">
               {kpiLoading ? (
                 [1, 2, 3].map((i) => <div key={i} className="h-12 rounded-xl bg-aviva-bg/50 animate-pulse" />)
+              ) : kpiError ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-red-400 mb-2">โหลดข้อมูลไม่สำเร็จ</p>
+                  <button onClick={() => openKpi(kpiModal!)} className="text-xs text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-3 py-1.5 rounded-lg">ลองใหม่</button>
+                </div>
               ) : kpiItems.length === 0 ? (
                 <p className="text-center text-aviva-secondary text-sm py-8">ยังไม่มีข้อมูล</p>
               ) : kpiModal === "revenue" ? (
@@ -766,6 +1044,9 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs text-aviva-text font-medium">{String(item.customer_name ?? "—")}</p>
                       <p className="text-[10px] text-aviva-secondary">{String(item.phone ?? "")}</p>
+                      {item.created_at ? (
+                        <p className="text-[10px] text-blue-400">📅 เยี่ยมชม {new Date(String(item.created_at)).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                      ) : null}
                     </div>
                     <p className="text-sm font-bold text-green-400">฿{(Number(item.budget ?? 0) / 1_000_000).toFixed(1)}M</p>
                   </div>

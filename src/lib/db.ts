@@ -16,7 +16,7 @@ export async function getLeads() {
     .from("leads")
     .select("*")
     .eq("project_id", PROJECT_ID)
-    .order("created_at_default", { ascending: false });
+    .order("created_at", { ascending: false });
   return data ?? [];
 }
 

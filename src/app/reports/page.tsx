@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
+import { toSignedUrl } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -51,6 +52,7 @@ interface WAttachment {
   id?: string;
   file_url: string;
   file_name: string;
+  signed?: string;
 }
 
 interface HistoryReport {
@@ -180,7 +182,7 @@ export default function ReportsPage() {
           const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", data.id).order("created_at");
           setItems((its ?? []) as WItem[]);
           const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", data.id);
-          setAttachments((atts ?? []) as WAttachment[]);
+          setAttachments(await Promise.all(((atts ?? []) as WAttachment[]).map(async a => ({ ...a, signed: (await toSignedUrl(a.file_url)) ?? undefined }))));
         } else {
           const { data: created } = await supabase.from("work_reports").insert({
             user_email: user.email,
@@ -233,7 +235,7 @@ export default function ReportsPage() {
       const { data: urlData } = supabase.storage.from("document-attachments").getPublicUrl(path);
       const att = { report_id: report.id, file_url: urlData.publicUrl, file_name: file.name };
       const { data } = await supabase.from("work_report_attachments").insert(att).select().single();
-      if (data) setAttachments(prev => [...prev, data as WAttachment]);
+      if (data) { const d = data as WAttachment; d.signed = (await toSignedUrl(d.file_url)) ?? undefined; setAttachments(prev => [...prev, d]); }
     }
     setUploading(false);
   }
@@ -384,7 +386,7 @@ export default function ReportsPage() {
           {attachments.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-3">
               {attachments.map((att, idx) => (
-                <img key={idx} src={att.file_url} alt={att.file_name}
+                <img key={idx} src={att.signed ?? att.file_url} alt={att.file_name}
                   className="w-full aspect-square object-cover rounded-xl border border-aviva-gold/20" />
               ))}
             </div>

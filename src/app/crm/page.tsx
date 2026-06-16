@@ -645,7 +645,7 @@ export default function CRMPage() {
   ) as Record<LeadStatus, number>, [leads]);
 
   const filtered = useMemo(() => leads.filter(
-    (l) => (activeStage === "all" || l.status === activeStage) && (search === "" || l.customer_name.includes(search))
+    (l) => (activeStage === "all" || l.status === activeStage) && (search === "" || (l.customer_name ?? "").includes(search))
   ), [leads, activeStage, search]);
 
   // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
@@ -1075,9 +1075,10 @@ export default function CRMPage() {
   };
 
   // ตรวจเบอร์โทรซ้ำขณะกรอกฟอร์ม — กันเซลล์คนละคนเพิ่มลูกค้ารายเดียวกัน
-  const formPhoneDigits = form.phone.replace(/\D/g, "");
+  // กัน null: ลูกค้าบางรายไม่มีเบอร์ (phone = null) — เดิม l.phone.replace ทำทั้งหน้า crash
+  const formPhoneDigits = (form.phone ?? "").replace(/\D/g, "");
   const dupLead = formPhoneDigits.length >= 9
-    ? leads.find(l => l.phone.replace(/\D/g, "") === formPhoneDigits && l.id !== editingLead?.id)
+    ? leads.find(l => (l.phone ?? "").replace(/\D/g, "") === formPhoneDigits && l.id !== editingLead?.id)
     : null;
 
   // แยก render ของลิสต์ลูกค้าออกจาก state ของฟอร์ม/โมดัล

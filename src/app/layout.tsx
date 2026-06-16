@@ -58,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BottomNav />
             <HelpAssistant />
             <SWRegister />
+            <ErrorLogger />
             <CelebrationBroadcaster />
           </UserProvider>
         </ThemeProvider>

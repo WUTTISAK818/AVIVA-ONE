@@ -36,7 +36,7 @@ import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import PettyCashPanel from "@/components/PettyCashPanel";
 import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
-import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, CASH, INPUT_VAT, WHT_PAYABLE } from "@/lib/gl-accounts";
+import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -83,6 +83,7 @@ interface ConstructionJv {
   description: string;
   ref_number: string | null;
   total_debit: number;
+  lines?: { account_code: string; account_name: string; debit: number; credit: number }[];
 }
 
 // ─── Finance ──────────────────────────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function FinanceContent() {
   const [approvedInsts, setApprovedInsts] = useState<ContractorInstallmentPay[]>([]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [payingInst, setPayingInst] = useState<ContractorInstallmentPay | null>(null);
-  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "" });
+  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
 
   const fetchData = (limit = finLimit) => {
     let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
@@ -181,30 +182,37 @@ function FinanceContent() {
     // บันทึกเป็น JV เดียว (jv_entries/jv_lines) — แหล่งบัญชีเดียว ไม่เขียนซ้ำลง accounting_entries
     // ฝัง payment_method / notes ไว้ในคำอธิบายเพื่อคงข้อมูลเดิม โดยขึ้นต้นด้วย "จ่ายงวดก่อสร้าง:" สำหรับ filter
     const unit = payingInst.house_number ?? payingInst.house_id;
+    // หัก WHT (ค่าจ้างทำของ) + เงินประกันผลงาน (retention) จากมูลค่างานงวด
+    const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate);
     let jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${unit} (${payForm.payment_method})`;
+    jvDesc += ` — หัก ณ ที่จ่าย ${payForm.wht_rate}% ฿${pay.wht.toLocaleString()}, ประกันผลงาน ${payForm.retention_rate}% ฿${pay.retention.toLocaleString()}, จ่ายสุทธิ ฿${pay.net.toLocaleString()}`;
     if (payForm.notes) jvDesc += ` — ${payForm.notes}`;
+    // เดบิตต้นทุนก่อสร้าง (บันทึกต้นทุนงานงวด) — หัก WHT/ประกันผลงาน ฝั่งเครดิต จ่ายสุทธิเข้าธนาคาร
+    const payLines = [
+      { account_code: "5200", account_name: "ต้นทุนก่อสร้าง", debit: pay.gross, credit: 0 },
+    ];
+    if (pay.wht > 0) payLines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: pay.wht });
+    if (pay.retention > 0) payLines.push({ account_code: RETENTION_PAYABLE.code, account_name: RETENTION_PAYABLE.name, debit: 0, credit: pay.retention });
+    payLines.push({ account_code: BANK.code, account_name: BANK.name, debit: 0, credit: pay.net });
     await postJv({
       project_id: PROJECT_ID,
       jv_date: payForm.entry_date,
       description: jvDesc,
       ref_number: payForm.reference_number || null,
-      lines: [
-        { account_code: "2100", account_name: "เจ้าหนี้ผู้รับเหมา", debit: payingInst.amount, credit: 0 },
-        { account_code: "1100", account_name: "เงินสด/เงินฝากธนาคาร", debit: 0, credit: payingInst.amount },
-      ],
+      lines: payLines,
     });
     const paidByName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
     await supabase.from("contractor_installments").update({ status: "paid", paid_by: paidByName, paid_at: new Date().toISOString() }).eq("id", payingInst.id);
     await createNotification({
       type: "success",
       title: `${payingInst.name} — บันทึกจ่ายแล้ว`,
-      message: `ยูนิต ${payingInst.house_number ?? payingInst.house_id} — ฿${payingInst.amount.toLocaleString()} โดย ${paidByName}`,
+      message: `ยูนิต ${payingInst.house_number ?? payingInst.house_id} — งานงวด ฿${pay.gross.toLocaleString()} หัก WHT ฿${pay.wht.toLocaleString()} + ประกันผลงาน ฿${pay.retention.toLocaleString()} = จ่ายสุทธิ ฿${pay.net.toLocaleString()} โดย ${paidByName}`,
       from_dept: "ฝ่ายการเงิน",
     });
     setSaving(false);
     setShowPayModal(false);
     setPayingInst(null);
-    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "" });
+    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
     fetchApprovedInsts();
   };
 
@@ -599,6 +607,31 @@ function FinanceContent() {
                 <input type="date" value={payForm.entry_date} onChange={e => setPayForm({ ...payForm, entry_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">หัก ณ ที่จ่าย (%)</label>
+                  <input type="number" inputMode="decimal" value={payForm.wht_rate}
+                    onChange={e => setPayForm({ ...payForm, wht_rate: Number(e.target.value) })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">เงินประกันผลงาน (%)</label>
+                  <input type="number" inputMode="decimal" value={payForm.retention_rate}
+                    onChange={e => setPayForm({ ...payForm, retention_rate: Number(e.target.value) })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+              {payingInst && (() => {
+                const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate);
+                return (
+                  <div className="bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-4 py-2.5 text-xs space-y-1">
+                    <div className="flex justify-between text-aviva-secondary"><span>มูลค่างานงวด</span><span>฿{pay.gross.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-red-400/90"><span>หัก ณ ที่จ่าย {payForm.wht_rate}%</span><span>−฿{pay.wht.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-orange-400/90"><span>หักประกันผลงาน {payForm.retention_rate}%</span><span>−฿{pay.retention.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-aviva-gold font-bold border-t border-aviva-gold/10 pt-1"><span>จ่ายสุทธิ</span><span>฿{pay.net.toLocaleString()}</span></div>
+                  </div>
+                );
+              })()}
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
                 <input type="text" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
@@ -807,18 +840,22 @@ function jvTemplates(e: ConstructionJv): DocTemplate[] {
     fixedNumber: e.jv_number ?? undefined,
     render: (docNumber) => {
       const amt = e.total_debit ?? 0;
+      // ใช้บรรทัดบัญชีจริงจาก jv_lines ถ้ามี (ครบทุกบรรทัด) มิฉะนั้น fallback แบบเดิม
+      const lineRows = (e.lines && e.lines.length > 0)
+        ? e.lines.map(l => [l.account_code, l.account_name, l.debit, l.credit] as (string | number)[])
+        : [
+          ["2100", "เจ้าหนี้ผู้รับเหมา", amt, 0],
+          ["1120", "เงินฝากธนาคาร", 0, amt],
+        ];
       const body = `
         <table><tbody>
           <tr><th style="width:28%">วันที่</th><td>${esc(e.jv_date)}</td></tr>
           <tr><th>รายการ</th><td>${esc(e.description)}</td></tr>
           ${e.ref_number ? `<tr><th>อ้างอิง</th><td>${esc(e.ref_number)}</td></tr>` : ""}
         </tbody></table>
-        ${renderItemsTable(["รหัสบัญชี", "ชื่อบัญชี", "เดบิต", "เครดิต"], [
-          ["2100", "เจ้าหนี้ผู้รับเหมา", amt, 0],
-          ["1100", "เงินสด/เงินฝากธนาคาร", 0, amt],
-        ])}
+        ${renderItemsTable(["รหัสบัญชี", "ชื่อบัญชี", "เดบิต", "เครดิต"], lineRows)}
         <table class="totals"><tbody>
-          <tr><td style="text-align:right">รวม</td><td style="text-align:right;font-weight:700">${amt.toLocaleString()} บาท</td></tr>
+          <tr><td style="text-align:right">รวมเดบิต</td><td style="text-align:right;font-weight:700">${amt.toLocaleString()} บาท</td></tr>
         </tbody></table>`;
       return renderDocShell({ title: "ใบสำคัญลงบัญชี", docNumber, bodyHtml: body, signLabels: ["ผู้จัดทำ", "ผู้ตรวจสอบ", "ผู้อนุมัติ"] });
     },
@@ -915,7 +952,22 @@ function AccountingContent() {
       .like("description", "จ่ายงวดก่อสร้าง%")
       .order("jv_date", { ascending: false })
       .limit(50);
-    setAcctEntries((data as ConstructionJv[]) ?? []);
+    const entries = (data as ConstructionJv[]) ?? [];
+    // ดึงบรรทัดบัญชีจริง (jv_lines) มาแนบ เพื่อให้ใบสำคัญลงบัญชีแสดงครบทุกบรรทัด (WHT/ประกันผลงาน/ธนาคาร)
+    if (entries.length > 0) {
+      const { data: lineData } = await supabase.from("jv_lines")
+        .select("jv_id,account_code,account_name,debit,credit")
+        .in("jv_id", entries.map(e => e.id));
+      if (lineData) {
+        const byJv = new Map<string, ConstructionJv["lines"]>();
+        for (const l of lineData as { jv_id: string; account_code: string; account_name: string; debit: number; credit: number }[]) {
+          if (!byJv.has(l.jv_id)) byJv.set(l.jv_id, []);
+          byJv.get(l.jv_id)!.push({ account_code: l.account_code, account_name: l.account_name, debit: Number(l.debit), credit: Number(l.credit) });
+        }
+        entries.forEach(e => { e.lines = byJv.get(e.id); });
+      }
+    }
+    setAcctEntries(entries);
   };
 
   useEffect(() => { setAcctLimit(50); fetchReceipts(50); fetchConstructionJvs(); }, [acctStart, acctEnd]);
@@ -1090,7 +1142,9 @@ function AccountingContent() {
                   <p className="text-xs text-aviva-secondary mt-0.5">{e.jv_date} · {e.jv_number}</p>
                   {e.ref_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.ref_number}</p>}
                   <div className="text-[10px] text-aviva-secondary/60 mt-0.5">
-                    Dr: 2100 เจ้าหนี้ผู้รับเหมา / Cr: 1100 เงินสด/เงินฝากธนาคาร
+                    {e.lines && e.lines.length > 0
+                      ? e.lines.map(l => `${l.debit > 0 ? "Dr" : "Cr"} ${l.account_code} ${l.account_name}`).join(" / ")
+                      : "Dr: 2100 เจ้าหนี้ผู้รับเหมา / Cr: 1120 เงินฝากธนาคาร"}
                   </div>
                   <div className="mt-1.5">
                     <AttachDocButton entityType="jv_entry" entityId={e.id} attachedBy={user?.full_name ?? ""} templates={jvTemplates(e)} />

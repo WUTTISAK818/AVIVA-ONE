@@ -4,8 +4,15 @@
 export interface GLAccount { code: string; name: string; }
 
 export const CASH: GLAccount = { code: "1110", name: "เงินสด" };
+export const BANK: GLAccount = { code: "1120", name: "เงินฝากธนาคาร" };
 export const INPUT_VAT: GLAccount = { code: "1600", name: "ภาษีมูลค่าเพิ่มซื้อ" };
 export const WHT_PAYABLE: GLAccount = { code: "2400", name: "ภาษีหัก ณ ที่จ่ายค้างชำระ" };
+export const CONTRACTOR_PAYABLE: GLAccount = { code: "2100", name: "เจ้าหนี้ผู้รับเหมา" };
+export const RETENTION_PAYABLE: GLAccount = { code: "2150", name: "เงินประกันผลงานค้างจ่าย" };
+
+// อัตรามาตรฐานจ่ายผู้รับเหมา (ค่าจ้างทำของ หัก ณ ที่จ่าย 3% / เงินประกันผลงาน 5%)
+export const DEFAULT_CONTRACTOR_WHT = 3;
+export const DEFAULT_RETENTION = 5;
 
 // หมวดรายจ่าย -> บัญชีค่าใช้จ่าย (ทุก code มีจริงใน chart_of_accounts และไม่ใช่ header)
 const EXPENSE_BY_CATEGORY: Record<string, GLAccount> = {
@@ -48,6 +55,22 @@ export interface TaxBreakdown {
   wht: number;    // ภาษีหัก ณ ที่จ่าย
   net: number;    // ยอดจ่ายสุทธิ (amount - wht)
   gross: number;  // ยอดรวม VAT (= amount ที่กรอก)
+}
+
+export interface ContractorPayBreakdown {
+  gross: number;      // มูลค่างานงวด (ก่อนหัก)
+  wht: number;        // ภาษีหัก ณ ที่จ่าย
+  retention: number;  // เงินประกันผลงานที่หักไว้
+  net: number;        // ยอดจ่ายสุทธิ
+}
+
+/** คำนวณยอดจ่ายผู้รับเหมา: หัก WHT + เงินประกันผลงาน จากมูลค่างานงวด */
+export function calcContractorPay(amount: number, whtRate: number, retentionRate: number): ContractorPayBreakdown {
+  const gross = r2(amount);
+  const wht = whtRate > 0 ? r2((gross * whtRate) / 100) : 0;
+  const retention = retentionRate > 0 ? r2((gross * retentionRate) / 100) : 0;
+  const net = r2(gross - wht - retention);
+  return { gross, wht, retention, net };
 }
 
 /** คำนวณภาษีจากยอดที่กรอก (vatIncluded = ยอดนั้นรวม VAT 7% แล้ว) */

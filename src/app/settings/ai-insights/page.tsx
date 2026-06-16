@@ -1,5 +1,5 @@
 "use client";
-// สถิติคำถาม AVIVA Copilot (เฉพาะผู้บริหาร) — รู้ว่าพนักงานถามอะไรบ่อย จุดที่สับสน
+// สถิติคำถาม น้อง Viva (เฉพาะผู้บริหาร) — รู้ว่าพนักงานถามอะไรบ่อย จุดที่สับสน
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, BarChart3, MessageSquare, TrendingUp } from "lucide-react";
@@ -59,7 +59,7 @@ export default function AiInsightsPage() {
         <div className="max-w-lg mx-auto flex items-center gap-2">
           <Link href="/settings" className="text-aviva-secondary"><ChevronLeft size={20} /></Link>
           <BarChart3 size={18} className="text-aviva-gold" />
-          <h1 className="text-lg font-bold text-aviva-text">สถิติคำถาม AVIVA Copilot</h1>
+          <h1 className="text-lg font-bold text-aviva-text">สถิติคำถาม น้อง Viva</h1>
         </div>
       </div>
 

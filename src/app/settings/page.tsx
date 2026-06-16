@@ -157,7 +157,7 @@ export default function SettingsPage() {
             </Link>
             <Link href="/settings/ai-insights" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
               <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center"><BarChart3 size={14} className="text-green-400" /></div>
-              <div className="flex-1"><p className="text-sm text-aviva-text">สถิติคำถาม AVIVA Copilot</p><p className="text-xs text-aviva-secondary">พนักงานถามอะไรบ่อย แยกตามฝ่าย — รู้จุดที่ควรปรับปรุง</p></div>
+              <div className="flex-1"><p className="text-sm text-aviva-text">สถิติคำถาม น้อง Viva</p><p className="text-xs text-aviva-secondary">น้อง Viva: พนักงานถามอะไรบ่อย แยกตามฝ่าย — รู้จุดที่ควรปรับปรุง</p></div>
               <ChevronRight size={16} className="text-aviva-secondary/50" />
             </Link>
             <Link href="/settings/contractors" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
@@ -207,7 +207,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 5.50</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 5.51</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

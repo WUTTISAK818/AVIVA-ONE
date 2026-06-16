@@ -7,7 +7,7 @@ import { Bot, Send, X, Sparkles, HelpCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 
-const APP_NAME = "AVIVA Copilot";
+const APP_NAME = "น้อง Viva";
 const STORAGE_KEY = "aviva_copilot_history_v1";
 
 interface Msg { role: "user" | "assistant"; text: string; }

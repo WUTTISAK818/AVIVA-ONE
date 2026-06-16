@@ -14,10 +14,12 @@ export default function GlassCard({ children, className, gold, onClick, dataFocu
       onClick={onClick}
       data-focus={dataFocus}
       className={clsx(
-        "rounded-2xl border backdrop-blur-sm",
+        // เลี่ยง backdrop-blur (GPU หนักมากบนมือถือเก่า — ทำหน้าเด้งเมื่อมีการ์ดหลายใบ)
+        // ใช้พื้นทึบขึ้นแทนเพื่อคงลุคการ์ด
+        "rounded-2xl border",
         gold
-          ? "bg-aviva-gold/5 border-aviva-gold/30"
-          : "bg-aviva-card/80 border-aviva-gold/10",
+          ? "bg-aviva-gold/10 border-aviva-gold/30"
+          : "bg-aviva-card/95 border-aviva-gold/10",
         className
       )}
     >

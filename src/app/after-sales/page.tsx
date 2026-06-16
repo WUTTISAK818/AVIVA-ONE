@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { ShieldCheck, Plus, X, Clock, CheckCircle, AlertTriangle, Star, Phone, Home, Wrench, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
-import { generateDocNumber } from "@/lib/doc-numbers";
+import { createWarrantyClaim } from "@/lib/work-actions";
 import { useCurrentUser } from "@/lib/user-context";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import GlassCard from "@/components/GlassCard";
@@ -112,31 +112,25 @@ export default function AfterSalesPage() {
   const handleSave = async () => {
     if (!form.customer_name || !form.description) return;
     setSaving(true);
-    const docNum = await generateDocNumber("WR");
-    await supabase.from("warranty_claims").insert({
-      project_id: PROJECT_ID,
-      doc_number: docNum,
-      customer_name: form.customer_name,
-      house_number: form.house_number || null,
-      issue_type: form.issue_type,
-      description: form.description,
-      assigned_to: form.assigned_to || null,
-      report_date: form.report_date || todayTh(),
-      scheduled_date: form.scheduled_date || null,
-      estimated_completion_date: form.estimated_completion_date || null,
-      status: form.status,
-    });
-    await createNotification({
-      type: "claim",
-      title: `แจ้งซ่อมใหม่ — ${docNum}`,
-      message: `${form.customer_name} — ${issueTh[form.issue_type] ?? form.issue_type}: ${form.description}`,
-      from_dept: "ฝ่ายหลังการขาย",
-    });
+    try {
+      const { docNumber } = await createWarrantyClaim({
+        customerName: form.customer_name,
+        houseNumber: form.house_number,
+        issueType: form.issue_type,
+        description: form.description,
+        assignedTo: form.assigned_to,
+        reportDate: form.report_date || todayTh(),
+        scheduledDate: form.scheduled_date,
+        estimatedCompletionDate: form.estimated_completion_date,
+      });
+      setShowModal(false);
+      setForm(emptyForm);
+      fetchClaims();
+      showToast(`บันทึกแจ้งซ่อม ${docNumber} แล้ว`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ", "error");
+    }
     setSaving(false);
-    setShowModal(false);
-    setForm(emptyForm);
-    fetchClaims();
-    showToast(`บันทึกแจ้งซ่อม ${docNum} แล้ว`);
   };
 
   const handleUpdateStatus = async (id: string, newStatus: Claim["status"]) => {

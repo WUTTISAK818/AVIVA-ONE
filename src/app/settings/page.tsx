@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList, HardHat, Bot, Lightbulb } from "lucide-react";
+import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList, HardHat, Bot, Lightbulb, BarChart3 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { useTheme } from "@/lib/theme-context";
 import { supabase } from "@/lib/supabase";
@@ -155,6 +155,11 @@ export default function SettingsPage() {
               <div className="flex-1"><p className="text-sm text-aviva-text">ผู้เชี่ยวชาญ AI ประจำฝ่าย</p><p className="text-xs text-aviva-secondary">ตั้งชื่อ บทบาท น้ำเสียง และโมเดลของ AI แต่ละฝ่าย</p></div>
               <ChevronRight size={16} className="text-aviva-secondary/50" />
             </Link>
+            <Link href="/settings/ai-insights" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center"><BarChart3 size={14} className="text-green-400" /></div>
+              <div className="flex-1"><p className="text-sm text-aviva-text">สถิติคำถาม AVIVA Copilot</p><p className="text-xs text-aviva-secondary">พนักงานถามอะไรบ่อย แยกตามฝ่าย — รู้จุดที่ควรปรับปรุง</p></div>
+              <ChevronRight size={16} className="text-aviva-secondary/50" />
+            </Link>
             <Link href="/settings/contractors" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
               <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center"><HardHat size={14} className="text-amber-400" /></div>
               <div className="flex-1"><p className="text-sm text-aviva-text">ผู้รับเหมา</p><p className="text-xs text-aviva-secondary">จัดการผู้รับเหมา + ผูกแปลง สำหรับแจ้งเตือน LINE/SMS</p></div>
@@ -202,7 +207,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 5.49</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 5.50</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

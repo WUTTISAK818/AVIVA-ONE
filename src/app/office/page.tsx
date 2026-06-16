@@ -37,6 +37,7 @@ import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerify
 import PettyCashPanel from "@/components/PettyCashPanel";
 import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
 import ProfitabilityPanel from "@/components/ProfitabilityPanel";
+import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import RecurringExpensePanel from "@/components/RecurringExpensePanel";
 import FinancialStatementsPanel from "@/components/FinancialStatementsPanel";
 import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, WIP, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
@@ -2375,7 +2376,7 @@ function HRContent() {
               const u = used[`${l.employee_name}|${l.leave_type}`] ?? 0;
               const over = quota != null && u > quota;
               return (
-                <GlassCard key={l.id} className="p-3">
+                <GlassCard key={l.id} dataFocus={l.id} className="p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
@@ -4724,6 +4725,7 @@ function AuditLogContent() {
 export default function OfficePage() {
   const user = useCurrentUser();
   const [activeTab, setActiveTab] = useState<OfficeTab>("finance");
+  useFocusHighlight();
 
   const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
   const visibleTabs = TABS.filter(t => {

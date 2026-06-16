@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { useCurrentUser } from "@/lib/user-context";
+import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import Toast, { type ToastType } from "@/components/Toast";
@@ -61,6 +62,7 @@ function SLABadge({ days, status }: { days: number; status: Claim["status"] }) {
 
 export default function AfterSalesPage() {
   const user = useCurrentUser();
+  useFocusHighlight();
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "resolved">("all");
@@ -236,7 +238,7 @@ export default function AfterSalesPage() {
                 const StatusIcon = sc.icon;
                 const days = slaDays(c.created_at, c.status);
                 return (
-                  <button key={c.id} onClick={() => setSelectedClaim(c)}
+                  <button key={c.id} data-focus={c.id} onClick={() => setSelectedClaim(c)}
                     className="w-full text-left">
                     <GlassCard className={`p-3 transition-all active:scale-[0.98] ${days > 7 && c.status !== "resolved" ? "border border-red-500/30" : ""}`}>
                       <div className="flex items-start justify-between gap-2">

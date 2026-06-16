@@ -14,6 +14,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
+import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { maskPhone } from "@/lib/mask";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
@@ -426,6 +427,7 @@ export default function ConstructionPage() {
   const [sendingSummary, setSendingSummary] = useState(false);
 
   const instPanelRef = useRef<HTMLDivElement>(null);
+  useFocusHighlight();
 
   const fetchData = (limit = rptLimit) => {
     let rptQ = supabase.from("construction_reports").select("*");
@@ -1284,7 +1286,7 @@ export default function ConstructionPage() {
                     const isExpanded = expandedInst === inst.id;
                     const sc = instStatusConfig[inst.status] ?? instStatusConfig["pending"];
                     return (
-                      <GlassCard key={inst.id} className="p-3">
+                      <GlassCard key={inst.id} dataFocus={inst.id} className="p-3">
                         <button className="w-full flex items-center justify-between gap-2" onClick={() => setExpandedInst(isExpanded ? null : inst.id)}>
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             {isExpanded ? <ChevronDown size={14} className="text-aviva-secondary flex-shrink-0" /> : <ChevronRight size={14} className="text-aviva-secondary flex-shrink-0" />}

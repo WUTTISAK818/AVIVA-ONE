@@ -5,12 +5,14 @@ interface GlassCardProps {
   className?: string;
   gold?: boolean;
   onClick?: () => void;
+  dataFocus?: string;   // สำหรับ deep-link จากกล่องงาน (useFocusHighlight)
 }
 
-export default function GlassCard({ children, className, gold, onClick }: GlassCardProps) {
+export default function GlassCard({ children, className, gold, onClick, dataFocus }: GlassCardProps) {
   return (
     <div
       onClick={onClick}
+      data-focus={dataFocus}
       className={clsx(
         "rounded-2xl border backdrop-blur-sm",
         gold

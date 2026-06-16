@@ -24,6 +24,7 @@ import SignedImg from "@/components/SignedImg";
 import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
+import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -91,6 +92,7 @@ interface Installment {
   paid_at?: string | null;
   labor_cost?: number | null;
   material_cost?: number | null;
+  created_at?: string;
 }
 
 interface WorkItem {
@@ -428,6 +430,25 @@ export default function ConstructionPage() {
 
   const instPanelRef = useRef<HTMLDivElement>(null);
   useFocusHighlight();
+
+  // ทวงถามอนุมัติงวดงาน (ผู้ส่งเบิกกดเตือนผู้บริหาร) — จำกัด 1 ครั้ง/วัน/เรื่อง
+  const [nudgedInst, setNudgedInst] = useState<Set<string>>(new Set());
+  const [nudgingInst, setNudgingInst] = useState<string | null>(null);
+  const nudgeInst = async (inst: Installment) => {
+    if (nudgingInst) return;
+    setNudgingInst(inst.id);
+    const byName = user?.full_name ?? user?.email ?? "ฝ่ายก่อสร้าง";
+    const r = await nudgeApproval({
+      recordId: inst.id, workflowType: "Installment_Review",
+      itemLabel: `งวดงาน: ${inst.name}`, toDept: "ฝ่ายบริหาร", fromDept: "ฝ่ายก่อสร้าง",
+      link: "/approvals", actorName: byName, actorRole: user?.role ?? null,
+      waitDays: inst.created_at ? waitDaysFrom(inst.created_at) : 0,
+    });
+    if (!r.ok) setToast({ msg: r.reason ?? "ทวงถามไม่สำเร็จ", type: "error" });
+    else setToast({ msg: "ส่งทวงถามผู้บริหารแล้ว", type: "success" });
+    setNudgedInst((s) => new Set(s).add(inst.id));
+    setNudgingInst(null);
+  };
 
   const fetchData = (limit = rptLimit) => {
     let rptQ = supabase.from("construction_reports").select("*");
@@ -1450,7 +1471,15 @@ export default function ConstructionPage() {
                                     <button onClick={() => { const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธ:"); if (reason !== null) rejectInstallment(inst, reason); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
                                   </div>
                                 ) : inst.status === "in_review" && !user?.isManager ? (
-                                  <div className="w-full py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">รออนุมัติจากผู้จัดการ</div>
+                                  <div className="space-y-1.5">
+                                    <div className="w-full py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">
+                                      รออนุมัติจากผู้จัดการ{inst.created_at ? ` · ${waitDaysFrom(inst.created_at)} วัน` : ""}
+                                    </div>
+                                    <button onClick={() => nudgeInst(inst)} disabled={nudgingInst === inst.id || nudgedInst.has(inst.id)}
+                                      className="w-full flex items-center justify-center gap-1 py-2 bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/25 rounded-xl text-xs font-semibold disabled:opacity-50">
+                                      🔔 {nudgedInst.has(inst.id) ? "ทวงแล้ว" : nudgingInst === inst.id ? "กำลังส่ง…" : "ทวงถามอนุมัติ"}
+                                    </button>
+                                  </div>
                                 ) : inst.status !== "in_review" ? (
                                   <button onClick={() => advanceInstStatus(inst)} disabled={inst.status === "approved"}
                                     className={clsx("w-full py-2 rounded-xl text-xs font-medium border", inst.status === "pending" || inst.status === "rejected" ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/30" : "bg-blue-500/20 text-blue-400 border-blue-500/30")}>

@@ -8,11 +8,12 @@ import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { postJv } from "@/lib/jv";
-import { resolveApprovalQueue, notifyPush } from "@/lib/workflow-events";
+import { resolveApprovalQueue } from "@/lib/workflow-events";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { createPurchaseRequest, PR_CATEGORIES, PR_THRESHOLD as THRESHOLD, PROJECT_ID, baht } from "@/lib/purchase-request";
+import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
 
 interface PR {
   id: string;
@@ -93,37 +94,19 @@ export default function PurchaseRequestPanel() {
     setErr(""); setShowForm(true);
   };
 
-  const waitDays = (createdAt: string) => Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000));
+  const waitDays = waitDaysFrom;
 
-  // ผู้ขอกด "ทวงถาม" → เตือนผู้บริหารให้รีบอนุมัติ (จำกัด 1 ครั้ง/วัน/เรื่อง)
+  // ผู้ขอกด "ทวงถาม" → เตือนผู้บริหารให้รีบอนุมัติ (จำกัด 1 ครั้ง/วัน/เรื่อง — logic กลาง)
   const nudge = async (pr: PR) => {
     if (nudging) return;
     setNudging(pr.id); setErr("");
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const { count } = await supabase
-      .from("workflow_events")
-      .select("id", { count: "exact", head: true })
-      .eq("source_record_id", pr.id).eq("event_type", "reminded")
-      .gte("created_at", todayStart.toISOString());
-    if ((count ?? 0) > 0) {
-      setNudged((s) => new Set(s).add(pr.id));
-      setErr(`${pr.pr_number} — ทวงถามไปแล้ววันนี้ รอผู้บริหารดำเนินการค่ะ`);
-      setNudging(null);
-      return;
-    }
-    const d = waitDays(pr.created_at);
-    await supabase.from("workflow_events").insert({
-      project_id: PROJECT_ID, workflow_type: "Purchase_Request",
-      source_record_id: pr.id, doc_index: pr.pr_number,
-      event_type: "reminded", condition_note: `ผู้ขอทวงถาม (รอ ${d} วัน)`,
-      actor_name: who, actor_role: user?.role ?? null,
+    const r = await nudgeApproval({
+      recordId: pr.id, workflowType: "Purchase_Request", docIndex: pr.pr_number,
+      itemLabel: `${pr.item} ${baht(pr.estimated_amount)}`,
+      toDept: "ฝ่ายบริหาร", fromDept: dept || null, link: "/office?tab=finance",
+      actorName: who, actorRole: user?.role ?? null, waitDays: waitDays(pr.created_at),
     });
-    await createNotification({
-      type: "approval", title: "🔔 ทวงถามอนุมัติคำขอซื้อ",
-      message: `${pr.pr_number} · ${pr.item} ${baht(pr.estimated_amount)} — รอมาแล้ว ${d} วัน (โดย ${who})`,
-      from_dept: dept || undefined, to_dept: "ฝ่ายบริหาร", record_id: pr.id, link: "/office?tab=finance",
-    });
-    await notifyPush("ฝ่ายบริหาร", "🔔 ทวงถามอนุมัติ", `${pr.pr_number} · ${pr.item} — รอ ${d} วัน`, "/office?tab=finance", `nudge-${pr.id}`);
+    if (!r.ok) setErr(`${pr.pr_number} — ${r.reason ?? "ทวงถามไม่สำเร็จ"}`);
     setNudged((s) => new Set(s).add(pr.id));
     setNudging(null);
   };

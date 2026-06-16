@@ -42,6 +42,7 @@ interface PendingLog {
   workflow_type: string;
   source_record_id: string | null;
   source_doc_index: string | null;
+  submitted_by_user_id: string | null;
   sla_due_at: string | null;
   created_at: string | null;
 }
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
 
   const { data: logs } = await db
     .from("approval_logs")
-    .select("approval_id, workflow_type, source_record_id, source_doc_index, sla_due_at, created_at")
+    .select("approval_id, workflow_type, source_record_id, source_doc_index, submitted_by_user_id, sla_due_at, created_at")
     .eq("action_taken", "Pending");
 
   let reminded = 0, escalated = 0;
@@ -108,6 +109,15 @@ export async function GET(req: NextRequest) {
         condition_note: docName,
       });
       escalated++;
+
+      // แจ้ง "ผู้ขอ" ด้วย (ไม่ใช่แค่ผู้อนุมัติ) — หาแผนกจากผู้ยื่นคำขอ
+      if (l.submitted_by_user_id) {
+        const { data: u } = await db.from("users").select("department").eq("id", l.submitted_by_user_id).maybeSingle();
+        const reqDept = (u as { department?: string | null } | null)?.department;
+        if (reqDept && reqDept !== EXEC_DEPT) {
+          await sendPush({ department: reqDept }, { title: "⏰ คำขอของคุณยังรออนุมัติ", body: `${docName} เกินกำหนดแล้ว — กด 'ทวงถาม' เพื่อเร่งได้`, url: "/approvals", tag: `req-${recordId}` });
+        }
+      }
     }
     results.push(`${docName}:${overdue ? "overdue" : "near"}`);
   }

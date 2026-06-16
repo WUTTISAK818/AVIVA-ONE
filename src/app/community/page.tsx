@@ -89,8 +89,8 @@ export default function CommunityPage() {
               </p>
             </div>
             <button onClick={() => { setForm(emptyForm); setShowModal(true); }}
-              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-              <Plus size={14} /> เพิ่มสมาชิก
+              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
+              <Plus size={16} /> เพิ่มสมาชิก
             </button>
           </div>
         </div>
@@ -99,18 +99,18 @@ export default function CommunityPage() {
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
         <div className="grid grid-cols-3 gap-2">
           <GlassCard className="p-3 text-center">
-            <Users size={16} className="text-aviva-gold mx-auto mb-1" />
+            <Users size={18} className="text-aviva-gold mx-auto mb-1" />
             <p className="text-xl font-bold text-aviva-text">{members.length}</p>
-            <p className="text-[10px] text-aviva-secondary">สมาชิกทั้งหมด</p>
+            <p className="text-xs text-aviva-secondary">สมาชิกทั้งหมด</p>
           </GlassCard>
           <GlassCard className="p-3 text-center">
-            <CheckCircle size={16} className="text-green-400 mx-auto mb-1" />
+            <CheckCircle size={18} className="text-green-400 mx-auto mb-1" />
             <p className="text-xl font-bold text-green-400">{paidCount}</p>
             <p className="text-[10px] text-aviva-secondary">ชำระแล้ว</p>
             <p className="text-[9px] text-green-400/70 mt-0.5">{fmt(collectedAmt)}</p>
           </GlassCard>
           <GlassCard className="p-3 text-center">
-            <DollarSign size={16} className="text-red-400 mx-auto mb-1" />
+            <DollarSign size={18} className="text-red-400 mx-auto mb-1" />
             <p className="text-xl font-bold text-red-400">{unpaidCount}</p>
             <p className="text-[10px] text-aviva-secondary">ค้างชำระ</p>
             <p className="text-[9px] text-red-400/70 mt-0.5">{fmt(outstandingAmt)}</p>
@@ -147,15 +147,15 @@ export default function CommunityPage() {
                       <span className="text-xs font-medium text-aviva-gold">{fmt(Number(m.annual_fee))}/ปี</span>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className={clsx("text-[10px] px-2 py-0.5 rounded-full",
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <span className={clsx("text-xs px-2.5 py-1 rounded-full",
                       m.fee_status === "Paid" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
                     )}>
                       {m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ"}
                     </span>
                     {m.fee_status === "Unpaid" && (
                       <button onClick={() => handleMarkPaid(m.member_id)}
-                        className="text-[10px] bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg">
+                        className="text-xs bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-3 py-1.5 rounded-lg font-medium">
                         บันทึกรับชำระ
                       </button>
                     )}
@@ -169,31 +169,31 @@ export default function CommunityPage() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 md:mb-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เพิ่มสมาชิกใหม่</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowModal(false)} aria-label="ปิด" className="p-2 -mr-2"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเจ้าของ *</label>
+                <label className="text-sm text-aviva-secondary mb-1.5 block">ชื่อเจ้าของ *</label>
                 <input type="text" value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
                   placeholder="ชื่อ-นามสกุล"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
+                <label className="text-sm text-aviva-secondary mb-1.5 block">เบอร์โทร</label>
                 <input type="tel" value={form.owner_phone} onChange={(e) => setForm({ ...form, owner_phone: e.target.value })}
                   placeholder="0XX-XXX-XXXX"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">พื้นที่ (ตร.ว.) *</label>
+                <label className="text-sm text-aviva-secondary mb-1.5 block">พื้นที่ (ตร.ว.) *</label>
                 <input type="number" value={form.area_sqw} onChange={(e) => setForm({ ...form, area_sqw: e.target.value })}
                   placeholder="50"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 {form.area_sqw && (
-                  <p className="text-xs text-aviva-gold mt-1">ค่าส่วนกลางต่อปี: {fmt(Number(form.area_sqw) * 30)}</p>
+                  <p className="text-sm text-aviva-gold mt-1.5">ค่าส่วนกลางต่อปี: {fmt(Number(form.area_sqw) * 30)}</p>
                 )}
               </div>
             </div>

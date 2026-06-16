@@ -837,7 +837,7 @@ export default function CRMPage() {
   };
 
   const handleSave = async () => {
-    if (!form.customer_name || !form.phone) return;
+    if (!form.customer_name) return;
     if (editingLead?.status === "Closed Deal" && !(user?.isManager)) {
       setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
       return;
@@ -1978,8 +1978,8 @@ export default function CRMPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร <span className="text-red-400">*</span></label>
-                    <input type="tel" inputMode="numeric" maxLength={12} value={form.phone} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
+                    <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
+                    <input type="tel" inputMode="numeric" maxLength={12} value={form.phone ?? ""} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
                       placeholder="08x-xxx-xxxx"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
@@ -2164,7 +2164,7 @@ export default function CRMPage() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
               </div>
 
-              <button onClick={handleSave} disabled={saving || !form.customer_name || !form.phone}
+              <button onClick={handleSave} disabled={saving || !form.customer_name}
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
                 {saving ? "กำลังบันทึก..." : editingLead ? "บันทึกการแก้ไข" : "เพิ่มลูกค้า"}
               </button>

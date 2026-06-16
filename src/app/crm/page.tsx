@@ -1075,7 +1075,7 @@ export default function CRMPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-aviva-bg pb-24">
+    <div className="min-h-screen bg-aviva-bg pb-36">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-3">
@@ -2363,7 +2363,7 @@ export default function CRMPage() {
           setReportAutoItems(items);
           setShowReportModal(true);
         }}
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
+        className="fixed bottom-24 left-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
       >
         <Send size={14} /> ส่งรายงานวัน
       </button>

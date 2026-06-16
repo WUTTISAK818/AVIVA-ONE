@@ -28,8 +28,9 @@ import { PAYMENT_PLAN, defaultInstallments } from "@/lib/payment-plan";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+function escapeHtml(s: string | null | undefined): string {
+  // กัน null/undefined: ลูกค้าบางรายไม่มีเบอร์/ข้อมูล — เดิม s.replace ทำหน้าพิมพ์ crash
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";

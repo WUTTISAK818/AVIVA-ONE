@@ -94,6 +94,7 @@ export default function SuggestionsPage() {
       from_dept: user?.department ?? undefined,
       to_dept: "ฝ่ายบริหาร",
       record_id: inserted.id,
+      link: "/settings/suggestions",
     });
     await logAction("settings", "suggestion_create", `เสนอปรับปรุงแอป: ${title.trim()} [${category}]`, inserted.id);
     setSaving(false); setShowForm(false); load();
@@ -114,6 +115,7 @@ export default function SuggestionsPage() {
       from_dept: "ฝ่ายบริหาร",
       to_dept: s.submitter_dept ?? undefined,
       record_id: s.id,
+      link: "/settings/suggestions",
     });
     await logAction("settings", "suggestion_review", `${label}ข้อเสนอ: ${s.title}`, s.id);
     setSaving(false); setRejecting(null); setRejectNote(""); load();

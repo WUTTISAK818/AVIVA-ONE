@@ -265,6 +265,10 @@ export default function CRMPage() {
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
   const [activeStage, setActiveStage] = useState<LeadStatus | "all">("all");
   const [search, setSearch] = useState("");
+  // กรองดูลูกค้าตามพนักงานขายที่ดูแล (คลิกจากแท็บผลงานทีม)
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  // รายชื่อพนักงานขายจากฐานข้อมูลพนักงาน (ใช้เป็นตัวเลือก dropdown ในฟอร์ม)
+  const [salesStaff, setSalesStaff] = useState<{ full_name: string; nickname: string | null }[]>([]);
   const [period, setPeriod] = useState<Period>("all");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
@@ -317,6 +321,13 @@ export default function CRMPage() {
       .eq("project_id", PROJECT_ID).order("plot_number")
       .then(({ data }) => setHouses((data ?? []) as HouseSlot[]));
     fetchSalesActs();
+    // โหลดพนักงานฝ่ายขาย (active) มาเป็นตัวเลือก "พนักงานขายที่ดูแล"
+    supabase.from("employees").select("full_name,nickname,department,status").eq("status", "active")
+      .then(({ data }) => {
+        const sales = (data ?? []).filter((e: { department?: string | null }) =>
+          (e.department ?? "").includes("ขาย") && !(e.department ?? "").includes("หลังการขาย"));
+        setSalesStaff(sales.map((e: { full_name: string; nickname: string | null }) => ({ full_name: e.full_name, nickname: e.nickname })));
+      });
   }, []);
 
   useEffect(() => {
@@ -647,14 +658,16 @@ export default function CRMPage() {
   ) as Record<LeadStatus, number>, [leads]);
 
   const filtered = useMemo(() => leads.filter(
-    (l) => (activeStage === "all" || l.status === activeStage) && (search === "" || (l.customer_name ?? "").includes(search))
-  ), [leads, activeStage, search]);
+    (l) => (activeStage === "all" || l.status === activeStage)
+      && (search === "" || (l.customer_name ?? "").includes(search))
+      && (!assigneeFilter || (l.assigned_to || l.source || "ไม่ระบุ") === assigneeFilter)
+  ), [leads, activeStage, search, assigneeFilter]);
 
   // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
   // แสดงทีละชุด แล้วกด "แสดงเพิ่ม" — รีเซ็ตเป็นชุดแรกเมื่อเปลี่ยนตัวกรอง/ค้นหา
   const PAGE_SIZE = 40;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeStage, search, leads]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeStage, search, leads, assigneeFilter]);
 
   const teamStats = useMemo(() => {
     const groups = new Map<string, Lead[]>();
@@ -1314,6 +1327,12 @@ export default function CRMPage() {
               </div>
             </div>
 
+            {assigneeFilter && (
+              <div className="flex items-center justify-between gap-2 bg-aviva-gold/10 border border-aviva-gold/30 rounded-xl px-3 py-2 mb-3">
+                <span className="text-xs text-aviva-text truncate">👤 ลูกค้าของ <span className="font-bold text-aviva-gold">{assigneeFilter}</span> · {filtered.length} ราย</span>
+                <button onClick={() => setAssigneeFilter(null)} className="text-[11px] text-aviva-secondary underline flex-shrink-0">ล้างตัวกรอง</button>
+              </div>
+            )}
             <div className="space-y-3">
               {leadsListEl}
             </div>
@@ -1435,7 +1454,8 @@ export default function CRMPage() {
               teamStats.map((s, i) => {
                 const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
                 return (
-                <GlassCard key={s.name} gold={i === 0} className="p-4">
+                <GlassCard key={s.name} gold={i === 0} className="p-4 cursor-pointer active:scale-[0.99] transition-transform"
+                  onClick={() => { setAssigneeFilter(s.name); setActiveStage("all"); setMainTab("pipeline"); }}>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className={clsx(
@@ -1444,7 +1464,7 @@ export default function CRMPage() {
                       )}>{medal ?? i + 1}</span>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-aviva-text truncate">{s.name}</p>
-                        <p className="text-xs text-aviva-secondary">{s.total} Leads ทั้งหมด</p>
+                        <p className="text-xs text-aviva-secondary">{s.total} Leads · แตะดูลูกค้าทั้งหมด →</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1945,9 +1965,16 @@ export default function CRMPage() {
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">พนักงานขายที่ดูแล (รับผิดชอบ)</label>
-                  <input type="text" value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
-                    placeholder="ชื่อเซลล์ผู้ดูแล — เว้นว่างตอนสร้างใหม่ = ตั้งเป็นชื่อผู้บันทึกอัตโนมัติ"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  <select value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                    <option value="">— เลือกพนักงานขาย (เว้นว่างตอนสร้าง = ตั้งเป็นผู้บันทึก) —</option>
+                    {form.assigned_to && !salesStaff.some(s => s.full_name === form.assigned_to) && (
+                      <option value={form.assigned_to}>{form.assigned_to} (ข้อมูลเดิม)</option>
+                    )}
+                    {salesStaff.map(s => (
+                      <option key={s.full_name} value={s.full_name}>{s.full_name}{s.nickname ? ` (${s.nickname})` : ""}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

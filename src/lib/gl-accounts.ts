@@ -9,6 +9,10 @@ export const INPUT_VAT: GLAccount = { code: "1600", name: "ภาษีมูล
 export const WHT_PAYABLE: GLAccount = { code: "2400", name: "ภาษีหัก ณ ที่จ่ายค้างชำระ" };
 export const CONTRACTOR_PAYABLE: GLAccount = { code: "2100", name: "เจ้าหนี้ผู้รับเหมา" };
 export const RETENTION_PAYABLE: GLAccount = { code: "2150", name: "เงินประกันผลงานค้างจ่าย" };
+// ธุรกิจอสังหา: ต้นทุนก่อสร้างสะสมใน "งานระหว่างก่อสร้าง" (สินค้าคงเหลือ) → ตัดเป็นต้นทุนขายตอนโอน
+export const WIP: GLAccount = { code: "1180", name: "งานระหว่างก่อสร้าง" };
+export const COGS: GLAccount = { code: "5210", name: "ต้นทุนขายบ้าน" };
+export const SALES_REVENUE: GLAccount = { code: "4100", name: "รายได้จากการขายบ้าน" };
 
 // อัตรามาตรฐานจ่ายผู้รับเหมา (ค่าจ้างทำของ หัก ณ ที่จ่าย 3% / เงินประกันผลงาน 5%)
 export const DEFAULT_CONTRACTOR_WHT = 3;

@@ -36,7 +36,7 @@ import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import PettyCashPanel from "@/components/PettyCashPanel";
 import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
-import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
+import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, WIP, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -187,9 +187,10 @@ function FinanceContent() {
     let jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${unit} (${payForm.payment_method})`;
     jvDesc += ` — หัก ณ ที่จ่าย ${payForm.wht_rate}% ฿${pay.wht.toLocaleString()}, ประกันผลงาน ${payForm.retention_rate}% ฿${pay.retention.toLocaleString()}, จ่ายสุทธิ ฿${pay.net.toLocaleString()}`;
     if (payForm.notes) jvDesc += ` — ${payForm.notes}`;
-    // เดบิตต้นทุนก่อสร้าง (บันทึกต้นทุนงานงวด) — หัก WHT/ประกันผลงาน ฝั่งเครดิต จ่ายสุทธิเข้าธนาคาร
+    // เดบิตงานระหว่างก่อสร้าง (สินค้าคงเหลือ) — ต้นทุนสะสมจนตัดเป็นต้นทุนขายตอนโอน
+    // หัก WHT/ประกันผลงาน ฝั่งเครดิต จ่ายสุทธิเข้าธนาคาร
     const payLines = [
-      { account_code: "5200", account_name: "ต้นทุนก่อสร้าง", debit: pay.gross, credit: 0 },
+      { account_code: WIP.code, account_name: WIP.name, debit: pay.gross, credit: 0 },
     ];
     if (pay.wht > 0) payLines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: pay.wht });
     if (pay.retention > 0) payLines.push({ account_code: RETENTION_PAYABLE.code, account_name: RETENTION_PAYABLE.name, debit: 0, credit: pay.retention });

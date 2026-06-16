@@ -648,6 +648,12 @@ export default function CRMPage() {
     (l) => (activeStage === "all" || l.status === activeStage) && (search === "" || l.customer_name.includes(search))
   ), [leads, activeStage, search]);
 
+  // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
+  // แสดงทีละชุด แล้วกด "แสดงเพิ่ม" — รีเซ็ตเป็นชุดแรกเมื่อเปลี่ยนตัวกรอง/ค้นหา
+  const PAGE_SIZE = 40;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeStage, search, leads]);
+
   const teamStats = useMemo(() => {
     const groups = new Map<string, Lead[]>();
     leads.forEach((lead) => {
@@ -1085,7 +1091,7 @@ export default function CRMPage() {
             <p className="text-aviva-secondary text-sm">ยังไม่มีลูกค้าในขั้นนี้</p>
           </GlassCard>
         ) : (
-          filtered.map((lead) => (
+          filtered.slice(0, visibleCount).map((lead) => (
             <GlassCard key={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setSelectedLead(lead)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -1159,14 +1165,20 @@ export default function CRMPage() {
             </GlassCard>
           ))
         )}
+      {!loading && filtered.length > visibleCount && (
+        <button onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+          className="w-full py-2.5 rounded-xl border border-aviva-gold/30 text-aviva-gold text-xs font-semibold bg-aviva-gold/5 active:scale-[0.98] transition-all">
+          แสดงเพิ่ม (เหลืออีก {filtered.length - visibleCount} ราย)
+        </button>
+      )}
       {!loading && filtered.length > 0 && (
         <p className="text-center text-[11px] text-aviva-secondary/60 py-2">
-          แสดงทั้งหมด {filtered.length} รายการ
+          แสดง {Math.min(visibleCount, filtered.length)} จาก {filtered.length} รายการ
         </p>
       )}
     </>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [filtered, loading, user]);
+  ), [filtered, loading, user, visibleCount]);
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-36">

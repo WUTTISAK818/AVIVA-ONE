@@ -8,23 +8,11 @@ import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { postJv } from "@/lib/jv";
-import { generateDocNumber } from "@/lib/doc-numbers";
-import { submitApprovalQueue, resolveApprovalQueue } from "@/lib/workflow-events";
+import { resolveApprovalQueue } from "@/lib/workflow-events";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
-
-const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
-const THRESHOLD = 2000; // เกณฑ์ที่ต้องขออนุมัติก่อนซื้อ
-
-const PR_CATEGORIES = [
-  "ฟิล์มกรองแสง/ตกแต่งสำนักงาน",
-  "อุปกรณ์สำนักงาน",
-  "ไอที/คอมพิวเตอร์",
-  "ซ่อมบำรุง",
-  "การตลาด/สื่อ",
-  "อื่น ๆ",
-];
+import { createPurchaseRequest, PR_CATEGORIES, PR_THRESHOLD as THRESHOLD, PROJECT_ID, baht } from "@/lib/purchase-request";
 
 interface PR {
   id: string;
@@ -44,7 +32,6 @@ interface PR {
   created_at: string;
 }
 
-const baht = (n: number) => `฿${n.toLocaleString("th-TH")}`;
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "2-digit" });
 
@@ -64,7 +51,7 @@ export default function PurchaseRequestPanel() {
 
   // ฟอร์มสร้างคำขอ
   const [showForm, setShowForm] = useState(false);
-  const [category, setCategory] = useState(PR_CATEGORIES[0]);
+  const [category, setCategory] = useState<string>(PR_CATEGORIES[0]);
   const [item, setItem] = useState("");
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState("");
@@ -107,57 +94,14 @@ export default function PurchaseRequestPanel() {
     if (!item.trim()) { setErr("กรุณาระบุรายการที่จะซื้อ"); return; }
     if (!amt || amt <= 0) { setErr("กรุณาระบุราคาประมาณที่ถูกต้อง"); return; }
     setSaving(true); setErr("");
-
-    const needsApproval = amt >= THRESHOLD;
-    const prNo = await generateDocNumber("PR");
-    const { data: inserted, error } = await supabase
-      .from("purchase_requests")
-      .insert({
-        project_id: PROJECT_ID,
-        pr_number: prNo,
-        category,
-        item: item.trim(),
-        reason: reason.trim() || null,
-        estimated_amount: amt,
-        quote_url: quoteUrl.trim() || null,
-        requester: who,
-        requester_dept: dept || null,
-        needs_approval: needsApproval,
-        // ต่ำกว่าเกณฑ์ → อนุมัติอัตโนมัติ พร้อมจ่ายได้เลย
-        status: needsApproval ? "pending" : "approved",
-        approver: needsApproval ? null : "ระบบ (ต่ำกว่าเกณฑ์)",
-        approved_at: needsApproval ? null : new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (error || !inserted) { setErr("บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง"); setSaving(false); return; }
-
-    if (needsApproval) {
-      // ส่งเข้ากล่องงานผู้บริหาร (/inbox) + timeline
-      await submitApprovalQueue({
-        workflowType: "Purchase_Request",
-        sourceRecordId: inserted.id,
-        docIndex: prNo,
-        title: `${prNo} · ${item.trim()} (${baht(amt)})`,
-        amount: amt,
-        actorName: who,
-        actorRole: user?.role ?? null,
+    try {
+      await createPurchaseRequest({
+        category, item, reason, amount: amt, quoteUrl,
+        requester: who, requesterDept: dept || null, requesterRole: user?.role ?? null,
       });
-      await createNotification({
-        type: "approval",
-        title: "ขออนุมัติก่อนซื้อ",
-        message: `${prNo} · ${item.trim()} ${baht(amt)} — รออนุมัติ`,
-        from_dept: dept || undefined,
-        to_dept: "ฝ่ายบริหาร",
-        record_id: inserted.id,
-        link: "/office?tab=finance",
-      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ"); setSaving(false); return;
     }
-    await logAction("office", "pr_create",
-      `เปิดคำขอซื้อ ${prNo} — ${item.trim()} ${baht(amt)}${needsApproval ? " (รออนุมัติ)" : " (ต่ำกว่าเกณฑ์ อนุมัติอัตโนมัติ)"}`,
-      inserted.id);
-
     setSaving(false); setShowForm(false); load();
   };
 

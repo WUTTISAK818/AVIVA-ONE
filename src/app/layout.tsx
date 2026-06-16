@@ -17,12 +17,9 @@ const ibmPlexSansThai = IBM_Plex_Sans_Thai({
   display: "swap",
 });
 
-const TARGET = process.env.NEXT_PUBLIC_TARGET;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-const BRAND = TARGET === "plus"
-  ? { title: "AVIVA Plus", description: "ระบบบริการลูกบ้าน AVIVA Private", themeColor: "#0A1F1A" }
-  : { title: "AVIVA ONE",  description: "ระบบบริหารจัดการ AVIVA ONE",     themeColor: "#D4AF37" };
+const BRAND = { title: "AVIVA ONE", description: "ระบบบริหารจัดการ AVIVA ONE", themeColor: "#D4AF37" };
 
 export const metadata: Metadata = {
   title: BRAND.title,

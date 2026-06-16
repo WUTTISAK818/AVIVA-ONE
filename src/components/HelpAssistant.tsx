@@ -19,7 +19,7 @@ const QUICK = [
 ];
 
 // ซ่อนในหน้าที่ไม่มี nav (เหมือน BottomNav)
-const HIDE_ON = ["/login", "/guard", "/security", "/v/"];
+const HIDE_ON = ["/login"];
 
 export default function HelpAssistant() {
   const pathname = usePathname();

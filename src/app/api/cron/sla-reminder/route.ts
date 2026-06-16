@@ -160,6 +160,21 @@ export async function GET(req: NextRequest) {
       event_type: "escalated",
       condition_note: dept,
     });
+
+    // แจ้ง "ผู้ขอ" ด้วย (ไม่ใช่แค่ผู้อนุมัติ) — กรณีคำขอซื้อเกินกำหนด เด้งไปแผนกผู้ยื่น
+    if (q.workflow_type === "Purchase_Request" && q.source_record_id) {
+      const { data: pr } = await db
+        .from("purchase_requests")
+        .select("requester_dept, pr_number, item")
+        .eq("id", q.source_record_id)
+        .maybeSingle();
+      if (pr?.requester_dept && pr.requester_dept !== dept) {
+        await sendPush(
+          { department: pr.requester_dept as string },
+          { title: "⏰ คำขอของคุณยังรออนุมัติ", body: `${pr.pr_number ?? ""} ${pr.item ?? ""} เกินกำหนดแล้ว — กด 'ทวงถาม' เพื่อเร่งได้`, url: "/office?tab=finance", tag: `req-${recordId}` }
+        );
+      }
+    }
     queueEscalated++;
     results.push(`queue:${docName}`);
   }

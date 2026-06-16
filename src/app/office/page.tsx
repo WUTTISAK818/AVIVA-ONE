@@ -28,6 +28,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
+import { createLeaveRequest } from "@/lib/work-actions";
 import { resolveApprovalQueue } from "@/lib/workflow-events";
 import { finalizeSale } from "@/lib/sales-finalize";
 import { broadcastCelebration } from "@/lib/celebrate";
@@ -2118,35 +2119,20 @@ function HRContent() {
         return;
       }
     }
-    const docNum = await generateDocNumber("LEAVE");
-    const { data: leaveData, error: leaveErr } = await supabase.from("leave_requests").insert({
-      employee_name: leaveForm.employee_name,
-      leave_type: leaveForm.leave_type,
-      date_from: leaveForm.date_from,
-      date_to: leaveForm.date_to,
-      days_count: days,
-      reason: leaveForm.reason || null,
-      status: "pending",
-    }).select("id").single();
-    if (leaveErr) {
-      setHrToast({ msg: "ยื่นใบลาไม่สำเร็จ: " + leaveErr.message, type: "error" });
+    try {
+      await createLeaveRequest({
+        employeeName: leaveForm.employee_name,
+        leaveType: leaveForm.leave_type,
+        dateFrom: leaveForm.date_from,
+        dateTo: leaveForm.date_to,
+        reason: leaveForm.reason,
+        userId: user?.id ?? null,
+      });
+    } catch (e) {
+      setHrToast({ msg: e instanceof Error ? e.message : "ยื่นใบลาไม่สำเร็จ", type: "error" });
       setLeaveSaving(false);
       return;
     }
-    if (leaveData?.id) {
-      await supabase.from("approval_logs").insert({
-        workflow_type: "Leave_Request",
-        source_doc_index: `${docNum} | ขอ${leaveForm.leave_type} ${days} วัน (${leaveForm.date_from} – ${leaveForm.date_to}) | โดย ${leaveForm.employee_name}`,
-        submitted_by_user_id: user?.id ?? null,
-        source_record_id: leaveData.id,
-        current_approver_role: "manager",
-        action_taken: "Pending",
-        amount: 0,
-        sla_due_at: calcSlaDueAt("Leave_Request"),
-        assigned_to_name: "ผู้จัดการ",
-      });
-    }
-    await createNotification({ type: "info", title: `คำขอลาใหม่ — ${docNum}`, message: `${leaveForm.employee_name} ขอ${leaveForm.leave_type} ${days} วัน`, from_dept: "ฝ่ายบุคคล" });
     setLeaveSaving(false);
     setLeaveForm({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
     fetchLeave();

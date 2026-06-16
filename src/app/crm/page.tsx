@@ -1074,6 +1074,100 @@ export default function CRMPage() {
     ? leads.find(l => l.phone.replace(/\D/g, "") === formPhoneDigits && l.id !== editingLead?.id)
     : null;
 
+  // แยก render ของลิสต์ลูกค้าออกจาก state ของฟอร์ม/โมดัล
+  // (กันไม่ให้ลิสต์ทั้งหมด re-render ทุกครั้งที่พิมพ์ในฟอร์มแก้ไข → แก้อาการ "เปิดแล้วค้าง")
+  // handlers ในลิสต์จับเฉพาะ lead param + setter ที่เสถียร (openEdit จับ user) จึงปลอดภัย
+  const leadsListEl = useMemo(() => (
+    <>
+      {loading ? [1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />) :
+        filtered.length === 0 ? (
+          <GlassCard className="p-8 text-center">
+            <p className="text-aviva-secondary text-sm">ยังไม่มีลูกค้าในขั้นนี้</p>
+          </GlassCard>
+        ) : (
+          filtered.map((lead) => (
+            <GlassCard key={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setSelectedLead(lead)}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {lead.lead_code && (
+                      <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">{lead.lead_code}</span>
+                    )}
+                    <h3 className="text-sm font-semibold text-aviva-text">{lead.customer_name}</h3>
+                    <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", sourceColor[lead.source] ?? "bg-gray-500/20 text-gray-400")}>{lead.source}</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <span className="flex items-center gap-1 text-xs text-aviva-secondary"><Phone size={10} />{lead.phone}</span>
+                    <span className="text-xs text-aviva-gold font-medium">{formatBudget(lead.budget)}</span>
+                    {lead.created_at && (
+                      <span className="text-[10px] text-aviva-secondary/70">📅 {new Date(lead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                    )}
+                  </div>
+                  {lead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>}
+                  <p className="text-[10px] mt-1 text-aviva-secondary/80">👤 เซลล์: <span className="text-aviva-text font-medium">{lead.assigned_to || "ยังไม่ระบุ"}</span></p>
+                  {lead.plot_number && (
+                    <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/20 px-1.5 py-0.5 rounded-md">
+                      <MapPin size={8} /> แปลง {lead.plot_number}
+                    </span>
+                  )}
+                  {lead.next_follow_up_date && (() => {
+                    const due = new Date(lead.next_follow_up_date);
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const overdue = due < today;
+                    const isToday = due.toDateString() === today.toDateString();
+                    return (
+                      <span className={clsx("inline-flex items-center gap-1 mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium",
+                        overdue ? "bg-red-500/20 text-red-400 border border-red-500/30" : isToday ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "bg-aviva-bg text-aviva-secondary border border-aviva-gold/10"
+                      )}>
+                        {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้"  : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                      </span>
+                    );
+                  })()}
+                  <div className="flex items-center gap-2 mt-2">
+                    <button onClick={(e) => openCall(lead, e)} className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">
+                      <PhoneCall size={10} /> โทร
+                    </button>
+                    <button onClick={(e) => openChat(lead, e)} className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-[10px] font-medium">
+                      <MessageCircle size={10} />{["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE"}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); printQuote(lead); }} className="flex items-center gap-1 px-2 py-1 bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 rounded-lg text-[10px] font-medium">
+                      <Printer size={10} /> ใบเสนอ
+                    </button>
+                    {BOOKING_STATUSES.includes(lead.status) && (
+                      <button onClick={(e) => { e.stopPropagation(); printBookingLetter(lead); }} className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-[10px] font-medium">
+                        <Printer size={10} /> ใบจอง
+                      </button>
+                    )}
+                    {(lead.status === "Booking" || lead.status === "Closed Deal") && (
+                      <button onClick={(e) => { e.stopPropagation(); printContract(lead); }} className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-[10px] font-medium">
+                        <Printer size={10} /> สัญญา
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={(e) => openEdit(lead, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all">
+                    <Pencil size={12} className="text-aviva-secondary" />
+                  </button>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <Star size={12} className="text-aviva-gold" />
+                    <span className={clsx("text-lg font-bold", scoreColor(lead.ai_score ?? 0))}>{lead.ai_score ?? "—"}</span>
+                    <span className="text-[9px] text-aviva-secondary">AI Score</span>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          ))
+        )}
+      {!loading && filtered.length > 0 && (
+        <p className="text-center text-[11px] text-aviva-secondary/60 py-2">
+          แสดงทั้งหมด {filtered.length} รายการ
+        </p>
+      )}
+    </>
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [filtered, loading, user]);
+
   return (
     <div className="min-h-screen bg-aviva-bg pb-36">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
@@ -1206,91 +1300,7 @@ export default function CRMPage() {
             </div>
 
             <div className="space-y-3">
-              {loading ? [1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />) :
-                filtered.length === 0 ? (
-                  <GlassCard className="p-8 text-center">
-                    <p className="text-aviva-secondary text-sm">ยังไม่มีลูกค้าในขั้นนี้</p>
-                  </GlassCard>
-                ) : (
-                  filtered.map((lead) => (
-                    <GlassCard key={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setSelectedLead(lead)}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {lead.lead_code && (
-                              <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">{lead.lead_code}</span>
-                            )}
-                            <h3 className="text-sm font-semibold text-aviva-text">{lead.customer_name}</h3>
-                            <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", sourceColor[lead.source] ?? "bg-gray-500/20 text-gray-400")}>{lead.source}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            <span className="flex items-center gap-1 text-xs text-aviva-secondary"><Phone size={10} />{lead.phone}</span>
-                            <span className="text-xs text-aviva-gold font-medium">{formatBudget(lead.budget)}</span>
-                            {lead.created_at && (
-                              <span className="text-[10px] text-aviva-secondary/70">📅 {new Date(lead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
-                            )}
-                          </div>
-                          {lead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>}
-                          <p className="text-[10px] mt-1 text-aviva-secondary/80">👤 เซลล์: <span className="text-aviva-text font-medium">{lead.assigned_to || "ยังไม่ระบุ"}</span></p>
-                          {lead.plot_number && (
-                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/20 px-1.5 py-0.5 rounded-md">
-                              <MapPin size={8} /> แปลง {lead.plot_number}
-                            </span>
-                          )}
-                          {lead.next_follow_up_date && (() => {
-                            const due = new Date(lead.next_follow_up_date);
-                            const today = new Date(); today.setHours(0,0,0,0);
-                            const overdue = due < today;
-                            const isToday = due.toDateString() === today.toDateString();
-                            return (
-                              <span className={clsx("inline-flex items-center gap-1 mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium",
-                                overdue ? "bg-red-500/20 text-red-400 border border-red-500/30" : isToday ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "bg-aviva-bg text-aviva-secondary border border-aviva-gold/10"
-                              )}>
-                                {overdue ? "⚠ เลยนัด" : isToday ? "🔔 วันนี้"  : "📅"} ติดตาม {due.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
-                              </span>
-                            );
-                          })()}
-                          <div className="flex items-center gap-2 mt-2">
-                            <button onClick={(e) => openCall(lead, e)} className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">
-                              <PhoneCall size={10} /> โทร
-                            </button>
-                            <button onClick={(e) => openChat(lead, e)} className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-[10px] font-medium">
-                              <MessageCircle size={10} />{["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE"}
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); printQuote(lead); }} className="flex items-center gap-1 px-2 py-1 bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 rounded-lg text-[10px] font-medium">
-                              <Printer size={10} /> ใบเสนอ
-                            </button>
-                            {BOOKING_STATUSES.includes(lead.status) && (
-                              <button onClick={(e) => { e.stopPropagation(); printBookingLetter(lead); }} className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-[10px] font-medium">
-                                <Printer size={10} /> ใบจอง
-                              </button>
-                            )}
-                            {(lead.status === "Booking" || lead.status === "Closed Deal") && (
-                              <button onClick={(e) => { e.stopPropagation(); printContract(lead); }} className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-[10px] font-medium">
-                                <Printer size={10} /> สัญญา
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={(e) => openEdit(lead, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all">
-                            <Pencil size={12} className="text-aviva-secondary" />
-                          </button>
-                          <div className="flex flex-col items-center gap-0.5">
-                            <Star size={12} className="text-aviva-gold" />
-                            <span className={clsx("text-lg font-bold", scoreColor(lead.ai_score ?? 0))}>{lead.ai_score ?? "—"}</span>
-                            <span className="text-[9px] text-aviva-secondary">AI Score</span>
-                          </div>
-                        </div>
-                      </div>
-                    </GlassCard>
-                  ))
-                )}
-              {!loading && filtered.length > 0 && (
-                <p className="text-center text-[11px] text-aviva-secondary/60 py-2">
-                  แสดงทั้งหมด {filtered.length} รายการ
-                </p>
-              )}
+              {leadsListEl}
             </div>
           </>
         )}

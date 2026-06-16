@@ -149,6 +149,7 @@ export default function PurchaseRequestPanel() {
         from_dept: dept || undefined,
         to_dept: "ฝ่ายบริหาร",
         record_id: inserted.id,
+        link: "/office?tab=finance",
       });
     }
     await logAction("office", "pr_create",
@@ -172,7 +173,7 @@ export default function PurchaseRequestPanel() {
     await createNotification({
       type: "success", title: "อนุมัติคำขอซื้อแล้ว",
       message: `${pr.pr_number} · ${pr.item} ${baht(pr.estimated_amount)} — รอฝ่ายการเงินบันทึกจ่าย`,
-      from_dept: "ฝ่ายบริหาร", to_dept: "ฝ่ายการเงิน", record_id: pr.id,
+      from_dept: "ฝ่ายบริหาร", to_dept: "ฝ่ายการเงิน", record_id: pr.id, link: "/office?tab=finance",
       line_to_depts: ["ฝ่ายการเงิน", pr.requester_dept ?? ""].filter(Boolean),
     });
     await logAction("office", "pr_approve", `อนุมัติคำขอซื้อ ${pr.pr_number} — ${pr.item}`, pr.id);
@@ -196,7 +197,7 @@ export default function PurchaseRequestPanel() {
     await createNotification({
       type: "info", title: "คำขอซื้อไม่ได้รับอนุมัติ",
       message: `${pr.pr_number} · ${pr.item}${rejectReason.trim() ? ` — ${rejectReason.trim()}` : ""}`,
-      from_dept: "ฝ่ายบริหาร", to_dept: pr.requester_dept ?? undefined, record_id: pr.id,
+      from_dept: "ฝ่ายบริหาร", to_dept: pr.requester_dept ?? undefined, record_id: pr.id, link: "/office?tab=finance",
     });
     await logAction("office", "pr_reject", `ไม่อนุมัติคำขอซื้อ ${pr.pr_number} — ${pr.item}`, pr.id);
     setSaving(false); setRejecting(null); setRejectReason(""); load();
@@ -229,7 +230,7 @@ export default function PurchaseRequestPanel() {
     await createNotification({
       type: "success", title: "จ่ายเงินคำขอซื้อแล้ว",
       message: `${pr.pr_number} · ${pr.item} — จ่าย ${baht(amt)} แล้ว`,
-      from_dept: "ฝ่ายการเงิน", to_dept: pr.requester_dept ?? undefined, record_id: pr.id,
+      from_dept: "ฝ่ายการเงิน", to_dept: pr.requester_dept ?? undefined, record_id: pr.id, link: "/office?tab=finance",
     });
     await logAction("office", "pr_pay", `บันทึกจ่ายคำขอซื้อ ${pr.pr_number} — ${pr.item} ${baht(amt)}`, pr.id);
     setSaving(false); setPaying(null); load();

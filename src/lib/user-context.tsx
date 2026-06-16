@@ -12,6 +12,8 @@ export interface AppUser {
   isAdmin: boolean;
   isManager: boolean;
   isProjectManager: boolean;
+  isResident: boolean;
+  isGuard: boolean;
 }
 
 const UserContext = createContext<AppUser | null>(null);
@@ -35,6 +37,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       isAdmin: isSuperRole(role),
       isManager: isManagerRole(role),
       isProjectManager: role === "project_manager",
+      isResident: role === "resident",
+      isGuard: role === "guard",
     };
   }
 

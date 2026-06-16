@@ -9,6 +9,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_TARGET: process.env.NEXT_PUBLIC_TARGET ?? "plus",
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

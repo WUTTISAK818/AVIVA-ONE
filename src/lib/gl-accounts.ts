@@ -36,6 +36,24 @@ const REVENUE_BY_CATEGORY: Record<string, GLAccount> = {
 };
 const DEFAULT_REVENUE: GLAccount = { code: "4200", name: "รายได้อื่น" };
 
+// ── ค่าใช้จ่ายประจำเดือน: ประเภท -> บัญชี GL ──────────────────────────────────
+export const ACCUM_DEPR: GLAccount = { code: "1290", name: "ค่าเสื่อมราคาสะสม" };
+export interface RecurringCategory { label: string; code: string; name: string; nonCash?: boolean; canCapitalize?: boolean; }
+export const RECURRING_CATEGORIES: RecurringCategory[] = [
+  { label: "ดอกเบี้ยเงินกู้/Project Finance", code: "5300", name: "ดอกเบี้ยจ่าย", canCapitalize: true },
+  { label: "เงินเดือน+ประกันสังคม", code: "6100", name: "เงินเดือนพนักงาน" },
+  { label: "ค่าเช่า (สำนักงาน/สนง.ขาย)", code: "6500", name: "ค่าเช่า" },
+  { label: "สาธารณูปโภค (ไฟ/น้ำ/เน็ต/โทร)", code: "6400", name: "ค่าสาธารณูปโภค" },
+  { label: "การตลาดประจำ", code: "6300", name: "ค่าโฆษณา" },
+  { label: "ค่าบริการวิชาชีพ (บัญชี/กม.)", code: "6600", name: "ค่าใช้จ่ายสำนักงาน" },
+  { label: "ค่าประกันภัย", code: "6600", name: "ค่าใช้จ่ายสำนักงาน" },
+  { label: "ค่าเสื่อมราคา", code: "6900", name: "ค่าเสื่อมราคา", nonCash: true },
+  { label: "อื่น ๆ", code: "6600", name: "ค่าใช้จ่ายสำนักงาน" },
+];
+export function recurringCategory(label?: string | null): RecurringCategory {
+  return RECURRING_CATEGORIES.find((c) => c.label === label) ?? RECURRING_CATEGORIES[RECURRING_CATEGORIES.length - 1];
+}
+
 export function expenseAccountFor(category?: string | null): GLAccount {
   const c = category?.trim();
   return (c && EXPENSE_BY_CATEGORY[c]) || DEFAULT_EXPENSE;

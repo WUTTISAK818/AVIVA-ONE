@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Home } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import AvivaPlusWordmark from "@/components/community/AvivaPlusWordmark";
+
+const TARGET = process.env.NEXT_PUBLIC_TARGET;
+const IS_PLUS = TARGET === "plus";
+const POST_LOGIN_PATH = IS_PLUS ? "/community/announcements" : "/dashboard";
 
 const DEMO_ACCOUNTS = [
   { email: "ceo.test@aviva.th",           label: "CEO",         dept: "ฝ่ายบริหาร",      color: "text-yellow-300   bg-yellow-500/10   border-yellow-500/20" },
@@ -44,7 +49,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(POST_LOGIN_PATH);
     router.refresh();
   }
 
@@ -59,11 +64,17 @@ export default function LoginPage() {
       {/* Logo */}
       <div className="flex flex-col items-center gap-3 mb-10">
         <div className="w-16 h-16 rounded-2xl bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center">
-          <Sparkles size={28} className="text-aviva-gold" />
+          {IS_PLUS ? <Home size={28} className="text-aviva-gold" /> : <Sparkles size={28} className="text-aviva-gold" />}
         </div>
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-aviva-gold tracking-widest">AVIVA ONE</h1>
-          <p className="text-xs text-aviva-secondary mt-1">Executive Operating System</p>
+          {IS_PLUS ? (
+            <AvivaPlusWordmark className="text-3xl" />
+          ) : (
+            <h1 className="text-2xl font-bold text-aviva-gold tracking-widest">AVIVA ONE</h1>
+          )}
+          <p className="text-xs text-aviva-secondary mt-1">
+            {IS_PLUS ? "ระบบบริการลูกบ้าน AVIVA Private" : "Executive Operating System"}
+          </p>
         </div>
       </div>
 
@@ -117,8 +128,8 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {/* Demo Accounts */}
-      <div className="mt-6 w-full max-w-sm">
+      {/* Demo Accounts — AVIVA ONE only (resident demo accounts not yet seeded) */}
+      {!IS_PLUS && <div className="mt-6 w-full max-w-sm">
         <button
           onClick={() => setShowDemo((p) => !p)}
           className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-aviva-gold/20 bg-aviva-card/50 text-sm text-aviva-secondary hover:border-aviva-gold/40 transition-all"
@@ -153,11 +164,11 @@ export default function LoginPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="mt-6 w-full max-w-sm text-center">
         <p className="text-[10px] text-aviva-secondary/30">
-          ติดต่อผู้ดูแลระบบเพื่อขอรับบัญชีผู้ใช้งาน
+          {IS_PLUS ? "ติดต่อนิติบุคคลเพื่อขอรับบัญชีลูกบ้าน" : "ติดต่อผู้ดูแลระบบเพื่อขอรับบัญชีผู้ใช้งาน"}
         </p>
       </div>
     </div>

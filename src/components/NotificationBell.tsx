@@ -19,6 +19,7 @@ interface Notification {
   is_read: boolean;
   created_at: string;
   record_id: string | null;
+  link: string | null;
 }
 
 const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string }> = {
@@ -42,21 +43,30 @@ function timeAgo(ts: string): string {
 }
 
 function getNotifHref(n: Notification): string | null {
-  // ลิงก์ไปการ์ดลูกค้าโดยตรงถ้ามี record_id (เรื่องลูกค้า/ขายส่วนใหญ่)
-  const lead = n.record_id ? `/crm?lead=${n.record_id}` : null;
-  // รายการรออนุมัติ / ผลการอนุมัติ
-  if (n.type === "approval" || n.from_dept === "ฝ่ายอนุมัติ" || n.to_dept === "ฝ่ายอนุมัติ") return "/approvals";
+  // 1) ลิงก์ที่บันทึกไว้ตอนสร้าง = แม่นยำที่สุด (ปลายทาง record จริง)
+  if (n.link) return n.link;
+
+  // 2) อนุมานปลายทางจากประเภท + แผนกที่เกี่ยวข้อง
+  const dept = `${n.from_dept ?? ""} ${n.to_dept ?? ""}`;
+  const isSales = dept.includes("ขาย") && !dept.includes("หลังการขาย");
+  // เปิดการ์ดลูกค้าได้เฉพาะเรื่องของฝ่ายขาย (กัน record_id ของเรื่องอื่นเปิด CRM ผิด)
+  const leadLink = n.record_id && isSales ? `/crm?lead=${n.record_id}` : null;
+
   if (n.type === "ai_briefing") return "/reports";
   if (n.type === "ai_meeting") return "/ai-council";
   if (n.type === "workflow_update") return "/inbox";
-  if (n.type === "claim") return "/office";
-  if (n.type === "document") return "/office";
-  if (n.from_dept === "ฝ่ายขาย" || n.to_dept === "ฝ่ายขาย") return lead ?? "/crm";
-  if (n.from_dept === "ฝ่ายก่อสร้าง") return "/construction";
-  if (n.from_dept === "ฝ่ายการเงิน" || n.from_dept === "ฝ่ายบัญชี" || n.from_dept === "ฝ่ายออฟฟิศ") return "/office";
-  // มี record_id แต่ไม่เข้าเงื่อนไขด้านบน — เปิดการ์ดลูกค้า
-  if (lead) return lead;
-  return null;
+  // งานรออนุมัติ → กล่องงานรวม (/inbox) ซึ่งกระจายไปปลายทางที่ถูกต้องตามชนิดงาน
+  if (n.type === "approval" || dept.includes("อนุมัติ")) return "/inbox";
+  if (n.type === "claim" || dept.includes("หลังการขาย")) return "/after-sales";
+  if (n.type === "document" || dept.includes("เอกสาร")) return "/office?tab=documents";
+  if (isSales) return leadLink ?? "/crm";
+  if (dept.includes("ก่อสร้าง") || dept.includes("วิศว")) return "/construction";
+  if (dept.includes("การตลาด")) return "/marketing";
+  if (dept.includes("บุคคล") || dept.includes("HR")) return "/office?tab=hr";
+  if (dept.includes("การเงิน") || dept.includes("บัญชี") || dept.includes("ออฟฟิศ") || dept.includes("สำนักงาน") || dept.includes("บริหาร"))
+    return "/office?tab=finance";
+  // เหลือเฉพาะเรื่องฝ่ายขายที่มี record_id เท่านั้นจึงเปิดการ์ดลูกค้า
+  return leadLink;
 }
 
 export default function NotificationBell() {

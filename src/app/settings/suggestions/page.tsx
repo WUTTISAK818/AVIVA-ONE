@@ -2,7 +2,7 @@
 // ข้อเสนอแนะ / ปรับปรุงแอป — ผู้ใช้ทุกคนเสนอได้ → ผู้บริหารอนุมัติ → คิวผู้พัฒนา
 // บันทึก: ใครเสนอ / เสนออะไร / วันที่ + เวลา
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, Lightbulb, Plus, X, Check, Ban, Clock, Wrench } from "lucide-react";
+import { ChevronLeft, Lightbulb, Plus, X, Check, Ban, Clock, Wrench, Download } from "lucide-react";
 import Link from "next/link";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
@@ -94,6 +94,7 @@ export default function SuggestionsPage() {
       from_dept: user?.department ?? undefined,
       to_dept: "ฝ่ายบริหาร",
       record_id: inserted.id,
+      link: "/settings/suggestions",
     });
     await logAction("settings", "suggestion_create", `เสนอปรับปรุงแอป: ${title.trim()} [${category}]`, inserted.id);
     setSaving(false); setShowForm(false); load();
@@ -114,10 +115,39 @@ export default function SuggestionsPage() {
       from_dept: "ฝ่ายบริหาร",
       to_dept: s.submitter_dept ?? undefined,
       record_id: s.id,
+      link: "/settings/suggestions",
     });
     await logAction("settings", "suggestion_review", `${label}ข้อเสนอ: ${s.title}`, s.id);
     setSaving(false); setRejecting(null); setRejectNote(""); load();
   };
+
+  // ส่งออกรายการที่อนุมัติแล้ว เป็นไฟล์ .txt สำหรับส่งให้นักพัฒนา
+  const exportApproved = () => {
+    const list = rows.filter((r) => r.status === "approved" || r.status === "done");
+    if (list.length === 0) return;
+    const now = new Date(Date.now() + 7 * 3600 * 1000).toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" });
+    let txt = `AVIVA Private — รายการข้อเสนอที่อนุมัติ (สำหรับพัฒนา)\n`;
+    txt += `ส่งออกเมื่อ: ${now} น.\nจำนวน: ${list.length} รายการ\n${"=".repeat(50)}\n\n`;
+    list.forEach((s, i) => {
+      txt += `${i + 1}. ${s.title}\n`;
+      txt += `   หมวด: ${s.category}\n`;
+      txt += `   สถานะ: ${STATUS_BADGE[s.status].label}\n`;
+      txt += `   ผู้เสนอ: ${s.submitter ?? "-"}${s.submitter_dept ? ` (${s.submitter_dept})` : ""} — เสนอ ${fmtDateTime(s.created_at)} น.\n`;
+      if (s.reviewer) txt += `   อนุมัติโดย: ${s.reviewer}${s.reviewed_at ? ` — ${fmtDateTime(s.reviewed_at)} น.` : ""}\n`;
+      if (s.review_note) txt += `   หมายเหตุผู้บริหาร: ${s.review_note}\n`;
+      if (s.detail) txt += `   รายละเอียด: ${s.detail}\n`;
+      txt += `${"-".repeat(46)}\n`;
+    });
+    const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `AVIVA-approved-suggestions-${new Date().toISOString().split("T")[0]}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const approvedCount = rows.filter((r) => r.status === "approved" || r.status === "done").length;
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
@@ -139,6 +169,12 @@ export default function SuggestionsPage() {
             className="w-full mt-3 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-2.5 rounded-xl text-sm">
             <Plus size={15} /> เสนอข้อเสนอแนะใหม่
           </button>
+          {canReview && (
+            <button onClick={exportApproved} disabled={approvedCount === 0}
+              className="w-full mt-2 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold py-2 rounded-xl text-xs font-semibold disabled:opacity-40">
+              <Download size={14} /> ส่งออกไฟล์รายการที่อนุมัติ ({approvedCount}) สำหรับพัฒนา
+            </button>
+          )}
         </GlassCard>
 
         {loading ? (

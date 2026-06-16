@@ -1,7 +1,46 @@
 "use client";
-import { ChevronLeft, ClipboardList, FileText } from "lucide-react";
+import { ChevronLeft, ClipboardList, FileText, Eye } from "lucide-react";
 import Link from "next/link";
 import GlassCard from "@/components/GlassCard";
+
+interface FormDef { code: string; name: string; dept: string; color: string; bg: string; fields: string[]; steps: string[] }
+
+// เปิดตัวอย่างแบบฟอร์มเปล่า (พิมพ์/บันทึก PDF ได้) ในหน้าต่างใหม่
+function previewForm(f: FormDef) {
+  const rows = f.fields.map((x) => `<tr><td class="lbl">${x}</td><td class="val"></td></tr>`).join("");
+  const steps = f.steps.map((s) => `<li>${s}</li>`).join("");
+  const html = `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>${f.code} — ${f.name}</title>
+<style>
+  body{font-family:'Sarabun','Tahoma',sans-serif;color:#1a1a1a;max-width:760px;margin:24px auto;padding:0 24px}
+  .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1E4A35;padding-bottom:12px;margin-bottom:18px}
+  .code{font-size:22px;font-weight:700;color:#1E4A35;letter-spacing:1px}
+  h1{font-size:18px;margin:4px 0}
+  .sub{font-size:12px;color:#555;text-align:right;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin-bottom:18px}
+  td{border:1px solid #bbb;padding:9px 10px;font-size:14px}
+  td.lbl{width:40%;background:#f7f7f2;font-weight:600}
+  td.val{height:28px}
+  p.h{font-size:13px;font-weight:700;color:#1E4A35;margin:6px 0}
+  ol{font-size:13px;color:#333;padding-left:18px} ol li{margin:3px 0}
+  .sign{display:flex;justify-content:space-between;margin-top:48px;font-size:13px}
+  .sign .line{border-top:1px solid #333;margin-top:44px;padding-top:4px;text-align:center;width:46%}
+  .noprint{margin:14px 0;text-align:center}
+  button{background:#1E4A35;color:#fff;border:0;padding:8px 18px;border-radius:6px;font-size:14px;cursor:pointer}
+  @media print{.noprint{display:none}}
+</style></head><body>
+<div class="noprint"><button onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button></div>
+<div class="hd">
+  <div><div class="code">${f.code}</div><h1>${f.name}</h1></div>
+  <div class="sub">บริษัท AVIVA Private จำกัด<br>${f.dept}<br>เลขที่: ${f.code}-________<br>วันที่: ____ / ____ / ______</div>
+</div>
+<table><tbody>${rows}</tbody></table>
+<p class="h">ขั้นตอนการดำเนินการ</p>
+<ol>${steps}</ol>
+<div class="sign"><div class="line">ผู้ขอ / ผู้จัดทำ</div><div class="line">ผู้จัดการ / ผู้อนุมัติ</div></div>
+</body></html>`;
+  const w = window.open("", "_blank", "width=820,height=900");
+  if (w) { w.document.write(html); w.document.close(); }
+}
 
 const FORMS = [
   {
@@ -135,6 +174,11 @@ export default function FormsPage() {
                   ))}
                 </ol>
               </div>
+
+              <button onClick={() => previewForm(f)}
+                className={`w-full flex items-center justify-center gap-1.5 mt-1 py-2 rounded-xl text-xs font-semibold border ${f.bg} ${f.color}`}>
+                <Eye size={13} /> ดูตัวอย่าง / พิมพ์แบบฟอร์ม
+              </button>
             </div>
           </GlassCard>
         ))}

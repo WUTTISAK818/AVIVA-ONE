@@ -37,6 +37,8 @@ import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerify
 import PettyCashPanel from "@/components/PettyCashPanel";
 import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
 import ProfitabilityPanel from "@/components/ProfitabilityPanel";
+import RecurringExpensePanel from "@/components/RecurringExpensePanel";
+import FinancialStatementsPanel from "@/components/FinancialStatementsPanel";
 import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, WIP, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
@@ -448,6 +450,10 @@ function FinanceContent() {
       <PurchaseRequestPanel />
 
       {user?.isManager && <ProfitabilityPanel />}
+
+      {user?.isManager && <RecurringExpensePanel />}
+
+      {user?.isManager && <FinancialStatementsPanel />}
 
       <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
 

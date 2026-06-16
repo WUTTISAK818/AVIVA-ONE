@@ -2,7 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList, Inbox, FileText } from "lucide-react";
+import {
+  LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList,
+  Inbox, FileText, Megaphone, UserCheck, Package, Receipt,
+} from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -39,21 +42,36 @@ export default function BottomNav() {
   }, [roles, loadCount]);
 
   if (pathname === "/login") return null;
+  if (pathname.startsWith("/guard")) return null;
+  if (pathname.startsWith("/security")) return null;
+  if (pathname.startsWith("/v/")) return null;
+
+  const onCommunity = pathname.startsWith("/community");
+  const isResidentSurface = onCommunity || user?.isResident;
 
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
-  // ผู้บริหาร/ผจก.โครงการ: เอกสาร+รายงาน ย้ายไปอยู่ในออฟฟิศแล้ว จึงซ่อนจากแถบล่างเพื่อลดความแออัด
   const isExec = !!user && (user.isManager || user.isAdmin);
 
-  const tabs = [
-    { href: "/dashboard",    label: "หน้าหลัก",    icon: LayoutGrid,   show: true,  badge: 0 },
-    { href: "/crm",          label: "ขาย",          icon: Users,        show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
-    { href: "/documents/generate", label: "เอกสารขาย",  icon: FileText,     show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
-    { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
-    { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
-    { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
-    { href: "/reports",      label: "รายงาน",       icon: ClipboardList, show: !isExec, badge: 0 },
-    { href: "/settings",     label: "ตั้งค่า",      icon: Settings,     show: true, badge: 0 },
-  ].filter(t => t.show);
+  const residentTabs = [
+    { href: "/community/announcements", label: "ประกาศ",     icon: Megaphone, show: true,  badge: 0 },
+    { href: "/community/visitors",      label: "ผู้มาเยือน", icon: UserCheck, show: true,  badge: 0 },
+    { href: "/community/parcels",       label: "พัสดุ",      icon: Package,   show: true,  badge: 0 },
+    { href: "/community/bills",         label: "บิล",        icon: Receipt,   show: true,  badge: 0 },
+    { href: "/settings",                label: "ตั้งค่า",    icon: Settings,  show: true,  badge: 0 },
+  ];
+
+  const staffTabs = [
+    { href: "/dashboard",          label: "หน้าหลัก",  icon: LayoutGrid,    show: true, badge: 0 },
+    { href: "/crm",                label: "ขาย",        icon: Users,         show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
+    { href: "/documents/generate", label: "เอกสารขาย",  icon: FileText,      show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
+    { href: "/construction",       label: "ก่อสร้าง",   icon: HardHat,       show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
+    { href: "/inbox",              label: "กล่องงาน",   icon: Inbox,         show: roles.length > 0, badge: inboxCount },
+    { href: "/office",             label: "ออฟฟิศ",     icon: Briefcase,     show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
+    { href: "/reports",            label: "รายงาน",     icon: ClipboardList, show: !isExec, badge: 0 },
+    { href: "/settings",           label: "ตั้งค่า",    icon: Settings,      show: true, badge: 0 },
+  ];
+
+  const tabs = (isResidentSurface ? residentTabs : staffTabs).filter(t => t.show);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-nav border-t border-aviva-gold/20">
@@ -61,7 +79,9 @@ export default function BottomNav() {
         {tabs.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname.startsWith(href);
           return (
-            <Link key={href} href={href}
+            <Link
+              key={href}
+              href={href}
               className={clsx(
                 "relative flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-all active:scale-95",
                 active ? "text-aviva-gold" : "text-aviva-secondary/60 hover:text-aviva-secondary"

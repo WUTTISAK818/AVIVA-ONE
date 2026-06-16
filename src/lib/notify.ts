@@ -68,6 +68,8 @@ export async function createNotification(opts: {
   from_dept?: string;
   to_dept?: string;
   record_id?: string;
+  /** ปลายทางที่แท้จริงเมื่อกดการแจ้งเตือน (เช่น "/office?tab=finance", "/settings/suggestions") */
+  link?: string;
   /** เจาะ LINE ส่วนตัวเฉพาะแผนกเหล่านี้ (ค่าเริ่มต้น = [to_dept]) */
   line_to_depts?: string[];
 }) {
@@ -81,12 +83,15 @@ export async function createNotification(opts: {
     to_dept: toDept,
     is_read: false,
     record_id: opts.record_id ?? null,
+    link: opts.link ?? null,
   });
   // เคสสำคัญ → ส่งเข้า LINE ส่วนตัวของ "ผู้เกี่ยวข้องตามแผนก" (best-effort)
   if (LINE_TYPES.has(opts.type)) {
     const depts = (opts.line_to_depts ?? (toDept ? [toDept] : [])).map(normalizeDept).filter(Boolean) as string[];
     const emails = await resolveDeptEmails(depts);
-    await notifyPersonalLine(opts.title, opts.message, opts.record_id ? `/crm?lead=${opts.record_id}` : undefined, emails);
+    // ใช้ลิงก์ที่ระบุก่อน ถ้าไม่มีและเป็นเรื่องลูกค้า (มี record_id) จึงเปิดการ์ดลูกค้า
+    const url = opts.link ?? (opts.record_id ? `/crm?lead=${opts.record_id}` : undefined);
+    await notifyPersonalLine(opts.title, opts.message, url, emails);
   }
 }
 

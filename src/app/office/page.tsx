@@ -315,6 +315,21 @@ function FinanceContent() {
         if (tax && tax.wht > 0) lines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: tax.wht });
         lines.push({ account_code: CASH.code, account_name: CASH.name, debit: 0, credit: tax ? tax.net : amt });
         await postJv({ project_id: PROJECT_ID, jv_date: jvDate, description: `[${form.category}] ${form.description}`, lines });
+        // บันทึกทะเบียนภาษีซื้ออัตโนมัติ (กัน VAT ตกหล่น — เดิมต้องกรอกซ้ำในแท็บภาษี)
+        if (tax && tax.vat > 0) {
+          await supabase.from("vat_register").insert({
+            vat_type: "input",
+            invoice_no: `AUTO-${Date.now().toString().slice(-8)}`,
+            invoice_date: jvDate,
+            party_name: (form.description || form.category).slice(0, 80),
+            base_amount: tax.base,
+            vat_amount: tax.vat,
+            total_amount: tax.gross,
+            period: `${jvDate.slice(2, 4)}${jvDate.slice(5, 7)}`,
+            etax_status: "pending",
+            project_id: PROJECT_ID,
+          });
+        }
       }
 
       const taxNote = tax && (tax.vat > 0 || tax.wht > 0)

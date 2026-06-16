@@ -24,10 +24,16 @@ interface Claim {
   status: "pending" | "in_progress" | "resolved";
   assigned_to: string | null;
   scheduled_date: string | null;
+  report_date: string | null;
+  estimated_completion_date: string | null;
   satisfaction_score: number | null;
   created_at: string;
   updated_at?: string;
 }
+
+// วันที่วันนี้ (เวลาไทย UTC+7) รูปแบบ YYYY-MM-DD
+const todayTh = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().split("T")[0];
+const fmtThaiDate = (s: string) => new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 const ISSUE_TYPES = ["โครงสร้าง", "ระบบไฟฟ้า", "ระบบประปา", "หลังคา/รางน้ำ", "ประตู/หน้าต่าง", "พื้น/กระเบื้อง", "สี/ผนัง", "อื่นๆ"];
 
@@ -43,7 +49,7 @@ const statusConfig = {
   resolved:    { label: "แก้ไขแล้ว",      color: "text-green-400",  bg: "bg-green-400/10 border-green-400/20", icon: CheckCircle },
 };
 
-const emptyForm = { customer_name: "", house_number: "", issue_type: "โครงสร้าง", description: "", assigned_to: "", scheduled_date: "", status: "pending" as Claim["status"] };
+const emptyForm = { customer_name: "", house_number: "", issue_type: "โครงสร้าง", description: "", assigned_to: "", report_date: "", scheduled_date: "", estimated_completion_date: "", status: "pending" as Claim["status"] };
 
 function slaDays(createdAt: string, status: Claim["status"]): number {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
@@ -115,7 +121,9 @@ export default function AfterSalesPage() {
       issue_type: form.issue_type,
       description: form.description,
       assigned_to: form.assigned_to || null,
+      report_date: form.report_date || todayTh(),
       scheduled_date: form.scheduled_date || null,
+      estimated_completion_date: form.estimated_completion_date || null,
       status: form.status,
     });
     await createNotification({
@@ -163,7 +171,7 @@ export default function AfterSalesPage() {
               <ShieldCheck size={18} className="text-aviva-gold" />
               <h1 className="text-lg font-bold text-aviva-text">บริการหลังการขาย</h1>
             </div>
-            <button onClick={() => setShowModal(true)}
+            <button onClick={() => { setForm({ ...emptyForm, report_date: todayTh() }); setShowModal(true); }}
               className="flex items-center gap-1 text-xs font-bold text-aviva-bg bg-aviva-gold px-3 py-2 rounded-xl">
               <Plus size={13} /> แจ้งซ่อม
             </button>
@@ -260,11 +268,14 @@ export default function AfterSalesPage() {
                             <span className="text-[10px] text-aviva-secondary">{issueTh[c.issue_type] ?? c.issue_type}</span>
                           </div>
                           <p className="text-[11px] text-aviva-secondary/70 truncate mt-0.5">{c.description}</p>
-                          {c.scheduled_date && (
-                            <p className="text-[10px] text-aviva-gold mt-0.5">
-                              นัดซ่อม: {new Date(c.scheduled_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-3 mt-0.5">
+                            {c.scheduled_date && (
+                              <p className="text-[10px] text-aviva-gold">นัดซ่อม: {fmtThaiDate(c.scheduled_date)}</p>
+                            )}
+                            {c.estimated_completion_date && c.status !== "resolved" && (
+                              <p className="text-[10px] text-blue-400">เสร็จ ~{fmtThaiDate(c.estimated_completion_date)}</p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <StatusIcon size={14} className={sc.color} />
@@ -327,17 +338,27 @@ export default function AfterSalesPage() {
                   rows={3} placeholder="อธิบายปัญหาที่พบโดยละเอียด..."
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">เจ้าหน้าที่ผู้รับผิดชอบ</label>
+                <input value={form.assigned_to} onChange={e => setForm({...form, assigned_to: e.target.value})}
+                  placeholder="พิมพ์ชื่อเจ้าหน้าที่ / ช่าง / ผู้รับเหมา"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับผิดชอบ</label>
-                  <input value={form.assigned_to} onChange={e => setForm({...form, assigned_to: e.target.value})}
-                    placeholder="ชื่อช่างหรือผู้รับเหมา"
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                  <label className="text-xs text-aviva-secondary mb-1 block">วันที่ทำเรื่องแจ้ง</label>
+                  <input type="date" value={form.report_date} onChange={e => setForm({...form, report_date: e.target.value})}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">นัดซ่อมวันที่</label>
                   <input type="date" value={form.scheduled_date} onChange={e => setForm({...form, scheduled_date: e.target.value})}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ (ประมาณ)</label>
+                  <input type="date" value={form.estimated_completion_date} onChange={e => setForm({...form, estimated_completion_date: e.target.value})}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
             </div>
@@ -363,9 +384,24 @@ export default function AfterSalesPage() {
               </button>
             </div>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Phone size={13} className="text-aviva-gold" />
-                <span className="font-bold text-aviva-text">{selectedClaim.customer_name}</span>
+              {/* ผู้แจ้ง / เจ้าหน้าที่ผู้รับผิดชอบ — ระบุชัดว่าใครเป็นใคร */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-aviva-bg/50 rounded-xl p-2.5">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">ผู้แจ้ง (ลูกค้า)</p>
+                  <div className="flex items-center gap-1.5">
+                    <Phone size={12} className="text-aviva-gold flex-shrink-0" />
+                    <span className="text-xs font-bold text-aviva-text truncate">{selectedClaim.customer_name}</span>
+                  </div>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-2.5">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">เจ้าหน้าที่ผู้รับผิดชอบ</p>
+                  <div className="flex items-center gap-1.5">
+                    <Wrench size={12} className="text-aviva-gold flex-shrink-0" />
+                    <span className={`text-xs font-bold truncate ${selectedClaim.assigned_to ? "text-aviva-text" : "text-aviva-secondary/60"}`}>
+                      {selectedClaim.assigned_to || "ยังไม่มอบหมาย"}
+                    </span>
+                  </div>
+                </div>
               </div>
               {selectedClaim.house_number && (
                 <div className="flex items-center gap-2">
@@ -377,15 +413,30 @@ export default function AfterSalesPage() {
                 <p className="text-[10px] text-aviva-secondary mb-1">ประเภท: {selectedClaim.issue_type}</p>
                 <p className="text-sm text-aviva-text">{selectedClaim.description}</p>
               </div>
-              {selectedClaim.assigned_to && (
-                <p className="text-xs text-aviva-secondary">ผู้รับผิดชอบ: <span className="text-aviva-text">{selectedClaim.assigned_to}</span></p>
-              )}
-              {selectedClaim.scheduled_date && (
-                <p className="text-xs text-aviva-gold">นัดซ่อม: {new Date(selectedClaim.scheduled_date).toLocaleDateString("th-TH", { dateStyle: "long" })}</p>
-              )}
+              {/* วันที่ทำเรื่องแจ้ง / นัดซ่อม / กำหนดเสร็จโดยประมาณ */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-aviva-bg/50 rounded-xl p-2">
+                  <p className="text-[9px] text-aviva-secondary">วันที่แจ้ง</p>
+                  <p className="text-[11px] font-semibold text-aviva-text mt-0.5">
+                    {fmtThaiDate(selectedClaim.report_date ?? selectedClaim.created_at)}
+                  </p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-2">
+                  <p className="text-[9px] text-aviva-secondary">นัดซ่อม</p>
+                  <p className="text-[11px] font-semibold text-aviva-gold mt-0.5">
+                    {selectedClaim.scheduled_date ? fmtThaiDate(selectedClaim.scheduled_date) : "—"}
+                  </p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-2">
+                  <p className="text-[9px] text-aviva-secondary">กำหนดเสร็จ</p>
+                  <p className="text-[11px] font-semibold text-blue-400 mt-0.5">
+                    {selectedClaim.estimated_completion_date ? fmtThaiDate(selectedClaim.estimated_completion_date) : "—"}
+                  </p>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <SLABadge days={slaDays(selectedClaim.created_at, selectedClaim.status)} status={selectedClaim.status} />
-                <span className="text-[10px] text-aviva-secondary">นับจากวันแจ้ง {new Date(selectedClaim.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</span>
+                <span className="text-[10px] text-aviva-secondary">นับจากวันแจ้ง {fmtThaiDate(selectedClaim.report_date ?? selectedClaim.created_at)}</span>
               </div>
             </div>
 

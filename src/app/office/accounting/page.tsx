@@ -1147,6 +1147,7 @@ function LotCostTab() {
   // C-Land — ต้นทุนที่ดินรายแปลง (เข้ากำไรรายหลัง)
   const [landEdits, setLandEdits] = useState<Record<string, string>>({});
   const [savingLand, setSavingLand] = useState(false);
+  const [allocating, setAllocating] = useState(false);
 
   const loadHouses = useCallback(() => {
     return supabase.from("houses").select("id,house_number,plot_number,house_model,price,land_cost").eq("project_id", PROJECT_ID).order("plot_number").limit(60)
@@ -1183,6 +1184,20 @@ function LotCostTab() {
     supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).then(({data})=>setInfra((data??[]) as InfraCost[]));
   };
 
+  // ปันส่วนต้นทุนโครงสร้างพื้นฐานเฉลี่ยต่อแปลง → เขียนเข้า houses.infra_cost (เข้ากำไรรายหลัง)
+  const allocateInfra = async () => {
+    if (houses.length === 0 || totalInfra <= 0) return;
+    setAllocating(true);
+    const share = Math.round((totalInfra / houses.length) * 100) / 100;
+    await Promise.all(houses.map(h => supabase.from("houses").update({ infra_cost: share }).eq("id", h.id)));
+    await supabase.from("infrastructure_costs").update({ is_allocated: true }).eq("project_id", PROJECT_ID).eq("is_allocated", false);
+    await Promise.all([
+      loadHouses(),
+      supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).then(({ data }) => setInfra((data ?? []) as InfraCost[])),
+    ]);
+    setAllocating(false);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1195,6 +1210,10 @@ function LotCostTab() {
           <div><p className="text-lg font-bold text-blue-300">{houses.length}</p><p className="text-[10px] text-aviva-secondary">แปลงทั้งหมด</p></div>
           <div><p className="text-lg font-bold text-green-400">฿{fmtM(perLot)}</p><p className="text-[10px] text-aviva-secondary">เฉลี่ยต่อแปลง</p></div>
         </div>
+        <button onClick={allocateInfra} disabled={allocating || totalInfra <= 0 || houses.length === 0}
+          className="w-full mt-3 py-2.5 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-1.5">
+          <ArrowLeftRight size={14} /> {allocating ? "กำลังปันส่วน..." : "ปันส่วนเฉลี่ยเข้าทุกแปลง → กำไรรายหลัง"}
+        </button>
       </GlassCard>
 
       {/* C-Land — ต้นทุนที่ดินรายแปลง → เข้ากำไรรายหลัง */}

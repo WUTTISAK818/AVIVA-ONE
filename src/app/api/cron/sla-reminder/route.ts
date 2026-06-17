@@ -111,8 +111,7 @@ export async function GET(req: NextRequest) {
       escalated++;
 
       // แจ้ง "ผู้ขอ" ด้วย (ไม่ใช่แค่ผู้อนุมัติ) — หาแผนกจากผู้ยื่นคำขอ
-      // NOTE: ต้องให้ flow ตอน submit บันทึก approval_logs.submitted_by_user_id ด้วย จึงจะทำงาน
-      // (ปัจจุบันยังไม่มี flow ไหนเซ็ต field นี้ — กลไกหลักของผู้ขอคือปุ่ม "ทวงถาม" ที่กดเอง)
+      // submitted_by_user_id ถูกตั้ง DEFAULT auth.uid() ที่ DB → ทุก insert ฝั่งผู้ใช้บันทึกผู้ยื่นอัตโนมัติ
       // department อยู่ในตาราง employees (public.users ไม่มีคอลัมน์นี้) → resolve ผ่านอีเมล
       if (l.submitted_by_user_id) {
         const { data: u } = await db.from("users").select("email").eq("id", l.submitted_by_user_id).maybeSingle();

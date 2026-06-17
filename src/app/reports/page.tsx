@@ -5,6 +5,7 @@ import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { toSignedUrl } from "@/lib/storage";
+import { compressImage } from "@/lib/image-compress";
 import GlassCard from "@/components/GlassCard";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -228,6 +229,7 @@ export default function ReportsPage() {
   async function uploadPhoto(file: File) {
     if (!report) return;
     setUploading(true);
+    file = await compressImage(file);
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `rpt-${report.id}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("document-attachments").upload(path, file, { upsert: true });

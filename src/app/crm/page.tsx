@@ -24,6 +24,7 @@ import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
+import { compressImage } from "@/lib/image-compress";
 import { PAYMENT_PLAN, defaultInstallments } from "@/lib/payment-plan";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
@@ -368,7 +369,7 @@ export default function CRMPage() {
       setUploadingActPhoto(true);
       const ext = actForm.photo.name.split(".").pop() ?? "jpg";
       const path = `activities/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("activity-photos").upload(path, actForm.photo, { upsert: true });
+      const { error } = await supabase.storage.from("activity-photos").upload(path, await compressImage(actForm.photo), { upsert: true });
       if (!error) {
         photoUrl = supabase.storage.from("activity-photos").getPublicUrl(path).data.publicUrl;
       }
@@ -740,7 +741,7 @@ export default function CRMPage() {
       setUploadingLogPhoto(true);
       const ext = crmLogForm.photo.name.split(".").pop() ?? "jpg";
       const path = `logs/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("crm-photos").upload(path, crmLogForm.photo, { upsert: true });
+      const { error } = await supabase.storage.from("crm-photos").upload(path, await compressImage(crmLogForm.photo), { upsert: true });
       if (!error) {
         photoUrl = supabase.storage.from("crm-photos").getPublicUrl(path).data.publicUrl;
       }

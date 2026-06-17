@@ -25,6 +25,7 @@ import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
+import { compressImage } from "@/lib/image-compress";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -575,7 +576,7 @@ export default function ConstructionPage() {
     setUploadingInsp(insp.id);
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `inspections/${insp.id}.${ext}`;
-    const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
+    const { error } = await supabase.storage.from("installment-photos").upload(path, await compressImage(file), { upsert: true });
     if (error) { setUploadingInsp(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
     const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
     await supabase.from("installment_inspections").update({ photo_url: publicUrl }).eq("id", insp.id);
@@ -823,7 +824,7 @@ export default function ConstructionPage() {
     setUploadingTask(task.id);
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `tasks/${task.id}.${ext}`;
-    const { error } = await supabase.storage.from("installment-photos").upload(path, file, { upsert: true });
+    const { error } = await supabase.storage.from("installment-photos").upload(path, await compressImage(file), { upsert: true });
     if (error) { setUploadingTask(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
     const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
     await supabase.from("installment_tasks").update({ photo_url: publicUrl }).eq("id", task.id);
@@ -938,7 +939,7 @@ export default function ConstructionPage() {
       setUploadingDailyPhoto(true);
       const ext = dailyPhoto.name.split(".").pop() ?? "jpg";
       const path = `daily/${reportId}.${ext}`;
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(path, dailyPhoto, { upsert: true });
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(path, await compressImage(dailyPhoto), { upsert: true });
       if (!error) {
         const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(path);
         await supabase.from("construction_reports").update({ photo_url: publicUrl }).eq("id", reportId);
@@ -1083,7 +1084,7 @@ export default function ConstructionPage() {
       setUploadingSummaryPhoto(true);
       const ext = summaryPhoto.name.split(".").pop() ?? "jpg";
       const filePath = `daily/summary-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, summaryPhoto, { upsert: true });
+      const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, await compressImage(summaryPhoto), { upsert: true });
       if (error) {
         setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
       } else {
@@ -1468,7 +1469,7 @@ export default function ConstructionPage() {
                                 {inst.status === "in_review" && user?.isManager ? (
                                   <div className="flex gap-2">
                                     <button onClick={() => doAdvanceInst(inst)} className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium">✓ อนุมัติ</button>
-                                    <button onClick={() => { const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธ:"); if (reason !== null) rejectInstallment(inst, reason); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
+                                    <button onClick={() => { const reason = window.prompt("ระบุเหตุผลที่ให้แก้ไข/ปฏิเสธ (จำเป็น):"); if (reason === null) return; if (!reason.trim()) { setToast({ msg: "ต้องระบุเหตุผลที่ให้แก้ไขก่อนตีกลับงวดงาน", type: "error" }); return; } rejectInstallment(inst, reason.trim()); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
                                   </div>
                                 ) : inst.status === "in_review" && !user?.isManager ? (
                                   <div className="space-y-1.5">

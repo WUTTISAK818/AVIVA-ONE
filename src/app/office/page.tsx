@@ -28,6 +28,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
+import { compressImage } from "@/lib/image-compress";
 import { createLeaveRequest } from "@/lib/work-actions";
 import { resolveApprovalQueue } from "@/lib/workflow-events";
 import { finalizeSale } from "@/lib/sales-finalize";
@@ -279,7 +280,7 @@ function FinanceContent() {
       if (receiptFile && logRow?.approval_id) {
         const ext = receiptFile.name.split(".").pop() ?? "jpg";
         const path = `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("document-attachments").upload(path, receiptFile, { upsert: true });
+        const { error: upErr } = await supabase.storage.from("document-attachments").upload(path, await compressImage(receiptFile), { upsert: true });
         if (!upErr) {
           const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
           await attachDocumentToEntity("approval_log", logRow.approval_id, publicUrl, receiptFile.name, user?.full_name ?? user?.email ?? "ผู้ขอ");

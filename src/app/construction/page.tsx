@@ -23,6 +23,7 @@ import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/d
 import SignedImg from "@/components/SignedImg";
 import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
+import WorkflowInfoPanel, { type WorkflowInfo } from "@/components/WorkflowInfoPanel";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
 import { compressImage } from "@/lib/image-compress";
@@ -421,6 +422,8 @@ export default function ConstructionPage() {
   const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
   const [showAI, setShowAI] = useState(false);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [showPODetail, setShowPODetail] = useState(false);
   const [showPRModal, setShowPRModal] = useState(false);
   const [savingPR, setSavingPR] = useState(false);
   const [prForm, setPrForm] = useState({ supplier_name: "", notes: "" });
@@ -1700,7 +1703,7 @@ export default function ConstructionPage() {
               const sc = poStatusConfig[po.status] ?? poStatusConfig.draft;
               const items = (po.items ?? []) as { name: string; qty: number; unit: string; unit_price: number }[];
               return (
-                <GlassCard key={po.id} className="p-4 space-y-2">
+                <GlassCard key={po.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1715,6 +1718,27 @@ export default function ConstructionPage() {
                       <p className="text-sm font-bold text-aviva-gold flex-shrink-0">฿{Number(po.total_amount).toLocaleString("th-TH")}</p>
                     )}
                   </div>
+
+                  {/* Workflow Info */}
+                  {po.status === "pending" && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2.5 text-[10px] text-yellow-400 space-y-1">
+                      <p className="font-semibold">📌 ต้องดำเนินการ</p>
+                      <p>PO ยังรออนุมัติจากผู้จัดการ — กรุณาตรวจสอบและส่งขออนุมัติ</p>
+                    </div>
+                  )}
+                  {po.status === "approved" && (
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-2.5 text-[10px] text-green-400 space-y-1">
+                      <p className="font-semibold">✓ เสร็จแล้ว</p>
+                      {po.approved_by && <p>อนุมัติโดย {po.approved_by}</p>}
+                    </div>
+                  )}
+                  {po.status === "rejected" && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-[10px] text-red-400 space-y-1">
+                      <p className="font-semibold">✗ ถูกปฏิเสธ</p>
+                      <p>โปรดแก้ไข PO และส่งใหม่อีกครั้ง</p>
+                    </div>
+                  )}
+
                   {items.length > 0 && (
                     <div className="bg-aviva-bg/50 rounded-xl p-2.5 space-y-1">
                       {items.map((it, i) => (
@@ -1727,10 +1751,18 @@ export default function ConstructionPage() {
                     </div>
                   )}
                   {po.notes && <p className="text-[10px] text-aviva-secondary/70 leading-relaxed">{po.notes}</p>}
-                  {po.status === "approved" && po.approved_by && (
-                    <p className="text-[10px] text-green-400">✓ อนุมัติโดย {po.approved_by}</p>
-                  )}
-                  <div className="pt-1 border-t border-aviva-gold/10">
+
+                  {/* Action Buttons */}
+                  <div className="pt-1 border-t border-aviva-gold/10 space-y-2">
+                    <button
+                      onClick={() => {
+                        setSelectedPO(po);
+                        setShowPODetail(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-semibold hover:bg-aviva-gold/30 transition-all"
+                    >
+                      <ShoppingCart size={13} /> ตรวจสอบและดำเนินการ
+                    </button>
                     <AttachDocButton entityType="purchase_order" entityId={po.id} attachedBy={user?.full_name ?? ""} templates={poTemplates(po)} />
                   </div>
                 </GlassCard>
@@ -1739,6 +1771,136 @@ export default function ConstructionPage() {
           </div>
         )}
       </div>
+
+      {showPODetail && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">ใบสั่งซื้อ {selectedPO.po_number}</h2>
+                <p className="text-[11px] text-aviva-secondary mt-0.5">ร้านค้า: {selectedPO.supplier_name}</p>
+              </div>
+              <button onClick={() => setShowPODetail(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+
+            {/* Workflow Info */}
+            <WorkflowInfoPanel workflow={{
+              from: { label: "ฝ่ายก่อสร้าง", description: "ขอจัดซื้อวัสดุ / อุปกรณ์" },
+              to: { label: "ผู้จัดการโครงการ", description: "ตรวจสอบและอนุมัติจำนวนเงิน" },
+              action: { label: "ตรวจสอบและอนุมัติ", description: "ตรวจสอบรายการและราคา แล้วส่งต่อการเงิน" },
+              nextStep: { label: "การเงิน", description: "อนุมัติและจ่ายชำระ" },
+              status: selectedPO.status === "Pending" ? "pending" : selectedPO.status === "Approved" ? "approved" : "rejected",
+              sla: { days: 3, label: "กำหนดส่วนก่อน 3 วันทำการ" },
+              approvedBy: selectedPO.approved_by ?? undefined,
+              approvedAt: selectedPO.created_at,
+            }} />
+
+            {/* PO Details */}
+            <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">รายละเอียด</p>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">เลขที่ PO:</span>
+                  <span className="font-semibold text-aviva-text">{selectedPO.po_number || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">ร้านค้า:</span>
+                  <span className="font-semibold text-aviva-text">{selectedPO.supplier_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">สถานะ:</span>
+                  <span className={clsx("font-semibold", {
+                    "text-yellow-400": selectedPO.status === "Pending",
+                    "text-green-400": selectedPO.status === "Approved",
+                    "text-red-400": selectedPO.status === "Rejected",
+                  })}>
+                    {selectedPO.status === "Pending" ? "รอบอนุมัติ" : selectedPO.status === "Approved" ? "อนุมัติแล้ว" : "ปฏิเสธ"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">ผู้ขอ:</span>
+                  <span className="font-semibold text-aviva-text">{selectedPO.requested_by || "—"}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-aviva-gold/10">
+                  <span className="text-aviva-secondary/60">จำนวนเงินรวม:</span>
+                  <span className="font-bold text-aviva-gold">
+                    {selectedPO.total_amount?.toLocaleString("th-TH", { style: "currency", currency: "THB" }) || "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            {selectedPO.items && selectedPO.items.length > 0 && (
+              <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+                <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">รายการสินค้า</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="border-b border-aviva-gold/20">
+                        <th className="text-left px-2 py-1.5 text-aviva-secondary/60">รายการ</th>
+                        <th className="text-center px-2 py-1.5 text-aviva-secondary/60">จำนวน</th>
+                        <th className="text-center px-2 py-1.5 text-aviva-secondary/60">ราคา</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPO.items.map((item, idx) => (
+                        <tr key={idx} className="border-b border-aviva-gold/10">
+                          <td className="px-2 py-1.5 text-aviva-text">{item.name}</td>
+                          <td className="px-2 py-1.5 text-center text-aviva-secondary">
+                            {item.qty} {item.unit}
+                          </td>
+                          <td className="px-2 py-1.5 text-center text-aviva-gold font-semibold">
+                            {(item.unit_price * item.qty).toLocaleString("th-TH", { style: "currency", currency: "THB" })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            {selectedPO.notes && (
+              <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-1">
+                <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">หมายเหตุ</p>
+                <p className="text-[11px] text-aviva-secondary/80 leading-relaxed">{selectedPO.notes}</p>
+              </div>
+            )}
+
+            {/* Workflow Timeline */}
+            <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">ประวัติการอนุมัติ</p>
+              <WorkflowTimeline sourceRecordId={selectedPO.id} />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              {selectedPO.status === "Pending" && (
+                <>
+                  <button className="flex-1 py-3 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold rounded-xl text-xs hover:bg-aviva-gold/90 transition-all">
+                    <Check size={14} /> อนุมัติ
+                  </button>
+                  <button className="flex-1 py-3 flex items-center justify-center gap-2 border border-red-500/30 text-red-400 font-bold rounded-xl text-xs hover:bg-red-500/5 transition-all">
+                    <X size={14} /> ปฏิเสธ
+                  </button>
+                </>
+              )}
+              {selectedPO.status === "Approved" && (
+                <button className="w-full py-3 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold font-bold rounded-xl text-xs hover:bg-aviva-gold/5 transition-all">
+                  <Pencil size={14} /> ส่งต่อการเงิน
+                </button>
+              )}
+              <button onClick={() => setShowPODetail(false)}
+                className="w-full py-3 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold font-bold rounded-xl text-xs hover:bg-aviva-gold/5 transition-all">
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSummaryModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">

@@ -361,6 +361,28 @@ function ApprovalsContent() {
       return;
     }
 
+    // แผนกของ "ผู้ขอ" เพื่อแจ้งผลกลับให้ถูกคน (เลิก broadcast to_dept=null)
+    // หาจากผู้ยื่นคำขอจริง (submitted_by_user_id → users.email → employees.department) ก่อน
+    // ถ้าไม่มี (เรคคอร์ดเก่า) ใช้แผนกประจำของชนิดเอกสารเป็น fallback
+    const REQUESTER_DEPT: Record<string, string> = {
+      Material_Purchase: "ฝ่ายก่อสร้าง",
+      Installment_Review: "ฝ่ายก่อสร้าง",
+      Finance_Approval: "ฝ่ายการเงิน",
+      Purchase_Request: "ฝ่ายการเงิน",
+      Marketing_Budget: "ฝ่ายการตลาด",
+    };
+    let requesterDept: string | null = null;
+    const submitterId = (log as { submitted_by_user_id?: string | null }).submitted_by_user_id;
+    if (submitterId) {
+      const { data: su } = await supabase.from("users").select("email").eq("id", submitterId).maybeSingle();
+      const semail = (su as { email?: string } | null)?.email;
+      if (semail) {
+        const { data: emp } = await supabase.from("employees").select("department").ilike("email", semail).maybeSingle();
+        requesterDept = (emp as { department?: string } | null)?.department ?? null;
+      }
+    }
+    const targetDept = requesterDept ?? REQUESTER_DEPT[log.workflow_type];
+
     // Cascade logic based on workflow type
     if (log.workflow_type === "Installment_Review") {
       const byName = user.full_name ?? user.email;
@@ -441,6 +463,7 @@ function ApprovalsContent() {
           title: "ปฏิเสธงวดงาน",
           message: log.source_doc_index ?? "",
           from_dept: "ฝ่ายอนุมัติ",
+          to_dept: targetDept,
         });
       }
     } else if (log.workflow_type === "Material_Purchase") {
@@ -454,6 +477,7 @@ function ApprovalsContent() {
         title: approved ? "อนุมัติสั่งซื้อแล้ว" : "ปฏิเสธสั่งซื้อ",
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
+        to_dept: targetDept,
       });
     } else if (log.workflow_type === "Document_Approval") {
       if (log.source_record_id) {
@@ -469,6 +493,7 @@ function ApprovalsContent() {
         title: approved ? "อนุมัติเอกสารแล้ว" : "ปฏิเสธเอกสาร",
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
+        to_dept: targetDept,
       });
     } else if (log.workflow_type === "Finance_Approval") {
       if (approved && log.source_record_id) {
@@ -493,6 +518,7 @@ function ApprovalsContent() {
         title: approved ? "อนุมัติรายจ่ายแล้ว" : "ปฏิเสธรายจ่าย",
         message: `${log.source_doc_index ?? ""} — ฿${(log.amount ?? 0).toLocaleString("th-TH")}`,
         from_dept: "ฝ่ายอนุมัติ",
+        to_dept: targetDept,
       });
     } else if (log.workflow_type === "Leave_Request") {
       if (log.source_record_id) {
@@ -505,6 +531,7 @@ function ApprovalsContent() {
         title: approved ? "อนุมัติการลาแล้ว" : "ปฏิเสธการลา",
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
+        to_dept: targetDept,
       });
     } else if (log.workflow_type === "Booking_Deposit") {
       // ปฏิเสธเงินจอง → คืนสถานะลูกค้าเป็น New Lead + ปล่อยแปลงกลับเป็นว่าง

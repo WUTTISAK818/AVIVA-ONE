@@ -44,7 +44,7 @@ export default function ActivityPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ category: "ลูกค้า/ขาย", title: "", detail: "", time: "" });
-  const [auto, setAuto] = useState<{ sales: number; jv: number; construction: number; installment: number } | null>(null);
+  const [auto, setAuto] = useState<{ sales: number; calls: number; jv: number; construction: number; installment: number; po: number } | null>(null);
   const [autoAdded, setAutoAdded] = useState(false);
 
   const load = useCallback(async () => {
@@ -61,17 +61,21 @@ export default function ActivityPage() {
     // สรุปอัตโนมัติของ "ฉัน" สำหรับวันนี้ (นับจากงานจริงในระบบ)
     if (user?.id) {
       const dStart = `${date}T00:00:00`, dEnd = `${date}T23:59:59`;
-      const [sa, jv, cr, inst] = await Promise.all([
+      const [sa, calls, jv, cr, inst, po] = await Promise.all([
         supabase.from("sales_activities").select("id", { count: "exact", head: true })
           .eq("created_by", user.id).gte("activity_date", dStart).lte("activity_date", dEnd),
+        supabase.from("crm_logs").select("id", { count: "exact", head: true })
+          .eq("created_by_id", user.id).gte("created_at", dStart).lte("created_at", dEnd),
         supabase.from("jv_entries").select("id", { count: "exact", head: true })
           .eq("created_by", user.id).eq("jv_date", date),
         supabase.from("construction_reports").select("id", { count: "exact", head: true })
           .eq("created_by", user.id).gte("created_at", dStart).lte("created_at", dEnd),
         supabase.from("contractor_installments").select("id", { count: "exact", head: true })
           .eq("created_by_name", user.full_name ?? "___").gte("updated_at", dStart).lte("updated_at", dEnd),
+        supabase.from("purchase_orders").select("id", { count: "exact", head: true })
+          .eq("created_by_id", user.id).gte("created_at", dStart).lte("created_at", dEnd),
       ]);
-      setAuto({ sales: sa.count ?? 0, jv: jv.count ?? 0, construction: cr.count ?? 0, installment: inst.count ?? 0 });
+      setAuto({ sales: sa.count ?? 0, calls: calls.count ?? 0, jv: jv.count ?? 0, construction: cr.count ?? 0, installment: inst.count ?? 0, po: po.count ?? 0 });
     }
     setLoading(false);
   }, [date, user?.id, user?.full_name]);
@@ -87,9 +91,11 @@ export default function ActivityPage() {
 
   const autoText = auto
     ? [
-        auto.sales ? `รับ/ติดต่อลูกค้า ${auto.sales}` : "",
+        auto.sales ? `บันทึกกิจกรรมขาย ${auto.sales}` : "",
+        auto.calls ? `โทร/ติดต่อลูกค้า ${auto.calls}` : "",
         auto.installment ? `ตรวจ/ส่งเบิกงวดงาน ${auto.installment}` : "",
         auto.construction ? `รายงานก่อสร้าง ${auto.construction}` : "",
+        auto.po ? `ใบสั่งซื้อ ${auto.po}` : "",
         auto.jv ? `ลงบัญชี (JV) ${auto.jv}` : "",
       ].filter(Boolean).join(" · ")
     : "";

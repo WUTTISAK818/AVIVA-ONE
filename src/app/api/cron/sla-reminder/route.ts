@@ -111,9 +111,17 @@ export async function GET(req: NextRequest) {
       escalated++;
 
       // แจ้ง "ผู้ขอ" ด้วย (ไม่ใช่แค่ผู้อนุมัติ) — หาแผนกจากผู้ยื่นคำขอ
+      // NOTE: ต้องให้ flow ตอน submit บันทึก approval_logs.submitted_by_user_id ด้วย จึงจะทำงาน
+      // (ปัจจุบันยังไม่มี flow ไหนเซ็ต field นี้ — กลไกหลักของผู้ขอคือปุ่ม "ทวงถาม" ที่กดเอง)
+      // department อยู่ในตาราง employees (public.users ไม่มีคอลัมน์นี้) → resolve ผ่านอีเมล
       if (l.submitted_by_user_id) {
-        const { data: u } = await db.from("users").select("department").eq("id", l.submitted_by_user_id).maybeSingle();
-        const reqDept = (u as { department?: string | null } | null)?.department;
+        const { data: u } = await db.from("users").select("email").eq("id", l.submitted_by_user_id).maybeSingle();
+        const email = (u as { email?: string | null } | null)?.email;
+        let reqDept: string | null | undefined;
+        if (email) {
+          const { data: emp } = await db.from("employees").select("department").ilike("email", email).maybeSingle();
+          reqDept = (emp as { department?: string | null } | null)?.department;
+        }
         if (reqDept && reqDept !== EXEC_DEPT) {
           await sendPush({ department: reqDept }, { title: "⏰ คำขอของคุณยังรออนุมัติ", body: `${docName} เกินกำหนดแล้ว — กด 'ทวงถาม' เพื่อเร่งได้`, url: "/approvals", tag: `req-${recordId}` });
         }

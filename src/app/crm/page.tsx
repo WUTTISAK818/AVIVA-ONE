@@ -30,6 +30,7 @@ import { postJv } from "@/lib/jv";
 import { BANK, CUSTOMER_ADVANCE } from "@/lib/gl-accounts";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
+import { useFocusHighlight } from "@/lib/use-focus-highlight";
 
 function escapeHtml(s: string | null | undefined): string {
   // กัน null/undefined: ลูกค้าบางรายไม่มีเบอร์/ข้อมูล — เดิม s.replace ทำหน้าพิมพ์ crash
@@ -263,6 +264,7 @@ type MainTab = "pipeline" | "team" | "map";
 
 export default function CRMPage() {
   const user = useCurrentUser();
+  useFocusHighlight();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
@@ -1145,7 +1147,7 @@ export default function CRMPage() {
           </GlassCard>
         ) : (
           filtered.slice(0, visibleCount).map((lead) => (
-            <GlassCard key={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setSelectedLead(lead)}>
+            <GlassCard key={lead.id} dataFocus={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform" onClick={() => setSelectedLead(lead)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">

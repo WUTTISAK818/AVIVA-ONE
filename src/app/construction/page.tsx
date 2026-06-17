@@ -152,6 +152,16 @@ interface PurchaseOrder {
   approved_by?: string | null;
 }
 
+interface DailyActivity {
+  id: string;
+  type: "inspection" | "defect" | "report" | "manual";
+  title: string;
+  description: string;
+  house_number?: string;
+  timestamp: string;
+  edited?: boolean;
+}
+
 interface PrLineItem {
   name: string;
   qty: string;
@@ -446,10 +456,10 @@ export default function ConstructionPage() {
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [loadingSummary, setLoadingSummary] = useState(false);
-  const [summaryForm, setSummaryForm] = useState({ reporter: "", contractor_summary: "", daily_summary: "", problems: "", date: "" });
-  const [summaryPhoto, setSummaryPhoto] = useState<File | null>(null);
-  const [summaryPhotoPreview, setSummaryPhotoPreview] = useState("");
-  const [uploadingSummaryPhoto, setUploadingSummaryPhoto] = useState(false);
+  const [summaryForm, setSummaryForm] = useState({ reporter: "", contractor_summary: "", daily_summary: "", problems: "", date: "", activities: [] as DailyActivity[] });
+  const [summaryPhotos, setSummaryPhotos] = useState<File[]>([]);
+  const [summaryPhotoPreviews, setSummaryPhotoPreviews] = useState<string[]>([]);
+  const [uploadingSummaryPhotos, setUploadingSummaryPhotos] = useState(false);
   const [sendingSummary, setSendingSummary] = useState(false);
 
   const instPanelRef = useRef<HTMLDivElement>(null);
@@ -1084,9 +1094,61 @@ export default function ConstructionPage() {
           return `• ${h?.house_number ?? "—"}: ${d.description}`;
         }).join("\n") + (openDefs.length > 5 ? `\n... และอีก ${openDefs.length - 5} รายการ` : "")
       : "";
-    setSummaryForm({ reporter: user?.full_name ?? "", contractor_summary: contractorText, daily_summary: dailyText, problems: problemsText, date: today });
-    setSummaryPhoto(null);
-    setSummaryPhotoPreview("");
+    // Auto-compile activities
+    const activities: DailyActivity[] = [];
+
+    // Add inspection activities
+    inspections.slice(-10).forEach(insp => {
+      if (insp.inspected_at && new Date(insp.inspected_at).toDateString() === new Date(today).toDateString()) {
+        activities.push({
+          id: `insp-${insp.id}`,
+          type: "inspection",
+          title: `ตรวจ: ${insp.work_item_name}`,
+          description: `ผล: ${insp.result === "pass" ? "✓ ผ่าน" : "✗ ไม่ผ่าน"}${insp.note ? ` — ${insp.note}` : ""}`,
+          timestamp: insp.inspected_at,
+          edited: false,
+        });
+      }
+    });
+
+    // Add defect activities
+    defects.slice(-10).forEach(defect => {
+      if (new Date(defect.reported_at).toDateString() === new Date(today).toDateString()) {
+        const h = houses.find(hh => hh.id === defect.house_id);
+        activities.push({
+          id: `defect-${defect.defect_id}`,
+          type: "defect",
+          title: `🐛 Defect: ${defect.defect_category}`,
+          description: defect.description,
+          house_number: h?.house_number,
+          timestamp: defect.reported_at,
+          edited: false,
+        });
+      }
+    });
+
+    // Add report activities (ไม่รวม summary report)
+    reports.slice(-10).forEach(rpt => {
+      if (rpt.work_type !== "สรุปประจำวัน" && new Date(rpt.created_at).toDateString() === new Date(today).toDateString()) {
+        const h = houses.find(hh => hh.id === rpt.house_id);
+        activities.push({
+          id: `report-${rpt.id}`,
+          type: "report",
+          title: `📋 ${rpt.work_type || "รายงาน"}`,
+          description: rpt.work_detail.substring(0, 100),
+          house_number: h?.house_number,
+          timestamp: rpt.created_at,
+          edited: false,
+        });
+      }
+    });
+
+    // Sort by timestamp descending
+    activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    setSummaryForm({ reporter: user?.full_name ?? "", contractor_summary: contractorText, daily_summary: dailyText, problems: problemsText, date: today, activities });
+    setSummaryPhotos([]);
+    setSummaryPhotoPreviews([]);
     setLoadingSummary(false);
     setShowSummaryModal(true);
   };
@@ -1095,48 +1157,92 @@ export default function ConstructionPage() {
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
     const w = window.open("", "_blank");
     if (!w) return;
-    const photoHtml = summaryPhotoPreview ? `<div style="margin:16px 0"><img src="${summaryPhotoPreview}" style="max-width:100%;max-height:280px;border-radius:8px;border:1px solid #ddd;display:block" /></div>` : "";
-    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:6px}.summary-bar{display:flex;gap:12px;background:#f9f9f9;border-radius:8px;padding:10px 14px;margin-bottom:20px;border-left:3px solid #1E4A35}.sb-item{flex:1}.sb-num{font-size:18px;font-weight:900;color:#1E4A35}.sb-lbl{font-size:10px;color:#888;margin-top:2px}section{margin-bottom:20px}h3{font-size:13px;font-weight:700;color:#1E4A35;border-bottom:1px solid #e0e0e0;padding-bottom:6px;margin-bottom:10px}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.8;color:#333;margin:0;background:#fafafa;border-radius:6px;padding:10px}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ddd;padding-top:16px}.sig{text-align:center;width:180px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่: ${dateStr} &nbsp;·&nbsp; ผู้จัดทำ: ${summaryForm.reporter || "—"} &nbsp;·&nbsp; ความคืบหน้าเฉลี่ย: ${overallProgress}%</div></div><div class="summary-bar"><div class="sb-item"><div class="sb-num">${houses.length}</div><div class="sb-lbl">ยูนิตทั้งหมด</div></div><div class="sb-item"><div class="sb-num">${overallProgress}%</div><div class="sb-lbl">คืบหน้าเฉลี่ย</div></div><div class="sb-item"><div class="sb-num">${counts.complete}</div><div class="sb-lbl">เสร็จแล้ว</div></div><div class="sb-item"><div class="sb-num">${defects.filter(d=>d.status==="Open").length}</div><div class="sb-lbl">Defect เปิด</div></div></div><section><h3>งานตรวจผู้รับเหมา</h3><pre>${summaryForm.contractor_summary}</pre></section><section><h3>งานรายวัน</h3><pre>${summaryForm.daily_summary}</pre></section>${summaryForm.problems ? `<section><h3>ปัญหา / ข้อสังเกต</h3><pre>${summaryForm.problems}</pre></section>` : ""}${photoHtml}<div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">${summaryForm.reporter || "ผู้จัดทำรายงาน"}</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
+
+    const photosHtml = summaryPhotoPreviews.length > 0
+      ? `<section><h3>แนบรูปภาพ (${summaryPhotoPreviews.length} รูป)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:10px;">${
+          summaryPhotoPreviews.map(p => `<img src="${p}" style="max-width:100%;border-radius:8px;border:1px solid #ddd;display:block" />`).join("")
+        }</div></section>`
+      : "";
+
+    const activitiesHtml = summaryForm.activities.length > 0
+      ? `<section><h3>🔔 กิจกรรมในวัน (${summaryForm.activities.length} รายการ)</h3><ul style="margin:0;padding-left:20px;line-height:1.8;font-size:12px;">${
+          summaryForm.activities.map(a => `<li><strong>[${a.type}]</strong> ${a.title}: ${a.description}</li>`).join("")
+        }</ul></section>`
+      : "";
+
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:6px}.summary-bar{display:flex;gap:12px;background:#f9f9f9;border-radius:8px;padding:10px 14px;margin-bottom:20px;border-left:3px solid #1E4A35}.sb-item{flex:1}.sb-num{font-size:18px;font-weight:900;color:#1E4A35}.sb-lbl{font-size:10px;color:#888;margin-top:2px}section{margin-bottom:20px}h3{font-size:13px;font-weight:700;color:#1E4A35;border-bottom:1px solid #e0e0e0;padding-bottom:6px;margin-bottom:10px}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.8;color:#333;margin:0;background:#fafafa;border-radius:6px;padding:10px}ul{background:#fafafa;border-radius:6px;padding:10px 10px 10px 30px}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ddd;padding-top:16px}.sig{text-align:center;width:180px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่: ${dateStr} &nbsp;·&nbsp; ผู้จัดทำ: ${summaryForm.reporter || "—"} &nbsp;·&nbsp; ความคืบหน้าเฉลี่ย: ${overallProgress}%</div></div><div class="summary-bar"><div class="sb-item"><div class="sb-num">${houses.length}</div><div class="sb-lbl">ยูนิตทั้งหมด</div></div><div class="sb-item"><div class="sb-num">${overallProgress}%</div><div class="sb-lbl">คืบหน้าเฉลี่ย</div></div><div class="sb-item"><div class="sb-num">${counts.complete}</div><div class="sb-lbl">เสร็จแล้ว</div></div><div class="sb-item"><div class="sb-num">${defects.filter(d=>d.status==="Open").length}</div><div class="sb-lbl">Defect เปิด</div></div></div><section><h3>งานตรวจผู้รับเหมา</h3><pre>${summaryForm.contractor_summary}</pre></section><section><h3>งานรายวัน</h3><pre>${summaryForm.daily_summary}</pre></section>${summaryForm.problems ? `<section><h3>ปัญหา / ข้อสังเกต</h3><pre>${summaryForm.problems}</pre></section>` : ""}${activitiesHtml}${photosHtml}<div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">${summaryForm.reporter || "ผู้จัดทำรายงาน"}</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
     w.document.close();
   };
 
   const submitSummaryReport = async () => {
     setSendingSummary(true);
-    let photoUrl: string | null = null;
-    if (summaryPhoto) {
-      setUploadingSummaryPhoto(true);
-      const ext = summaryPhoto.name.split(".").pop() ?? "jpg";
-      const filePath = `daily/summary-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, await compressImage(summaryPhoto), { upsert: true });
-      if (error) {
-        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
-      } else {
-        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(filePath);
-        photoUrl = publicUrl;
+    const photoUrls: string[] = [];
+
+    if (summaryPhotos.length > 0) {
+      setUploadingSummaryPhotos(true);
+      for (const photo of summaryPhotos) {
+        try {
+          const ext = photo.name.split(".").pop() ?? "jpg";
+          const filePath = `daily/summary-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+          const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, await compressImage(photo), { upsert: true });
+          if (!error) {
+            const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(filePath);
+            photoUrls.push(publicUrl);
+          }
+        } catch (err) {
+          console.error("Photo upload error:", err);
+        }
       }
-      setUploadingSummaryPhoto(false);
+      setUploadingSummaryPhotos(false);
     }
+
+    // Compile activities list
+    const activitiesText = summaryForm.activities.length > 0
+      ? "🔔 กิจกรรมในวัน:\n" + summaryForm.activities.map(a => `• [${a.type}] ${a.title}: ${a.description}`).join("\n")
+      : "";
+
     // Persist summary report to construction_reports table
     await supabase.from("construction_reports").insert({
       work_type: "สรุปประจำวัน",
-      work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,
+      work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${activitiesText ? `\n${activitiesText}` : ""}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,
       progress: overallProgress,
       reported_by: summaryForm.reporter || null,
-      photo_url: photoUrl,
+      photo_url: photoUrls.length > 0 ? photoUrls[0] : null,
       issue: summaryForm.problems || null,
     });
+
+    // Save additional photos as attachments if available
+    if (photoUrls.length > 1) {
+      try {
+        const { data: lastReport } = await supabase.from("construction_reports").select("id").order("created_at", { ascending: false }).limit(1).single();
+        if (lastReport) {
+          for (const url of photoUrls.slice(1)) {
+            await supabase.from("construction_attachments").insert({
+              report_id: lastReport.id,
+              file_url: url,
+              file_type: "image",
+              uploaded_by: summaryForm.reporter || null,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error saving photo attachments:", err);
+      }
+    }
+
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     await createNotification({
       type: "info",
       title: "รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง",
-      message: `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · คืบหน้าเฉลี่ย ${overallProgress}%`,
+      message: `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · ${photoUrls.length} รูป · ${summaryForm.activities.length} กิจกรรม`,
       from_dept: "ฝ่ายก่อสร้าง",
     });
+
     setSendingSummary(false);
     setShowSummaryModal(false);
-    setSummaryPhoto(null);
-    setSummaryPhotoPreview("");
-    setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว ✓", type: "success" });
+    setSummaryPhotos([]);
+    setSummaryPhotoPreviews([]);
+    setToast({ msg: `ส่งรายงาน ${photoUrls.length} รูป + ${summaryForm.activities.length} กิจกรรม ✓`, type: "success" });
   };
 
   return (
@@ -2180,17 +2286,69 @@ export default function ConstructionPage() {
                 placeholder="ระบุปัญหาเพิ่มเติม หรือข้อสังเกตสำหรับผู้บริหาร..."
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
             </div>
+            {/* Auto-compiled Activities */}
+            {summaryForm.activities.length > 0 && (
+              <div>
+                <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-2 block uppercase tracking-wider">🔔 กิจกรรมในวัน ({summaryForm.activities.length})</label>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {summaryForm.activities.map((act, idx) => (
+                    <div key={act.id} className="bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-3 py-2 flex items-start gap-2">
+                      <span className="text-[10px] text-aviva-gold font-semibold flex-shrink-0 bg-aviva-gold/10 px-1.5 py-0.5 rounded">
+                        {act.type === "inspection" ? "✓" : act.type === "defect" ? "🐛" : "📋"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-aviva-text">{act.title}</p>
+                        <p className="text-[10px] text-aviva-secondary/70">{act.description}</p>
+                      </div>
+                      <button
+                        onClick={() => setSummaryForm(p => ({ ...p, activities: p.activities.filter((_, i) => i !== idx) }))}
+                        className="text-aviva-secondary/50 hover:text-red-400 flex-shrink-0">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Multiple Photo Upload */}
             <div>
-              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">แนบรูปภาพเพิ่มเติม</label>
-              <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 hover:border-aviva-gold/40 transition-all">
-                <input type="file" accept="image/*" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) { setSummaryPhoto(f); setSummaryPhotoPreview(URL.createObjectURL(f)); } }} />
-                <Camera size={15} className="text-aviva-secondary/60 flex-shrink-0" />
-                <span className="text-xs text-aviva-secondary/60 flex-1">{summaryPhoto ? summaryPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
-                {summaryPhotoPreview && (
-                  <img src={summaryPhotoPreview} alt="preview" className="w-14 h-14 rounded-lg object-cover border border-aviva-gold/20 flex-shrink-0" />
-                )}
+              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-2 block uppercase tracking-wider">
+                แนบรูปภาพ ({summaryPhotos.length} รูป)
               </label>
+              <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 hover:border-aviva-gold/40 transition-all">
+                <input type="file" accept="image/*" multiple className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files ?? []);
+                    setSummaryPhotos(prev => [...prev, ...files]);
+                    files.forEach(f => {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        setSummaryPhotoPreviews(prev => [...prev, ev.target?.result as string]);
+                      };
+                      reader.readAsDataURL(f);
+                    });
+                  }} />
+                <Camera size={15} className="text-aviva-secondary/60 flex-shrink-0" />
+                <span className="text-xs text-aviva-secondary/60 flex-1">เลือกรูปภาพ ({summaryPhotos.length})</span>
+              </label>
+              {summaryPhotoPreviews.length > 0 && (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {summaryPhotoPreviews.map((p, idx) => (
+                    <div key={idx} className="relative">
+                      <img src={p} alt={`preview-${idx}`} className="w-full h-20 rounded-lg object-cover border border-aviva-gold/20" />
+                      <button
+                        onClick={() => {
+                          setSummaryPhotos(prev => prev.filter((_, i) => i !== idx));
+                          setSummaryPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
+                        }}
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600">
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={printSummaryReport}
@@ -2198,9 +2356,9 @@ export default function ConstructionPage() {
                 <Printer size={14} /> พิมพ์รายงาน
               </button>
               <button onClick={submitSummaryReport}
-                disabled={sendingSummary || uploadingSummaryPhoto}
+                disabled={sendingSummary || uploadingSummaryPhotos}
                 className="flex-1 py-3 bg-aviva-gold text-aviva-bg font-bold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
-                {sendingSummary || uploadingSummaryPhoto ? <><Loader2 size={14} className="animate-spin" /> กำลังส่ง...</> : <><Send size={14} /> ส่งรายงาน</>}
+                {sendingSummary || uploadingSummaryPhotos ? <><Loader2 size={14} className="animate-spin" /> กำลังส่ง...</> : <><Send size={14} /> ส่งรายงาน</>}
               </button>
             </div>
           </div>

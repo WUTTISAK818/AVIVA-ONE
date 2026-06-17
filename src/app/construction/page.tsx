@@ -94,6 +94,11 @@ interface Installment {
   labor_cost?: number | null;
   material_cost?: number | null;
   created_at?: string;
+  wht_rate?: number | null;
+  penalty_per_day?: number | null;
+  days_late?: number | null;
+  retention_rate?: number | null;
+  net_payout?: number | null;
 }
 
 interface WorkItem {
@@ -221,6 +226,17 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
   paid:      { label: "จ่ายแล้ว",    color: "bg-green-500/20 text-green-400" },
   rejected:   { label: "ถูกปฏิเสธ",  color: "bg-red-500/20 text-red-400" },
 };
+
+// 3.2: ยอดจ่ายสุทธิงวดงาน = ยอดงวด − หัก ณ ที่จ่าย − ค่าปรับล่าช้า − เงินประกันผลงาน
+function calcNetPayout(inst: { amount: number; wht_rate?: number | null; penalty_per_day?: number | null; days_late?: number | null; retention_rate?: number | null }) {
+  const amount = Number(inst.amount) || 0;
+  const wht = amount * (Number(inst.wht_rate ?? 3) / 100);
+  const penalty = Number(inst.penalty_per_day ?? 0) * Number(inst.days_late ?? 0);
+  const retention = amount * (Number(inst.retention_rate ?? 5) / 100);
+  const net = Math.max(0, amount - wht - penalty - retention);
+  return { amount, wht, penalty, retention, net };
+}
+const baht0 = (n: number) => "฿" + Math.round(n).toLocaleString("th-TH");
 
 const INSTALLMENT_NAMES = [
   "งวด 1 — งานฝานราก", "งวด 2 — งานเสาและคาน", "งวด 3 — งานพื้นชั้น 1",
@@ -1411,6 +1427,43 @@ export default function ConstructionPage() {
                                 </div>
                               </div>
                             )}
+                            {/* 3.2: ยอดจ่ายสุทธิ (หัก ณ ที่จ่าย / ค่าปรับล่าช้า / เงินประกันผลงาน) — ฝ่ายบริหาร/การเงิน ตอนงวดอนุมัติ/จ่าย */}
+                            {(inst.status === "approved" || inst.status === "paid") &&
+                              (user?.isAdmin || user?.isManager || (user?.department ?? "").includes("การเงิน") || (user?.role ?? "").includes("finance")) &&
+                              (() => {
+                                const p = calcNetPayout(inst);
+                                const locked = inst.status === "paid";
+                                const save = async (patch: Partial<Installment>) => {
+                                  const merged = { ...inst, ...patch };
+                                  const net = calcNetPayout(merged).net;
+                                  await supabase.from("contractor_installments").update({ ...patch, net_payout: net }).eq("id", inst.id);
+                                  setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, ...patch, net_payout: net } : i));
+                                };
+                                const num = (s: string) => { const v = Number(s); return isNaN(v) ? 0 : v; };
+                                const fld = "w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none disabled:opacity-50";
+                                return (
+                                  <div className="rounded-lg border border-aviva-gold/15 bg-aviva-bg/40 p-2.5 space-y-1.5">
+                                    <p className="text-[10px] font-semibold text-aviva-gold">💸 ยอดจ่ายสุทธิผู้รับเหมา{locked ? " (จ่ายแล้ว — ล็อก)" : ""}</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div><p className="text-[10px] text-aviva-secondary mb-0.5">หัก ณ ที่จ่าย (%)</p>
+                                        <input type="number" defaultValue={inst.wht_rate ?? 3} disabled={locked} onBlur={e => save({ wht_rate: num(e.target.value) })} className={fld} /></div>
+                                      <div><p className="text-[10px] text-aviva-secondary mb-0.5">เงินประกันผลงาน (%)</p>
+                                        <input type="number" defaultValue={inst.retention_rate ?? 5} disabled={locked} onBlur={e => save({ retention_rate: num(e.target.value) })} className={fld} /></div>
+                                      <div><p className="text-[10px] text-aviva-secondary mb-0.5">ค่าปรับ/วัน (บาท)</p>
+                                        <input type="number" defaultValue={inst.penalty_per_day ?? 0} disabled={locked} onBlur={e => save({ penalty_per_day: num(e.target.value) })} className={fld} /></div>
+                                      <div><p className="text-[10px] text-aviva-secondary mb-0.5">จำนวนวันล่าช้า</p>
+                                        <input type="number" defaultValue={inst.days_late ?? 0} disabled={locked} onBlur={e => save({ days_late: Math.round(num(e.target.value)) })} className={fld} /></div>
+                                    </div>
+                                    <div className="text-[10px] space-y-0.5 pt-0.5">
+                                      <div className="flex justify-between text-aviva-secondary"><span>ยอดงวด</span><span>{baht0(p.amount)}</span></div>
+                                      <div className="flex justify-between text-red-300"><span>− หัก ณ ที่จ่าย {inst.wht_rate ?? 3}%</span><span>{baht0(p.wht)}</span></div>
+                                      <div className="flex justify-between text-red-300"><span>− ค่าปรับล่าช้า {inst.days_late ?? 0} วัน</span><span>{baht0(p.penalty)}</span></div>
+                                      <div className="flex justify-between text-red-300"><span>− เงินประกันผลงาน {inst.retention_rate ?? 5}%</span><span>{baht0(p.retention)}</span></div>
+                                      <div className="flex justify-between font-bold text-green-400 border-t border-aviva-gold/10 pt-1 mt-0.5"><span>ยอดจ่ายสุทธิ</span><span>{baht0(p.net)}</span></div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             {((inst.labor_cost ?? 0) > 0 || (inst.material_cost ?? 0) > 0) && (
                               <p className="text-[10px] text-aviva-secondary/70">ค่าแรง ฿{(inst.labor_cost ?? 0).toLocaleString("th-TH")} · ค่าวัสดุ ฿{(inst.material_cost ?? 0).toLocaleString("th-TH")}</p>
                             )}

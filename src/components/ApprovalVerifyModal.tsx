@@ -61,6 +61,12 @@ export default function ApprovalVerifyModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logId]);
 
+  // Reset rejection form state when log changes
+  useEffect(() => {
+    setComment("");
+    setRejecting(false);
+  }, [logId]);
+
   const uploadReceipt = async (file: File) => {
     if (!logId) return;
     setUploading(true);
@@ -227,12 +233,12 @@ export default function ApprovalVerifyModal({
           </div>
         ) : (
           <div className="flex gap-2">
-            <button onClick={() => onApprove(data?.checklist ?? [])} disabled={busy || loading || !allChecked}
-              className="flex-1 py-3 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
-              <CheckCircle size={15} /> {allChecked ? "อนุมัติ" : "ติ๊กตรวจสอบให้ครบ"}
+            <button onClick={() => onApprove(data?.checklist ?? [])} disabled={busy || loading || !allChecked || rejecting}
+              className="flex-1 py-3 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+              <CheckCircle size={15} /> {allChecked ? (busy ? "กำลังบันทึก..." : "อนุมัติ") : "ติ๊กตรวจสอบให้ครบ"}
             </button>
-            <button onClick={() => setRejecting(true)} disabled={busy || loading}
-              className="flex-1 py-3 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40">
+            <button onClick={() => setRejecting(true)} disabled={busy || loading || rejecting}
+              className="flex-1 py-3 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
               <XCircle size={15} /> ปฏิเสธ
             </button>
           </div>

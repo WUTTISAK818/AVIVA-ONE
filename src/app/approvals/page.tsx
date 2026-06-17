@@ -346,6 +346,7 @@ function ApprovalsContent() {
     setProcessingId(log.id);
     const action = approved ? "Approved" : "Rejected";
     const note = commentArg ?? notes[log.id] ?? null;
+    const byName = user.full_name ?? user.email;
 
     // Update the approval log (เก็บเหตุผลใน rejection_comment เฉพาะตอนปฏิเสธ — approval_logs ไม่มีคอลัมน์ notes)
     const { error: updErr } = await supabase.from("approval_logs").update({
@@ -385,7 +386,6 @@ function ApprovalsContent() {
 
     // Cascade logic based on workflow type
     if (log.workflow_type === "Installment_Review") {
-      const byName = user.full_name ?? user.email;
       // Resolve the contractor linked to this installment's house (for LINE/SMS).
       let contractorRef: string | null = null;
       if (log.source_record_id) {
@@ -471,6 +471,8 @@ function ApprovalsContent() {
         await supabase.from("purchase_orders")
           .update({ status: approved ? "approved" : "rejected" })
           .eq("id", log.source_record_id);
+        // Close manager's work queue task
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
       await createNotification({
         type: approved ? "success" : "info",
@@ -487,6 +489,8 @@ function ApprovalsContent() {
             approved_by: user.full_name ?? user.email,
           })
           .eq("id", log.source_record_id);
+        // Close manager's work queue task
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
       await createNotification({
         type: approved ? "success" : "info",
@@ -508,10 +512,14 @@ function ApprovalsContent() {
         await supabase.from("approvals")
           .update({ status: "approved", approved_by: user.full_name ?? user.email, approved_at: new Date().toISOString() })
           .eq("id", log.source_record_id);
+        // Close manager's work queue task
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       } else if (!approved && log.source_record_id) {
         await supabase.from("approvals")
           .update({ status: "rejected", approved_by: user.full_name ?? user.email, approved_at: new Date().toISOString() })
           .eq("id", log.source_record_id);
+        // Close manager's work queue task
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
       await createNotification({
         type: approved ? "success" : "info",
@@ -525,6 +533,8 @@ function ApprovalsContent() {
         await supabase.from("leave_requests")
           .update({ status: approved ? "approved" : "rejected" })
           .eq("id", log.source_record_id);
+        // Close manager's work queue task
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
       await createNotification({
         type: approved ? "success" : "info",
@@ -540,6 +550,10 @@ function ApprovalsContent() {
         await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
         const plot = (lead as { plot_number?: number } | null)?.plot_number;
         if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+      }
+      if (log.source_record_id) {
+        // Close manager's work queue task
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
       await createNotification({
         type: approved ? "success" : "info",

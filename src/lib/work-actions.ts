@@ -82,6 +82,7 @@ export async function createWarrantyClaim(input: CreateClaimInput): Promise<Crea
     title: `แจ้งซ่อมใหม่ — ${docNum}`,
     message: `${customer} — ${issueTh[issue] ?? issue}: ${desc}`,
     from_dept: "ฝ่ายหลังการขาย",
+    to_dept: "ฝ่ายหลังการขาย",
   });
   return { id: data.id, docNumber: docNum };
 }
@@ -166,6 +167,7 @@ export async function createLeaveRequest(input: CreateLeaveInput): Promise<Creat
     title: `คำขอลาใหม่ — ${docNum}`,
     message: `${name} ขอ${leaveType} ${days} วัน`,
     from_dept: "ฝ่ายบุคคล",
+    to_dept: "ผู้บริหาร",
   });
   return { id: data.id, docNumber: docNum, days };
 }

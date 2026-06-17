@@ -10,7 +10,7 @@ import {
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { postJv, yymm } from "@/lib/jv";
-import { AR as ACC_AR, BANK, OUTPUT_VAT, SALES_REVENUE, CUSTOMER_ADVANCE, COGS, WIP } from "@/lib/gl-accounts";
+import { AR as ACC_AR, AP as ACC_AP, BANK, OUTPUT_VAT, INPUT_VAT, SALES_REVENUE, CUSTOMER_ADVANCE, COGS, WIP, WHT_PAYABLE, PREPAID_WHT, SBT_EXPENSE, TRANSFER_FEE } from "@/lib/gl-accounts";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ReceiptScanner from "@/components/ReceiptScanner";
@@ -52,7 +52,7 @@ interface ChartAccount { code: string; name_th: string; account_type: string; }
 interface JvEntry { id: string; jv_number: string; jv_date: string; description: string; status: string; total_debit: number; total_credit: number; ref_number?: string; }
 interface JvLine { account_code: string; account_name: string; debit: number; credit: number; description: string; }
 interface ArInvoice { id: string; invoice_number: string; customer_name: string; invoice_date: string; due_date: string; base_amount: number; vat_amount: number; total_amount: number; paid_amount: number; status: string; description?: string; is_advance?: boolean; jv_id?: string; }
-interface ApBill { id: string; bill_number: string; vendor_name: string; bill_date: string; due_date: string; base_amount: number; vat_amount: number; wht_rate: number; wht_amount: number; total_amount: number; paid_amount: number; status: string; description?: string; }
+interface ApBill { id: string; bill_number: string; vendor_name: string; bill_date: string; due_date: string; base_amount: number; vat_amount: number; wht_rate: number; wht_amount: number; total_amount: number; paid_amount: number; status: string; description?: string; jv_id?: string; pay_jv_id?: string; expense_account?: string; }
 interface VatEntry { id: string; vat_type: string; invoice_no: string; invoice_date: string; party_name: string; base_amount: number; vat_amount: number; total_amount: number; period: string; etax_status: string; }
 interface WhtCert { id: string; cert_number: string; cert_date: string; payee_name: string; base_amount: number; wht_rate: number; wht_amount: number; tax_form: string; }
 
@@ -687,15 +687,17 @@ function ARTab() {
   );
 }
 
-function APTab() {
+function APTab({ accounts }: { accounts: ChartAccount[] }) {
   const [bills, setBills] = useState<ApBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     vendor_name: "", vendor_tax_id: "", bill_date: today(), due_date: "",
-    base_amount: "", wht_rate: "0", description: "",
+    base_amount: "", wht_rate: "0", description: "", expense_account: "5200",
   });
+  const expenseAccounts = accounts.filter(a => a.account_type === "expense" || a.code === "1180");
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -716,14 +718,41 @@ function APTab() {
     setSaving(true);
     const d = new Date();
     const billNo = `PV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
+    const expAcc = accounts.find(a => a.code === form.expense_account);
+    // ตั้งเจ้าหนี้ + ลง GL: Dr ค่าใช้จ่าย/WIP + ภาษีซื้อ / Cr เจ้าหนี้การค้า + ภาษีหัก ณ ที่จ่ายค้างจ่าย
+    const lines = [
+      { account_code: form.expense_account, account_name: expAcc?.name_th ?? "ค่าใช้จ่าย", debit: base, credit: 0, description: form.vendor_name },
+      ...(vat > 0 ? [{ account_code: INPUT_VAT.code, account_name: INPUT_VAT.name, debit: vat, credit: 0, description: "ภาษีซื้อ 7%" }] : []),
+      { account_code: ACC_AP.code, account_name: ACC_AP.name, debit: 0, credit: base + vat - whtAmt, description: form.vendor_name },
+      ...(whtAmt > 0 ? [{ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: whtAmt, description: `WHT ${form.wht_rate}%` }] : []),
+    ];
+    const jvId = await postJv({ project_id: PROJECT_ID, jv_date: form.bill_date, description: `ตั้งเจ้าหนี้ — ${form.vendor_name}`, ref_number: billNo, lines });
     await supabase.from("ap_bills").insert({
       bill_number: billNo, vendor_name: form.vendor_name, vendor_tax_id: form.vendor_tax_id || null,
       bill_date: form.bill_date, due_date: form.due_date, base_amount: base, vat_amount: vat,
       wht_rate: Number(form.wht_rate), wht_amount: whtAmt, total_amount: total,
-      paid_amount: 0, status: "pending", description: form.description || null, project_id: PROJECT_ID,
+      paid_amount: 0, status: "pending", description: form.description || null,
+      expense_account: form.expense_account, jv_id: jvId, project_id: PROJECT_ID,
     });
     setSaving(false); setShowModal(false);
-    setForm({ vendor_name: "", vendor_tax_id: "", bill_date: today(), due_date: "", base_amount: "", wht_rate: "0", description: "" });
+    setForm({ vendor_name: "", vendor_tax_id: "", bill_date: today(), due_date: "", base_amount: "", wht_rate: "0", description: "", expense_account: "5200" });
+    fetch();
+  };
+
+  // จ่ายชำระเจ้าหนี้ + ลง GL (Dr เจ้าหนี้การค้า / Cr เงินฝากธนาคาร)
+  const payBill = async (b: ApBill) => {
+    const net = Number(b.total_amount) - Number(b.paid_amount);
+    if (net <= 0) return;
+    setPayingId(b.id);
+    const jvId = await postJv({
+      project_id: PROJECT_ID, jv_date: today(), description: `จ่ายชำระเจ้าหนี้ — ${b.vendor_name}`, ref_number: b.bill_number,
+      lines: [
+        { account_code: ACC_AP.code, account_name: ACC_AP.name, debit: net, credit: 0, description: b.vendor_name },
+        { account_code: BANK.code, account_name: BANK.name, debit: 0, credit: net, description: b.bill_number },
+      ],
+    });
+    await supabase.from("ap_bills").update({ paid_amount: Number(b.total_amount), status: "paid", pay_jv_id: jvId }).eq("id", b.id);
+    setPayingId(null);
     fetch();
   };
 
@@ -741,7 +770,7 @@ function APTab() {
         <GlassCard key={b.id} className="p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{b.bill_number}</p><StatusBadge status={b.status}/></div>
+              <div className="flex items-center gap-2 mb-0.5"><p className="text-xs font-mono text-aviva-gold">{b.bill_number}</p><StatusBadge status={b.status}/>{b.jv_id&&<span className="text-[9px] text-green-400">● ลง GL แล้ว</span>}</div>
               <p className="text-sm text-aviva-text">{b.vendor_name}</p>
               <p className="text-[11px] text-aviva-secondary mt-0.5">{b.bill_date} · WHT {b.wht_rate}% = ฿{fmt(Number(b.wht_amount))}</p>
             </div>
@@ -750,6 +779,14 @@ function APTab() {
               <p className="text-[10px] text-aviva-secondary">ยอดสุทธิหลัก WHT</p>
             </div>
           </div>
+          {b.status !== "paid" && (
+            <div className="mt-2 pt-2 border-t border-aviva-gold/10 flex justify-end">
+              <button onClick={() => payBill(b)} disabled={payingId === b.id}
+                className="text-[11px] px-3 py-1.5 rounded-lg bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30 flex items-center gap-1 disabled:opacity-40">
+                <Coins size={11} /> {payingId === b.id ? "กำลังจ่าย..." : "จ่ายชำระ + ลง GL"}
+              </button>
+            </div>
+          )}
         </GlassCard>
       ))}
       {showModal && (
@@ -764,6 +801,10 @@ function APTab() {
                 <input type="text" value={form.vendor_name} onChange={e=>setForm(f=>({...f,vendor_name:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
               <div><label className="text-[11px] text-aviva-secondary mb-1 block">เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
                 <input type="text" maxLength={13} placeholder="0000000000000" value={form.vendor_tax_id} onChange={e=>setForm(f=>({...f,vendor_tax_id:e.target.value.replace(/\D/g,"")}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+              <div><label className="text-[11px] text-aviva-secondary mb-1 block">บัญชีค่าใช้จ่าย (ลง GL)</label>
+                <select value={form.expense_account} onChange={e=>setForm(f=>({...f,expense_account:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text">
+                  {expenseAccounts.map(a=>(<option key={a.code} value={a.code}>{a.code} — {a.name_th}</option>))}
+                </select></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่บิล</label>
                   <input type="date" value={form.bill_date} onChange={e=>setForm(f=>({...f,bill_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
@@ -869,6 +910,20 @@ function TaxTab() {
       sbt_amount: sbtAmt, local_surtax: localSurtax, total_tax: tSbt, transfer_date: tForm.transfer_date,
       status: "pending", jv_id: jvId, house_id: tForm.house_id || null, project_id: PROJECT_ID,
     });
+    // 4b) ลง GL ภาษี/ค่าธรรมเนียมวันโอน (จ่ายที่กรมที่ดิน): Dr ภ.ธ.40 + ค่าโอน + ภาษีถูกหัก(เครดิต CIT) / Cr ธนาคาร
+    const feeBank = Math.round((tSbt + tTransferFee + tWht1) * 100) / 100;
+    if (feeBank > 0) {
+      await postJv({
+        project_id: PROJECT_ID, jv_date: tForm.transfer_date,
+        description: `ภาษี/ค่าธรรมเนียมวันโอน ${tForm.house_number}`, ref_number: ref,
+        lines: [
+          { account_code: SBT_EXPENSE.code, account_name: SBT_EXPENSE.name, debit: tSbt, credit: 0, description: "ภ.ธ.40 3.3%" },
+          { account_code: TRANSFER_FEE.code, account_name: TRANSFER_FEE.name, debit: tTransferFee, credit: 0, description: "ค่าธรรมเนียมโอน 2%" },
+          { account_code: PREPAID_WHT.code, account_name: PREPAID_WHT.name, debit: tWht1, credit: 0, description: "หัก ณ ที่จ่าย 1%" },
+          { account_code: BANK.code, account_name: BANK.name, debit: 0, credit: feeBank, description: "จ่ายกรมที่ดิน" },
+        ],
+      });
+    }
     // 5) รับรู้รายได้ใน revenue_recognition (ให้กำไรรายหลังสะท้อนการโอน) — กันซ้ำต่อแปลง
     if (tForm.house_id) {
       const { data: existing } = await supabase.from("revenue_recognition").select("id").eq("house_id", tForm.house_id).limit(1);
@@ -1307,7 +1362,7 @@ function ScannerTab() {
   const scan = async () => {
     if (!file) return; setScanning(true);
     await new Promise(r => setTimeout(r, 1500));
-    setResult({ doc_kind: file.name.toLowerCase().includes("receipt") ? "receipt" : "slip", vendor: "บจก. ตัวอย่างผู้รับเหมา", amount: 150000, date: today(), account_code: "7200", wht_amount: 4500, confidence: 94 });
+    setResult({ doc_kind: file.name.toLowerCase().includes("receipt") ? "receipt" : "slip", vendor: "บจก. ตัวอย่างผู้รับเหมา", amount: 150000, date: today(), account_code: "5200", wht_amount: 4500, confidence: 94 });
     setScanning(false);
   };
 
@@ -1582,7 +1637,7 @@ export default function AccountingPage() {
         {tab === "dashboard"  && <DashboardTab />}
         {tab === "journal"    && <JournalTab accounts={accounts} />}
         {tab === "ar"         && <ARTab />}
-        {tab === "ap"         && <APTab />}
+        {tab === "ap"         && <APTab accounts={accounts} />}
         {tab === "tax"        && <TaxTab />}
         {tab === "lot-cost"   && <LotCostTab />}
         {tab === "tfrs15"     && <TFRS15Tab />}

@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, Users, Check, HardHat, DollarSign, UserCheck, BadgeCheck } from "lucide-react";
 import clsx from "clsx";
+import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import GlassCard from "./GlassCard";
@@ -248,6 +250,10 @@ export default function CalendarWidget() {
             <ChevronRight size={16} className="text-aviva-secondary" />
           </button>
         </div>
+        <Link href="/activity"
+          className="flex items-center justify-center gap-1.5 mb-3 py-1.5 rounded-lg bg-aviva-gold/10 border border-aviva-gold/20 text-aviva-gold text-[11px] font-semibold">
+          <ClipboardList size={12} /> สรุปงานประจำวัน — บันทึก/ดูว่าใครทำอะไร
+        </Link>
         <div className="grid grid-cols-7 mb-1">
           {DAYS_TH.map(d => (
             <div key={d} className="text-center text-xs font-medium text-aviva-secondary/60 py-1">{d}</div>

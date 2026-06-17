@@ -5,7 +5,7 @@ import {
   ArrowLeft, BookOpen, Users, Truck, Receipt, Calculator,
   TrendingUp, Scan, GitMerge, Plus, X, Check, AlertTriangle,
   Clock, Download, ChevronDown, ChevronUp, Building2, Coins,
-  FileCheck, RefreshCw, Eye, Send, Landmark, ArrowLeftRight,
+  FileCheck, RefreshCw, Eye, Send, Landmark, ArrowLeftRight, Scale,
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -32,7 +32,7 @@ const fmtM = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : fmt(n);
 const today = () => new Date().toISOString().split("T")[0];
 
-type AccTab = "dashboard" | "journal" | "ar" | "ap" | "tax" | "lot-cost" | "tfrs15" | "scanner" | "matching" | "bankrec";
+type AccTab = "dashboard" | "journal" | "ar" | "ap" | "tax" | "lot-cost" | "tfrs15" | "scanner" | "matching" | "bankrec" | "reports";
 type TaxSubTab = "transfer" | "vat" | "wht" | "sbt" | "lbt";
 
 const TABS: { key: AccTab; label: string; icon: React.ElementType }[] = [
@@ -46,6 +46,7 @@ const TABS: { key: AccTab; label: string; icon: React.ElementType }[] = [
   { key: "scanner", label: "สแกนใบเสร็จ", icon: Scan },
   { key: "matching", label: "จับคู่สลิป", icon: GitMerge },
   { key: "bankrec", label: "กระทบยอด", icon: Landmark },
+  { key: "reports", label: "งบ/รายงาน", icon: Scale },
 ];
 
 interface ChartAccount { code: string; name_th: string; account_type: string; }
@@ -1588,6 +1589,87 @@ function BankRecTab() {
   );
 }
 
+// งบทดลอง + งบกำไรขาดทุน + งบดุล — ดึงจาก GL จริง (jv_lines ที่ posted)
+interface TBRow { code: string; name: string; type: string; debit: number; credit: number; }
+function ReportsTab({ accounts }: { accounts: ChartAccount[] }) {
+  const [rows, setRows] = useState<TBRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const typeOf = new Map(accounts.map(a => [a.code, a.account_type]));
+    const nameOf = new Map(accounts.map(a => [a.code, a.name_th]));
+    Promise.all([
+      supabase.from("jv_lines").select("jv_id,account_code,account_name,debit,credit"),
+      supabase.from("jv_entries").select("id,status").eq("project_id", PROJECT_ID),
+    ]).then(([le, en]) => {
+      const posted = new Set((en.data ?? []).filter(e => e.status === "posted").map(e => e.id));
+      const agg = new Map<string, TBRow>();
+      for (const l of (le.data ?? []) as { jv_id: string; account_code: string; account_name: string; debit: number; credit: number }[]) {
+        if (!posted.has(l.jv_id)) continue;
+        const r = agg.get(l.account_code) ?? { code: l.account_code, name: nameOf.get(l.account_code) ?? l.account_name, type: typeOf.get(l.account_code) ?? "?", debit: 0, credit: 0 };
+        r.debit += Number(l.debit ?? 0); r.credit += Number(l.credit ?? 0);
+        agg.set(l.account_code, r);
+      }
+      setRows([...agg.values()].sort((a, b) => a.code.localeCompare(b.code)));
+      setLoading(false);
+    });
+  }, [accounts]);
+
+  const totalDr = rows.reduce((s, r) => s + r.debit, 0);
+  const totalCr = rows.reduce((s, r) => s + r.credit, 0);
+  const bal = (r: TBRow) => r.debit - r.credit;
+  const sumType = (t: string, sign: 1 | -1) => rows.filter(r => r.type === t).reduce((s, r) => s + sign * bal(r), 0);
+  const revenue = sumType("revenue", -1);
+  const expense = sumType("expense", 1);
+  const netProfit = revenue - expense;
+  const assets = sumType("asset", 1);
+  const liabilities = sumType("liability", -1);
+  const equity = sumType("equity", -1);
+  const balanced = Math.abs(totalDr - totalCr) < 0.01;
+
+  const typeLabel: Record<string, string> = { asset: "สินทรัพย์", liability: "หนี้สิน", equity: "ทุน", revenue: "รายได้", expense: "ค่าใช้จ่าย" };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="งบการเงินจาก GL จริง" subtitle="คำนวณจากสมุดรายวันที่ posted แล้วเท่านั้น" />
+      <div className="grid grid-cols-3 gap-3">
+        <GlassCard className="p-3 text-center"><p className="text-base font-bold text-green-400">฿{fmtM(revenue)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">รายได้รวม</p></GlassCard>
+        <GlassCard className="p-3 text-center"><p className="text-base font-bold text-red-400">฿{fmtM(expense)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">ค่าใช้จ่ายรวม</p></GlassCard>
+        <GlassCard gold className="p-3 text-center"><p className={clsx("text-base font-bold", netProfit >= 0 ? "text-aviva-gold" : "text-red-400")}>฿{fmtM(netProfit)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">กำไร(ขาดทุน)สุทธิ</p></GlassCard>
+      </div>
+      <GlassCard className="p-4">
+        <p className="text-xs font-semibold text-aviva-gold mb-2">สมการบัญชี (งบดุล)</p>
+        <div className="text-[11px] space-y-1">
+          <div className="flex justify-between"><span className="text-aviva-secondary">สินทรัพย์</span><span className="text-aviva-text font-mono">฿{fmt(assets)}</span></div>
+          <div className="flex justify-between"><span className="text-aviva-secondary">หนี้สิน + ทุน + กำไรสะสมงวด</span><span className="text-aviva-text font-mono">฿{fmt(liabilities + equity + netProfit)}</span></div>
+          <div className="flex justify-between border-t border-aviva-gold/10 pt-1"><span className="text-aviva-secondary">ผลต่าง</span><span className={clsx("font-mono", Math.abs(assets - (liabilities + equity + netProfit)) < 0.01 ? "text-green-400" : "text-red-400")}>฿{fmt(assets - (liabilities + equity + netProfit))}</span></div>
+        </div>
+      </GlassCard>
+      <SectionHeader title="งบทดลอง (Trial Balance)" subtitle={balanced ? "✓ Dr = Cr สมดุล" : "⚠ ไม่สมดุล"} />
+      {loading ? [1, 2, 3].map(i => <div key={i} className="h-10 rounded-xl bg-aviva-card/50 animate-pulse" />) :
+       rows.length === 0 ? <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการบัญชีที่ posted</p></GlassCard> : (
+        <GlassCard className="p-3">
+          <div className="grid grid-cols-12 gap-1 text-[9px] text-aviva-secondary/60 px-1 pb-1 border-b border-aviva-gold/10">
+            <div className="col-span-6">บัญชี</div><div className="col-span-3 text-right">เดบิต</div><div className="col-span-3 text-right">เครดิต</div>
+          </div>
+          {rows.map(r => (
+            <div key={r.code} className="grid grid-cols-12 gap-1 text-[10px] items-center px-1 py-0.5">
+              <div className="col-span-6 min-w-0 truncate"><span className="font-mono text-aviva-secondary">{r.code}</span> <span className="text-aviva-text">{r.name}</span> <span className="text-[8px] text-aviva-secondary/50">{typeLabel[r.type] ?? r.type}</span></div>
+              <div className="col-span-3 text-right text-blue-300 font-mono">{r.debit > 0 ? fmt(r.debit) : "-"}</div>
+              <div className="col-span-3 text-right text-purple-300 font-mono">{r.credit > 0 ? fmt(r.credit) : "-"}</div>
+            </div>
+          ))}
+          <div className="grid grid-cols-12 gap-1 text-[10px] font-bold items-center px-1 py-1 mt-1 border-t border-aviva-gold/20">
+            <div className="col-span-6 text-aviva-text">รวม</div>
+            <div className={clsx("col-span-3 text-right font-mono", balanced ? "text-green-400" : "text-red-400")}>{fmt(totalDr)}</div>
+            <div className={clsx("col-span-3 text-right font-mono", balanced ? "text-green-400" : "text-red-400")}>{fmt(totalCr)}</div>
+          </div>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
 export default function AccountingPage() {
   const [tab, setTab] = useState<AccTab>("dashboard");
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
@@ -1644,6 +1726,7 @@ export default function AccountingPage() {
         {tab === "scanner"    && <ScannerTab />}
         {tab === "matching"   && <MatchingTab />}
         {tab === "bankrec"    && <BankRecTab />}
+        {tab === "reports"    && <ReportsTab accounts={accounts} />}
       </div>
     </div>
   );

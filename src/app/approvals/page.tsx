@@ -371,6 +371,10 @@ function ApprovalsContent() {
       Finance_Approval: "ฝ่ายการเงิน",
       Purchase_Request: "ฝ่ายการเงิน",
       Marketing_Budget: "ฝ่ายการตลาด",
+      Leave_Request: "ฝ่ายบุคคล",
+      Document_Approval: "ฝ่ายออฟฟิศ",
+      Booking_Deposit: "ฝ่ายขาย",
+      Contract_Approval: "ฝ่ายขาย",
     };
     let requesterDept: string | null = null;
     const submitterId = (log as { submitted_by_user_id?: string | null }).submitted_by_user_id;

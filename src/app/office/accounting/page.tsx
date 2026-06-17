@@ -10,7 +10,7 @@ import {
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { postJv, yymm } from "@/lib/jv";
-import { AR as ACC_AR, BANK, OUTPUT_VAT, SALES_REVENUE, CUSTOMER_ADVANCE } from "@/lib/gl-accounts";
+import { AR as ACC_AR, BANK, OUTPUT_VAT, SALES_REVENUE, CUSTOMER_ADVANCE, COGS, WIP } from "@/lib/gl-accounts";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ReceiptScanner from "@/components/ReceiptScanner";
@@ -840,18 +840,28 @@ function TaxTab() {
         etax_status: "pending", house_id: tForm.house_id || null, project_id: PROJECT_ID,
       });
     }
-    // 2) บันทึก ภ.ธ.40 (3.3%)
+    // 2) ตัดต้นทุนขาย (COGS) จากต้นทุนก่อสร้างที่จ่ายแล้ว (อยู่ใน WIP 1180)
+    let cogs = 0;
+    if (tForm.house_id) {
+      const { data: ci } = await supabase.from("contractor_installments").select("amount,status").eq("house_id", tForm.house_id);
+      cogs = Math.round((ci ?? []).filter(x => x.status === "paid").reduce((s, x) => s + Number(x.amount ?? 0), 0) * 100) / 100;
+    }
+    // 3) บันทึก ภ.ธ.40 (3.3%)
     const sbtAmt = Math.round(sbtBase * TAX_CONFIG.SBT_BASE_RATE * 100) / 100;
     const localSurtax = Math.round(sbtAmt * TAX_CONFIG.SBT_LOCAL_SURTAX * 100) / 100;
-    // 3) ลง GL: Dr ลูกหนี้/เงินสด (ราคาขาย + VAT) / Cr รายได้ + VAT ขาย
+    // 4) ลง GL: Dr ลูกหนี้ (ราคาขาย + VAT) / Cr รายได้ + VAT ขาย · และ Dr ต้นทุนขาย / Cr งานระหว่างก่อสร้าง
     const jvId = await postJv({
       project_id: PROJECT_ID, jv_date: tForm.transfer_date,
-      description: `โอนกรรมสิทธิ์ ${tForm.house_number} — รับรู้รายได้ + VAT ขาย`,
+      description: `โอนกรรมสิทธิ์ ${tForm.house_number} — รับรู้รายได้ + VAT ขาย + ตัดต้นทุนขาย`,
       ref_number: ref,
       lines: [
         { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: totalPrice + tOutputVat, credit: 0, description: tForm.house_number },
         { account_code: SALES_REVENUE.code, account_name: SALES_REVENUE.name, debit: 0, credit: totalPrice, description: "ที่ดิน+สิ่งปลูกสร้าง" },
         ...(tOutputVat > 0 ? [{ account_code: OUTPUT_VAT.code, account_name: OUTPUT_VAT.name, debit: 0, credit: tOutputVat, description: "VAT 7% สิ่งปลูกสร้าง" }] : []),
+        ...(cogs > 0 ? [
+          { account_code: COGS.code, account_name: COGS.name, debit: cogs, credit: 0, description: "ตัดต้นทุนขายบ้าน" },
+          { account_code: WIP.code, account_name: WIP.name, debit: 0, credit: cogs, description: "ตัดงานระหว่างก่อสร้าง" },
+        ] : []),
       ],
     });
     await supabase.from("sbt_register").insert({
@@ -859,6 +869,19 @@ function TaxTab() {
       sbt_amount: sbtAmt, local_surtax: localSurtax, total_tax: tSbt, transfer_date: tForm.transfer_date,
       status: "pending", jv_id: jvId, house_id: tForm.house_id || null, project_id: PROJECT_ID,
     });
+    // 5) รับรู้รายได้ใน revenue_recognition (ให้กำไรรายหลังสะท้อนการโอน) — กันซ้ำต่อแปลง
+    if (tForm.house_id) {
+      const { data: existing } = await supabase.from("revenue_recognition").select("id").eq("house_id", tForm.house_id).limit(1);
+      if (!existing || existing.length === 0) {
+        await supabase.from("revenue_recognition").insert({
+          house_id: tForm.house_id, house_number: tForm.house_number, contract_date: tForm.transfer_date,
+          contract_value: totalPrice, transfer_date: tForm.transfer_date, recognized_amount: totalPrice,
+          deferred_amount: 0, received_total: 0, status: "recognized", project_id: PROJECT_ID,
+        });
+      } else {
+        await supabase.from("revenue_recognition").update({ recognized_amount: totalPrice, deferred_amount: 0, status: "recognized", transfer_date: tForm.transfer_date }).eq("id", existing[0].id);
+      }
+    }
     setTPosting(false);
     setTDone(ref);
     setTForm({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "" });
@@ -960,7 +983,7 @@ function TaxTab() {
             </div>
           )}
           <button onClick={saveTransfer} disabled={!tForm.house_number||totalPrice<=0||tPosting} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{tPosting?"กำลังบันทึก...":"บันทึกการโอน + ออก VAT/ภ.ธ.40 + ลง GL"}</button>
-          {tDone&&(<div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-[11px] text-green-300 flex items-center gap-2"><Check size={14}/> บันทึกแล้ว ({tDone}) — สร้าง VAT ขาย + ภ.ธ.40 + JV เรียบร้อย ดูได้ในแท็บ VAT / ภ.ธ.40 / สมุดรายวัน</div>)}
+          {tDone&&(<div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-[11px] text-green-300 flex items-center gap-2"><Check size={14}/> บันทึกแล้ว ({tDone}) — สร้าง VAT ขาย + ภ.ธ.40 + JV (รับรู้รายได้ + ตัดต้นทุนขาย) + รับรู้รายได้รายหลัง เรียบร้อย ดูได้ในแท็บ VAT / ภ.ธ.40 / สมุดรายวัน</div>)}
         </GlassCard>
       </div>)}
       {sub==="vat"&&(<div className="space-y-3"><div className="flex items-center justify-between"><p className="text-xs text-aviva-secondary">ทะเบียน VAT · Period {period}</p><button onClick={()=>setShowVatModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold"><Plus size={12}/> เพิ่ม</button></div>
@@ -1432,7 +1455,7 @@ function BankRecTab() {
     await supabase.from("bank_reconciliation").insert({
       reconcile_date: today(), bank_name: recon.bank_name, account_no: recon.account_no || null,
       statement_balance: stmtBalance, book_balance: bookBalance,
-      status: Math.abs(diff) < 0.01 ? "balanced" : "pending",
+      status: Math.abs(diff) < 0.01 ? "reconciled" : "discrepancy",
       notes: `ผลต่าง ฿${fmt(diff)} · รายการรอกระทบ ${unreconciled.length}`,
     });
     setSavingRecon(false);

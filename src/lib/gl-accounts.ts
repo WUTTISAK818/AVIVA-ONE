@@ -6,12 +6,16 @@ export interface GLAccount { code: string; name: string; }
 export const CASH: GLAccount = { code: "1110", name: "เงินสด" };
 export const BANK: GLAccount = { code: "1120", name: "เงินฝากธนาคาร" };
 export const INPUT_VAT: GLAccount = { code: "1600", name: "ภาษีมูลค่าเพิ่มซื้อ" };
+export const OUTPUT_VAT: GLAccount = { code: "2300", name: "ภาษีมูลค่าเพิ่มขาย" };
 export const WHT_PAYABLE: GLAccount = { code: "2400", name: "ภาษีหัก ณ ที่จ่ายค้างชำระ" };
 export const CONTRACTOR_PAYABLE: GLAccount = { code: "2100", name: "เจ้าหนี้ผู้รับเหมา" };
 export const RETENTION_PAYABLE: GLAccount = { code: "2150", name: "เงินประกันผลงานค้างจ่าย" };
+export const AR: GLAccount = { code: "1200", name: "ลูกหนี้การค้า" };
+export const CUSTOMER_ADVANCE: GLAccount = { code: "2200", name: "เงินรับล่วงหน้าจากลูกค้า" };
 // ธุรกิจอสังหา: ต้นทุนก่อสร้างสะสมใน "งานระหว่างก่อสร้าง" (สินค้าคงเหลือ) → ตัดเป็นต้นทุนขายตอนโอน
 export const WIP: GLAccount = { code: "1180", name: "งานระหว่างก่อสร้าง" };
 export const COGS: GLAccount = { code: "5210", name: "ต้นทุนขายบ้าน" };
+export const LAND_COST: GLAccount = { code: "5100", name: "ต้นทุนที่ดิน" };
 export const SALES_REVENUE: GLAccount = { code: "4100", name: "รายได้จากการขายบ้าน" };
 
 // อัตรามาตรฐานจ่ายผู้รับเหมา (ค่าจ้างทำของ หัก ณ ที่จ่าย 3% / เงินประกันผลงาน 5%)

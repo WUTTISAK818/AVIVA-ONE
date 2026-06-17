@@ -5,11 +5,12 @@ import {
   ArrowLeft, BookOpen, Users, Truck, Receipt, Calculator,
   TrendingUp, Scan, GitMerge, Plus, X, Check, AlertTriangle,
   Clock, Download, ChevronDown, ChevronUp, Building2, Coins,
-  FileCheck, RefreshCw, Eye, Send,
+  FileCheck, RefreshCw, Eye, Send, Landmark, ArrowLeftRight,
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { postJv, yymm } from "@/lib/jv";
+import { AR as ACC_AR, BANK, OUTPUT_VAT, SALES_REVENUE, CUSTOMER_ADVANCE } from "@/lib/gl-accounts";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ReceiptScanner from "@/components/ReceiptScanner";
@@ -31,8 +32,8 @@ const fmtM = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : fmt(n);
 const today = () => new Date().toISOString().split("T")[0];
 
-type AccTab = "dashboard" | "journal" | "ar" | "ap" | "tax" | "lot-cost" | "tfrs15" | "scanner" | "matching";
-type TaxSubTab = "vat" | "wht" | "sbt" | "lbt";
+type AccTab = "dashboard" | "journal" | "ar" | "ap" | "tax" | "lot-cost" | "tfrs15" | "scanner" | "matching" | "bankrec";
+type TaxSubTab = "transfer" | "vat" | "wht" | "sbt" | "lbt";
 
 const TABS: { key: AccTab; label: string; icon: React.ElementType }[] = [
   { key: "dashboard", label: "ภาพรวม", icon: TrendingUp },
@@ -44,12 +45,13 @@ const TABS: { key: AccTab; label: string; icon: React.ElementType }[] = [
   { key: "tfrs15", label: "TFRS 15", icon: FileCheck },
   { key: "scanner", label: "สแกนใบเสร็จ", icon: Scan },
   { key: "matching", label: "จับคู่สลิป", icon: GitMerge },
+  { key: "bankrec", label: "กระทบยอด", icon: Landmark },
 ];
 
 interface ChartAccount { code: string; name_th: string; account_type: string; }
 interface JvEntry { id: string; jv_number: string; jv_date: string; description: string; status: string; total_debit: number; total_credit: number; ref_number?: string; }
 interface JvLine { account_code: string; account_name: string; debit: number; credit: number; description: string; }
-interface ArInvoice { id: string; invoice_number: string; customer_name: string; invoice_date: string; due_date: string; total_amount: number; paid_amount: number; status: string; description?: string; }
+interface ArInvoice { id: string; invoice_number: string; customer_name: string; invoice_date: string; due_date: string; base_amount: number; vat_amount: number; total_amount: number; paid_amount: number; status: string; description?: string; is_advance?: boolean; jv_id?: string; }
 interface ApBill { id: string; bill_number: string; vendor_name: string; bill_date: string; due_date: string; base_amount: number; vat_amount: number; wht_rate: number; wht_amount: number; total_amount: number; paid_amount: number; status: string; description?: string; }
 interface VatEntry { id: string; vat_type: string; invoice_no: string; invoice_date: string; party_name: string; base_amount: number; vat_amount: number; total_amount: number; period: string; etax_status: string; }
 interface WhtCert { id: string; cert_number: string; cert_date: string; payee_name: string; base_amount: number; wht_rate: number; wht_amount: number; tax_form: string; }
@@ -103,7 +105,7 @@ interface SbtEntry { id: string; period: string; base_amount: number; sbt_amount
 interface LbtEntry { id: string; tax_year: number; appraised_value: number; tax_amount: number; status: string; due_date?: string; }
 interface InfraCost { id: string; cost_type: string; total_cost: number; phase?: string; is_allocated: boolean; description?: string; }
 interface RevenueRec { id: string; house_number: string; contract_value: number; recognized_amount: number; deferred_amount: number; received_total: number; status: string; transfer_date?: string; contract_date?: string; }
-interface House { id: string; house_number: string; plot_number: number; house_model: string; sale_price?: number; }
+interface House { id: string; house_number: string; plot_number: number; house_model: string; sale_price?: number; price?: number; land_cost?: number; }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -452,7 +454,9 @@ function ARTab() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ customer_name: "", invoice_date: today(), due_date: "", base_amount: "", description: "" });
+  const [form, setForm] = useState({ customer_name: "", invoice_date: today(), due_date: "", base_amount: "", description: "", is_advance: false });
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payAmount, setPayAmount] = useState("");
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -480,8 +484,25 @@ function ARTab() {
     setSaving(true);
     const base = Number(form.base_amount);
     const vat = Math.round(base * TAX_CONFIG.VAT_RATE * 100) / 100;
+    const total = base + vat;
     const d = new Date();
     const invNo = `TINV-${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, "0")}-${Date.now().toString().slice(-4)}`;
+    // ข้อ 2 — ตั้งลูกหนี้ + ลง GL อัตโนมัติ
+    // เงินรับล่วงหน้า (ดาวน์): Dr ลูกหนี้การค้า / Cr เงินรับล่วงหน้า + VAT ขาย
+    // ขายปกติ: Dr ลูกหนี้การค้า / Cr รายได้ขายบ้าน + VAT ขาย
+    const creditAcc = form.is_advance ? CUSTOMER_ADVANCE : SALES_REVENUE;
+    const jvLines = [
+      { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: total, credit: 0, description: form.customer_name },
+      { account_code: creditAcc.code, account_name: creditAcc.name, debit: 0, credit: base, description: form.description || invNo },
+    ];
+    if (vat > 0) jvLines.push({ account_code: OUTPUT_VAT.code, account_name: OUTPUT_VAT.name, debit: 0, credit: vat, description: `VAT 7% ${invNo}` });
+    const jvId = await postJv({
+      project_id: PROJECT_ID,
+      jv_date: form.invoice_date,
+      description: `${form.is_advance ? "รับล่วงหน้า/ดาวน์" : "ตั้งลูกหนี้ขายบ้าน"} — ${form.customer_name}`,
+      ref_number: invNo,
+      lines: jvLines,
+    });
     await supabase.from("ar_invoices").insert({
       invoice_number: invNo,
       customer_name: form.customer_name,
@@ -489,15 +510,44 @@ function ARTab() {
       due_date: form.due_date,
       base_amount: base,
       vat_amount: vat,
-      total_amount: base + vat,
+      total_amount: total,
       paid_amount: 0,
       status: "pending",
       description: form.description || null,
+      is_advance: form.is_advance,
+      jv_id: jvId,
       project_id: PROJECT_ID,
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ customer_name: "", invoice_date: today(), due_date: "", base_amount: "", description: "" });
+    setForm({ customer_name: "", invoice_date: today(), due_date: "", base_amount: "", description: "", is_advance: false });
+    fetch();
+  };
+
+  // ข้อ 2 — รับชำระจากลูกหนี้ + ลง GL (Dr เงินฝากธนาคาร / Cr ลูกหนี้การค้า)
+  const receivePayment = async (inv: ArInvoice) => {
+    const amt = Number(payAmount);
+    if (!amt || amt <= 0) return;
+    setSaving(true);
+    const jvId = await postJv({
+      project_id: PROJECT_ID,
+      jv_date: today(),
+      description: `รับชำระลูกหนี้ — ${inv.customer_name}`,
+      ref_number: inv.invoice_number,
+      lines: [
+        { account_code: BANK.code, account_name: BANK.name, debit: amt, credit: 0, description: inv.invoice_number },
+        { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: 0, credit: amt, description: inv.customer_name },
+      ],
+    });
+    await supabase.from("ar_payments").insert({
+      invoice_id: inv.id, payment_date: today(), amount: amt, payment_method: "โอน", jv_id: jvId,
+    });
+    const newPaid = Number(inv.paid_amount) + amt;
+    const newStatus = newPaid >= Number(inv.total_amount) - 0.01 ? "paid" : "partial";
+    await supabase.from("ar_invoices").update({ paid_amount: newPaid, status: newStatus }).eq("id", inv.id);
+    setSaving(false);
+    setPayingId(null);
+    setPayAmount("");
     fetch();
   };
 
@@ -537,6 +587,8 @@ function ARTab() {
               <div className="flex items-center gap-2 mb-0.5">
                 <p className="text-xs font-mono text-aviva-gold">{inv.invoice_number}</p>
                 <StatusBadge status={inv.status} />
+                {inv.is_advance && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">เงินดาวน์/ล่วงหน้า</span>}
+                {inv.jv_id && <span className="text-[9px] text-green-400">● ลง GL แล้ว</span>}
               </div>
               <p className="text-sm text-aviva-text">{inv.customer_name}</p>
               <p className="text-[11px] text-aviva-secondary mt-0.5">ออก: {inv.invoice_date} · กำหนด: {inv.due_date}</p>
@@ -546,6 +598,27 @@ function ARTab() {
               <p className="text-[10px] text-aviva-secondary">ชำระแล้ว ฿{fmtM(Number(inv.paid_amount))}</p>
             </div>
           </div>
+          {inv.status !== "paid" && (
+            <div className="mt-2 pt-2 border-t border-aviva-gold/10">
+              {payingId === inv.id ? (
+                <div className="flex items-center gap-1.5">
+                  <input type="number" min="0" placeholder="ยอดรับชำระ" value={payAmount}
+                    onChange={e => setPayAmount(e.target.value)} autoFocus
+                    className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1.5 text-xs text-aviva-text" />
+                  <button onClick={() => receivePayment(inv)} disabled={saving || !payAmount}
+                    className="text-[11px] px-3 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 disabled:opacity-40 flex items-center gap-1">
+                    <Check size={11} /> รับ + ลง GL
+                  </button>
+                  <button onClick={() => { setPayingId(null); setPayAmount(""); }} className="text-[11px] px-2 py-1.5 rounded-lg bg-gray-500/20 text-gray-400"><X size={11} /></button>
+                </div>
+              ) : (
+                <button onClick={() => { setPayingId(inv.id); setPayAmount(String(Math.max(0, Number(inv.total_amount) - Number(inv.paid_amount)))); }}
+                  className="text-[11px] px-3 py-1.5 rounded-lg bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30 flex items-center gap-1">
+                  <Coins size={11} /> รับชำระ
+                </button>
+              )}
+            </div>
+          )}
         </GlassCard>
       ))}
       {showModal && (
@@ -573,6 +646,16 @@ function ARTab() {
                   <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
                 </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-aviva-secondary mb-1 block">ประเภทรายการ</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setForm(f => ({ ...f, is_advance: false }))}
+                    className={clsx("flex-1 py-2 rounded-xl text-xs border font-medium transition-all", !form.is_advance ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>ขายปกติ (รายได้)</button>
+                  <button onClick={() => setForm(f => ({ ...f, is_advance: true }))}
+                    className={clsx("flex-1 py-2 rounded-xl text-xs border font-medium transition-all", form.is_advance ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-bg border-aviva-gold/20 text-aviva-secondary")}>เงินดาวน์/ล่วงหน้า</button>
+                </div>
+                <p className="text-[10px] text-aviva-secondary/70 mt-1">{form.is_advance ? "ลงบัญชี: เครดิต เงินรับล่วงหน้าจากลูกค้า (2200)" : "ลงบัญชี: เครดิต รายได้จากการขายบ้าน (4100)"}</p>
               </div>
               <div>
                 <label className="text-[11px] text-aviva-secondary mb-1 block">ยอดก่อน VAT (บาท) *</label>
@@ -714,7 +797,7 @@ function APTab() {
 }
 
 function TaxTab() {
-  const [sub, setSub] = useState<TaxSubTab>("vat");
+  const [sub, setSub] = useState<TaxSubTab>("transfer");
   const [vatEntries, setVatEntries] = useState<VatEntry[]>([]);
   const [whtCerts, setWhtCerts] = useState<WhtCert[]>([]);
   const [sbtEntries, setSbtEntries] = useState<SbtEntry[]>([]);
@@ -728,7 +811,58 @@ function TaxTab() {
   const [whtForm, setWhtForm] = useState({ payee_name: "", payee_tax_id: "", cert_date: today(), base_amount: "", wht_rate: "3", tax_form: "3", income_type: "ค่าบริการ / ค่าจ้าง" });
   const [sbtForm, setSbtForm] = useState({ transfer_date: today(), base_amount: "" });
   const [lbtForm, setLbtForm] = useState({ tax_year: String(new Date().getFullYear() + 543), appraised_value: "", parcel_number: "", due_date: "" });
+  // ข้อ 4 — โอนกรรมสิทธิ์: ปันส่วนที่ดิน/สิ่งปลูกสร้าง → ออก VAT + SBT อัตโนมัติ
+  const [houses, setHouses] = useState<House[]>([]);
+  const [tForm, setTForm] = useState({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "" });
+  const [tPosting, setTPosting] = useState(false);
+  const [tDone, setTDone] = useState<string | null>(null);
   const period = yymm();
+
+  const totalPrice = Number(tForm.total_price) || 0;
+  const landValue = Number(tForm.land_value) || 0;
+  const structureValue = Math.max(0, totalPrice - landValue);
+  const sbtBase = Number(tForm.appraised_value) || totalPrice;  // ฐาน ภ.ธ./ค่าโอน ใช้ราคาประเมิน (ถ้าไม่กรอกใช้ราคาขาย)
+  const tOutputVat = Math.round(structureValue * TAX_CONFIG.VAT_RATE * 100) / 100;
+  const tSbt = Math.round(sbtBase * TAX_CONFIG.SBT_RATE * 100) / 100;
+  const tTransferFee = Math.round(sbtBase * 0.02 * 100) / 100;  // ค่าธรรมเนียมโอน 2%
+  const tWht1 = Math.round(sbtBase * 0.01 * 100) / 100;          // หัก ณ ที่จ่าย 1%
+
+  const saveTransfer = async () => {
+    if (!tForm.house_number || totalPrice <= 0) return;
+    setTPosting(true);
+    const ref = `TF-${period}-${Date.now().toString().slice(-4)}`;
+    // 1) ออก output VAT (เฉพาะส่วนสิ่งปลูกสร้าง) เข้าทะเบียนภาษีขาย
+    if (tOutputVat > 0) {
+      await supabase.from("vat_register").insert({
+        vat_type: "output", invoice_no: ref, invoice_date: tForm.transfer_date,
+        party_name: tForm.house_number, base_amount: structureValue, vat_amount: tOutputVat,
+        total_amount: structureValue + tOutputVat, period: yymm(new Date(tForm.transfer_date)),
+        etax_status: "pending", house_id: tForm.house_id || null, project_id: PROJECT_ID,
+      });
+    }
+    // 2) บันทึก ภ.ธ.40 (3.3%)
+    const sbtAmt = Math.round(sbtBase * TAX_CONFIG.SBT_BASE_RATE * 100) / 100;
+    const localSurtax = Math.round(sbtAmt * TAX_CONFIG.SBT_LOCAL_SURTAX * 100) / 100;
+    // 3) ลง GL: Dr ลูกหนี้/เงินสด (ราคาขาย + VAT) / Cr รายได้ + VAT ขาย
+    const jvId = await postJv({
+      project_id: PROJECT_ID, jv_date: tForm.transfer_date,
+      description: `โอนกรรมสิทธิ์ ${tForm.house_number} — รับรู้รายได้ + VAT ขาย`,
+      ref_number: ref,
+      lines: [
+        { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: totalPrice + tOutputVat, credit: 0, description: tForm.house_number },
+        { account_code: SALES_REVENUE.code, account_name: SALES_REVENUE.name, debit: 0, credit: totalPrice, description: "ที่ดิน+สิ่งปลูกสร้าง" },
+        ...(tOutputVat > 0 ? [{ account_code: OUTPUT_VAT.code, account_name: OUTPUT_VAT.name, debit: 0, credit: tOutputVat, description: "VAT 7% สิ่งปลูกสร้าง" }] : []),
+      ],
+    });
+    await supabase.from("sbt_register").insert({
+      period: yymm(new Date(tForm.transfer_date)), base_amount: sbtBase, sbt_rate: TAX_CONFIG.SBT_BASE_RATE * 100,
+      sbt_amount: sbtAmt, local_surtax: localSurtax, total_tax: tSbt, transfer_date: tForm.transfer_date,
+      status: "pending", jv_id: jvId, house_id: tForm.house_id || null, project_id: PROJECT_ID,
+    });
+    setTPosting(false);
+    setTDone(ref);
+    setTForm({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "" });
+  };
 
   const loadWht = () => supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
   const loadSbt = () => supabase.from("sbt_register").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).limit(20).then(({data})=>setSbtEntries((data??[]) as SbtEntry[]));
@@ -736,6 +870,7 @@ function TaxTab() {
 
   useEffect(() => {
     supabase.from("vat_register").select("*").eq("project_id", PROJECT_ID).order("invoice_date",{ascending:false}).limit(50).then(({data})=>setVatEntries((data??[]) as VatEntry[]));
+    supabase.from("houses").select("id,house_number,plot_number,price").eq("project_id", PROJECT_ID).order("plot_number").limit(60).then(({data})=>setHouses((data??[]) as House[]));
     loadWht();
     loadSbt();
     loadLbt();
@@ -791,14 +926,43 @@ function TaxTab() {
     loadLbt();
   };
 
-  const subTabs: { key: TaxSubTab; label: string }[] = [{key:"vat",label:"VAT"},{key:"wht",label:"WHT ภ.ง.ด."},{key:"sbt",label:"ภ.ธ.40"},{key:"lbt",label:"ภาษีที่ดิน"}];
+  const subTabs: { key: TaxSubTab; label: string }[] = [{key:"transfer",label:"โอน"},{key:"vat",label:"VAT"},{key:"wht",label:"WHT ภ.ง.ด."},{key:"sbt",label:"ภ.ธ.40"},{key:"lbt",label:"ภาษีที่ดิน"}];
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="ภาษี" subtitle="VAT · WHT · ภ.ธ.40 · ภาษีที่ดิน" />
-      <div className="flex gap-2">
-        {subTabs.map(t=>(<button key={t.key} onClick={()=>setSub(t.key)} className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",sub===t.key?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{t.label}</button>))}
+      <SectionHeader title="ภาษี" subtitle="โอน · VAT · WHT · ภ.ธ.40 · ภาษีที่ดิน" />
+      <div className="flex gap-1.5">
+        {subTabs.map(t=>(<button key={t.key} onClick={()=>setSub(t.key)} className={clsx("flex-1 py-2 rounded-xl text-[11px] font-medium border transition-all",sub===t.key?"bg-aviva-gold text-aviva-bg border-aviva-gold":"bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>{t.label}</button>))}
       </div>
+      {sub==="transfer"&&(<div className="space-y-3">
+        <GlassCard className="p-4"><p className="text-xs font-semibold text-aviva-gold mb-1">ภาษีขายตอนโอนกรรมสิทธิ์</p><p className="text-[11px] text-aviva-secondary">ปันส่วนราคา <b>ที่ดิน (ยกเว้น VAT)</b> กับ <b>สิ่งปลูกสร้าง (VAT 7%)</b> → ออก output VAT เข้าทะเบียนภาษีขาย + บันทึก ภ.ธ.40 3.3% และลง GL อัตโนมัติ</p></GlassCard>
+        <GlassCard className="p-4 space-y-3">
+          <div><label className="text-[11px] text-aviva-secondary mb-1 block">แปลงบ้าน *</label>
+            <select value={tForm.house_id} onChange={e=>{ const h=houses.find(h=>h.id===e.target.value); setTForm(f=>({...f,house_id:e.target.value,house_number:h?.house_number??"",total_price:h?.price?String(h.price):f.total_price})); }} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text">
+              <option value="">-- เลือกแปลง --</option>{houses.map(h=>(<option key={h.id} value={h.id}>{h.house_number}</option>))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่โอน</label><input type="date" value={tForm.transfer_date} onChange={e=>setTForm(f=>({...f,transfer_date:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text"/></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">ราคาขายรวม *</label><input type="number" min="0" placeholder="0.00" value={tForm.total_price} onChange={e=>setTForm(f=>({...f,total_price:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">มูลค่าที่ดิน (ยกเว้น VAT) *</label><input type="number" min="0" placeholder="0.00" value={tForm.land_value} onChange={e=>setTForm(f=>({...f,land_value:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">ราคาประเมิน (ฐานค่าโอน)</label><input type="number" min="0" placeholder="= ราคาขาย" value={tForm.appraised_value} onChange={e=>setTForm(f=>({...f,appraised_value:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
+          </div>
+          {totalPrice>0&&(
+            <div className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs space-y-1">
+              <div className="flex justify-between"><span className="text-aviva-secondary">มูลค่าสิ่งปลูกสร้าง (ฐาน VAT)</span><span className="text-aviva-text">฿{fmt(structureValue)}</span></div>
+              <div className="flex justify-between"><span className="text-aviva-secondary">VAT ขาย 7% → ทะเบียนภาษีขาย</span><span className="text-green-400 font-bold">฿{fmt(tOutputVat)}</span></div>
+              <div className="flex justify-between border-t border-aviva-gold/10 pt-1 mt-1"><span className="text-aviva-secondary">ภ.ธ.40 (3.3%)</span><span className="text-aviva-text">฿{fmt(tSbt)}</span></div>
+              <div className="flex justify-between"><span className="text-aviva-secondary">ค่าธรรมเนียมโอน (2%)</span><span className="text-aviva-text">฿{fmt(tTransferFee)}</span></div>
+              <div className="flex justify-between"><span className="text-aviva-secondary">หัก ณ ที่จ่าย (1%)</span><span className="text-aviva-text">฿{fmt(tWht1)}</span></div>
+            </div>
+          )}
+          <button onClick={saveTransfer} disabled={!tForm.house_number||totalPrice<=0||tPosting} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{tPosting?"กำลังบันทึก...":"บันทึกการโอน + ออก VAT/ภ.ธ.40 + ลง GL"}</button>
+          {tDone&&(<div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-[11px] text-green-300 flex items-center gap-2"><Check size={14}/> บันทึกแล้ว ({tDone}) — สร้าง VAT ขาย + ภ.ธ.40 + JV เรียบร้อย ดูได้ในแท็บ VAT / ภ.ธ.40 / สมุดรายวัน</div>)}
+        </GlassCard>
+      </div>)}
       {sub==="vat"&&(<div className="space-y-3"><div className="flex items-center justify-between"><p className="text-xs text-aviva-secondary">ทะเบียน VAT · Period {period}</p><button onClick={()=>setShowVatModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-1.5 rounded-xl text-xs font-bold"><Plus size={12}/> เพิ่ม</button></div>
         {vatEntries.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p></GlassCard>:vatEntries.map(v=>(
           <GlassCard key={v.id} className="p-3"><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-0.5"><span className={clsx("text-[10px] px-2 py-0.5 rounded-full",v.vat_type==="output"?"bg-green-500/20 text-green-300":"bg-blue-500/20 text-blue-300")}>{v.vat_type==="output"?"ขาออก":"ขาเข้า"}</span><p className="text-xs font-mono text-aviva-text">{v.invoice_no}</p></div><p className="text-xs text-aviva-secondary">{v.party_name} · {v.invoice_date}</p></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-aviva-gold">฿{fmt(Number(v.vat_amount))}</p><p className="text-[10px] text-aviva-secondary">VAT</p></div></div></GlassCard>
@@ -901,16 +1065,35 @@ function LotCostTab() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ cost_type: "", total_cost: "", phase: "Phase 1", description: "" });
+  // C-Land — ต้นทุนที่ดินรายแปลง (เข้ากำไรรายหลัง)
+  const [landEdits, setLandEdits] = useState<Record<string, string>>({});
+  const [savingLand, setSavingLand] = useState(false);
+
+  const loadHouses = useCallback(() => {
+    return supabase.from("houses").select("id,house_number,plot_number,house_model,price,land_cost").eq("project_id", PROJECT_ID).order("plot_number").limit(60)
+      .then(({ data }) => setHouses((data ?? []) as House[]));
+  }, []);
 
   useEffect(() => {
     Promise.all([
       supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
-      supabase.from("houses").select("id,house_number,plot_number,house_model,sale_price").eq("project_id", PROJECT_ID).order("plot_number").limit(31),
-    ]).then(([ic, h]) => { setInfra((ic.data??[]) as InfraCost[]); setHouses((h.data??[]) as House[]); setLoading(false); });
-  }, []);
+      loadHouses(),
+    ]).then(([ic]) => { setInfra((ic.data??[]) as InfraCost[]); setLoading(false); });
+  }, [loadHouses]);
 
   const totalInfra = infra.reduce((s, i) => s + Number(i.total_cost), 0);
   const perLot = houses.length > 0 ? totalInfra / houses.length : 0;
+  const totalLand = houses.reduce((s, h) => s + Number(h.land_cost ?? 0), 0);
+
+  const saveLand = async (h: House) => {
+    const raw = landEdits[h.id];
+    if (raw === undefined) return;
+    setSavingLand(true);
+    await supabase.from("houses").update({ land_cost: Number(raw) || 0 }).eq("id", h.id);
+    setLandEdits(prev => { const c = { ...prev }; delete c[h.id]; return c; });
+    await loadHouses();
+    setSavingLand(false);
+  };
 
   const saveInfra = async () => {
     if (!form.cost_type || !form.total_cost) return;
@@ -934,6 +1117,43 @@ function LotCostTab() {
           <div><p className="text-lg font-bold text-green-400">฿{fmtM(perLot)}</p><p className="text-[10px] text-aviva-secondary">เฉลี่ยต่อแปลง</p></div>
         </div>
       </GlassCard>
+
+      {/* C-Land — ต้นทุนที่ดินรายแปลง → เข้ากำไรรายหลัง */}
+      <SectionHeader title="ต้นทุนที่ดินรายแปลง" subtitle={`รวมเข้ากำไรรายหลังอัตโนมัติ · รวม ฿${fmtM(totalLand)}`} />
+      <GlassCard className="p-3">
+        {loading ? <p className="text-[11px] text-aviva-secondary/70 text-center py-2">กำลังโหลด…</p> :
+         houses.length === 0 ? <p className="text-[11px] text-aviva-secondary/70 text-center py-2">ยังไม่มีข้อมูลแปลง</p> : (
+          <div className="space-y-1">
+            <div className="grid grid-cols-12 gap-1 text-[9px] text-aviva-secondary/60 px-1 pb-1 border-b border-aviva-gold/10">
+              <div className="col-span-4">แปลง</div>
+              <div className="col-span-3 text-right">ราคาขาย</div>
+              <div className="col-span-5 text-right">ต้นทุนที่ดิน (บาท)</div>
+            </div>
+            {houses.map(h => {
+              const editing = landEdits[h.id] !== undefined;
+              const val = editing ? landEdits[h.id] : String(Number(h.land_cost ?? 0) || "");
+              return (
+                <div key={h.id} className="grid grid-cols-12 gap-1 items-center px-1 py-0.5 text-[11px]">
+                  <div className="col-span-4 truncate text-aviva-text">{h.house_number}</div>
+                  <div className="col-span-3 text-right text-aviva-secondary">฿{fmtM(Number(h.price ?? 0))}</div>
+                  <div className="col-span-5 flex items-center gap-1 justify-end">
+                    <input type="number" min="0" placeholder="0" value={val}
+                      onChange={e => setLandEdits(prev => ({ ...prev, [h.id]: e.target.value }))}
+                      className="w-24 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-[11px] text-right text-aviva-text" />
+                    {editing && (
+                      <button onClick={() => saveLand(h)} disabled={savingLand}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 disabled:opacity-40">
+                        <Check size={11} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlassCard>
+
       <SectionHeader title="รายการต้นทุนโครงสร้างพื้นฐาน" />
       {loading?[1,2].map(i=><div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse"/>):
        infra.length===0?<GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการต้นทุน</p></GlassCard>:
@@ -1159,6 +1379,137 @@ function MatchingTab() {
   );
 }
 
+// ข้อ 3 — กระทบยอดธนาคาร (Bank Reconciliation)
+interface BankStmt { id: string; statement_date: string; description: string; amount: number; is_reconciled: boolean; matched_journal_id?: string; }
+function BankRecTab() {
+  const [stmts, setStmts] = useState<BankStmt[]>([]);
+  const [bookBalance, setBookBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savingRecon, setSavingRecon] = useState(false);
+  const [form, setForm] = useState({ statement_date: today(), description: "", amount: "" });
+  const [recon, setRecon] = useState({ bank_name: "", account_no: "", statement_balance: "" });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [st, gl] = await Promise.all([
+      supabase.from("bank_statements").select("id,statement_date,description,amount,is_reconciled,matched_journal_id").order("statement_date", { ascending: false }).limit(100),
+      supabase.from("jv_lines").select("debit,credit").eq("account_code", BANK.code),
+    ]);
+    setStmts((st.data ?? []) as BankStmt[]);
+    setBookBalance((gl.data ?? []).reduce((s, l) => s + Number(l.debit ?? 0) - Number(l.credit ?? 0), 0));
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const unreconciled = stmts.filter(s => !s.is_reconciled);
+  const unreconciledTotal = unreconciled.reduce((s, x) => s + Number(x.amount), 0);
+  const reconciledTotal = stmts.filter(s => s.is_reconciled).reduce((s, x) => s + Number(x.amount), 0);
+  const stmtBalance = Number(recon.statement_balance) || 0;
+  const diff = Math.round((stmtBalance - bookBalance) * 100) / 100;
+
+  const addStmt = async () => {
+    if (!form.amount) return;
+    setSaving(true);
+    await supabase.from("bank_statements").insert({
+      statement_date: form.statement_date, description: form.description || null,
+      amount: Number(form.amount), is_reconciled: false,
+    });
+    setSaving(false); setShowModal(false);
+    setForm({ statement_date: today(), description: "", amount: "" });
+    load();
+  };
+
+  const toggleReconcile = async (s: BankStmt) => {
+    await supabase.from("bank_statements").update({ is_reconciled: !s.is_reconciled }).eq("id", s.id);
+    load();
+  };
+
+  const saveRecon = async () => {
+    if (!recon.bank_name || !recon.statement_balance) return;
+    setSavingRecon(true);
+    await supabase.from("bank_reconciliation").insert({
+      reconcile_date: today(), bank_name: recon.bank_name, account_no: recon.account_no || null,
+      statement_balance: stmtBalance, book_balance: bookBalance,
+      status: Math.abs(diff) < 0.01 ? "balanced" : "pending",
+      notes: `ผลต่าง ฿${fmt(diff)} · รายการรอกระทบ ${unreconciled.length}`,
+    });
+    setSavingRecon(false);
+    alert(Math.abs(diff) < 0.01 ? "กระทบยอดสมดุล — บันทึกแล้ว" : `บันทึกแล้ว · ยังมีผลต่าง ฿${fmt(diff)}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="กระทบยอดธนาคาร" subtitle="เทียบสมุดบัญชี (GL 1120) กับ Statement จริง" />
+        <button onClick={() => setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold"><Plus size={14} /> เพิ่มรายการ</button>
+      </div>
+
+      <GlassCard gold className="p-4">
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-[11px] text-aviva-secondary mb-1 block">ธนาคาร</label>
+            <input type="text" placeholder="เช่น KBANK" value={recon.bank_name} onChange={e => setRecon(r => ({ ...r, bank_name: e.target.value }))}
+              className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
+          </div>
+          <div>
+            <label className="text-[11px] text-aviva-secondary mb-1 block">ยอดตาม Statement</label>
+            <input type="number" placeholder="0.00" value={recon.statement_balance} onChange={e => setRecon(r => ({ ...r, statement_balance: e.target.value }))}
+              className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
+          </div>
+        </div>
+        <div className="space-y-1.5 text-xs">
+          <div className="flex justify-between"><span className="text-aviva-secondary">ยอดตามสมุดบัญชี (Book/GL)</span><span className="text-aviva-text font-mono">฿{fmt(bookBalance)}</span></div>
+          <div className="flex justify-between"><span className="text-aviva-secondary">ยอดตาม Statement</span><span className="text-aviva-text font-mono">฿{fmt(stmtBalance)}</span></div>
+          <div className="flex justify-between"><span className="text-aviva-secondary">รายการรอกระทบ ({unreconciled.length})</span><span className="text-yellow-400 font-mono">฿{fmt(unreconciledTotal)}</span></div>
+          <div className="flex justify-between font-bold border-t border-aviva-gold/10 pt-1.5 mt-1">
+            <span className="text-aviva-text flex items-center gap-1"><ArrowLeftRight size={12} /> ผลต่าง</span>
+            <span className={clsx("font-mono", Math.abs(diff) < 0.01 ? "text-green-400" : "text-red-400")}>฿{fmt(diff)}</span>
+          </div>
+          {Math.abs(diff) < 0.01 ? <p className="text-[10px] text-green-400">✓ สมดุล — ยอดตรงกัน</p> : <p className="text-[10px] text-red-400">⚠ ยังไม่สมดุล — ตรวจเช็คค้าง/เงินระหว่างทาง/ค่าธรรมเนียม</p>}
+        </div>
+        <button onClick={saveRecon} disabled={!recon.bank_name || !recon.statement_balance || savingRecon}
+          className="w-full mt-3 py-2.5 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">
+          {savingRecon ? "กำลังบันทึก..." : "บันทึกผลการกระทบยอด"}
+        </button>
+      </GlassCard>
+
+      <SectionHeader title="รายการเดินบัญชี (Statement)" subtitle={`กระทบแล้ว ฿${fmtM(reconciledTotal)}`} />
+      {loading ? [1, 2, 3].map(i => <div key={i} className="h-14 rounded-2xl bg-aviva-card/50 animate-pulse" />) :
+       stmts.length === 0 ? <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการเดินบัญชี</p></GlassCard> :
+       stmts.map(s => (
+        <GlassCard key={s.id} className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-aviva-text truncate">{s.description || "(ไม่มีคำอธิบาย)"}</p>
+              <p className="text-[10px] text-aviva-secondary">{s.statement_date}</p>
+            </div>
+            <p className={clsx("text-sm font-bold font-mono flex-shrink-0", Number(s.amount) >= 0 ? "text-green-400" : "text-red-400")}>฿{fmt(Number(s.amount))}</p>
+            <button onClick={() => toggleReconcile(s)}
+              className={clsx("text-[10px] px-2 py-1 rounded-lg border flex-shrink-0 flex items-center gap-1",
+                s.is_reconciled ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30")}>
+              {s.is_reconciled ? <><Check size={11} /> กระทบแล้ว</> : "รอกระทบ"}
+            </button>
+          </div>
+        </GlassCard>
+      ))}
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center p-4"><div className="bg-aviva-card rounded-3xl w-full max-w-lg">
+          <div className="px-5 py-4 flex items-center justify-between border-b border-aviva-gold/10"><h2 className="font-bold text-aviva-text">เพิ่มรายการเดินบัญชี</h2><button onClick={() => setShowModal(false)}><X size={18} className="text-aviva-secondary" /></button></div>
+          <div className="p-5 space-y-3">
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">วันที่</label><input type="date" value={form.statement_date} onChange={e => setForm(f => ({ ...f, statement_date: e.target.value }))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" /></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">คำอธิบาย</label><input type="text" placeholder="เช่น รับโอนจากลูกค้า / ค่าธรรมเนียม" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" /></div>
+            <div><label className="text-[11px] text-aviva-secondary mb-1 block">จำนวนเงิน (+ เงินเข้า / − เงินออก) *</label><input type="number" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" /></div>
+            <button onClick={addStmt} disabled={!form.amount || saving} className="w-full py-3 rounded-2xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-40">{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+          </div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
 export default function AccountingPage() {
   const [tab, setTab] = useState<AccTab>("dashboard");
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
@@ -1214,6 +1565,7 @@ export default function AccountingPage() {
         {tab === "tfrs15"     && <TFRS15Tab />}
         {tab === "scanner"    && <ScannerTab />}
         {tab === "matching"   && <MatchingTab />}
+        {tab === "bankrec"    && <BankRecTab />}
       </div>
     </div>
   );

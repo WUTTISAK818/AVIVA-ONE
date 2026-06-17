@@ -18,7 +18,9 @@ interface HouseRow {
   model: string | null;
   revenue: number;       // รายได้ (รับรู้แล้ว หรือราคาขายตั้งต้น)
   recognized: boolean;   // รับรู้รายได้แล้ว (โอนกรรมสิทธิ์)
-  cost: number;          // ต้นทุนก่อสร้าง (รวมทุกงวด)
+  buildCost: number;     // ต้นทุนก่อสร้าง (รวมทุกงวดผู้รับเหมา)
+  landCost: number;      // ต้นทุนที่ดินของแปลงนั้น
+  cost: number;          // ต้นทุนรวม = ก่อสร้าง + ที่ดิน
   paidCost: number;      // ต้นทุนที่จ่ายจริงแล้ว
   profit: number;
   margin: number;        // %
@@ -31,11 +33,11 @@ export default function ProfitabilityPanel() {
 
   const load = useCallback(async () => {
     const [housesRes, instRes, revRes] = await Promise.all([
-      supabase.from("houses").select("id,house_number,plot_number,status,price,house_model").eq("project_id", PROJECT_ID),
+      supabase.from("houses").select("id,house_number,plot_number,status,price,house_model,land_cost").eq("project_id", PROJECT_ID),
       supabase.from("contractor_installments").select("house_id,amount,status"),
       supabase.from("revenue_recognition").select("house_id,recognized_amount,status").eq("project_id", PROJECT_ID),
     ]);
-    const houses = (housesRes.data as { id: string; house_number: string; plot_number: number | null; status: string; price: number | null; house_model: string | null }[]) ?? [];
+    const houses = (housesRes.data as { id: string; house_number: string; plot_number: number | null; status: string; price: number | null; house_model: string | null; land_cost: number | null }[]) ?? [];
     const insts = (instRes.data as { house_id: string; amount: number | null; status: string }[]) ?? [];
     const revs = (revRes.data as { house_id: string | null; recognized_amount: number | null; status: string }[]) ?? [];
 
@@ -56,11 +58,13 @@ export default function ProfitabilityPanel() {
       const rec = recByHouse.get(h.id) ?? 0;
       const recognized = rec > 0;
       const revenue = recognized ? rec : Number(h.price ?? 0);
-      const cost = costByHouse.get(h.id)?.total ?? 0;
-      const paidCost = costByHouse.get(h.id)?.paid ?? 0;
+      const buildCost = costByHouse.get(h.id)?.total ?? 0;
+      const landCost = Number(h.land_cost ?? 0);
+      const cost = buildCost + landCost;                 // ต้นทุนเต็ม = ก่อสร้าง + ที่ดิน
+      const paidCost = (costByHouse.get(h.id)?.paid ?? 0) + landCost; // ที่ดินถือว่าจ่าย/ลงทุนแล้ว
       const profit = revenue - cost;
       const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
-      return { id: h.id, house_number: h.house_number, plot_number: h.plot_number, status: h.status, model: h.house_model, revenue, recognized, cost, paidCost, profit, margin };
+      return { id: h.id, house_number: h.house_number, plot_number: h.plot_number, status: h.status, model: h.house_model, revenue, recognized, buildCost, landCost, cost, paidCost, profit, margin };
     }).sort((a, b) => (a.plot_number ?? 0) - (b.plot_number ?? 0));
 
     setRows(out);
@@ -77,6 +81,7 @@ export default function ProfitabilityPanel() {
   const recMargin = recRevenue > 0 ? (recProfit / recRevenue) * 100 : 0;
   const potentialRevenue = rows.reduce((s, r) => s + r.revenue, 0);
   const totalPaidCost = rows.reduce((s, r) => s + r.paidCost, 0);
+  const totalLandCost = rows.reduce((s, r) => s + r.landCost, 0);
 
   const shown = expanded ? rows : rows.slice(0, 8);
 
@@ -104,9 +109,9 @@ export default function ProfitabilityPanel() {
               <p className="text-[10px] text-aviva-secondary/70">ต้นทุนขาย {fmtM(recCost)}</p>
             </div>
             <div className="bg-aviva-bg/50 rounded-xl p-2.5">
-              <div className="flex items-center gap-1 text-[10px] text-aviva-secondary"><Wallet size={11} className="text-blue-400" /> ต้นทุนจ่ายแล้ว (WIP)</div>
+              <div className="flex items-center gap-1 text-[10px] text-aviva-secondary"><Wallet size={11} className="text-blue-400" /> ต้นทุนลงไปแล้ว</div>
               <p className="text-base font-bold text-blue-400">{fmtM(totalPaidCost)}</p>
-              <p className="text-[10px] text-aviva-secondary/70">งานระหว่างก่อสร้าง</p>
+              <p className="text-[10px] text-aviva-secondary/70">ก่อสร้าง + ที่ดิน {fmtM(totalLandCost)}</p>
             </div>
             <div className="bg-aviva-bg/50 rounded-xl p-2.5">
               <div className="flex items-center gap-1 text-[10px] text-aviva-secondary"><BarChart3 size={11} className="text-purple-400" /> มูลค่าขายทั้งโครงการ</div>
@@ -146,7 +151,7 @@ export default function ProfitabilityPanel() {
             </button>
           )}
           <p className="text-[9px] text-aviva-secondary/50 mt-2 flex items-center gap-1">
-            <TrendingDown size={9} /> ต้นทุน = ผลรวมงวดผู้รับเหมาของหลังนั้น (ยังไม่รวมต้นทุนที่ดิน/ค่าใช้จ่ายขาย)
+            <TrendingDown size={9} /> ต้นทุน = งวดผู้รับเหมา + ต้นทุนที่ดินรายแปลง (ตั้งค่าที่ บัญชี → ต้นทุนแปลง) · ยังไม่รวมค่าใช้จ่ายขาย/ส่วนกลาง
           </p>
         </>
       )}

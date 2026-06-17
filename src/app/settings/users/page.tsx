@@ -4,6 +4,7 @@ import { Users, Plus, X, Eye, EyeOff, User, Shield, Save, ArrowLeft, Trash2, Che
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import SeedPilotAccounts from "@/components/SeedPilotAccounts";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -238,6 +239,9 @@ export default function UsersPage() {
             <Check size={16} className="text-green-400 flex-shrink-0" />
             <p className="text-sm text-green-400 font-medium">สร้างบัญชีผู้ใช้สำเร็จ — กำลังโหลดรายการใหม่...</p>
           </div>
+        )}
+        {canManage && !loading && (
+          <SeedPilotAccounts existingEmails={users.map((u) => u.email)} onDone={() => fetchUsers(1500)} />
         )}
         {!loading && !listError && users.length > 0 && (
           <p className="text-xs text-aviva-secondary px-1">ทั้งหมด {users.length} ผู้ใช้ (เรียงจากที่เพิ่มล่าสุด)</p>

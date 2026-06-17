@@ -1470,7 +1470,7 @@ function MatchingTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <SectionHeader title="จับคู่สลิป + ใบเสร็จ" subtitle="Payment Matching" />
+        <SectionHeader title="จับคู่สลิป + ใบเสร็จ" subtitle="Payment Matching · กระทบยอดธนาคารดูที่แท็บ 'กระทบยอด'" />
         <button onClick={()=>setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold"><Plus size={14}/> บันทึกสลิป</button>
       </div>
       <div className="grid grid-cols-3 gap-3">
@@ -1673,9 +1673,29 @@ function ReportsTab({ accounts }: { accounts: ChartAccount[] }) {
 
   const typeLabel: Record<string, string> = { asset: "สินทรัพย์", liability: "หนี้สิน", equity: "ทุน", revenue: "รายได้", expense: "ค่าใช้จ่าย" };
 
+  // ส่งออกงบทดลองเป็น CSV (เปิดใน Excel ได้)
+  const exportCsv = () => {
+    const head = ["รหัสบัญชี", "ชื่อบัญชี", "ประเภท", "เดบิต", "เครดิต"];
+    const body = rows.map(r => [r.code, r.name, typeLabel[r.type] ?? r.type, r.debit.toFixed(2), r.credit.toFixed(2)]);
+    body.push(["", "รวม", "", totalDr.toFixed(2), totalCr.toFixed(2)]);
+    body.push([], ["", "รายได้รวม", "", "", revenue.toFixed(2)], ["", "ค่าใช้จ่ายรวม", "", expense.toFixed(2), ""], ["", "กำไร(ขาดทุน)สุทธิ", "", "", netProfit.toFixed(2)]);
+    const csv = [head, ...body].map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `trial-balance-${yymm()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
-      <SectionHeader title="งบการเงินจาก GL จริง" subtitle="คำนวณจากสมุดรายวันที่ posted แล้วเท่านั้น" />
+      <div className="flex items-center justify-between">
+        <SectionHeader title="งบการเงินจาก GL จริง" subtitle="คำนวณจากสมุดรายวันที่ posted แล้วเท่านั้น" />
+        <button onClick={exportCsv} disabled={rows.length === 0}
+          className="flex items-center gap-1.5 bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30 px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-40">
+          <Download size={13} /> CSV
+        </button>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <GlassCard className="p-3 text-center"><p className="text-base font-bold text-green-400">฿{fmtM(revenue)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">รายได้รวม</p></GlassCard>
         <GlassCard className="p-3 text-center"><p className="text-base font-bold text-red-400">฿{fmtM(expense)}</p><p className="text-[10px] text-aviva-secondary mt-0.5">ค่าใช้จ่ายรวม</p></GlassCard>

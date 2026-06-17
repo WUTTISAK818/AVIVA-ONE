@@ -30,6 +30,7 @@ const TYPE_LABEL: Record<string, string> = {
   Leave_Request: "อนุมัติใบลา (ผู้บริหาร)",
   Warranty_Claim: "เคลมประกัน (หลังการขาย)",
   Purchase_Request: "ขออนุมัติก่อนซื้อ (ผู้บริหาร)",
+  Material_Purchase: "อนุมัติสั่งซื้อวัสดุ (ก่อสร้าง)",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -58,6 +59,7 @@ function linkFor(it: WorkQueueItem): string {
       return `/crm?lead=${rid}`;
     case "Installment_Review":   // อนุมัติงวดงานก่อสร้าง — panel อยู่หน้า construction
     case "Defect_Followup":
+    case "Material_Purchase":    // สั่งซื้อวัสดุ — สร้างมาจากหน้า construction
       return `/construction?focus=${rid}`;
     case "Leave_Request":
       return `/office?tab=hr&focus=${rid}`;
@@ -66,7 +68,6 @@ function linkFor(it: WorkQueueItem): string {
     case "Warranty_Claim":
       return `/after-sales?focus=${rid}`;
     case "Finance_Approval":
-    case "Material_Purchase":
     case "Document_Approval":
       return `/approvals?focus=${rid}`;
     default:

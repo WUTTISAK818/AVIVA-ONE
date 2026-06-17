@@ -1362,42 +1362,51 @@ export default function ConstructionPage() {
                             )}
                             {user?.isAdmin && (
                               <div className="space-y-2">
+                                {(inst.status === "approved" || inst.status === "paid") && (
+                                  <p className="text-[10px] text-aviva-secondary/70">🔒 ล็อกแล้ว — อนุมัติ/จ่ายงวดนี้ไปแล้ว แก้ยอดไม่ได้ (กันแก้หลังอนุมัติ)</p>
+                                )}
                                 <div className="flex items-center gap-2">
                                   <span className="text-[10px] text-aviva-secondary">มูลค่างวด (บาท)</span>
                                   <input type="number" defaultValue={inst.amount}
+                                    disabled={inst.status === "approved" || inst.status === "paid"}
                                     onBlur={async e => {
+                                      if (inst.status === "approved" || inst.status === "paid") return;
                                       const v = Number(e.target.value);
                                       if (!isNaN(v)) {
                                         await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
                                         setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
                                       }
                                     }}
-                                    className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                    className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none disabled:opacity-50" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <p className="text-[10px] text-aviva-secondary mb-0.5">ค่าแรง (บาท)</p>
                                     <input type="number" defaultValue={inst.labor_cost ?? 0}
+                                      disabled={inst.status === "approved" || inst.status === "paid"}
                                       onBlur={async e => {
+                                        if (inst.status === "approved" || inst.status === "paid") return;
                                         const v = Number(e.target.value);
                                         if (!isNaN(v)) {
                                           await supabase.from("contractor_installments").update({ labor_cost: v }).eq("id", inst.id);
                                           setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, labor_cost: v } : i));
                                         }
                                       }}
-                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none disabled:opacity-50" />
                                   </div>
                                   <div>
                                     <p className="text-[10px] text-aviva-secondary mb-0.5">ค่าวัสดุ (บาท)</p>
                                     <input type="number" defaultValue={inst.material_cost ?? 0}
+                                      disabled={inst.status === "approved" || inst.status === "paid"}
                                       onBlur={async e => {
+                                        if (inst.status === "approved" || inst.status === "paid") return;
                                         const v = Number(e.target.value);
                                         if (!isNaN(v)) {
                                           await supabase.from("contractor_installments").update({ material_cost: v }).eq("id", inst.id);
                                           setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, material_cost: v } : i));
                                         }
                                       }}
-                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
+                                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none disabled:opacity-50" />
                                   </div>
                                 </div>
                               </div>

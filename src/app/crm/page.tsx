@@ -648,6 +648,25 @@ export default function CRMPage() {
     fetchLeads(dateStart, dateEnd, 10000);
   }, [dateStart, dateEnd]);
 
+  // ── Real-time (2.1): ทุกจอของเซลส์เห็นสถานะแปลง/ลีดตรงกันสด ๆ ไม่ต้องรีเฟรชเอง ──
+  const rtRangeRef = useRef({ start: dateStart, end: dateEnd, limit: 10000 });
+  useEffect(() => { rtRangeRef.current = { start: dateStart, end: dateEnd, limit: leadsLimit }; }, [dateStart, dateEnd, leadsLimit]);
+  useEffect(() => {
+    const reloadHouses = () =>
+      supabase.from("houses").select("plot_number,status,house_model,land_size")
+        .eq("project_id", PROJECT_ID).order("plot_number")
+        .then(({ data }) => setHouses((data ?? []) as HouseSlot[]));
+    const ch = supabase
+      .channel("crm_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
+        const r = rtRangeRef.current; fetchLeads(r.start, r.end, r.limit);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "houses" }, reloadHouses)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handlePeriodChange = (p: Period, start: string, end: string) => {
     setPeriod(p);
     setDateStart(start);

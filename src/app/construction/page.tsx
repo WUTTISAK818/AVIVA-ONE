@@ -737,6 +737,64 @@ export default function ConstructionPage() {
     setToast({ msg: "ปฏิเสธงวดงานแล้ว — แจ้งวิศวกรแล้ว", type: "success" });
   };
 
+  const approvePO = async (po: PurchaseOrder) => {
+    const byName = user?.full_name ?? user?.email ?? "Unknown";
+    await supabase.from("purchase_orders").update({ status: "approved" }).eq("id", po.id);
+    await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email })
+      .eq("source_record_id", po.id).eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending");
+    await closeWorkQueue(po.id, "manager", byName);
+    await logWorkflowEvent({
+      workflowType: "Material_Purchase",
+      sourceRecordId: po.id,
+      docIndex: po.po_number ? `${po.po_number} | ${po.supplier_name}` : po.supplier_name,
+      eventType: "approved",
+      stageFrom: "pending",
+      stageTo: "approved",
+      actorName: byName,
+      actorRole: "manager",
+      routedToRole: "finance",
+      routedToName: "การเงิน",
+      amount: po.total_amount ?? null,
+    });
+    setPurchaseOrders(prev => prev.map(p => p.id === po.id ? { ...p, status: "approved" } : p));
+    await createNotification({
+      type: "success",
+      title: `อนุมัติจัดซื้อแล้ว`,
+      message: `${po.po_number} | ${po.supplier_name} ฿${po.total_amount?.toLocaleString("th-TH") ?? "0"}`,
+      from_dept: "ผู้บริหาร",
+      to_dept: "การเงิน",
+    });
+    setToast({ msg: "อนุมัติจัดซื้อแล้ว ✓", type: "success" });
+  };
+
+  const rejectPO = async (po: PurchaseOrder) => {
+    const byName = user?.full_name ?? user?.email ?? "Unknown";
+    await supabase.from("purchase_orders").update({ status: "rejected" }).eq("id", po.id);
+    await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email })
+      .eq("source_record_id", po.id).eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending");
+    await closeWorkQueue(po.id, "manager", byName);
+    await logWorkflowEvent({
+      workflowType: "Material_Purchase",
+      sourceRecordId: po.id,
+      docIndex: po.po_number ? `${po.po_number} | ${po.supplier_name}` : po.supplier_name,
+      eventType: "rejected",
+      stageFrom: "pending",
+      stageTo: "rejected",
+      actorName: byName,
+      actorRole: "manager",
+      amount: po.total_amount ?? null,
+    });
+    setPurchaseOrders(prev => prev.map(p => p.id === po.id ? { ...p, status: "rejected" } : p));
+    await createNotification({
+      type: "info",
+      title: `ปฏิเสธจัดซื้อ`,
+      message: `${po.po_number} | ${po.supplier_name}`,
+      from_dept: "ผู้บริหาร",
+      to_dept: "ฝ่ายก่อสร้าง",
+    });
+    setToast({ msg: "ปฏิเสธจัดซื้อแล้ว", type: "success" });
+  };
+
   const advanceInstStatus = (inst: Installment) => {
     const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved", approved: "paid" };
     if (!next[inst.status] || next[inst.status] === inst.status) return;
@@ -1016,6 +1074,7 @@ export default function ConstructionPage() {
       notes: prForm.notes || null,
     }).select().single();
     if (po) {
+      const slaDue = calcSlaDueAt("Material_Purchase");
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
         source_doc_index: `${docNum} | จัดซื้อจาก ${prForm.supplier_name} | โดย ${byName}`,
@@ -1024,8 +1083,17 @@ export default function ConstructionPage() {
         current_approver_role: "manager",
         action_taken: "Pending",
         amount: totalAmount || null,
-        sla_due_at: calcSlaDueAt("Material_Purchase"),
+        sla_due_at: slaDue,
         assigned_to_name: "ผู้จัดการ",
+      });
+      await createWorkQueue({
+        workflowType: "Material_Purchase",
+        sourceRecordId: (po as PurchaseOrder).id,
+        docIndex: `${docNum} | จัดซื้อจาก ${prForm.supplier_name}`,
+        title: `อนุมัติจัดซื้อ: ${prForm.supplier_name}`,
+        amount: totalAmount || null,
+        assignedRole: "manager",
+        slaDueAt: slaDue,
       });
       await createNotification({
         type: "approval",

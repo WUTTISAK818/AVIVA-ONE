@@ -33,11 +33,11 @@ export default function ProfitabilityPanel() {
 
   const load = useCallback(async () => {
     const [housesRes, instRes, revRes] = await Promise.all([
-      supabase.from("houses").select("id,house_number,plot_number,status,price,house_model,land_cost").eq("project_id", PROJECT_ID),
+      supabase.from("houses").select("id,house_number,plot_number,status,price,house_model,land_cost,infra_cost").eq("project_id", PROJECT_ID),
       supabase.from("contractor_installments").select("house_id,amount,status"),
       supabase.from("revenue_recognition").select("house_id,recognized_amount,status").eq("project_id", PROJECT_ID),
     ]);
-    const houses = (housesRes.data as { id: string; house_number: string; plot_number: number | null; status: string; price: number | null; house_model: string | null; land_cost: number | null }[]) ?? [];
+    const houses = (housesRes.data as { id: string; house_number: string; plot_number: number | null; status: string; price: number | null; house_model: string | null; land_cost: number | null; infra_cost: number | null }[]) ?? [];
     const insts = (instRes.data as { house_id: string; amount: number | null; status: string }[]) ?? [];
     const revs = (revRes.data as { house_id: string | null; recognized_amount: number | null; status: string }[]) ?? [];
 
@@ -59,9 +59,9 @@ export default function ProfitabilityPanel() {
       const recognized = rec > 0;
       const revenue = recognized ? rec : Number(h.price ?? 0);
       const buildCost = costByHouse.get(h.id)?.total ?? 0;
-      const landCost = Number(h.land_cost ?? 0);
-      const cost = buildCost + landCost;                 // ต้นทุนเต็ม = ก่อสร้าง + ที่ดิน
-      const paidCost = (costByHouse.get(h.id)?.paid ?? 0) + landCost; // ที่ดินถือว่าจ่าย/ลงทุนแล้ว
+      const landCost = Number(h.land_cost ?? 0) + Number(h.infra_cost ?? 0); // ที่ดิน + ปันส่วนสาธารณูปโภค
+      const cost = buildCost + landCost;                 // ต้นทุนเต็ม = ก่อสร้าง + ที่ดิน + โครงสร้างพื้นฐาน
+      const paidCost = (costByHouse.get(h.id)?.paid ?? 0) + landCost; // ที่ดิน/โครงสร้างถือว่าลงทุนแล้ว
       const profit = revenue - cost;
       const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
       return { id: h.id, house_number: h.house_number, plot_number: h.plot_number, status: h.status, model: h.house_model, revenue, recognized, buildCost, landCost, cost, paidCost, profit, margin };
@@ -151,7 +151,7 @@ export default function ProfitabilityPanel() {
             </button>
           )}
           <p className="text-[9px] text-aviva-secondary/50 mt-2 flex items-center gap-1">
-            <TrendingDown size={9} /> ต้นทุน = งวดผู้รับเหมา + ต้นทุนที่ดินรายแปลง (ตั้งค่าที่ บัญชี → ต้นทุนแปลง) · ยังไม่รวมค่าใช้จ่ายขาย/ส่วนกลาง
+            <TrendingDown size={9} /> ต้นทุน = งวดผู้รับเหมา + ต้นทุนที่ดิน + ปันส่วนสาธารณูปโภค (ตั้งค่าที่ บัญชี → ต้นทุนแปลง) · ยังไม่รวมค่าใช้จ่ายขาย
           </p>
         </>
       )}

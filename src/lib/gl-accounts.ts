@@ -12,6 +12,10 @@ export const CONTRACTOR_PAYABLE: GLAccount = { code: "2100", name: "เจ้า
 export const RETENTION_PAYABLE: GLAccount = { code: "2150", name: "เงินประกันผลงานค้างจ่าย" };
 export const AR: GLAccount = { code: "1200", name: "ลูกหนี้การค้า" };
 export const CUSTOMER_ADVANCE: GLAccount = { code: "2200", name: "เงินรับล่วงหน้าจากลูกค้า" };
+export const AP: GLAccount = { code: "2100", name: "เจ้าหนี้การค้า" };
+export const PREPAID_WHT: GLAccount = { code: "1610", name: "ภาษีเงินได้ถูกหัก ณ ที่จ่าย (เครดิต CIT)" };
+export const SBT_EXPENSE: GLAccount = { code: "6710", name: "ภาษีธุรกิจเฉพาะ (ภ.ธ.40)" };
+export const TRANSFER_FEE: GLAccount = { code: "6700", name: "ค่าธรรมเนียมการโอน" };
 // ธุรกิจอสังหา: ต้นทุนก่อสร้างสะสมใน "งานระหว่างก่อสร้าง" (สินค้าคงเหลือ) → ตัดเป็นต้นทุนขายตอนโอน
 export const WIP: GLAccount = { code: "1180", name: "งานระหว่างก่อสร้าง" };
 export const COGS: GLAccount = { code: "5210", name: "ต้นทุนขายบ้าน" };

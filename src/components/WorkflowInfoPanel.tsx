@@ -17,9 +17,9 @@ export interface WorkflowInfo {
   /** สถานะปัจจุบัน */
   status?: "pending" | "approved" | "rejected" | "in_progress";
   /** ใครอนุมัติ/ปฏิเสธ */
-  approvedBy?: string;
-  approvedAt?: string;
-  rejectionReason?: string;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 export default function WorkflowInfoPanel({ workflow }: { workflow: WorkflowInfo }) {

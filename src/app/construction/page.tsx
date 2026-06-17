@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2, ShoppingCart } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2, ShoppingCart, Briefcase } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -424,6 +424,10 @@ export default function ConstructionPage() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
   const [showPODetail, setShowPODetail] = useState(false);
+  const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
+  const [showInstallmentDetail, setShowInstallmentDetail] = useState(false);
+  const [selectedDefect, setSelectedDefect] = useState<Defect | null>(null);
+  const [showDefectDetail, setShowDefectDetail] = useState(false);
   const [showPRModal, setShowPRModal] = useState(false);
   const [savingPR, setSavingPR] = useState(false);
   const [prForm, setPrForm] = useState({ supplier_name: "", notes: "" });
@@ -1339,6 +1343,17 @@ export default function ConstructionPage() {
                             <span className={clsx("text-[10px] px-2 py-0.5 rounded-full", sc.color)}>{sc.label}</span>
                           </div>
                         </button>
+                        {!isExpanded && (
+                          <button
+                            onClick={() => {
+                              setSelectedInstallment(inst);
+                              setShowInstallmentDetail(true);
+                            }}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 mt-2 bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-semibold hover:bg-aviva-gold/30 transition-all"
+                          >
+                            <Briefcase size={13} /> ตรวจสอบและดำเนินการ
+                          </button>
+                        )}
                         {isExpanded && (
                           <div className="mt-3 space-y-3 border-t border-aviva-gold/10 pt-3">
                             {inst.created_by_name && (
@@ -1662,14 +1677,25 @@ export default function ConstructionPage() {
                         </div>
                         <span className={clsx("text-[10px] px-2 py-0.5 rounded-full flex-shrink-0", ds.color)}>{ds.label}</span>
                       </div>
-                      {d.status !== "Resolved" && (
-                        <div className="flex gap-2">
-                          {d.status === "Open" && (
-                            <button onClick={() => updateDefectStatus(d.defect_id, "In Progress")} className="flex-1 py-1.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-[10px] font-medium">เริ่มแก้ไข</button>
-                          )}
-                          <button onClick={() => updateDefectStatus(d.defect_id, "Resolved")} className="flex-1 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">แก้ไขแล้ว</button>
-                        </div>
-                      )}
+                      <div className="space-y-2 pt-2 border-t border-aviva-gold/10">
+                        <button
+                          onClick={() => {
+                            setSelectedDefect(d);
+                            setShowDefectDetail(true);
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 rounded-xl text-xs font-semibold hover:bg-aviva-gold/30 transition-all"
+                        >
+                          <AlertTriangle size={13} /> ตรวจสอบและดำเนินการ
+                        </button>
+                        {d.status !== "Resolved" && (
+                          <div className="flex gap-2">
+                            {d.status === "Open" && (
+                              <button onClick={() => updateDefectStatus(d.defect_id, "In Progress")} className="flex-1 py-1.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-[10px] font-medium">เริ่มแก้ไข</button>
+                            )}
+                            <button onClick={() => updateDefectStatus(d.defect_id, "Resolved")} className="flex-1 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">แก้ไขแล้ว</button>
+                          </div>
+                        )}
+                      </div>
                     </GlassCard>
                   );
                 })}
@@ -1894,6 +1920,207 @@ export default function ConstructionPage() {
                 </button>
               )}
               <button onClick={() => setShowPODetail(false)}
+                className="w-full py-3 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold font-bold rounded-xl text-xs hover:bg-aviva-gold/5 transition-all">
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Installment Detail Modal */}
+      {showInstallmentDetail && selectedInstallment && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">งวดงาน #{selectedInstallment.installment_no}</h2>
+                <p className="text-[11px] text-aviva-secondary mt-0.5">{selectedInstallment.name}</p>
+              </div>
+              <button onClick={() => setShowInstallmentDetail(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+
+            {/* Workflow Info */}
+            <WorkflowInfoPanel workflow={{
+              from: { label: "ฝ่ายก่อสร้าง", description: "ส่งตรวจและขออนุมัติงวดงาน" },
+              to: { label: "ผู้จัดการโครงการ", description: "ตรวจผลงาน และอนุมัติหรือปฏิเสธ" },
+              action: { label: "ตรวจผลงาน", description: "ตรวจรายการงานย่อย และผลการตรวจสอบ" },
+              nextStep: { label: "การเงิน", description: "จ่ายชำระค่างวดงาน" },
+              status: selectedInstallment.status === "pending" ? "pending" : selectedInstallment.status === "approved" ? "approved" : selectedInstallment.status === "paid" ? "approved" : "rejected",
+              sla: { days: 3, label: "ต้องตรวจและอนุมัติภายใน 3 วันทำการ" },
+              approvedBy: selectedInstallment.paid_by ?? selectedInstallment.created_by_name ?? undefined,
+              approvedAt: selectedInstallment.paid_at ?? selectedInstallment.contractor_acknowledged_at,
+            }} />
+
+            {/* Installment Details */}
+            <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">รายละเอียด</p>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">งวดที่:</span>
+                  <span className="font-semibold text-aviva-text">#{selectedInstallment.installment_no}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">ชื่องวด:</span>
+                  <span className="font-semibold text-aviva-text">{selectedInstallment.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">สถานะ:</span>
+                  <span className={clsx("font-semibold", {
+                    "text-yellow-400": selectedInstallment.status === "pending",
+                    "text-blue-400": selectedInstallment.status === "in_review",
+                    "text-green-400": selectedInstallment.status === "approved" || selectedInstallment.status === "paid",
+                    "text-red-400": selectedInstallment.status === "rejected",
+                  })}>
+                    {selectedInstallment.status === "pending" ? "รอส่งตรวจ" : selectedInstallment.status === "in_review" ? "ส่งตรวจแล้ว" : selectedInstallment.status === "approved" ? "อนุมัติแล้ว" : selectedInstallment.status === "paid" ? "จ่ายแล้ว" : "ปฏิเสธ"}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-aviva-gold/10">
+                  <span className="text-aviva-secondary/60">มูลค่างวด:</span>
+                  <span className="font-bold text-aviva-gold">
+                    ฿{selectedInstallment.amount?.toLocaleString("th-TH") || "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Cost Breakdown */}
+            {((selectedInstallment.labor_cost ?? 0) > 0 || (selectedInstallment.material_cost ?? 0) > 0) && (
+              <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-1.5">
+                <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">รายละเอียดค่าใช้</p>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-aviva-secondary/60">ค่าแรง:</span>
+                  <span className="font-semibold text-aviva-text">฿{(selectedInstallment.labor_cost ?? 0).toLocaleString("th-TH")}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-aviva-secondary/60">ค่าวัสดุ:</span>
+                  <span className="font-semibold text-aviva-text">฿{(selectedInstallment.material_cost ?? 0).toLocaleString("th-TH")}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Workflow Timeline */}
+            <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">ประวัติการอนุมัติ</p>
+              <WorkflowTimeline sourceRecordId={selectedInstallment.id} />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              {selectedInstallment.status === "in_review" && user?.isManager && (
+                <>
+                  <button className="flex-1 py-3 flex items-center justify-center gap-2 bg-green-500/20 text-green-400 font-bold rounded-xl text-xs border border-green-500/30 hover:bg-green-500/30 transition-all">
+                    <Check size={14} /> อนุมัติ
+                  </button>
+                  <button className="flex-1 py-3 flex items-center justify-center gap-2 bg-red-500/20 text-red-400 font-bold rounded-xl text-xs border border-red-500/30 hover:bg-red-500/30 transition-all">
+                    <X size={14} /> ปฏิเสธ
+                  </button>
+                </>
+              )}
+              {selectedInstallment.status === "paid" && (
+                <button className="w-full py-3 flex items-center justify-center gap-2 border border-green-500/30 text-green-400 font-bold rounded-xl text-xs hover:bg-green-500/5 transition-all">
+                  <Printer size={14} /> ใบรับรองผลงาน
+                </button>
+              )}
+              <button onClick={() => setShowInstallmentDetail(false)}
+                className="w-full py-3 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold font-bold rounded-xl text-xs hover:bg-aviva-gold/5 transition-all">
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Defect Detail Modal */}
+      {showDefectDetail && selectedDefect && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">รายงาน Defect</h2>
+                <p className="text-[11px] text-aviva-secondary mt-0.5">{selectedDefect.description}</p>
+              </div>
+              <button onClick={() => setShowDefectDetail(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+
+            {/* Workflow Info */}
+            <WorkflowInfoPanel workflow={{
+              from: { label: "วิศวกรควบคุมงาน", description: "บันทึกข้อบกพร่องที่พบ" },
+              to: { label: "ผู้รับเหมา", description: "รับทราบและดำเนินการแก้ไข" },
+              action: { label: "แก้ไข Defect", description: "ดำเนินการแก้ไขตามข้อบกพร่องที่บันทึก" },
+              nextStep: { label: "ตรวจสอบซ้ำ", description: "ตรวจผลการแก้ไข" },
+              status: selectedDefect.status === "Open" ? "pending" : selectedDefect.status === "In Progress" ? "in_progress" : "approved",
+              sla: selectedDefect.due_date ? {
+                days: Math.ceil((new Date(selectedDefect.due_date).getTime() - Date.now()) / 86400000),
+                label: `ครบกำหนด: ${new Date(selectedDefect.due_date).toLocaleDateString("th-TH")}`
+              } : undefined,
+            }} />
+
+            {/* Defect Details */}
+            <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">รายละเอียด</p>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">หมวดหมู่:</span>
+                  <span className="font-semibold text-aviva-text">{selectedDefect.defect_category}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">ระดับความรุนแรง:</span>
+                  <span className={clsx("font-semibold", {
+                    "text-blue-400": selectedDefect.severity === "low",
+                    "text-yellow-400": selectedDefect.severity === "medium",
+                    "text-orange-400": selectedDefect.severity === "high",
+                    "text-red-400": selectedDefect.severity === "critical",
+                  })}>
+                    {selectedDefect.severity === "low" ? "เล็กน้อย" : selectedDefect.severity === "medium" ? "ปานกลาง" : selectedDefect.severity === "high" ? "สูง" : "วิกฤต"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">สถานะ:</span>
+                  <span className={clsx("font-semibold", {
+                    "text-yellow-400": selectedDefect.status === "Open",
+                    "text-blue-400": selectedDefect.status === "In Progress",
+                    "text-green-400": selectedDefect.status === "Resolved",
+                  })}>
+                    {selectedDefect.status === "Open" ? "เปิดอยู่" : selectedDefect.status === "In Progress" ? "กำลังแก้ไข" : "แก้ไขแล้ว"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">ผู้รับผิดชอบ:</span>
+                  <span className="font-semibold text-aviva-text">{selectedDefect.assigned_to || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary/60">รายงานเมื่อ:</span>
+                  <span className="font-semibold text-aviva-text">{new Date(selectedDefect.reported_at).toLocaleDateString("th-TH")}</span>
+                </div>
+                {selectedDefect.resolved_at && (
+                  <div className="flex justify-between">
+                    <span className="text-aviva-secondary/60">แก้ไขเสร็จ:</span>
+                    <span className="font-semibold text-green-400">{new Date(selectedDefect.resolved_at).toLocaleDateString("th-TH")}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="bg-aviva-bg/30 border border-aviva-gold/10 rounded-xl p-3 space-y-1">
+              <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider">รายละเอียดข้อบกพร่อง</p>
+              <p className="text-[11px] text-aviva-secondary/80 leading-relaxed">{selectedDefect.description}</p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              {selectedDefect.status === "Open" && (
+                <button className="flex-1 py-3 flex items-center justify-center gap-2 bg-yellow-500/20 text-yellow-400 font-bold rounded-xl text-xs border border-yellow-500/30 hover:bg-yellow-500/30 transition-all">
+                  <AlertTriangle size={14} /> เริ่มแก้ไข
+                </button>
+              )}
+              {selectedDefect.status !== "Resolved" && (
+                <button className="flex-1 py-3 flex items-center justify-center gap-2 bg-green-500/20 text-green-400 font-bold rounded-xl text-xs border border-green-500/30 hover:bg-green-500/30 transition-all">
+                  <Check size={14} /> แก้ไขแล้ว
+                </button>
+              )}
+              <button onClick={() => setShowDefectDetail(false)}
                 className="w-full py-3 flex items-center justify-center gap-2 border border-aviva-gold/30 text-aviva-gold font-bold rounded-xl text-xs hover:bg-aviva-gold/5 transition-all">
                 ปิด
               </button>

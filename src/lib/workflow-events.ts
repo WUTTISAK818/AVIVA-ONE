@@ -191,9 +191,18 @@ export function rolesForUser(user: {
     roles.add("engineer");
   }
 
+  // ฝ่ายบุคคล (HR) — ใบลารอดำเนินการ
+  if (inDept("บุคคล", "hr") || isRole("hr")) roles.add("hr");
+
+  // ฝ่ายหลังการขาย — เคลม/แจ้งซ่อมรอดำเนินการ
+  if (inDept("หลังการขาย") || isRole("after")) roles.add("after_sales");
+
+  // ฝ่ายการตลาด
+  if (inDept("การตลาด", "marketing") || isRole("market")) roles.add("marketing");
+
   // ผู้บริหาร/แอดมิน เห็นทุกกล่องงานเพื่อกำกับดูแล
   if (user.isAdmin) {
-    ["finance", "sales_ai", "construction_ai", "engineer"].forEach((r) => roles.add(r));
+    ["finance", "sales_ai", "construction_ai", "engineer", "hr", "after_sales", "marketing"].forEach((r) => roles.add(r));
   }
   return Array.from(roles);
 }

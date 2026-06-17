@@ -871,7 +871,13 @@ export default function CRMPage() {
       const prevLoanDate = editingLead.loan_approved_date;
       let loanCelebrated = false;
       const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, Number(form.budget) || 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: form.delivery_date || null, contract_price: form.contract_price ? Number(form.contract_price) : null, contract_signed_date: form.contract_signed_date || null, loan_approved_date: form.loan_approved_date || null, ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
-      if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
+      if (updateErr) {
+        setSaving(false);
+        // TC-06: DB unique index กันจองซ้ำ (race) — แปลผล error 23505 เป็นข้อความที่เข้าใจง่าย
+        const dup = updateErr.code === "23505" || /uq_leads_active_plot|duplicate key/i.test(updateErr.message);
+        setToast({ msg: dup ? `แปลง ${plotNum ?? editingLead.plot_number} ถูกจอง/ทำสัญญาโดยลูกค้ารายอื่นแล้ว — จองซ้ำไม่ได้` : "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" });
+        return;
+      }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
         if (effectivePlot) {

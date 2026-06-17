@@ -565,6 +565,14 @@ function ApprovalsContent() {
         from_dept: "ฝ่ายอนุมัติ",
         to_dept: "ฝ่ายขาย",
       });
+    } else if (log.workflow_type === "Marketing_Budget") {
+      await createNotification({
+        type: approved ? "success" : "info",
+        title: approved ? "อนุมัติงบการตลาดแล้ว" : "ปฏิเสธงบการตลาด",
+        message: log.source_doc_index ?? "",
+        from_dept: "ฝ่ายอนุมัติ",
+        to_dept: "ฝ่ายการตลาด",
+      });
     }
 
     // ปิดงานในกล่องผู้จัดการ + บันทึก timeline (Installment_Review จัดการเองด้านบนแล้ว — กัน event ซ้ำ)

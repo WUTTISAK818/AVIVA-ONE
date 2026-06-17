@@ -1509,14 +1509,32 @@ function MarketingContent() {
   const handleSaveBudget = async () => {
     if (!budgetForm.budget_amount) return;
     setSaving(true);
-    await supabase.from("marketing_budgets").upsert({
+    const amt = Number(budgetForm.budget_amount);
+    const { data: bud } = await supabase.from("marketing_budgets").upsert({
       project_id: PROJECT_ID,
       year: budgetForm.year,
       month: budgetForm.month,
-      budget_amount: Number(budgetForm.budget_amount),
+      budget_amount: amt,
       executive_name: budgetForm.executive_name,
       notes: budgetForm.notes,
-    }, { onConflict: "project_id,year,month" });
+    }, { onConflict: "project_id,year,month" }).select("id").single();
+
+    // เข้าสายอนุมัติงบการตลาด (MKTG) — ออกเลขเอกสาร + ส่งผู้บริหารพิจารณา (โผล่ใน /approvals + กล่องงาน)
+    const mktgDocNum = await generateDocNumber("MKTG");
+    await supabase.from("approval_logs").insert({
+      workflow_type: "Marketing_Budget",
+      source_doc_index: `${mktgDocNum} | งบการตลาด ${budgetForm.month}/${budgetForm.year} ฿${amt.toLocaleString()} | โดย ${user?.full_name ?? user?.email ?? "ฝ่ายการตลาด"}`,
+      submitted_by_user_id: user?.id ?? null,
+      source_record_id: bud?.id ?? null,
+      current_approver_role: "manager",
+      action_taken: "Pending",
+      amount: amt,
+      sla_due_at: calcSlaDueAt("Marketing_Budget"),
+      assigned_to_name: "ผู้จัดการ",
+    });
+    await createNotification({ type: "approval", title: "ขออนุมัติงบการตลาด", message: `${mktgDocNum} · งบเดือน ${budgetForm.month}/${budgetForm.year} ฿${amt.toLocaleString()}`, from_dept: "ฝ่ายการตลาด", to_dept: "ผู้บริหาร" });
+    await logAction("marketing", "request_approval", `ขออนุมัติงบการตลาด ฿${amt.toLocaleString()}`, bud?.id ?? undefined);
+
     setSaving(false);
     setShowBudgetModal(false);
     setBudgetForm({ year: new Date().getFullYear(), month: new Date().getMonth() + 1, budget_amount: "", executive_name: "", notes: "" });

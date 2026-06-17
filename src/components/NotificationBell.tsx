@@ -22,15 +22,15 @@ interface Notification {
   link: string | null;
 }
 
-const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string }> = {
-  approval: { Icon: AlertCircle, color: "text-yellow-400", bg: "bg-yellow-500/10" },
-  claim:    { Icon: AlertCircle, color: "text-red-400",    bg: "bg-red-500/10" },
-  document: { Icon: FileText,    color: "text-blue-400",   bg: "bg-blue-500/10" },
-  success:  { Icon: CheckCircle, color: "text-green-400",  bg: "bg-green-500/10" },
-  info:     { Icon: Info,        color: "text-blue-400",   bg: "bg-blue-500/10" },
-  ai_briefing:     { Icon: Info, color: "text-aviva-gold", bg: "bg-aviva-gold/10" },
-  ai_meeting:      { Icon: Info, color: "text-aviva-gold", bg: "bg-aviva-gold/10" },
-  workflow_update: { Icon: CheckCircle, color: "text-teal-400", bg: "bg-teal-500/10" },
+const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string; label: string; needsAction?: boolean }> = {
+  approval: { Icon: AlertCircle, color: "text-yellow-400", bg: "bg-yellow-500/10", label: "ขออนุมัติ", needsAction: true },
+  claim:    { Icon: AlertCircle, color: "text-red-400",    bg: "bg-red-500/10",    label: "งานเคลม/แจ้งซ่อม", needsAction: true },
+  document: { Icon: FileText,    color: "text-blue-400",   bg: "bg-blue-500/10",   label: "เอกสาร" },
+  success:  { Icon: CheckCircle, color: "text-green-400",  bg: "bg-green-500/10",  label: "ดำเนินการสำเร็จ" },
+  info:     { Icon: Info,        color: "text-blue-400",   bg: "bg-blue-500/10",   label: "แจ้งเพื่อทราบ" },
+  ai_briefing:     { Icon: Info, color: "text-aviva-gold", bg: "bg-aviva-gold/10", label: "สรุปโดย AI" },
+  ai_meeting:      { Icon: Info, color: "text-aviva-gold", bg: "bg-aviva-gold/10", label: "ประชุม AI" },
+  workflow_update: { Icon: CheckCircle, color: "text-teal-400", bg: "bg-teal-500/10", label: "อัปเดตงาน" },
 };
 
 function timeAgo(ts: string): string {
@@ -261,7 +261,13 @@ export default function NotificationBell() {
                     <div className="flex-1 min-w-0">
                       <p className={clsx("text-xs font-semibold truncate", isUnread(n) ? "text-aviva-text" : "text-aviva-secondary")}>{n.title}</p>
                       <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{n.message}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {/* ป้ายประเภทข้อความ — บอกผู้อ่านว่าเป็นเรื่องอะไร */}
+                        <span className={clsx("text-[9px] px-1.5 py-0.5 rounded-full font-semibold", tc.bg, tc.color)}>{tc.label}</span>
+                        {/* บอกชัดว่าต้องลงมือ หรือแค่รับทราบ */}
+                        {tc.needsAction
+                          ? <span className="text-[9px] text-amber-400 font-bold">⚡ ต้องดำเนินการ</span>
+                          : <span className="text-[9px] text-aviva-secondary/60">เพื่อทราบ</span>}
                         {n.from_dept && <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{n.from_dept}</span>}
                         <span className="text-[9px] text-aviva-secondary/50">{timeAgo(n.created_at)}</span>
                       </div>

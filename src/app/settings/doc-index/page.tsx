@@ -4,16 +4,16 @@ import Link from "next/link";
 import GlassCard from "@/components/GlassCard";
 
 const DOC_PREFIXES = [
-  { prefix: "FIN", nameTh: "ขออนุมัติรายจ่ายการเงิน", example: "FIN-26001", dept: "ฝ่ายการเงิน / บัญชี", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/20", desc: "เอกสารขออนุมัติรายจ่ายจากฝ่ายการเงิน เช่น ค่าใช้จ่ายโครงการ ค่าสาธารณูปโภค ค่าจ้างพิเศษ ต้องผ่านผู้จัดการ" },
-  { prefix: "PO", nameTh: "ใบสั่งซื้อวัสดุ", example: "PO-26003", dept: "ฝ่ายก่อสร้าง", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20", desc: "ใบสั่งซื้อวัสดุก่อสร้าง อุปกรณ์ และวัสดุสิ้นเปลือง ต้องระบุปริมาณ ราคาต่อหน่วย และผู้จัดหา" },
-  { prefix: "PR", nameTh: "ขออนุมัติก่อนซื้อ", example: "PR-26001", dept: "ฝ่ายสำนักงาน / การเงิน", color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/20", desc: "คำขอซื้อ/ติดตั้งที่ต้องอนุมัติก่อนจ่าย (เกณฑ์ตั้งแต่ ฿2,000 ขึ้นไป) เช่น ฟิล์มกรองแสง อุปกรณ์สำนักงาน เมื่ออนุมัติแล้วฝ่ายการเงินบันทึกจ่ายและลงบัญชีอัตโนมัติ" },
-  { prefix: "INST", nameTh: "ตรวจสอบงวดงานก่อสร้าง", example: "INST-26007", dept: "ฝ่ายก่อสร้าง", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20", desc: "เอกสารส่งตรวจงวดงานก่อสร้าง 10 งวด เมื่อผ่านการตรวจ ผู้จัดการอนุมัติและเบิกเงินผู้รับเหมาได้" },
-  { prefix: "DOC", nameTh: "ขออนุมัติเอกสารทั่วไป", example: "DOC-26002", dept: "ฝ่ายออฟฟิศ", color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20", desc: "เอกสารสำคัญทั่วไปที่ต้องผ่านการอนุมัติ เช่น แบบฟอร์มภายใน ใบรับรอง เอกสารราชการ" },
-  { prefix: "LEAVE", nameTh: "ใบขออนุมัติการลา", example: "LEAVE-26015", dept: "ฝ่ายบุคคล (HR)", color: "text-teal-400", bg: "bg-teal-400/10 border-teal-400/20", desc: "ใบขอลาหยุด ลากิจ ลาป่วย ลาพักร้อน ต้องยื่นล่วงหน้าอย่างน้อย 1 วัน (ยกเว้นลาป่วย)" },
-  { prefix: "BOOK", nameTh: "ใบจอง / มัดจำ", example: "BOOK-26005", dept: "ฝ่ายขาย", color: "text-aviva-gold", bg: "bg-aviva-gold/10 border-aviva-gold/20", desc: "เอกสารยืนยันการจองยูนิต พร้อมรายละเอียดมัดจำ แปลงที่จอง และข้อกำหนดการจอง" },
-  { prefix: "CONTRACT", nameTh: "อนุมัติสัญญา", example: "CONTRACT-26001", dept: "ฝ่ายขาย / ผู้บริหาร", color: "text-green-400", bg: "bg-green-400/10 border-green-400/20", desc: "สัญญาจะซื้อจะขาย สัญญาผู้รับเหมา ต้องผ่านผู้มีอำนาจลงนาม และมีพยาน 2 ท่าน" },
-  { prefix: "MKTG", nameTh: "อนุมัติงบการตลาด", example: "MKTG-26004", dept: "ฝ่ายการตลาด", color: "text-pink-400", bg: "bg-pink-400/10 border-pink-400/20", desc: "ขออนุมัติงบโฆษณา จัดกิจกรรม งานอีเวนต์ สื่อออนไลน์ และประชาสัมพันธ์โครงการ" },
-  { prefix: "WR", nameTh: "แจ้งซ่อม / ประกัน", example: "WR-26010", dept: "ฝ่ายหลังการขาย", color: "text-red-400", bg: "bg-red-400/10 border-red-400/20", desc: "เอกสารแจ้งซ่อมหลังการขาย ครอบคลุมประกันโครงสร้าง ระบบท่อ ไฟฟ้า สีและทาสี" },
+  { prefix: "FIN", nameTh: "ขออนุมัติรายจ่ายการเงิน", example: "FIN-6906-009", dept: "ฝ่ายการเงิน / บัญชี", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/20", desc: "เอกสารขออนุมัติรายจ่ายจากฝ่ายการเงิน เช่น ค่าใช้จ่ายโครงการ ค่าสาธารณูปโภค ค่าจ้างพิเศษ ต้องผ่านผู้จัดการ" },
+  { prefix: "PO", nameTh: "ใบสั่งซื้อวัสดุ", example: "PO-6906-003", dept: "ฝ่ายก่อสร้าง", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20", desc: "ใบสั่งซื้อวัสดุก่อสร้าง อุปกรณ์ และวัสดุสิ้นเปลือง ต้องระบุปริมาณ ราคาต่อหน่วย และผู้จัดหา" },
+  { prefix: "PR", nameTh: "ขออนุมัติก่อนซื้อ", example: "PR-6906-001", dept: "ฝ่ายสำนักงาน / การเงิน", color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/20", desc: "คำขอซื้อ/ติดตั้งที่ต้องอนุมัติก่อนจ่าย (เกณฑ์ตั้งแต่ ฿2,000 ขึ้นไป) เช่น ฟิล์มกรองแสง อุปกรณ์สำนักงาน เมื่ออนุมัติแล้วฝ่ายการเงินบันทึกจ่ายและลงบัญชีอัตโนมัติ" },
+  { prefix: "INST", nameTh: "ตรวจสอบงวดงานก่อสร้าง", example: "INST-6906-007", dept: "ฝ่ายก่อสร้าง", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20", desc: "เอกสารส่งตรวจงวดงานก่อสร้าง 10 งวด เมื่อผ่านการตรวจ ผู้จัดการอนุมัติและเบิกเงินผู้รับเหมาได้" },
+  { prefix: "DOC", nameTh: "ขออนุมัติเอกสารทั่วไป", example: "DOC-6906-002", dept: "ฝ่ายออฟฟิศ", color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20", desc: "เอกสารสำคัญทั่วไปที่ต้องผ่านการอนุมัติ เช่น แบบฟอร์มภายใน ใบรับรอง เอกสารราชการ" },
+  { prefix: "LEAVE", nameTh: "ใบขออนุมัติการลา", example: "LEAVE-6906-015", dept: "ฝ่ายบุคคล (HR)", color: "text-teal-400", bg: "bg-teal-400/10 border-teal-400/20", desc: "ใบขอลาหยุด ลากิจ ลาป่วย ลาพักร้อน ต้องยื่นล่วงหน้าอย่างน้อย 1 วัน (ยกเว้นลาป่วย)" },
+  { prefix: "BOOK", nameTh: "ใบจอง / มัดจำ", example: "BOOK-6906-005", dept: "ฝ่ายขาย", color: "text-aviva-gold", bg: "bg-aviva-gold/10 border-aviva-gold/20", desc: "เอกสารยืนยันการจองยูนิต พร้อมรายละเอียดมัดจำ แปลงที่จอง และข้อกำหนดการจอง" },
+  { prefix: "CONTRACT", nameTh: "อนุมัติสัญญา", example: "CONTRACT-6906-001", dept: "ฝ่ายขาย / ผู้บริหาร", color: "text-green-400", bg: "bg-green-400/10 border-green-400/20", desc: "สัญญาจะซื้อจะขาย สัญญาผู้รับเหมา ต้องผ่านผู้มีอำนาจลงนาม และมีพยาน 2 ท่าน (หมายเหตุ: เลขที่สัญญาจะซื้อจะขายในตัวเอกสาร ใช้รูปแบบราชการ ดดปป/ลำดับ เช่น 0669/1)" },
+  { prefix: "MKTG", nameTh: "อนุมัติงบการตลาด", example: "MKTG-6906-004", dept: "ฝ่ายการตลาด", color: "text-pink-400", bg: "bg-pink-400/10 border-pink-400/20", desc: "ขออนุมัติงบโฆษณา จัดกิจกรรม งานอีเวนต์ สื่อออนไลน์ และประชาสัมพันธ์โครงการ" },
+  { prefix: "WR", nameTh: "แจ้งซ่อม / ประกัน", example: "WR-6906-010", dept: "ฝ่ายหลังการขาย", color: "text-red-400", bg: "bg-red-400/10 border-red-400/20", desc: "เอกสารแจ้งซ่อมหลังการขาย ครอบคลุมประกันโครงสร้าง ระบบท่อ ไฟฟ้า สีและทาสี" },
 ];
 
 export default function DocIndexPage() {
@@ -29,14 +29,15 @@ export default function DocIndexPage() {
         <GlassCard className="p-4">
           <div className="flex items-center gap-2 mb-3"><Hash size={15} className="text-aviva-gold" /><p className="text-sm font-semibold text-aviva-text">รูปแบบเลขที่เอกสาร</p></div>
           <div className="bg-aviva-bg rounded-xl p-4 font-mono text-center mb-3">
-            <span className="text-aviva-gold font-bold text-lg">PREFIX</span><span className="text-aviva-secondary text-lg"> — </span><span className="text-blue-400 font-bold text-lg">ปี ค.ศ.</span><span className="text-green-400 font-bold text-lg">ลำดับ</span>
+            <span className="text-aviva-gold font-bold text-lg">PREFIX</span><span className="text-aviva-secondary text-lg">-</span><span className="text-blue-400 font-bold text-lg">ปป</span><span className="text-orange-400 font-bold text-lg">ดด</span><span className="text-aviva-secondary text-lg">-</span><span className="text-green-400 font-bold text-lg">ลำดับ</span>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="grid grid-cols-4 gap-2 text-center text-xs">
             <div className="bg-aviva-gold/10 rounded-lg p-2 border border-aviva-gold/20"><p className="font-bold text-aviva-gold">PREFIX</p><p className="text-aviva-secondary mt-0.5">รหัสฝ่าย/ประเภท</p></div>
-            <div className="bg-blue-500/10 rounded-lg p-2 border border-blue-500/20"><p className="font-bold text-blue-400">26</p><p className="text-aviva-secondary mt-0.5">2 หลักสุดท้ายของปี</p></div>
-            <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20"><p className="font-bold text-green-400">001</p><p className="text-aviva-secondary mt-0.5">ลำดับ (รีเซ็ตทุกปี)</p></div>
+            <div className="bg-blue-500/10 rounded-lg p-2 border border-blue-500/20"><p className="font-bold text-blue-400">69</p><p className="text-aviva-secondary mt-0.5">ปี พ.ศ. 2 หลัก</p></div>
+            <div className="bg-orange-500/10 rounded-lg p-2 border border-orange-500/20"><p className="font-bold text-orange-400">06</p><p className="text-aviva-secondary mt-0.5">เดือน (01–12)</p></div>
+            <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20"><p className="font-bold text-green-400">009</p><p className="text-aviva-secondary mt-0.5">ลำดับ (รีเซ็ตทุกเดือน)</p></div>
           </div>
-          <p className="text-[11px] text-aviva-secondary/70 mt-3 text-center">ตัวอย่าง: <span className="font-mono text-aviva-gold">WR-26003</span> = แจ้งซ่อมรายการที่ 3 ของปี 2026</p>
+          <p className="text-[11px] text-aviva-secondary/70 mt-3 text-center">ตัวอย่าง: <span className="font-mono text-aviva-gold">FIN-6906-009</span> = ฝ่ายการเงิน ปี พ.ศ. 2569 เดือนมิถุนายน ลำดับที่ 9</p>
         </GlassCard>
         <div>
           <p className="text-xs font-semibold text-aviva-secondary/70 uppercase tracking-wider mb-3">รหัสตัวย่อทั้งหมด ({DOC_PREFIXES.length} ประเภท)</p>
@@ -61,7 +62,8 @@ export default function DocIndexPage() {
         <GlassCard className="p-4">
           <p className="text-xs font-semibold text-aviva-text mb-2">หมายเหตุ</p>
           <ul className="space-y-1.5 text-xs text-aviva-secondary">
-            <li>• เลขลำดับรีเซ็ตเป็น 001 ทุกต้นปีปฏิทิน (1 มกราคม)</li>
+            <li>• เลขลำดับรีเซ็ตเป็น 001 ทุกต้นเดือน (วันที่ 1 ของเดือน ตามเวลาไทย)</li>
+            <li>• ปีใช้ พ.ศ. 2 หลักท้าย (เช่น 2569 → 69) ออกเลขแบบ atomic กันเลขซ้ำ</li>
             <li>• เลขที่เอกสารสร้างอัตโนมัติโดยระบบ ห้ามแก้ไขด้วยตนเอง</li>
             <li>• เอกสารที่ถูกปฏิเสธจะยังคงเลขที่เดิม แต่บันทึกสถานะ "ปฏิเสธ"</li>
             <li>• สามารถค้นหาเอกสารด้วยเลขที่ในหน้าอนุมัติ และฝ่ายออฟฟิศ</li>

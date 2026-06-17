@@ -21,7 +21,7 @@ export function esc(s: unknown): string {
 
 export interface DocShellOpts {
   title: string;          // ชื่อเอกสาร เช่น "ใบสั่งซื้อวัสดุ"
-  docNumber?: string;     // เลขรันเอกสาร เช่น "PO-26003"
+  docNumber?: string;     // เลขรันเอกสาร เช่น "PO-6906-003"
   dateText?: string;      // วันที่ (ไทย) — ไม่ใส่ = วันนี้
   bodyHtml: string;       // เนื้อหา (HTML)
   signLabels?: string[];  // ป้ายช่องเซ็น เช่น ["ผู้จัดทำ","ผู้อนุมัติ"]

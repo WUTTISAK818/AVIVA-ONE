@@ -855,13 +855,14 @@ function TaxTab() {
   const [lbtForm, setLbtForm] = useState({ tax_year: String(new Date().getFullYear() + 543), appraised_value: "", parcel_number: "", due_date: "" });
   // ข้อ 4 — โอนกรรมสิทธิ์: ปันส่วนที่ดิน/สิ่งปลูกสร้าง → ออก VAT + SBT อัตโนมัติ
   const [houses, setHouses] = useState<House[]>([]);
-  const [tForm, setTForm] = useState({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "" });
+  const [tForm, setTForm] = useState({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "", advance_received: "" });
   const [tPosting, setTPosting] = useState(false);
   const [tDone, setTDone] = useState<string | null>(null);
   const period = yymm();
 
   const totalPrice = Number(tForm.total_price) || 0;
   const landValue = Number(tForm.land_value) || 0;
+  const advance = Math.min(Math.max(0, Number(tForm.advance_received) || 0), totalPrice); // เงินรับล่วงหน้าที่รับไว้แล้ว (กลับเป็นรายได้)
   const structureValue = Math.max(0, totalPrice - landValue);
   const sbtBase = Number(tForm.appraised_value) || totalPrice;  // ฐาน ภ.ธ./ค่าโอน ใช้ราคาประเมิน (ถ้าไม่กรอกใช้ราคาขาย)
   const tOutputVat = Math.round(structureValue * TAX_CONFIG.VAT_RATE * 100) / 100;
@@ -897,7 +898,8 @@ function TaxTab() {
       description: `โอนกรรมสิทธิ์ ${tForm.house_number} — รับรู้รายได้ + VAT ขาย + ตัดต้นทุนขาย`,
       ref_number: ref,
       lines: [
-        { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: totalPrice + tOutputVat, credit: 0, description: tForm.house_number },
+        ...(advance > 0 ? [{ account_code: CUSTOMER_ADVANCE.code, account_name: CUSTOMER_ADVANCE.name, debit: advance, credit: 0, description: "กลับเงินรับล่วงหน้า" }] : []),
+        { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: totalPrice + tOutputVat - advance, credit: 0, description: tForm.house_number },
         { account_code: SALES_REVENUE.code, account_name: SALES_REVENUE.name, debit: 0, credit: totalPrice, description: "ที่ดิน+สิ่งปลูกสร้าง" },
         ...(tOutputVat > 0 ? [{ account_code: OUTPUT_VAT.code, account_name: OUTPUT_VAT.name, debit: 0, credit: tOutputVat, description: "VAT 7% สิ่งปลูกสร้าง" }] : []),
         ...(cogs > 0 ? [
@@ -940,7 +942,7 @@ function TaxTab() {
     }
     setTPosting(false);
     setTDone(ref);
-    setTForm({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "" });
+    setTForm({ house_id: "", house_number: "", transfer_date: today(), total_price: "", land_value: "", appraised_value: "", advance_received: "" });
   };
 
   const loadWht = () => supabase.from("wht_certificates").select("*").eq("project_id", PROJECT_ID).order("cert_date",{ascending:false}).limit(50).then(({data})=>setWhtCerts((data??[]) as WhtCert[]));
@@ -1029,6 +1031,7 @@ function TaxTab() {
             <div><label className="text-[11px] text-aviva-secondary mb-1 block">มูลค่าที่ดิน (ยกเว้น VAT) *</label><input type="number" min="0" placeholder="0.00" value={tForm.land_value} onChange={e=>setTForm(f=>({...f,land_value:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
             <div><label className="text-[11px] text-aviva-secondary mb-1 block">ราคาประเมิน (ฐานค่าโอน)</label><input type="number" min="0" placeholder="= ราคาขาย" value={tForm.appraised_value} onChange={e=>setTForm(f=>({...f,appraised_value:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
           </div>
+          <div><label className="text-[11px] text-aviva-secondary mb-1 block">เงินรับล่วงหน้า/ดาวน์ที่รับไว้แล้ว (กลับเป็นรายได้)</label><input type="number" min="0" placeholder="0.00 (ถ้ามี)" value={tForm.advance_received} onChange={e=>setTForm(f=>({...f,advance_received:e.target.value}))} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40"/></div>
           {totalPrice>0&&(
             <div className="p-3 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs space-y-1">
               <div className="flex justify-between"><span className="text-aviva-secondary">มูลค่าสิ่งปลูกสร้าง (ฐาน VAT)</span><span className="text-aviva-text">฿{fmt(structureValue)}</span></div>

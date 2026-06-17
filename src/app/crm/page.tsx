@@ -26,6 +26,8 @@ import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
 import { compressImage } from "@/lib/image-compress";
 import { PAYMENT_PLAN, defaultInstallments } from "@/lib/payment-plan";
+import { postJv } from "@/lib/jv";
+import { BANK, CUSTOMER_ADVANCE } from "@/lib/gl-accounts";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
@@ -839,6 +841,15 @@ export default function CRMPage() {
         transaction_type: "income", amount: amt, category: "รับชำระงวด/เงินดาวน์",
         description: `รับชำระ ${inst.name}${custName ? ` — ${custName}` : ""}${ref ? ` (อ้างอิง ${ref})` : ""}`,
         approved_by: user?.id ?? null, project_id: PROJECT_ID,
+      });
+      // ลง GL: รับเงินดาวน์/งวดผ่อน = Dr เงินฝากธนาคาร / Cr เงินรับล่วงหน้าจากลูกค้า (กลับเป็นรายได้ตอนโอน)
+      await postJv({
+        project_id: PROJECT_ID, jv_date: date || today, ref_number: ref || null,
+        description: `รับชำระ ${inst.name}${custName ? ` — ${custName}` : ""}`,
+        lines: [
+          { account_code: BANK.code, account_name: BANK.name, debit: amt, credit: 0, description: custName },
+          { account_code: CUSTOMER_ADVANCE.code, account_name: CUSTOMER_ADVANCE.name, debit: 0, credit: amt, description: inst.name },
+        ],
       });
     }
     await createNotification({

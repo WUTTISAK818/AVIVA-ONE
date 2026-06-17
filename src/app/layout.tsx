@@ -7,6 +7,7 @@ import HelpAssistant from "@/components/HelpAssistant";
 import AuthProvider from "@/components/AuthProvider";
 import SWRegister from "@/components/SWRegister";
 import ErrorLogger from "@/components/ErrorLogger";
+import PushPrompt from "@/components/PushPrompt";
 import { UserProvider } from "@/lib/user-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import CelebrationBroadcaster from "@/components/CelebrationBroadcaster";
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BottomNav />
             <HelpAssistant />
             <SWRegister />
+            <PushPrompt />
             <ErrorLogger />
             <CelebrationBroadcaster />
           </UserProvider>

@@ -105,7 +105,7 @@ function printWht(w: WhtCert) {
 interface SbtEntry { id: string; period: string; base_amount: number; sbt_amount: number; total_tax: number; status: string; transfer_date?: string; }
 interface LbtEntry { id: string; tax_year: number; appraised_value: number; tax_amount: number; status: string; due_date?: string; }
 interface InfraCost { id: string; cost_type: string; total_cost: number; phase?: string; is_allocated: boolean; description?: string; }
-interface RevenueRec { id: string; house_number: string; contract_value: number; recognized_amount: number; deferred_amount: number; received_total: number; status: string; transfer_date?: string; contract_date?: string; }
+interface RevenueRec { id: string; house_id?: string; house_number: string; contract_value: number; recognized_amount: number; deferred_amount: number; received_total: number; status: string; transfer_date?: string; contract_date?: string; }
 interface House { id: string; house_number: string; plot_number: number; house_model: string; sale_price?: number; price?: number; land_cost?: number; }
 
 function StatusBadge({ status }: { status: string }) {
@@ -1279,7 +1279,29 @@ function TFRS15Tab() {
   const totalRecognized = rows.reduce((s, r) => s + Number(r.recognized_amount), 0);
   const totalDeferred = rows.reduce((s, r) => s + Number(r.deferred_amount), 0);
 
-  const recognize = async (id: string, contractValue: number, transferDate: string) => {
+  const recognize = async (id: string, contractValue: number, transferDate: string, houseId?: string) => {
+    // ลง GL รับรู้รายได้ + ตัดต้นทุนขาย — กันซ้ำด้วย ref REV-{id} (ถ้าโอนผ่านแท็บภาษีแล้วจะไม่ลงซ้ำ)
+    const ref = `REV-${id.slice(0, 8)}`;
+    const { data: dup } = await supabase.from("jv_entries").select("id").eq("ref_number", ref).limit(1);
+    if (!dup || dup.length === 0) {
+      let cogs = 0;
+      if (houseId) {
+        const { data: ci } = await supabase.from("contractor_installments").select("amount,status").eq("house_id", houseId);
+        cogs = Math.round((ci ?? []).filter(x => x.status === "paid").reduce((s, x) => s + Number(x.amount ?? 0), 0) * 100) / 100;
+      }
+      await postJv({
+        project_id: PROJECT_ID, jv_date: transferDate, ref_number: ref,
+        description: `รับรู้รายได้ TFRS15 — ${id.slice(0, 8)}`,
+        lines: [
+          { account_code: ACC_AR.code, account_name: ACC_AR.name, debit: contractValue, credit: 0 },
+          { account_code: SALES_REVENUE.code, account_name: SALES_REVENUE.name, debit: 0, credit: contractValue },
+          ...(cogs > 0 ? [
+            { account_code: COGS.code, account_name: COGS.name, debit: cogs, credit: 0 },
+            { account_code: WIP.code, account_name: WIP.name, debit: 0, credit: cogs },
+          ] : []),
+        ],
+      });
+    }
     await supabase.from("revenue_recognition").update({ recognized_amount: contractValue, deferred_amount: 0, status: "recognized", transfer_date: transferDate, updated_at: new Date().toISOString() }).eq("id", id);
     setRecognizingId(null);
     fetch();
@@ -1298,7 +1320,7 @@ function TFRS15Tab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <SectionHeader title="TFRS 15 — รับรู้รายได้" subtitle="รับรู้เมื่อโอนกรรมสิทธิ์" />
+        <SectionHeader title="TFRS 15 — รับรู้รายได้" subtitle="รับรู้เมื่อโอน · ลง JV รายได้+ต้นทุนขาย (ใช้ทางเดียวกับ ภาษี→โอน ต่อแปลง)" />
         <button onClick={()=>setShowModal(true)} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg px-3 py-2 rounded-xl text-sm font-bold"><Plus size={14}/> เพิ่ม</button>
       </div>
       <div className="grid grid-cols-3 gap-3">
@@ -1319,7 +1341,7 @@ function TFRS15Tab() {
             {r.status==="pending"&&(recognizingId===r.id?(
               <div className="flex-shrink-0 flex items-center gap-1">
                 <input type="date" value={recognizeDate} onChange={e=>setRecognizeDate(e.target.value)} className="bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text w-32"/>
-                <button onClick={()=>recognize(r.id,Number(r.contract_value),recognizeDate)} className="text-[11px] px-2 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1"><Check size={11}/> ยืนยัน</button>
+                <button onClick={()=>recognize(r.id,Number(r.contract_value),recognizeDate,r.house_id)} className="text-[11px] px-2 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1"><Check size={11}/> ยืนยัน</button>
                 <button onClick={()=>setRecognizingId(null)} className="text-[11px] px-2 py-1.5 rounded-lg bg-gray-500/20 text-gray-400"><X size={11}/></button>
               </div>
             ):(

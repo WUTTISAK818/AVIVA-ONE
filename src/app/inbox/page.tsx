@@ -129,83 +129,93 @@ export default function InboxPage() {
     const queueItems = (data as WorkQueueItem[]) ?? [];
     let merged: WorkQueueItem[] = queueItems;
 
-    // ผู้จัดการ/ผู้บริหาร: รวมงานรออนุมัติที่อยู่นอก work_queue เข้ากล่องงานให้ครบ
-    if (roles.includes("manager")) {
+    // รวมงานจากตารางต้นทาง (โผล่/หายตามสถานะจริง ไม่ค้างกล่อง) เข้ากล่องงานตามบทบาท
+    const wantApprovals = roles.includes("manager");                      // ผู้อนุมัติ
+    const wantLeave = wantApprovals || roles.includes("hr");              // + ฝ่ายบุคคล
+    const wantWarranty = wantApprovals || roles.includes("after_sales");  // + หลังการขาย
+    if (wantApprovals || wantLeave || wantWarranty) {
       const seen = new Set(queueItems.map((q) => q.source_record_id));
+      const extra: WorkQueueItem[] = [];
 
-      // (ก) approval_logs ที่ยัง Pending (จอง/สัญญา/จัดซื้อ/การเงิน/เอกสาร)
-      const { data: appr } = await supabase
-        .from("approval_logs")
-        .select("approval_id, workflow_type, source_record_id, source_doc_index, amount, sla_due_at, created_at")
-        .eq("action_taken", "Pending");
-      const apprItems: WorkQueueItem[] = (
-        (appr as {
-          approval_id: string; workflow_type: string; source_record_id: string | null;
-          source_doc_index: string | null; amount: number | null;
-          sla_due_at: string | null; created_at: string;
-        }[]) ?? []
-      )
-        .filter((a) => !a.source_record_id || !seen.has(a.source_record_id))
-        .map((a) => ({
-          id: a.approval_id,
-          workflow_type: a.workflow_type,
-          source_record_id: a.source_record_id ?? a.approval_id,
-          doc_index: a.source_doc_index,
-          title: (a.source_doc_index ?? "").split(" | ")[1] || a.source_doc_index || a.workflow_type,
-          amount: a.amount,
+      // (ก) approval_logs ที่ยัง Pending (จอง/สัญญา/จัดซื้อ/การเงิน/เอกสาร) — เฉพาะผู้อนุมัติ
+      if (wantApprovals) {
+        const { data: appr } = await supabase
+          .from("approval_logs")
+          .select("approval_id, workflow_type, source_record_id, source_doc_index, amount, sla_due_at, created_at")
+          .eq("action_taken", "Pending");
+        extra.push(...(
+          (appr as {
+            approval_id: string; workflow_type: string; source_record_id: string | null;
+            source_doc_index: string | null; amount: number | null;
+            sla_due_at: string | null; created_at: string;
+          }[]) ?? []
+        )
+          .filter((a) => !a.source_record_id || !seen.has(a.source_record_id))
+          .map((a) => ({
+            id: a.approval_id,
+            workflow_type: a.workflow_type,
+            source_record_id: a.source_record_id ?? a.approval_id,
+            doc_index: a.source_doc_index,
+            title: (a.source_doc_index ?? "").split(" | ")[1] || a.source_doc_index || a.workflow_type,
+            amount: a.amount,
+            assigned_role: "manager",
+            status: "open",
+            sla_due_at: a.sla_due_at,
+            created_at: a.created_at,
+          })));
+      }
+
+      // (ข) ใบลาที่รอดำเนินการ — ผู้บริหาร + ฝ่ายบุคคล (HR)
+      if (wantLeave) {
+        const { data: leaves } = await supabase
+          .from("leave_requests")
+          .select("id, employee_name, leave_type, date_from, date_to, days_count, created_at")
+          .eq("status", "pending");
+        extra.push(...(
+          (leaves as {
+            id: string; employee_name: string | null; leave_type: string | null;
+            date_from: string | null; date_to: string | null; days_count: number | null; created_at: string;
+          }[]) ?? []
+        ).map((l) => ({
+          id: `leave-${l.id}`,
+          workflow_type: "Leave_Request",
+          source_record_id: l.id,
+          doc_index: l.date_from ? `${l.date_from}${l.date_to ? " – " + l.date_to : ""}` : null,
+          title: `ใบลา: ${l.employee_name ?? "-"} — ${l.leave_type ?? "ลา"}${l.days_count ? ` (${l.days_count} วัน)` : ""}`,
+          amount: null,
           assigned_role: "manager",
           status: "open",
-          sla_due_at: a.sla_due_at,
-          created_at: a.created_at,
-        }));
+          sla_due_at: null,
+          created_at: l.created_at,
+        })));
+      }
 
-      // (ข) ใบลาที่รออนุมัติ — ตาราง leave_requests (ไม่ได้ผ่าน approval_logs)
-      const { data: leaves } = await supabase
-        .from("leave_requests")
-        .select("id, employee_name, leave_type, date_from, date_to, days_count, created_at")
-        .eq("status", "pending");
-      const leaveItems: WorkQueueItem[] = (
-        (leaves as {
-          id: string; employee_name: string | null; leave_type: string | null;
-          date_from: string | null; date_to: string | null; days_count: number | null; created_at: string;
-        }[]) ?? []
-      ).map((l) => ({
-        id: `leave-${l.id}`,
-        workflow_type: "Leave_Request",
-        source_record_id: l.id,
-        doc_index: l.date_from ? `${l.date_from}${l.date_to ? " – " + l.date_to : ""}` : null,
-        title: `ใบลา: ${l.employee_name ?? "-"} — ${l.leave_type ?? "ลา"}${l.days_count ? ` (${l.days_count} วัน)` : ""}`,
-        amount: null,
-        assigned_role: "manager",
-        status: "open",
-        sla_due_at: null,
-        created_at: l.created_at,
-      }));
+      // (ค) เคลมประกันที่รอดำเนินการ — ผู้บริหาร + ฝ่ายหลังการขาย
+      if (wantWarranty) {
+        const { data: warr } = await supabase
+          .from("warranty_claims")
+          .select("id, customer_name, house_number, issue_type, created_at")
+          .eq("status", "pending");
+        extra.push(...(
+          (warr as {
+            id: string; customer_name: string | null; house_number: string | null;
+            issue_type: string | null; created_at: string;
+          }[]) ?? []
+        ).map((w) => ({
+          id: `warranty-${w.id}`,
+          workflow_type: "Warranty_Claim",
+          source_record_id: w.id,
+          doc_index: w.house_number ? `บ้าน ${w.house_number}` : null,
+          title: `เคลม: ${w.customer_name ?? "-"}${w.issue_type ? " — " + w.issue_type : ""}`,
+          amount: null,
+          assigned_role: "manager",
+          status: "open",
+          sla_due_at: null,
+          created_at: w.created_at,
+        })));
+      }
 
-      // (ค) เคลมประกันที่รอดำเนินการ — ตาราง warranty_claims
-      const { data: warr } = await supabase
-        .from("warranty_claims")
-        .select("id, customer_name, house_number, issue_type, created_at")
-        .eq("status", "pending");
-      const warrItems: WorkQueueItem[] = (
-        (warr as {
-          id: string; customer_name: string | null; house_number: string | null;
-          issue_type: string | null; created_at: string;
-        }[]) ?? []
-      ).map((w) => ({
-        id: `warranty-${w.id}`,
-        workflow_type: "Warranty_Claim",
-        source_record_id: w.id,
-        doc_index: w.house_number ? `บ้าน ${w.house_number}` : null,
-        title: `เคลม: ${w.customer_name ?? "-"}${w.issue_type ? " — " + w.issue_type : ""}`,
-        amount: null,
-        assigned_role: "manager",
-        status: "open",
-        sla_due_at: null,
-        created_at: w.created_at,
-      }));
-
-      merged = [...queueItems, ...apprItems, ...leaveItems, ...warrItems];
+      merged = [...queueItems, ...extra];
     }
 
     // เรียงตามความสำคัญก่อน แล้วค่อยตามกำหนด SLA (ใหม่สุด/ด่วนสุดขึ้นก่อน)

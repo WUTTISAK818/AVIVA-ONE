@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { UserPlus, Check, X, Loader2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { UserPlus, Check, X, Loader2, ChevronDown, ChevronRight, AlertTriangle, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 
@@ -44,6 +44,17 @@ export default function SeedPilotAccounts({ existingEmails, onDone }: { existing
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [loadErr, setLoadErr] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const copyList = async () => {
+    const header = "รายชื่อบัญชีพนักงาน AVIVA ONE\nชื่อ | อีเมล | รหัสชั่วคราว | role | แผนก";
+    const lines = rows.map((r) => `${r.full_name} | ${r.email} | ${r.password} | ${r.role} | ${r.department}`);
+    const text = `${header}\n${lines.join("\n")}\n* กรุณาเปลี่ยนรหัสผ่านเมื่อเข้าใช้งานครั้งแรก`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true); setTimeout(() => setCopied(false), 2500);
+    } catch { /* clipboard ไม่รองรับ */ }
+  };
 
   const load = async () => {
     setLoading(true); setLoadErr("");
@@ -158,12 +169,17 @@ export default function SeedPilotAccounts({ existingEmails, onDone }: { existing
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <p className="text-[10px] text-aviva-secondary">
-                  {doneCount > 0 && `สร้างแล้ว ${doneCount} · `}แจ้งให้พนักงานเปลี่ยนรหัสเมื่อเข้าครั้งแรก
-                </p>
+              <p className="text-[10px] text-aviva-secondary pt-1">
+                {doneCount > 0 && `สร้างแล้ว ${doneCount} · `}แจ้งให้พนักงานเปลี่ยนรหัสเมื่อเข้าครั้งแรก
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={copyList}
+                  className="flex-1 text-xs font-semibold px-3 py-2 rounded-lg border border-aviva-gold/30 text-aviva-gold flex items-center justify-center gap-1.5">
+                  {copied ? <Check size={13} /> : <Copy size={13} />}
+                  {copied ? "คัดลอกแล้ว" : "คัดลอกรายชื่อ+รหัส"}
+                </button>
                 <button onClick={createAll} disabled={running || pending === 0}
-                  className="text-xs font-bold px-3 py-2 rounded-lg bg-aviva-gold text-aviva-bg disabled:opacity-40 flex items-center gap-1.5">
+                  className="flex-1 text-xs font-bold px-3 py-2 rounded-lg bg-aviva-gold text-aviva-bg disabled:opacity-40 flex items-center justify-center gap-1.5">
                   {running ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={13} />}
                   สร้างทั้งหมด ({pending})
                 </button>

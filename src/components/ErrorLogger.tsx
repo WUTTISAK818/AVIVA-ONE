@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-const APP_VERSION = "5.74";
+const APP_VERSION = "5.75";
 
 export default function ErrorLogger() {
   useEffect(() => {

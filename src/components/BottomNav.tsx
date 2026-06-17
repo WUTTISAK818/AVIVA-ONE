@@ -1,28 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Users, HardHat, Network, Briefcase, Settings } from "lucide-react";
+import { Network } from "lucide-react";
 import clsx from "clsx";
-import { useCurrentUser } from "@/lib/user-context";
-
-const OFFICE_DEPTS = ["ฝ่ายการเงิน", "ฝ่ายบัญชี", "ฝ่ายบุคคล", "ฝ่ายการตลาด", "ฝ่ายหลังการขาย"];
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const user = useCurrentUser();
 
   if (pathname === "/login") return null;
 
-  const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
-
   const tabs = [
-    { href: "/dashboard",    label: "หน้าหลัก",  icon: LayoutGrid, show: true },
-    { href: "/crm",          label: "ขาย",        icon: Users,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย" },
-    { href: "/construction", label: "ก่อสร้าง",   icon: HardHat,    show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง" },
-    { href: "/winvote",      label: "WinVote",    icon: Network,    show: !user || user.isAdmin || user.isManager },
-    { href: "/office",       label: "ออฟฟิศ",     icon: Briefcase,  show: !user || user.isAdmin || user.isManager || isOfficeUser },
-    { href: "/settings",     label: "ตั้งค่า",    icon: Settings,   show: true },
-  ].filter(t => t.show);
+    { href: "/winvote", label: "WinVote", icon: Network },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-nav border-t border-aviva-gold/20">

@@ -22,10 +22,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "AVIVA ONE",
-  description: "ระบบบริหารจัดการ AVIVA ONE",
+  title: "WinVote",
+  description: "WinVote — ระบบเครือข่ายฐานเสียง",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA ONE" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "WinVote" },
   icons: { apple: "/apple-touch-icon.png", icon: "/icon-192.png" },
   other: { "mobile-web-app-capable": "yes" },
 };

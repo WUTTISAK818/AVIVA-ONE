@@ -64,7 +64,7 @@ export default function WinVotePage() {
   useEffect(() => {
     if (user === null) return; // ยังโหลดไม่เสร็จ
     if (!user.isAdmin && !user.isManager) {
-      router.replace("/dashboard");
+      router.replace("/login");
       return;
     }
     setAuthorized(true);

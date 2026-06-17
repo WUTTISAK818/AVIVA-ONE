@@ -22,7 +22,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         router.replace("/login");
       }
       if (event === "SIGNED_IN" && pathname === "/login") {
-        router.replace("/dashboard");
+        router.replace("/winvote");
       }
     });
 

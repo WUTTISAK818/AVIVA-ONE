@@ -33,6 +33,18 @@ const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string
   workflow_update: { Icon: CheckCircle, color: "text-teal-400", bg: "bg-teal-500/10", label: "อัปเดตงาน" },
 };
 
+// ฝ่ายการเงินกับบัญชีทำงานคู่กัน — ให้เห็นแจ้งเตือนของกันและกัน (สอดคล้องกับ rolesForUser ที่รวมคิวงาน)
+const FINANCE_GROUP = ["การเงิน", "บัญชี"];
+// เทียบแผนกแบบยืดหยุ่น: ตรงเป๊ะ / เป็นสับเซตกัน (รองรับ to_dept รวมหลายฝ่าย เช่น "ฝ่ายบัญชี/การเงิน") / อยู่กลุ่มเดียวกัน
+function deptRelated(dept: string | null, userDept: string): boolean {
+  if (!dept || !userDept) return false;
+  if (dept === userDept) return true;
+  if (dept.includes(userDept) || userDept.includes(dept)) return true;
+  const inFin = (s: string) => FINANCE_GROUP.some((k) => s.includes(k));
+  if (inFin(dept) && inFin(userDept)) return true;
+  return false;
+}
+
 function timeAgo(ts: string): string {
   const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000);
   if (mins < 1) return "เมื่อกี้";
@@ -97,7 +109,7 @@ export default function NotificationBell() {
       .limit(50);
     const all = (data as Notification[]) ?? [];
     const visible = user && !user.isManager
-      ? all.filter(n => !n.to_dept || n.to_dept === user.department || n.from_dept === user.department)
+      ? all.filter(n => !n.to_dept || deptRelated(n.to_dept, user.department) || deptRelated(n.from_dept, user.department))
       : all;
     const shown = visible.slice(0, 30);
     // ดึงสถานะอ่านรายคนของผู้ใช้ปัจจุบัน

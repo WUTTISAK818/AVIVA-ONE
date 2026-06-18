@@ -1,0 +1,1111 @@
+{
+  "report_metadata": {
+    "title": "AVIVA ONE Go-Live Readiness Report",
+    "project_name": "AVIVA Private",
+    "app_name": "AVIVA ONE",
+    "scheduled_go_live_date": "2026-06-25",
+    "report_generated_date": "2026-06-18",
+    "days_until_go_live": 7,
+    "report_version": "v1.0",
+    "prepared_for": "AVIVA Private Leadership Team"
+  },
+
+  "current_app_status": {
+    "current_version": "v6.34",
+    "version_location": "src/app/settings/page.tsx line 210",
+    "package_version": "2.9.2",
+    "last_commit": "5c761f2",
+    "last_commit_message": "แก้ไขรายงานประจำวัน และเพิ่ม fields ฝ่ายก่อสร้าง",
+    "build_status": "READY",
+    "next_js_version": "16.2.6",
+    "react_version": "19.2.4",
+    "supabase_js_version": "2.106.1",
+    "deployment_branch": "main",
+    "secondary_deployment_branch": "claude/move-work-location-2CfBA"
+  },
+
+  "demo_accounts": {
+    "total_demo_accounts": 9,
+    "warning": "ALL demo accounts MUST be deleted before Go-Live from Supabase auth.users",
+    "accounts": [
+      {
+        "email": "ceo.test@aviva.th",
+        "role": "admin",
+        "department": "ฝ่ายบริหาร",
+        "label": "CEO",
+        "status": "TO_DELETE",
+        "priority": "CRITICAL",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.admin@aviva.th",
+        "role": "admin",
+        "department": "ฝ่ายบริหาร",
+        "label": "Admin",
+        "status": "TO_DELETE",
+        "priority": "CRITICAL",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.sales@aviva.th",
+        "role": "sales_manager",
+        "department": "ฝ่ายขาย",
+        "label": "นายหน้า",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.finance@aviva.th",
+        "role": "finance_manager",
+        "department": "ฝ่ายการเงิน",
+        "label": "การเงิน",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.construction@aviva.th",
+        "role": "construction_manager",
+        "department": "ฝ่ายก่อสร้าง",
+        "label": "ก่อสร้าง",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.accounting@aviva.th",
+        "role": "accounting_manager",
+        "department": "ฝ่ายบัญชี",
+        "label": "บัญชี",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.hr@aviva.th",
+        "role": "hr_manager",
+        "department": "ฝ่ายบุคคล",
+        "label": "บุคคล",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.marketing@aviva.th",
+        "role": "marketing_manager",
+        "department": "ฝ่ายการตลาด",
+        "label": "การตลาด",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      },
+      {
+        "email": "demo.aftersales@aviva.th",
+        "role": "aftersales_manager",
+        "department": "ฝ่ายหลังการขาย",
+        "label": "หลังการขาย",
+        "status": "TO_DELETE",
+        "priority": "HIGH",
+        "demo_password": "Demo1234"
+      }
+    ]
+  },
+
+  "employee_verification_required": {
+    "note": "These are EXAMPLE production accounts that need to be verified as real users",
+    "accounts_to_verify": [
+      {
+        "email": "sale1@alisa.com",
+        "verification_status": "PENDING",
+        "required_checks": [
+          "Verify user identity in AVIVA company database",
+          "Confirm department assignment",
+          "Verify role permissions match position",
+          "Test login and access",
+          "Confirm last login date is recent"
+        ]
+      },
+      {
+        "email": "sale2@alisa.com",
+        "verification_status": "PENDING",
+        "required_checks": [
+          "Verify user identity in AVIVA company database",
+          "Confirm department assignment",
+          "Verify role permissions match position",
+          "Test login and access",
+          "Confirm last login date is recent"
+        ]
+      },
+      {
+        "email": "engineer@alisa.com",
+        "verification_status": "PENDING",
+        "required_checks": [
+          "Verify user identity in AVIVA company database",
+          "Confirm department assignment",
+          "Verify role permissions match position",
+          "Test login and access",
+          "Confirm last login date is recent"
+        ]
+      }
+    ]
+  },
+
+  "role_authority_matrix": {
+    "note": "Enforced across 3 layers: UI + API/Edge Functions + Database RLS",
+    "super_roles": ["admin", "ceo", "coo"],
+    "super_role_permissions": "Full access to all modules and user management",
+    "manager_roles": ["admin", "ceo", "coo", "manager", "director", "project_manager"],
+    "manager_role_permissions": "View analytics, approve workflows, manage team",
+    "user_management_authorization": "Only ADMIN_ROLES (admin, ceo, coo, director) can create/edit/delete users",
+    "enforcement_points": {
+      "frontend_ui": "src/lib/roles.ts (isSuperRole, isManagerRole) + user-context.tsx",
+      "api_edge_function": "supabase/functions/admin-user-management/index.ts (MANAGER_ROLES, ADMIN_ROLES)",
+      "database_rls": "auth_role() PostgreSQL function maps ceo/coo → admin for all RLS policies"
+    }
+  },
+
+  "core_modules_and_features": {
+    "critical_modules": [
+      {
+        "module_name": "Dashboard",
+        "page": "src/app/dashboard/page.tsx",
+        "description": "Executive overview with KPIs, sales funnel, construction progress, cross-module stats",
+        "features": [
+          "Real-time KPI widgets (units sold, revenue, construction %)",
+          "Sales funnel breakdown (new leads, visits, loans, approvals, transfers)",
+          "Construction progress by status (not started, in progress, completed)",
+          "Pending approvals breakdown by workflow type",
+          "AI chat assistant (AVIVA AI) for data queries",
+          "Calendar widget for events",
+          "Cross-module statistics (receipts, expenses, employees, claims, documents)",
+          "Revenue vs Expense vs Profit chart"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Verify all KPIs load correctly; test AI chat responses; validate permissions for manager vs staff"
+      },
+      {
+        "module_name": "CRM / Sales Management",
+        "page": "src/app/crm/page.tsx",
+        "description": "Customer Relationship Management for leads, customers, and sales pipeline",
+        "features": [
+          "Lead tracking with visit_date, visit_time, reported_by fields",
+          "Lead status pipeline (New, Hot, Warm, Cool, Approved, Transferred)",
+          "Customer management",
+          "Loan application tracking",
+          "Transfer tasks management",
+          "Customer portal integration",
+          "Lead timestamps (created_at, reported_at)"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Test lead creation/edit; verify visit datetime fields save correctly; test customer portal access"
+      },
+      {
+        "module_name": "Construction Progress",
+        "page": "src/app/construction/page.tsx",
+        "description": "Track construction progress by house/unit status and contractor performance",
+        "features": [
+          "Construction progress by unit (completed, in-progress, not-started)",
+          "Contractor scorecard with sign-off functionality",
+          "Inspector QC checklist and defect tracking",
+          "Daily construction logs with photos",
+          "House/unit detail view (plot number, model, land size, progress %, status)",
+          "Construction metrics by status",
+          "Delayed unit tracking with days overdue"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Verify progress calculations; test photo upload/storage; validate contractor scorecard sign-off workflow"
+      },
+      {
+        "module_name": "Finance & Approvals",
+        "page": "src/app/finance/page.tsx, src/app/approvals/page.tsx",
+        "description": "Financial workflows, expense approvals, maker-checker validation",
+        "features": [
+          "Approval workflow with maker-checker enforcement (submitter ≠ approver)",
+          "Expense threshold: 50K (manager) → 500K (director)",
+          "Receipt scanning and OCR",
+          "Petty cash system with transaction tracking",
+          "Purchase request workflows",
+          "Recurring expense management",
+          "Financial statements and reports",
+          "Role-based approval authority validation"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Test approval workflows with correct roles; verify threshold enforcement; test receipt scanner"
+      },
+      {
+        "module_name": "Reports",
+        "page": "src/app/reports/page.tsx",
+        "description": "Comprehensive business intelligence and reporting",
+        "features": [
+          "Sales performance reports",
+          "Construction progress reports",
+          "Financial statements",
+          "HR/Employee reports",
+          "Document numbering and tracking",
+          "Report filtering and export",
+          "Monthly report summaries"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Verify report data accuracy; test filtering and date ranges; validate export functionality"
+      },
+      {
+        "module_name": "Approvals Workflow",
+        "page": "src/app/approvals/page.tsx",
+        "description": "Central approval queue for all pending workflows",
+        "features": [
+          "Approval timeline with status tracking",
+          "Workflow verification modal",
+          "Pending breakdown by workflow type",
+          "Approval route bar showing authority chain",
+          "Approval logs with timestamp and submitter tracking",
+          "Filter by status (Pending, Approved, Rejected)"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Test approval workflow transitions; verify maker-checker constraint; validate audit logs"
+      },
+      {
+        "module_name": "HR & Employee Management",
+        "page": "src/app/hr/page.tsx",
+        "description": "Employee records, leave management, personnel tracking",
+        "features": [
+          "Employee database",
+          "Leave request and approval",
+          "Department and role management",
+          "Employee activity tracking"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Verify employee data integrity; test leave request workflows"
+      },
+      {
+        "module_name": "Accounting",
+        "page": "src/app/accounting/page.tsx",
+        "description": "Accounting records and financial management",
+        "features": [
+          "Chart of accounts",
+          "Journal entries",
+          "Financial reconciliation",
+          "Account balance tracking"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Verify accounting entries; test reconciliation workflows"
+      },
+      {
+        "module_name": "Documents Management",
+        "page": "src/app/documents/page.tsx",
+        "description": "Document numbering, tracking, and archival",
+        "features": [
+          "Document sequence numbering (FIN, PO, WR, INST, LEAVE, MKTG, BOOK, DOC)",
+          "Monthly document number reset",
+          "Document dual-mode storage (public + private)",
+          "Document index and search"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Verify document numbering sequences; test search functionality"
+      },
+      {
+        "module_name": "Settings & Admin",
+        "page": "src/app/settings/page.tsx, src/app/admin/page.tsx",
+        "description": "System configuration, user management, project settings",
+        "features": [
+          "User management (create, edit, delete via admin-user-management edge function)",
+          "Theme settings (dark/light/auto)",
+          "Project information (units, revenue targets, construction progress)",
+          "Organization chart and approval matrices",
+          "Manual documentation",
+          "Document index configuration",
+          "App suggestions and feedback",
+          "Push notification setup",
+          "LINE integration configuration"
+        ],
+        "go_live_status": "READY",
+        "test_required": "Test user creation/editing/deletion; verify permissions; test LINE integration"
+      }
+    ],
+    "optional_modules": [
+      {
+        "module_name": "AI Council",
+        "page": "src/app/ai-council/page.tsx",
+        "description": "AI briefing generation and expert insights"
+      },
+      {
+        "module_name": "After-Sales",
+        "page": "src/app/after-sales/page.tsx",
+        "description": "Post-delivery customer support"
+      },
+      {
+        "module_name": "Marketing",
+        "page": "src/app/marketing/page.tsx",
+        "description": "Marketing campaign tracking"
+      },
+      {
+        "module_name": "QC / Inspection",
+        "page": "src/app/qc/page.tsx",
+        "description": "Quality control and inspection tracking"
+      },
+      {
+        "module_name": "Office",
+        "page": "src/app/office/page.tsx",
+        "description": "Office document and media management"
+      },
+      {
+        "module_name": "Activity Log",
+        "page": "src/app/activity/page.tsx",
+        "description": "System-wide activity tracking and audit logs"
+      },
+      {
+        "module_name": "Leads Management",
+        "page": "src/app/leads/page.tsx",
+        "description": "Sales lead management and pipeline tracking"
+      }
+    ]
+  },
+
+  "database_schema_summary": {
+    "note": "52 migrations applied to database as of 2026-06-18",
+    "latest_migrations": [
+      "20260618_add_lead_timestamps.sql — Lead visit tracking (visit_date, visit_time, reported_by, reported_at)",
+      "20260618b_construction_progress.sql — Construction progress metrics",
+      "20260618a_sales_daily_logs.sql — Daily sales activity logging",
+      "20260617g_enable_realtime.sql — PostgreSQL Realtime subscriptions",
+      "20260617f_prevent_double_booking.sql — Data integrity constraint",
+      "20260617e_activity_attribution.sql — Activity log attribution",
+      "20260617d_activity_logs.sql — Audit trail logging",
+      "20260617c_approval_logs_submitter_default.sql — Approval workflow tracking",
+      "20260617_doc_number_be_monthly.sql — Monthly document number sequences",
+      "20260616_notifications_link.sql — Notification routing",
+      "20260616_recurring_expenses.sql — Recurring expense management",
+      "20260616_ai_chat_logs.sql — AI conversation history",
+      "20260615_petty_cash_system.sql — Petty cash transaction tracking",
+      "20260615_purchase_requests.sql — Purchase request workflows"
+    ],
+    "core_tables": [
+      "auth.users (Supabase auth with role/department in app_metadata)",
+      "public.projects (project KPIs and metadata)",
+      "public.leads (customer leads with status, visit tracking)",
+      "public.customers (customer records)",
+      "public.construction_progress (unit construction status)",
+      "public.approvals (approval workflow tracking)",
+      "public.expenses (expense records)",
+      "public.receipts (receipt tracking)",
+      "public.petty_cash (petty cash transactions)",
+      "public.purchase_requests (purchase request workflows)",
+      "public.documents (document storage metadata)",
+      "public.activity_logs (audit trail)",
+      "public.notifications (user notifications)",
+      "public.employees (employee records)"
+    ],
+    "rls_policy_coverage": "All tables have RLS policies enforcing role-based access",
+    "auth_role_function": "public.auth_role() and public.auth_user_role() PostgreSQL functions map ceo/coo → admin"
+  },
+
+  "pre_go_live_checklist": {
+    "LOGIN_SECURITY": {
+      "category": "Authentication & Access",
+      "items": [
+        {
+          "task": "Remove all 9 demo accounts from Supabase auth.users",
+          "status": "PENDING",
+          "owner": "DevOps/Admin",
+          "deadline": "2026-06-24",
+          "method": "Use admin-user-management DELETE endpoint or Supabase dashboard",
+          "verification": "Query auth.users and confirm no demo.* or ceo.test@* accounts exist",
+          "sql_check": "SELECT COUNT(*) FROM auth.users WHERE email LIKE 'demo.%' OR email LIKE 'ceo.test%';"
+        },
+        {
+          "task": "Verify production admin account credentials are secure",
+          "status": "PENDING",
+          "owner": "Security Officer",
+          "deadline": "2026-06-24",
+          "verification": "Confirm strong password (16+ chars, mixed case, symbols)"
+        },
+        {
+          "task": "Backup auth.users table before deletion",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-24",
+          "method": "Export all auth.users to backup SQL before demo account deletion"
+        }
+      ]
+    },
+    "SALES_MODULE": {
+      "category": "Sales & CRM Functionality",
+      "items": [
+        {
+          "task": "Verify CRM lead fields are populated correctly",
+          "status": "PENDING",
+          "owner": "Sales Manager",
+          "deadline": "2026-06-23",
+          "checks": [
+            "visit_date and visit_time fields save correctly",
+            "reported_by field captures user email",
+            "reported_at timestamp auto-generated",
+            "Lead status pipeline works (New → Hot/Warm/Cool → Approved → Transferred)"
+          ]
+        },
+        {
+          "task": "Test customer portal login and permissions",
+          "status": "PENDING",
+          "owner": "Sales Team",
+          "deadline": "2026-06-23",
+          "verification": "Customers can only view their own records, not other customers"
+        },
+        {
+          "task": "Validate loan application workflow",
+          "status": "PENDING",
+          "owner": "Finance + Sales",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Loan application creation",
+            "Approval routing to finance",
+            "Status tracking (New → In Review → Approved → Rejected)"
+          ]
+        },
+        {
+          "task": "Verify transfer task management",
+          "status": "PENDING",
+          "owner": "Sales Manager",
+          "deadline": "2026-06-23",
+          "verification": "Transfer tasks track ownership changes and approval"
+        }
+      ]
+    },
+    "CONSTRUCTION_MODULE": {
+      "category": "Construction Progress Tracking",
+      "items": [
+        {
+          "task": "Validate construction progress calculations",
+          "status": "PENDING",
+          "owner": "Construction Manager",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Progress % calculations per unit correct",
+            "Status transitions (Not Started → In Progress → Completed)",
+            "Construction metrics accurate (completedUnits, inProgressUnits, notStartedUnits)"
+          ]
+        },
+        {
+          "task": "Test daily construction log photo uploads",
+          "status": "PENDING",
+          "owner": "Construction Team",
+          "deadline": "2026-06-23",
+          "verification": "Photos upload, store in Supabase, and display correctly"
+        },
+        {
+          "task": "Verify contractor scorecard sign-off workflow",
+          "status": "PENDING",
+          "owner": "Construction Manager + Inspector",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Scorecard creation and population",
+            "Sign-off by inspector with timestamp",
+            "Audit trail of scorecard changes"
+          ]
+        },
+        {
+          "task": "Test QC defect tracking and resolution",
+          "status": "PENDING",
+          "owner": "QC Manager",
+          "deadline": "2026-06-23",
+          "verification": "Defects can be logged, assigned, and marked resolved"
+        },
+        {
+          "task": "Validate delayed unit tracking",
+          "status": "PENDING",
+          "owner": "Construction Manager",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Days overdue calculation correct",
+            "Worst delayed unit identified",
+            "Alert triggering for delays > 30 days"
+          ]
+        }
+      ]
+    },
+    "DASHBOARD_KPI": {
+      "category": "Dashboard & Analytics",
+      "items": [
+        {
+          "task": "Verify all KPI widgets load without errors",
+          "status": "PENDING",
+          "owner": "QA + Analytics",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Total units KPI accurate",
+            "Sold units (Closed Deal) count correct",
+            "Available units calculated correctly",
+            "Revenue calculation (last 20 transactions)",
+            "Construction completion % accurate"
+          ]
+        },
+        {
+          "task": "Test KPI modal drill-down functionality",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "verification": "Click each KPI card opens detail modal with supporting data"
+        },
+        {
+          "task": "Validate cross-module statistics",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Pending approvals count correct",
+            "Total receipts accurate",
+            "Expense total calculated correctly",
+            "Employee count from HR module",
+            "Pending claims count",
+            "Total leads from CRM",
+            "Pending documents count"
+          ]
+        },
+        {
+          "task": "Test revenue vs expense chart accuracy",
+          "status": "PENDING",
+          "owner": "Finance + QA",
+          "deadline": "2026-06-23",
+          "verification": "Chart data matches source records; no data loss in aggregation"
+        },
+        {
+          "task": "Verify pending approval breakdown by type",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Breakdown by workflow_type (FIN, PO, LEAVE, etc.)",
+            "Counts match actual pending records",
+            "Breakdown updates in real-time when approvals change"
+          ]
+        },
+        {
+          "task": "Test sales funnel widget",
+          "status": "PENDING",
+          "owner": "Sales + QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "New leads count correct",
+            "Visit count accurate",
+            "Booked count (customers with confirmed bookings)",
+            "Loan application count",
+            "Loan approved count",
+            "Transfer count",
+            "Hot/Warm/Cool lead distribution correct"
+          ]
+        },
+        {
+          "task": "Validate AI chat responses and knowledge base",
+          "status": "PENDING",
+          "owner": "QA + AI Team",
+          "deadline": "2026-06-23",
+          "checks": [
+            "AI returns accurate project data",
+            "Chat history logged in ai_chat_logs table",
+            "Appropriate responses for each user role (CEO vs staff)",
+            "No sensitive data leakage in responses"
+          ]
+        }
+      ]
+    },
+    "REPORTS_MODULE": {
+      "category": "Reporting & Analytics",
+      "items": [
+        {
+          "task": "Verify all report types generate correctly",
+          "status": "PENDING",
+          "owner": "Finance + QA",
+          "deadline": "2026-06-23",
+          "report_types": [
+            "Sales performance report",
+            "Construction progress report",
+            "Financial statement",
+            "HR/Employee report",
+            "Approval summary report",
+            "Activity audit report"
+          ]
+        },
+        {
+          "task": "Test date range filtering on reports",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "verification": "Reports filter correctly by month, quarter, year"
+        },
+        {
+          "task": "Validate export functionality (PDF, Excel)",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "verification": "Reports export without data loss; formatting correct"
+        }
+      ]
+    },
+    "NOTIFICATIONS_SYSTEM": {
+      "category": "Push Notifications & Alerts",
+      "items": [
+        {
+          "task": "Verify push notification delivery",
+          "status": "PENDING",
+          "owner": "DevOps + QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Notifications sent to correct user roles",
+            "Notifications only shown for relevant departments",
+            "Dismiss tracking recorded in database",
+            "Notification badge count accurate"
+          ]
+        },
+        {
+          "task": "Test LINE webhook integration",
+          "status": "PENDING",
+          "owner": "DevOps + QA",
+          "deadline": "2026-06-23",
+          "verification": "Notifications push to LINE correctly; responses tracked"
+        },
+        {
+          "task": "Validate notification routing by department",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Finance approvals → Finance team only",
+            "Construction updates → Construction team only",
+            "HR announcements → All staff",
+            "Sales leads → Sales team only"
+          ]
+        }
+      ]
+    },
+    "DATABASE_INTEGRITY": {
+      "category": "Data Validation & Constraints",
+      "items": [
+        {
+          "task": "Run database integrity checks",
+          "status": "PENDING",
+          "owner": "DevOps + DBA",
+          "deadline": "2026-06-24",
+          "checks": [
+            "No orphaned records (foreign key constraints)",
+            "No duplicate document numbers",
+            "All required fields populated",
+            "RLS policies enforced correctly"
+          ]
+        },
+        {
+          "task": "Backup production database",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-24",
+          "method": "Full backup before go-live; store securely with recovery plan"
+        },
+        {
+          "task": "Verify maker-checker constraint enforcement",
+          "status": "PENDING",
+          "owner": "Finance + QA",
+          "deadline": "2026-06-23",
+          "verification": "Submitter cannot approve their own request (trigger enforce_approval_maker_checker)"
+        },
+        {
+          "task": "Validate document number sequences",
+          "status": "PENDING",
+          "owner": "Finance + Admin",
+          "deadline": "2026-06-23",
+          "checks": [
+            "FIN (Finance) numbers increment correctly",
+            "PO (Purchase Order) numbers increment",
+            "WR (Work Report) numbers increment",
+            "All other document types (INST, LEAVE, MKTG, BOOK, DOC) working",
+            "Monthly reset triggered correctly on day 1"
+          ]
+        },
+        {
+          "task": "Check for hardcoded test data in migrations",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-23",
+          "verification": "No INSERT statements with demo data in production migrations",
+          "grep_command": "grep -r 'INSERT INTO.*demo\\|INSERT INTO.*test' supabase/migrations/"
+        }
+      ]
+    },
+    "BUILD_DEPLOYMENT": {
+      "category": "Build & Deployment Verification",
+      "items": [
+        {
+          "task": "Run production build",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-24",
+          "command": "npm run build",
+          "expected_result": "✓ Compiled successfully (no TypeScript errors)"
+        },
+        {
+          "task": "Verify bundle size optimization",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-24",
+          "checks": [
+            "No bloated dependencies",
+            "Code splitting working (lazy loaded pages)",
+            "No console.log or debug code in production build"
+          ]
+        },
+        {
+          "task": "Test Vercel deployment to both branches",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-24",
+          "branches": [
+            "main (production)",
+            "claude/move-work-location-2CfBA (Vercel watched branch)"
+          ]
+        },
+        {
+          "task": "Verify environment variables are set correctly",
+          "status": "PENDING",
+          "owner": "DevOps",
+          "deadline": "2026-06-24",
+          "required_vars": [
+            "NEXT_PUBLIC_SUPABASE_URL",
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "NEXT_PUBLIC_TARGET (should NOT be 'plus' for AVIVA ONE)"
+          ]
+        }
+      ]
+    },
+    "FEATURE_COMPLETENESS": {
+      "category": "Core Features & Workflows",
+      "items": [
+        {
+          "task": "Verify user login flow",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Email/password login works",
+            "Session persists across page refreshes",
+            "Logout clears session",
+            "Forgot password flow works",
+            "Remember email checkbox functions"
+          ]
+        },
+        {
+          "task": "Test approval workflow end-to-end",
+          "status": "PENDING",
+          "owner": "Finance + QA",
+          "deadline": "2026-06-23",
+          "workflow": [
+            "Staff submits expense request",
+            "Manager reviews in approvals queue",
+            "Manager approves (maker-checker constraint enforced)",
+            "Approval logged with timestamp and user ID",
+            "Notification sent to submitter",
+            "Status updates to 'Approved'"
+          ]
+        },
+        {
+          "task": "Verify role-based access control (RBAC)",
+          "status": "PENDING",
+          "owner": "Security + QA",
+          "deadline": "2026-06-23",
+          "test_cases": [
+            "CEO/COO can access all modules and approve anything",
+            "Manager can view analytics and approve up to threshold",
+            "Staff can only view their own records",
+            "Finance team cannot approve HR documents",
+            "Construction team cannot approve finance requests"
+          ]
+        },
+        {
+          "task": "Test document upload and storage",
+          "status": "PENDING",
+          "owner": "QA",
+          "deadline": "2026-06-23",
+          "checks": [
+            "Files upload to Supabase storage bucket",
+            "File access restricted by RLS (owner can view, others cannot)",
+            "Dual-mode storage working (public + private buckets)",
+            "File preview working in app"
+          ]
+        },
+        {
+          "task": "Validate receipt scanner OCR",
+          "status": "PENDING",
+          "owner": "Finance + QA",
+          "deadline": "2026-06-23",
+          "verification": "QR code scanning extracts data correctly; manual entry fallback works"
+        }
+      ]
+    }
+  },
+
+  "sql_queries_template": {
+    "note": "Run these queries on Supabase production database after backup",
+    "DEMO_ACCOUNT_BACKUP": {
+      "description": "Export all demo accounts before deletion",
+      "query": "SELECT id, email, user_metadata, app_metadata, created_at, last_sign_in_at FROM auth.users WHERE email LIKE 'demo.%' OR email LIKE 'ceo.test%' ORDER BY created_at;"
+    },
+    "DEMO_ACCOUNT_COUNT": {
+      "description": "Verify exact count of demo accounts to delete",
+      "query": "SELECT COUNT(*) as demo_account_count FROM auth.users WHERE email LIKE 'demo.%' OR email LIKE 'ceo.test%';"
+    },
+    "VALIDATE_EMPLOYEE_STRUCTURE": {
+      "description": "Check that all employees have required fields",
+      "query": "SELECT id, email, user_metadata->>'full_name' as full_name, app_metadata->>'role' as role, app_metadata->>'department' as department, created_at FROM auth.users WHERE email NOT LIKE 'demo.%' AND email NOT LIKE 'ceo.test%' ORDER BY created_at;"
+    },
+    "FIND_ORPHANED_APPROVALS": {
+      "description": "Check for approvals with deleted users",
+      "query": "SELECT a.id, a.submitted_by_user_id, a.approved_by_user_id, a.workflow_type FROM approvals a WHERE a.submitted_by_user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = a.submitted_by_user_id) OR a.approved_by_user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = a.approved_by_user_id);"
+    },
+    "FIND_ORPHANED_ACTIVITY_LOGS": {
+      "description": "Check for activity logs referencing deleted users",
+      "query": "SELECT al.id, al.user_id, al.action FROM activity_logs al WHERE al.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = al.user_id);"
+    },
+    "VALIDATE_ROLE_CONSISTENCY": {
+      "description": "Check that roles in app_metadata and user_metadata match",
+      "query": "SELECT id, email, user_metadata->>'role' as user_meta_role, app_metadata->>'role' as app_meta_role FROM auth.users WHERE (user_metadata->>'role') IS DISTINCT FROM (app_metadata->>'role');"
+    },
+    "DOCUMENT_NUMBER_INTEGRITY": {
+      "description": "Verify document number sequences have no gaps",
+      "query": "SELECT doc_type, COUNT(*) as count, MAX(doc_number) as max_number, MIN(doc_number) as min_number FROM documents GROUP BY doc_type ORDER BY doc_type;"
+    },
+    "VERIFY_RLS_POLICIES": {
+      "description": "List all RLS policies to ensure they're properly configured",
+      "query": "SELECT schemaname, tablename, policyname, permissive, roles, qual, with_check FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename, policyname;"
+    },
+    "CHECK_MAKER_CHECKER_CONSTRAINT": {
+      "description": "Verify no approval where submitter == approver",
+      "query": "SELECT id, submitted_by_user_id, approved_by_user_id FROM approvals WHERE submitted_by_user_id = approved_by_user_id AND action_taken IN ('Approved', 'Rejected');"
+    },
+    "DATA_QUALITY_SUMMARY": {
+      "description": "Overall data quality dashboard",
+      "query_set": [
+        "SELECT COUNT(*) as total_users FROM auth.users;",
+        "SELECT COUNT(*) as demo_users FROM auth.users WHERE email LIKE 'demo.%' OR email LIKE 'ceo.test%';",
+        "SELECT COUNT(*) as total_leads FROM leads;",
+        "SELECT COUNT(*) as total_approvals FROM approvals;",
+        "SELECT COUNT(*) as pending_approvals FROM approvals WHERE action_taken = 'Pending';",
+        "SELECT COUNT(*) as total_documents FROM documents;",
+        "SELECT COUNT(*) as construction_units FROM construction_progress;",
+        "SELECT role, COUNT(*) as count FROM (SELECT (COALESCE(app_metadata->>'role', user_metadata->>'role', 'unassigned')) as role FROM auth.users WHERE email NOT LIKE 'demo.%' AND email NOT LIKE 'ceo.test%') GROUP BY role ORDER BY role;"
+      ]
+    }
+  },
+
+  "deployment_timeline": {
+    "days_until_go_live": 7,
+    "critical_path": [
+      {
+        "date": "2026-06-19",
+        "day": "Friday",
+        "tasks": [
+          "QA team completes smoke testing of all modules",
+          "Security review of RLS policies and user permissions",
+          "Data quality validation (run SQL queries template)"
+        ]
+      },
+      {
+        "date": "2026-06-22",
+        "day": "Monday",
+        "tasks": [
+          "Admin deploys final code to staging (claude/move-work-location-2CfBA branch)",
+          "Full UAT (User Acceptance Testing) with business stakeholders",
+          "Performance testing and optimization"
+        ]
+      },
+      {
+        "date": "2026-06-23",
+        "day": "Tuesday",
+        "tasks": [
+          "Backup production database",
+          "Final verification of all 9 modules",
+          "Dry-run demo account deletion (on backup)"
+        ]
+      },
+      {
+        "date": "2026-06-24",
+        "day": "Wednesday",
+        "tasks": [
+          "Delete all 9 demo accounts from production auth.users",
+          "Verify no demo accounts remain",
+          "Run npm run build on final code",
+          "Final backup before go-live"
+        ]
+      },
+      {
+        "date": "2026-06-25",
+        "day": "Thursday",
+        "tasks": [
+          "Deploy to production (main branch)",
+          "Push to Vercel watched branch (claude/move-work-location-2CfBA)",
+          "Monitor application for errors",
+          "Send go-live notification to all users",
+          "Create deploy report with version, time, and changes"
+        ]
+      }
+    ]
+  },
+
+  "risk_assessment": {
+    "critical_risks": [
+      {
+        "risk_id": "R1",
+        "title": "Demo accounts not fully deleted",
+        "severity": "CRITICAL",
+        "probability": "MEDIUM",
+        "impact": "Security breach, unauthorized access, data exposure",
+        "mitigation": [
+          "Backup auth.users table before deletion",
+          "Use admin-user-management edge function or Supabase dashboard UI",
+          "Verify with SQL query: SELECT COUNT(*) FROM auth.users WHERE email LIKE 'demo.%' OR email LIKE 'ceo.test%';",
+          "Confirm count = 0 before go-live"
+        ]
+      },
+      {
+        "risk_id": "R2",
+        "title": "Maker-checker constraint not enforced",
+        "severity": "CRITICAL",
+        "probability": "LOW",
+        "impact": "Approvals can be self-approved, financial fraud risk",
+        "mitigation": [
+          "Test with SQL: SELECT * FROM approvals WHERE submitted_by_user_id = approved_by_user_id AND action_taken IN ('Approved', 'Rejected');",
+          "Should return 0 rows",
+          "Run trigger enforce_approval_maker_checker test in staging"
+        ]
+      },
+      {
+        "risk_id": "R3",
+        "title": "RLS policies not blocking access correctly",
+        "severity": "CRITICAL",
+        "probability": "LOW",
+        "impact": "Users can access data they shouldn't (other departments, customers)",
+        "mitigation": [
+          "Test as staff user: cannot see other user's approvals",
+          "Test as finance user: cannot access construction records",
+          "Test as CEO: can access all modules",
+          "Run UAT with production data sample"
+        ]
+      },
+      {
+        "risk_id": "R4",
+        "title": "Build fails due to TypeScript errors",
+        "severity": "HIGH",
+        "probability": "MEDIUM",
+        "impact": "Deployment blocked, go-live delayed",
+        "mitigation": [
+          "Run npm run build on final code before go-live",
+          "Fix any TypeScript errors (field missing, type mismatch)",
+          "Verify no console errors in browser DevTools"
+        ]
+      },
+      {
+        "risk_id": "R5",
+        "title": "API rate limiting or quota exceeded",
+        "severity": "MEDIUM",
+        "probability": "LOW",
+        "impact": "Users cannot perform actions (approvals, uploads)",
+        "mitigation": [
+          "Monitor Supabase usage dashboard",
+          "Optimize query patterns to reduce unnecessary calls",
+          "Configure appropriate rate limits in edge functions"
+        ]
+      },
+      {
+        "risk_id": "R6",
+        "title": "Data loss during migration/backup",
+        "severity": "CRITICAL",
+        "probability": "VERY LOW",
+        "impact": "Production data corrupted or lost",
+        "mitigation": [
+          "Full backup before any destructive operations",
+          "Test backup restoration on staging",
+          "Document backup location and recovery procedure"
+        ]
+      }
+    ],
+    "recommended_actions_before_go_live": [
+      "1. Complete all items in pre_go_live_checklist",
+      "2. Run all SQL queries from sql_queries_template",
+      "3. Conduct full UAT with sample production data",
+      "4. Backup production database and verify restoration",
+      "5. Verify environment variables are correct",
+      "6. Run npm run build and confirm success",
+      "7. Test all role-based access patterns",
+      "8. Delete demo accounts and verify count = 0",
+      "9. Monitor application 24/7 for first 48 hours post-launch"
+    ]
+  },
+
+  "support_contacts": {
+    "note": "Update with actual contact information before distribution",
+    "supabase_project": {
+      "project_name": "AVIVA ONE Production",
+      "project_url": "https://supabase.com/dashboard",
+      "contact": "DevOps Lead"
+    },
+    "vercel_deployment": {
+      "project_name": "AVIVA ONE",
+      "vercel_url": "https://vercel.com/dashboard",
+      "branches_watched": ["main", "claude/move-work-location-2CfBA"],
+      "contact": "DevOps Lead"
+    },
+    "emergency_contacts": {
+      "ceo": "Contact phone and email",
+      "coo": "Contact phone and email",
+      "devops_lead": "Contact phone and email",
+      "database_administrator": "Contact phone and email",
+      "security_officer": "Contact phone and email"
+    }
+  },
+
+  "post_go_live_monitoring": {
+    "first_24_hours": [
+      "Monitor error logs in browser console and Supabase logs",
+      "Check application performance metrics (load time, response time)",
+      "Verify user login success rate",
+      "Monitor database query performance",
+      "Confirm push notifications are delivering",
+      "Check for any orphaned records in database",
+      "Verify document numbering sequences continue correctly"
+    ],
+    "first_week": [
+      "Daily review of activity logs",
+      "Weekly data quality audit",
+      "User feedback collection from all departments",
+      "Performance optimization based on usage patterns",
+      "Security audit of access logs",
+      "Backup and recovery drill"
+    ],
+    "success_criteria": [
+      "Zero demo accounts visible in login screen",
+      "All 9 core modules functional and accessible",
+      "Approval workflows completing without errors",
+      "Financial approvals enforcing maker-checker constraint",
+      "No data loss or corruption reported",
+      "All users able to complete their workflows",
+      "System uptime > 99.5%"
+    ]
+  },
+
+  "deployment_commands": {
+    "build_and_test": "npm run build",
+    "start_dev": "npm run dev",
+    "expected_build_output": "✓ Compiled successfully",
+    "supabase_cli": {
+      "list_tables": "supabase db list",
+      "run_migrations": "supabase migration up",
+      "deploy_edge_function": "supabase functions deploy admin-user-management"
+    }
+  },
+
+  "notes_and_special_instructions": {
+    "aviva_plus_separation": "AVIVA Plus (resident/guard portal) is completely separate from AVIVA ONE. No AVIVA Plus code (proxy.ts, security/*, community/v*) should be in this codebase.",
+    "document_naming": "All generated reports use format: AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt",
+    "version_format": "vX.X.X (major.minor.patch) — current is v6.34; next deploy should be v6.35 or higher",
+    "supabase_auth_structure": "Role stored in auth.users.app_metadata.role (source of truth) with fallback to user_metadata.role",
+    "approval_thresholds": "Finance approval authority: Manager (50K) → Director (500K) → CEO/COO (unlimited)",
+    "database_realtime": "PostgreSQL Realtime enabled for real-time dashboard updates",
+    "notification_system": "Push notifications and LINE webhook integration; dismiss tracking records in database"
+  }
+}

@@ -88,6 +88,10 @@ export default function ReportsPage() {
   const [lateModal, setLateModal]     = useState(false);
   const [lateReason, setLateReason]   = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<HistoryReport | null>(null);
+  const [historyItems, setHistoryItems] = useState<WItem[]>([]);
+  const [historyAttachments, setHistoryAttachments] = useState<WAttachment[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast]             = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
@@ -104,6 +108,20 @@ export default function ReportsPage() {
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 2500);
+  }
+
+  async function handleViewHistory(h: HistoryReport) {
+    setSelectedHistory(h);
+    setLoadingHistory(true);
+    try {
+      const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", h.id).order("created_at");
+      setHistoryItems((its ?? []) as WItem[]);
+      const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", h.id);
+      setHistoryAttachments(await Promise.all(((atts ?? []) as WAttachment[]).map(async a => ({ ...a, signed: (await toSignedUrl(a.file_url)) ?? undefined }))));
+    } catch (err) {
+      showToast("เกิดข้อผิดพลาดในการโหลด", "error");
+    }
+    setLoadingHistory(false);
   }
 
   async function loadAutoItems(reportId: string) {
@@ -465,10 +483,11 @@ export default function ReportsPage() {
                 const hDate = new Date(h.report_date).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" });
                 const hSc = STATUS_CFG[h.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.draft;
                 return (
-                  <div key={h.id} className="flex items-center justify-between bg-aviva-card rounded-xl px-3 py-2.5 border border-aviva-gold/10">
+                  <button key={h.id} onClick={() => handleViewHistory(h)}
+                    className="w-full flex items-center justify-between bg-aviva-card rounded-xl px-3 py-2.5 border border-aviva-gold/10 hover:border-aviva-gold/30 transition-all">
                     <p className="text-xs text-aviva-text">{hDate}</p>
                     <span className={`text-[10px] font-bold ${hSc.color}`}>{hSc.label}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -496,6 +515,80 @@ export default function ReportsPage() {
                 className="py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm disabled:opacity-50">
                 {submitting ? "กำลังส่ง..." : "ยืนยันส่ง"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History detail modal */}
+      {selectedHistory && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-aviva-card border-b border-aviva-gold/10 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-base font-bold text-aviva-text">รายละเอียดรายงาน</h2>
+              <button onClick={() => { setSelectedHistory(null); setHistoryItems([]); setHistoryAttachments([]); }}
+                className="text-aviva-secondary hover:text-aviva-text">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {loadingHistory ? (
+                <p className="text-center text-aviva-secondary">กำลังโหลด...</p>
+              ) : (
+                <>
+                  <div className="bg-aviva-bg/50 rounded-xl px-4 py-3 space-y-2">
+                    <p className="text-xs text-aviva-secondary uppercase">วันที่</p>
+                    <p className="text-sm font-bold text-aviva-text">
+                      {new Date(selectedHistory.report_date).toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                    </p>
+                  </div>
+
+                  <div className="bg-aviva-bg/50 rounded-xl px-4 py-3 space-y-2">
+                    <p className="text-xs text-aviva-secondary uppercase">สถานะ</p>
+                    <div className={`inline-block px-3 py-1.5 rounded-xl border text-xs font-bold ${STATUS_CFG[selectedHistory.status as keyof typeof STATUS_CFG]?.bg ?? ""} ${STATUS_CFG[selectedHistory.status as keyof typeof STATUS_CFG]?.border ?? ""} ${STATUS_CFG[selectedHistory.status as keyof typeof STATUS_CFG]?.color ?? ""}`}>
+                      {STATUS_CFG[selectedHistory.status as keyof typeof STATUS_CFG]?.label ?? selectedHistory.status}
+                    </div>
+                  </div>
+
+                  {selectedHistory.submitted_at && (
+                    <div className="bg-aviva-bg/50 rounded-xl px-4 py-3 space-y-2">
+                      <p className="text-xs text-aviva-secondary uppercase">ส่งเมื่อ</p>
+                      <p className="text-sm text-aviva-text">
+                        {new Date(selectedHistory.submitted_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
+                      </p>
+                    </div>
+                  )}
+
+                  {historyItems.length > 0 && (
+                    <div className="bg-aviva-bg/50 rounded-xl px-4 py-3 space-y-3">
+                      <p className="text-xs text-aviva-secondary uppercase font-semibold">รายการกิจกรรม ({historyItems.length})</p>
+                      <div className="space-y-2">
+                        {historyItems.map((item, idx) => {
+                          const cat = CATEGORY_LABELS[item.category] ?? CATEGORY_LABELS.activity;
+                          return (
+                            <div key={idx} className="flex items-start gap-2 bg-aviva-bg rounded-lg px-3 py-2">
+                              <span className={`text-[10px] font-bold mt-0.5 flex-shrink-0 ${cat.color}`}>[{cat.label}]</span>
+                              <p className="flex-1 text-xs text-aviva-text leading-relaxed">{item.description}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {historyAttachments.length > 0 && (
+                    <div className="bg-aviva-bg/50 rounded-xl px-4 py-3 space-y-3">
+                      <p className="text-xs text-aviva-secondary uppercase font-semibold">รูปภาพ ({historyAttachments.length})</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {historyAttachments.map((att, idx) => (
+                          <img key={idx} src={att.signed ?? att.file_url} alt={att.file_name}
+                            className="w-full aspect-square object-cover rounded-lg border border-aviva-gold/20" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

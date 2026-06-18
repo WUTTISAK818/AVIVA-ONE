@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -27,14 +27,33 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showDemo, setShowDemo] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
+
+  // Restore email from localStorage on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("aviva_remembered_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberEmail(true);
+    }
+  }, []);
 
   async function handleLogin(e?: React.FormEvent, demoEmail?: string, demoPass?: string) {
     e?.preventDefault();
     setLoading(true);
     setError("");
 
+    const loginEmail = demoEmail ?? email;
+
+    // Handle localStorage for remember email
+    if (rememberEmail) {
+      localStorage.setItem("aviva_remembered_email", loginEmail);
+    } else {
+      localStorage.removeItem("aviva_remembered_email");
+    }
+
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email: demoEmail ?? email,
+      email: loginEmail,
       password: demoPass ?? password,
     });
 
@@ -99,6 +118,19 @@ export default function LoginPage() {
             >
               {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="checkbox"
+              id="rememberEmail"
+              checked={rememberEmail}
+              onChange={(e) => setRememberEmail(e.target.checked)}
+              className="w-4 h-4 accent-aviva-gold cursor-pointer rounded"
+            />
+            <label htmlFor="rememberEmail" className="text-xs text-aviva-secondary cursor-pointer hover:text-aviva-text transition-colors">
+              จดจำอีเมล
+            </label>
           </div>
         </div>
 

@@ -60,37 +60,74 @@ export default function MyReportsPage() {
     if (!user) return;
     setLoading(true);
 
-    if (tab === "submitted") {
-      // ดูรายงานที่ส่งแล้ว
-      const { data: rpts } = await supabase
-        .from("construction_reports")
-        .select("*, houses(house_number, contractor)")
-        .eq("reported_by", user.full_name)
-        .order("created_at", { ascending: false })
-        .limit(50);
+    try {
+      if (tab === "submitted") {
+        // ดูรายงานที่ส่งแล้ว — ลองดึง construction_reports ก่อน
+        const { data: rpts, error: err } = await supabase
+          .from("construction_reports")
+          .select("*, houses(house_number, contractor)")
+          .eq("reported_by", user.full_name)
+          .order("created_at", { ascending: false })
+          .limit(50);
 
-      const typed = (rpts ?? []).map((r: any) => ({
-        ...r,
-        house_number: r.houses?.house_number,
-        contractor: r.houses?.contractor,
-      }));
-      setReports(typed as MyReport[]);
-      setSelectedReport(null);
-    } else {
-      // ดู construction_logs ที่ยังไม่ส่ง
-      const { data: lgz } = await supabase
-        .from("construction_logs")
-        .select("*")
-        .eq("logged_by", user.full_name)
-        .eq("submit_status", "draft")
-        .order("log_date", { ascending: false })
-        .limit(50);
+        if (err || !rpts || rpts.length === 0) {
+          // ถ้า construction_reports ว่าง ให้ดึงจาก work_reports แทน
+          const { data: workRpts } = await supabase
+            .from("work_reports")
+            .select("*")
+            .eq("user_email", user.email)
+            .eq("department", "ฝ่ายก่อสร้าง")
+            .in("status", ["submitted", "late"])
+            .order("created_at", { ascending: false })
+            .limit(50);
 
-      setLogs((lgz ?? []) as MyConstructionLog[]);
-      setSelectedReport(null);
+          const typed = (workRpts ?? []).map((r: any) => ({
+            id: r.id,
+            reported_by: r.employee_name,
+            work_detail: r.summary,
+            progress: 0,
+            issue: "",
+            work_type: r.report_type,
+            photo_url: null,
+            created_at: r.submitted_at || r.created_at,
+            house_id: null,
+            house_number: undefined,
+            contractor: undefined,
+          }));
+          setReports(typed as MyReport[]);
+        } else {
+          const typed = (rpts ?? []).map((r: any) => ({
+            ...r,
+            house_number: r.houses?.house_number,
+            contractor: r.houses?.contractor,
+          }));
+          setReports(typed as MyReport[]);
+        }
+        setSelectedReport(null);
+      } else {
+        // ดู construction_logs ที่ยังไม่ส่ง
+        const { data: lgz } = await supabase
+          .from("construction_logs")
+          .select("*")
+          .eq("logged_by", user.full_name)
+          .eq("submit_status", "draft")
+          .order("log_date", { ascending: false })
+          .limit(50);
+
+        setLogs((lgz ?? []) as MyConstructionLog[]);
+        setSelectedReport(null);
+      }
+    } catch (error) {
+      console.error("Error loading reports:", error);
+      showToast("เกิดข้อผิดพลาดในการโหลด", "error");
     }
 
     setLoading(false);
+  }
+
+  function showToast(msg: string, type: "success" | "error" = "success") {
+    // Simple toast notification
+    alert(msg);
   }
 
   async function handleViewReport(report: MyReport) {

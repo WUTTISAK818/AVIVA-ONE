@@ -64,12 +64,65 @@ export async function POST(
       return NextResponse.json({ error: 'Missing house_id', ok: false }, { status: 400 })
     }
 
-    // TODO: Implement based on action (inspect, approve, owner-sign)
-    // For now, skeleton response
+    if (!action) {
+      return NextResponse.json({ error: 'Missing action', ok: false }, { status: 400 })
+    }
+
+    let signoffData: any = {
+      installment_id: installmentId,
+      house_id,
+    }
+
+    if (action === 'inspect') {
+      if (!inspected_by) {
+        return NextResponse.json({ error: 'Missing inspected_by', ok: false }, { status: 400 })
+      }
+      signoffData = {
+        ...signoffData,
+        inspected_by,
+        inspected_at: new Date().toISOString(),
+        photo_url_before: photo_url_before || null,
+        photo_url_after: photo_url_after || null,
+        all_items_passed: body.all_items_passed || false,
+      }
+    } else if (action === 'approve') {
+      if (!body.approved_by) {
+        return NextResponse.json({ error: 'Missing approved_by', ok: false }, { status: 400 })
+      }
+      if (!approval_notes) {
+        return NextResponse.json({ error: 'Missing approval_notes', ok: false }, { status: 400 })
+      }
+      signoffData = {
+        ...signoffData,
+        approved_by: body.approved_by,
+        approved_at: new Date().toISOString(),
+        approval_notes,
+      }
+    } else if (action === 'owner-sign') {
+      if (!owner_signed_by) {
+        return NextResponse.json({ error: 'Missing owner_signed_by', ok: false }, { status: 400 })
+      }
+      signoffData = {
+        ...signoffData,
+        owner_signed_by,
+        owner_signed_at: new Date().toISOString(),
+        next_stage: next_stage || null,
+      }
+    }
+
+    const { data, error } = await sb
+      .from('inspection_signoffs')
+      .upsert([signoffData], {
+        onConflict: 'installment_id,house_id',
+      })
+      .select()
+      .single()
+
+    if (error) throw error
 
     return NextResponse.json({
-      message: `[${action}] action placeholder - implement per phase`,
-      installmentId,
+      data,
+      message: `${action} signoff recorded successfully`,
       ok: true,
     })
   } catch (err) {

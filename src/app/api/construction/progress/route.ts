@@ -6,10 +6,15 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   try {
     const sb = getSupabase()
-    const { data, error } = await sb
-      .from('vw_construction_progress')
-      .select('*')
-      .order('updated_at', { ascending: false })
+    const { searchParams } = new URL(req.url)
+
+    const project_id = searchParams.get('project_id')
+
+    let query = sb.from('vw_construction_progress').select('*')
+
+    if (project_id) query = query.eq('project_id', project_id)
+
+    const { data, error } = await query.order('overall_percentage', { ascending: false })
 
     if (error) throw error
 
@@ -25,7 +30,12 @@ export async function POST(req: NextRequest) {
     const sb = getSupabase()
     const body = await req.json()
 
-    const { house_id, current_stage, stage_percentage, overall_percentage, updated_by } = body
+    const {
+      house_id,
+      current_stage,
+      stage_percentage,
+      overall_percentage,
+    } = body
 
     if (!house_id) {
       return NextResponse.json({ error: 'Missing house_id', ok: false }, { status: 400 })
@@ -36,8 +46,6 @@ export async function POST(req: NextRequest) {
       current_stage: current_stage || 'foundation',
       stage_percentage: stage_percentage || 0,
       overall_percentage: overall_percentage || 0,
-      updated_by: updated_by || null,
-      updated_at: new Date().toISOString(),
     }
 
     const { data, error } = await sb

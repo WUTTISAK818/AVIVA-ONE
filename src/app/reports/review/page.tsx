@@ -379,7 +379,7 @@ export default function ReportsReviewPage() {
     if (hasConstruction) {
       const { data: constRaw } = await supabase
         .from("construction_reports")
-        .select("work_detail, work_type, progress, issue, photo_url, reported_by, houses!inner(house_number, contractor)")
+        .select("work_detail, work_type, progress, issue, photo_url, reported_by, houses(house_number, contractor)")
         .gte("created_at", selectedDate + "T00:00:00")
         .lte("created_at", selectedDate + "T23:59:59");
       (constRaw ?? []).forEach((cr: Record<string, unknown>) => {
@@ -425,7 +425,7 @@ export default function ReportsReviewPage() {
     if (selected.department === "ฝ่ายก่อสร้าง") {
       const { data: constRaw } = await supabase
         .from("construction_reports")
-        .select("work_detail, work_type, progress, issue, photo_url, reported_by, houses!inner(house_number, contractor)")
+        .select("work_detail, work_type, progress, issue, photo_url, reported_by, houses(house_number, contractor)")
         .eq("reported_by", selected.employee_name)
         .gte("created_at", selected.report_date + "T00:00:00")
         .lte("created_at", selected.report_date + "T23:59:59");

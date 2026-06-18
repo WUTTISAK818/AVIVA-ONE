@@ -64,3 +64,26 @@
 - โค้ดไม่ต้องแก้เพื่อสลับฐานข้อมูล — แค่เปลี่ยน env
 - ฐานข้อมูล `aviva-private` ถูกล้าง `winvote_*` ออกหมดแล้ว (ไม่เหลือร่องรอย)
 - การ deploy นี้ **ไม่เกี่ยวกับ `main` / AVIVA ONE เลย** — แยก branch + แยก Vercel project + แยก Supabase
+
+---
+
+## 📌 ค้างไว้ (TODO) — ต้องทำทีหลัง
+
+### 🔴 ย้ายโค้ด WinVote ไปอยู่ repo `WinVote` ของตัวเอง
+**สถานะปัจจุบัน (ชั่วคราว):** โค้ด WinVote อยู่ใน repo `WUTTISAK818/AVIVA-ONE` branch `winvote-only`
+และ deploy ผ่าน Vercel project `wut-winvote` (Production Branch = `winvote-only`)
+
+**เป้าหมาย:** ย้ายไปอยู่ใน repo แยกของตัวเอง (`WUTTISAK818/WinVote`) ให้แยกขาด AVIVA 100% ระดับ repo
+
+เหตุผล: ตอนนี้ยังใช้ repo ร่วมกับ AVIVA (คนละ branch) — สะอาดกว่าถ้าแยก repo จริง
+จะได้ไม่ปนประวัติ/branch กับ AVIVA และจัดสิทธิ์/CI แยกได้
+
+ขั้นตอนเมื่อพร้อมย้าย:
+1. ตรวจ repo `WinVote` / `win-vote` ที่มีอยู่แล้วว่าตัวไหนจะใช้ (มี 2 ตัว — รวบให้เหลือตัวเดียว)
+2. ดันโค้ดจาก `AVIVA-ONE@winvote-only` → repo `WinVote` (branch `main`)
+3. สลับ Vercel project `wut-winvote` ให้ import จาก repo `WinVote` แทน + Production Branch = `main`
+4. เก็บ env เดิม (Supabase WinVote) ได้เลย — ไม่ต้องเปลี่ยน
+5. ยืนยัน deploy + ล็อกอินผ่าน แล้วค่อยปลด branch `winvote-only` ออกจาก AVIVA-ONE (ถ้าต้องการ)
+
+> ⚠️ ผมเข้าถึง repo `WinVote` / `win-vote` ไม่ได้ (สิทธิ์จำกัดที่ `aviva-one`) — ขั้นย้ายต้องให้สิทธิ์เพิ่ม หรือผู้ใช้ช่วยทำบางส่วน
+

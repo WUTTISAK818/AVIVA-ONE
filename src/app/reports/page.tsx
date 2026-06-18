@@ -411,6 +411,9 @@ export default function ReportsPage() {
               ))}
             </div>
           )}
+          {isSubmitted && attachments.length === 0 && (
+            <p className="text-center text-aviva-secondary/50 italic text-xs py-3">❌ ไม่มีรูปภาพแนบในรายงานนี้</p>
+          )}
           {!isSubmitted && (
             <label className="flex items-center gap-2.5 bg-aviva-bg border border-aviva-gold/20 border-dashed rounded-xl px-4 py-3 cursor-pointer hover:border-aviva-gold/50 transition-all">
               <Camera size={16} className="text-aviva-secondary/60 flex-shrink-0" />

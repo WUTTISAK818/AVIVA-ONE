@@ -49,6 +49,8 @@ interface House {
   land_size: number | null;
   contractor_line_id: string | null;
   contractor_phone: string | null;
+  plot_code?: string | null;
+  construction_status?: string | null;
 }
 
 interface Report {
@@ -472,13 +474,13 @@ export default function ConstructionPage() {
     if (rptStart) rptQ = rptQ.gte("created_at", rptStart);
     if (rptEnd) rptQ = rptQ.lte("created_at", rptEnd + "T23:59:59");
     Promise.all([
-      supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number"),
+      supabase.from("houses").select("*,plot_code,construction_status").eq("project_id", PROJECT_ID).order("plot_number"),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
       supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
     ]).then(([hRes, rRes, dRes, leadRes]) => {
       // D2: กัน null หลัง reset ข้อมูลก่อสร้าง (progress/contractor อาจเป็น null)
-      setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0 })));
+      setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0, plot_code: h.plot_code ?? null, construction_status: h.construction_status ?? null })));
       setReports((rRes.data as Report[]) ?? []);
       setDefects((dRes.data as Defect[]) ?? []);
       const plots = new Set<number>((leadRes.data ?? []).filter((d: { plot_number: number | null }) => d.plot_number != null).map((d: { plot_number: number }) => d.plot_number));

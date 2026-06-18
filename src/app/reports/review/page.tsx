@@ -57,6 +57,13 @@ interface ConstructionReport {
   photo_url: string | null;
 }
 
+interface DailySummaryReport {
+  employee_name: string;
+  work_detail: string;
+  photo_url: string | null;
+  submitted_at: string;
+}
+
 interface Employee {
   id: string;
   full_name: string;
@@ -279,7 +286,7 @@ export default function ReportsReviewPage() {
     popupWrite(win, `รายงานประจำวัน ${selectedDate}`, body);
   }
 
-  function buildA4PageHTML(r: WReport, items: WItem[], dateLabel: string, constRpts?: ConstructionReport[]): string {
+  function buildA4PageHTML(r: WReport, items: WItem[], dateLabel: string, constRpts?: ConstructionReport[], dailySummaryPhotoUrl?: string | null): string {
     const CAT_MAP: Record<string, { label: string; bg: string; color: string }> = {
       activity:    { label: "กิจกรรม",        bg: "#dbeafe", color: "#1d4ed8" },
       achievement: { label: "ผลสำเร็จ",       bg: "#dcfce7", color: "#166534" },
@@ -319,6 +326,11 @@ export default function ReportsReviewPage() {
       ${r.summary ? `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">สรุปภาพรวม</div><p style="font-size:13px;line-height:1.8">${r.summary}</p></div>` : ""}
       ${catSections ? `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">รายการกิจกรรม</div>${catSections}</div>` : `<p style="font-size:12px;color:#aaa;font-style:italic;margin-bottom:14px">ไม่มีรายการกิจกรรม</p>`}
       ${r.late_reason ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 12px;font-size:12px;color:#9a3412;margin-bottom:12px">เหตุผลที่ส่งล่าช้า: ${r.late_reason}</div>` : ""}
+      ${dailySummaryPhotoUrl ? `
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">รูปภาพสรุปประจำวัน</div>
+          <img src="${dailySummaryPhotoUrl}" style="max-width:100%;max-height:300px;width:100%;object-fit:contain;border-radius:6px;border:1px solid #ddd;display:block" />
+        </div>` : ""}
       ${(constRpts && constRpts.length > 0) ? `
         <div style="margin-bottom:14px">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:8px">รายงานการตรวจงานก่อสร้าง (${constRpts.length} รายการ)</div>
@@ -362,6 +374,7 @@ export default function ReportsReviewPage() {
     (allItems ?? []).forEach((item: WItem) => { (itemsByReport[item.report_id!] ??= []).push(item); });
 
     const constByName: Record<string, ConstructionReport[]> = {};
+    const summaryPhotoByName: Record<string, string | null> = {};
     const hasConstruction = reportsToShow.some(r => r.department === "ฝ่ายก่อสร้าง");
     if (hasConstruction) {
       const { data: constRaw } = await supabase
@@ -372,12 +385,19 @@ export default function ReportsReviewPage() {
       (constRaw ?? []).forEach((cr: Record<string, unknown>) => {
         const name = cr.reported_by as string | null;
         if (!name) return;
+        const workType = cr.work_type as string | null;
+        // ดึง Daily Summary Photos
+        if (workType === "สรุปประจำวัน") {
+          summaryPhotoByName[name] = cr.photo_url as string | null;
+          return;
+        }
+        // ดึง Construction Reports
         const houses = cr.houses as { house_number: string; contractor: string } | null;
         (constByName[name] ??= []).push({
           house_number: houses?.house_number ?? "—",
           contractor: houses?.contractor ?? "",
           work_detail: String(cr.work_detail ?? ""),
-          work_type: cr.work_type as string | null,
+          work_type: workType,
           progress: Number(cr.progress ?? 0),
           issue: String(cr.issue ?? ""),
           photo_url: cr.photo_url as string | null,
@@ -389,7 +409,8 @@ export default function ReportsReviewPage() {
     if (!win) return;
     const pages = reportsToShow.map((r, idx) => {
       const constRpts = r.department === "ฝ่ายก่อสร้าง" ? (constByName[r.employee_name] ?? []) : undefined;
-      return `<div ${idx > 0 ? 'style="page-break-before:always"' : ""}>${buildA4PageHTML(r, itemsByReport[r.id] ?? [], displayDate, constRpts)}</div>`;
+      const summaryPhoto = r.department === "ฝ่ายก่อสร้าง" ? summaryPhotoByName[r.employee_name] : undefined;
+      return `<div ${idx > 0 ? 'style="page-break-before:always"' : ""}>${buildA4PageHTML(r, itemsByReport[r.id] ?? [], displayDate, constRpts, summaryPhoto)}</div>`;
     }).join("");
     popupWrite(win, `รายงาน A4 รายบุคคล — ${selectedDate}`, pages);
   }
@@ -400,6 +421,7 @@ export default function ReportsReviewPage() {
     if (!win) return;
 
     let constRpts: ConstructionReport[] | undefined;
+    let summaryPhoto: string | null | undefined;
     if (selected.department === "ฝ่ายก่อสร้าง") {
       const { data: constRaw } = await supabase
         .from("construction_reports")
@@ -407,21 +429,29 @@ export default function ReportsReviewPage() {
         .eq("reported_by", selected.employee_name)
         .gte("created_at", selected.report_date + "T00:00:00")
         .lte("created_at", selected.report_date + "T23:59:59");
-      constRpts = (constRaw ?? []).map((cr: Record<string, unknown>) => {
+      constRpts = [];
+      (constRaw ?? []).forEach((cr: Record<string, unknown>) => {
+        const workType = cr.work_type as string | null;
+        // ดึง Daily Summary Photo
+        if (workType === "สรุปประจำวัน") {
+          summaryPhoto = cr.photo_url as string | null;
+          return;
+        }
+        // ดึง Construction Reports
         const houses = cr.houses as { house_number: string; contractor: string } | null;
-        return {
+        constRpts!.push({
           house_number: houses?.house_number ?? "—",
           contractor: houses?.contractor ?? "",
           work_detail: String(cr.work_detail ?? ""),
-          work_type: cr.work_type as string | null,
+          work_type: workType,
           progress: Number(cr.progress ?? 0),
           issue: String(cr.issue ?? ""),
           photo_url: cr.photo_url as string | null,
-        };
+        });
       });
     }
 
-    popupWrite(win, `รายงาน — ${selected.employee_name}`, buildA4PageHTML(selected, selItems, displayDate, constRpts));
+    popupWrite(win, `รายงาน — ${selected.employee_name}`, buildA4PageHTML(selected, selItems, displayDate, constRpts, summaryPhoto));
   }
 
   if (!canAccess) {

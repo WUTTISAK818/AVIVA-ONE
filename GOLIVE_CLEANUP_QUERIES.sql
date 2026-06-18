@@ -242,6 +242,136 @@ FROM crm_leads
 WHERE house_id IN (SELECT id FROM houses WHERE plot_code IN ('A01', 'A02', 'A03', 'A04', 'A05'));
 
 -- ========================================================================
+-- SECTION 6.5: BACKUP & DELETE DEMO DATA TABLES (143 work queue + more)
+-- ========================================================================
+
+-- Backup work queue (143 demo items)
+SELECT
+  id,
+  assigned_to,
+  task_type,
+  status,
+  created_at,
+  description
+FROM work_queue
+LIMIT 50;
+-- Save above to Google Drive → AVIVA-ONE-BACKUP-WorkQueue-2026-06-18.json
+
+-- DELETE demo work queue (143 items)
+DELETE FROM work_queue
+WHERE assigned_to IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+-- Expected deleted: ~143 items
+
+-- DELETE demo work reports (35 items total, EXCEPT engineer@alisa.com reports 17-18 Jun)
+DELETE FROM work_reports
+WHERE user_email IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+)
+AND NOT (
+  -- KEEP: engineer@alisa.com reports on 17-18 June 2026
+  user_email = 'engineer@alisa.com'
+  AND report_date IN ('2026-06-17', '2026-06-18')
+);
+-- Expected deleted: ~33 items (keeping 2 production reports from Pete)
+
+-- DELETE demo approval logs (26 items) - these are historical approvals from demo accounts
+DELETE FROM approval_logs
+WHERE created_by IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+-- Expected deleted: ~26 items
+
+-- DELETE demo petty cash entries (3 items)
+DELETE FROM petty_cash_entries
+WHERE created_by IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+-- Expected deleted: ~3 items
+
+-- DELETE demo office documents (20 items)
+DELETE FROM documents
+WHERE created_by IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+-- Expected deleted: ~20 items
+
+-- DELETE demo AI chat logs (1 item)
+DELETE FROM ai_chat_logs
+WHERE user_id IN (
+  SELECT id FROM auth.users
+  WHERE email IN (
+    'ceo.test@aviva.th',
+    'demo.admin@aviva.th',
+    'demo.sales@aviva.th',
+    'demo.finance@aviva.th',
+    'demo.construction@aviva.th',
+    'demo.accounting@aviva.th',
+    'demo.hr@aviva.th',
+    'demo.marketing@aviva.th',
+    'demo.aftersales@aviva.th'
+  )
+);
+-- Expected deleted: ~1 item
+
+-- Verify all demo data deleted
+SELECT 'Work Queue Remaining' as check_item, COUNT(*) as count FROM work_queue WHERE assigned_to LIKE 'demo.%'
+UNION ALL
+SELECT 'Work Reports (Demo Only)', COUNT(*) FROM work_reports WHERE user_email LIKE 'demo.%'
+UNION ALL
+SELECT 'Approval Logs (Demo)', COUNT(*) FROM approval_logs WHERE created_by LIKE 'demo.%'
+UNION ALL
+SELECT 'Petty Cash (Demo)', COUNT(*) FROM petty_cash_entries WHERE created_by LIKE 'demo.%'
+UNION ALL
+SELECT 'Documents (Demo)', COUNT(*) FROM documents WHERE created_by LIKE 'demo.%'
+UNION ALL
+SELECT 'Work Reports (Pete 17-18 Jun)', COUNT(*) FROM work_reports
+  WHERE user_email = 'engineer@alisa.com'
+  AND report_date IN ('2026-06-17', '2026-06-18');
+-- Expected: All demo items = 0, Pete reports = 2
+
+-- ========================================================================
 -- SECTION 7: DELETE TEST DATA (EXECUTE IN ORDER)
 -- ========================================================================
 
@@ -380,17 +510,25 @@ DEMO ACCOUNTS — DELETE ONLY THESE 9 (by email match):
   ❌ demo.marketing@aviva.th
   ❌ demo.aftersales@aviva.th
 
+PRODUCTION DATA — KEEP (DO NOT DELETE):
+  ✅ All CRM Leads (134 items) — customer data is REAL
+  ✅ Work Reports from engineer@alisa.com (Pete) on 17-18 June — KEEP (2 reports)
+  ✅ All production user accounts
+
 EXECUTION STEPS:
 1. BACKUP FIRST: Always save query results to Google Drive before running deletes
 2. RUN SECTION 1: Export all demo accounts to JSON (emergency backup)
 3. RUN SECTION 2: Count — should show 9 demo accounts
-4. RUN SECTION 2.5: Backup + DELETE 26 demo work items ← NEW (DO THIS EARLY!)
-5. RUN SECTION 5: Verify all 6 production users are present ✅
-6. RUN SECTIONS 3-6: Back up test houses + dependencies
-7. RUN SECTION 7: Delete test data in order (Step 1-5)
-8. RUN SECTION 8: Verify all deletions successful
-9. RUN SECTION 11: Final check — 0 demo accounts, 6 production users remain
-10. DOCUMENT CLEANUP: Save all results + timestamps to deployment report
+4. RUN SECTION 2.5: Backup + DELETE demo work items (26 work items)
+5. RUN SECTION 6.5: DELETE ALL demo data ← NEW SECTION (DELETE WORK QUEUE + REPORTS + LOGS + ETC)
+   • Deletes: 143 work queue items + 33 work reports (keeps Pete's 17-18 Jun) + 26 approval logs + 3 petty cash + 20 documents + 1 AI chat
+   • Keeps: ALL CRM leads (134 items) + Pete's 2 production reports
+6. RUN SECTION 5: Verify all 6 production users are present ✅
+7. RUN SECTIONS 3-6 (old): Back up test houses + dependencies
+8. RUN SECTION 7 (old): Delete test data in order (Step 1-5)
+9. RUN SECTION 8 (old): Verify all deletions successful
+10. RUN SECTION 11 (old): Final check — 0 demo accounts, 6 production users remain
+11. DOCUMENT CLEANUP: Save all results + timestamps to deployment report
 
 If you cannot delete via SQL (no direct access):
 - Use Supabase Dashboard → Authentication → Users → Delete each demo account manually

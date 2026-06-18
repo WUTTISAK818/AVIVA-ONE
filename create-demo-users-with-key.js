@@ -23,17 +23,17 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 const demoUsers = [
-  { email: 'demo.ceo@alisa.com', password: 'Demo@CEO123', name: 'Demo CEO - Full Access', role: 'ceo', dept: 'Executive' },
-  { email: 'demo.coo@alisa.com', password: 'Demo@COO123', name: 'Demo COO - Full Access', role: 'coo', dept: 'Operations' },
-  { email: 'demo.project_mgr@alisa.com', password: 'Demo@ProjectMgr123', name: 'Demo Project Manager', role: 'project_manager', dept: 'Construction' },
-  { email: 'demo.sales_mgr@alisa.com', password: 'Demo@SalesMgr123', name: 'Demo Sales Manager', role: 'sales_manager', dept: 'Sales' },
-  { email: 'demo.finance_mgr@alisa.com', password: 'Demo@FinanceMgr123', name: 'Demo Finance Manager', role: 'finance_manager', dept: 'Finance' },
-  { email: 'demo.hr_mgr@alisa.com', password: 'Demo@HrMgr123', name: 'Demo HR Manager', role: 'hr_manager', dept: 'HR' },
-  { email: 'demo.engineer@alisa.com', password: 'Demo@Engineer123', name: 'Demo Engineer', role: 'engineer', dept: 'Construction' },
-  { email: 'demo.qa_inspector@alisa.com', password: 'Demo@QaInspector123', name: 'Demo QA Inspector', role: 'qa_inspector', dept: 'Quality' },
-  { email: 'demo.accountant@alisa.com', password: 'Demo@Accountant123', name: 'Demo Accountant', role: 'accountant', dept: 'Finance' },
-  { email: 'demo.marketing@alisa.com', password: 'Demo@Marketing123', name: 'Demo Marketing', role: 'marketing', dept: 'Marketing' },
-  { email: 'demo.admin@alisa.com', password: 'Demo@Admin123', name: 'Demo Admin', role: 'admin', dept: 'IT' },
+  { email: 'demo.ceo@alisa.com', password: 'AVIVA1188', name: 'Demo CEO - Full Access', role: 'ceo', dept: 'Executive' },
+  { email: 'demo.coo@alisa.com', password: 'AVIVA1188', name: 'Demo COO - Full Access', role: 'coo', dept: 'Operations' },
+  { email: 'demo.project_mgr@alisa.com', password: 'AVIVA1188', name: 'Demo Project Manager', role: 'project_manager', dept: 'Construction' },
+  { email: 'demo.sales_mgr@alisa.com', password: 'AVIVA1188', name: 'Demo Sales Manager', role: 'sales_manager', dept: 'Sales' },
+  { email: 'demo.finance_mgr@alisa.com', password: 'AVIVA1188', name: 'Demo Finance Manager', role: 'finance_manager', dept: 'Finance' },
+  { email: 'demo.hr_mgr@alisa.com', password: 'AVIVA1188', name: 'Demo HR Manager', role: 'hr_manager', dept: 'HR' },
+  { email: 'demo.engineer@alisa.com', password: 'AVIVA1188', name: 'Demo Engineer', role: 'engineer', dept: 'Construction' },
+  { email: 'demo.qa_inspector@alisa.com', password: 'AVIVA1188', name: 'Demo QA Inspector', role: 'qa_inspector', dept: 'Quality' },
+  { email: 'demo.accountant@alisa.com', password: 'AVIVA1188', name: 'Demo Accountant', role: 'accountant', dept: 'Finance' },
+  { email: 'demo.marketing@alisa.com', password: 'AVIVA1188', name: 'Demo Marketing', role: 'marketing', dept: 'Marketing' },
+  { email: 'demo.admin@alisa.com', password: 'AVIVA1188', name: 'Demo Admin', role: 'admin', dept: 'IT' },
 ];
 
 async function createDemoUsers() {

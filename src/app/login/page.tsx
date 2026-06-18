@@ -6,18 +6,18 @@ import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "
 import { supabase } from "@/lib/supabase";
 
 const DEMO_ACCOUNTS = [
-  { email: "ceo.test@aviva.th",           label: "CEO",         dept: "ฝ่ายบริหาร",      color: "text-yellow-300   bg-yellow-500/10   border-yellow-500/20" },
-  { email: "demo.admin@aviva.th",        label: "Admin",       dept: "ฝ่ายบริหาร",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
-  { email: "demo.sales@aviva.th",         label: "นายหน้า",     dept: "ฝ่ายขาย",          color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
-  { email: "demo.finance@aviva.th",       label: "การเงิน",     dept: "ฝ่ายการเงิน",      color: "text-green-400    bg-green-500/10    border-green-500/20" },
-  { email: "demo.construction@aviva.th",  label: "ก่อสร้าง",    dept: "ฝ่ายก่อสร้าง",     color: "text-orange-400   bg-orange-500/10   border-orange-500/20" },
-  { email: "demo.accounting@aviva.th",    label: "บัญชี",       dept: "ฝ่ายบัญชี",        color: "text-purple-400   bg-purple-500/10   border-purple-500/20" },
-  { email: "demo.hr@aviva.th",            label: "บุคคล",       dept: "ฝ่ายบุคคล",        color: "text-pink-400     bg-pink-500/10     border-pink-500/20" },
-  { email: "demo.marketing@aviva.th",     label: "การตลาด",     dept: "ฝ่ายการตลาด",      color: "text-cyan-400     bg-cyan-500/10     border-cyan-500/20" },
-  { email: "demo.aftersales@aviva.th",    label: "หลังการขาย",  dept: "ฝ่ายหลังการขาย",   color: "text-teal-400     bg-teal-500/10     border-teal-500/20" },
+  { email: "demo.ceo@alisa.com",           label: "CEO",         dept: "Executive",      color: "text-yellow-300   bg-yellow-500/10   border-yellow-500/20" },
+  { email: "demo.admin@alisa.com",        label: "Admin",       dept: "IT",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
+  { email: "demo.sales_mgr@alisa.com",         label: "Sales Mgr",     dept: "Sales",          color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
+  { email: "demo.finance_mgr@alisa.com",       label: "Finance Mgr",     dept: "Finance",      color: "text-green-400    bg-green-500/10    border-green-500/20" },
+  { email: "demo.project_mgr@alisa.com",  label: "Project Mgr",    dept: "Construction",     color: "text-orange-400   bg-orange-500/10   border-orange-500/20" },
+  { email: "demo.accountant@alisa.com",    label: "Accountant",       dept: "Finance",        color: "text-purple-400   bg-purple-500/10   border-purple-500/20" },
+  { email: "demo.hr_mgr@alisa.com",            label: "HR Mgr",       dept: "HR",        color: "text-pink-400     bg-pink-500/10     border-pink-500/20" },
+  { email: "demo.marketing@alisa.com",     label: "Marketing",     dept: "Marketing",      color: "text-cyan-400     bg-cyan-500/10     border-cyan-500/20" },
+  { email: "demo.engineer@alisa.com",    label: "Engineer",  dept: "Construction",   color: "text-teal-400     bg-teal-500/10     border-teal-500/20" },
 ];
 
-const DEMO_PASSWORD = "Demo1234";
+const DEMO_PASSWORD = "AVIVA1188";
 
 export default function LoginPage() {
   const router = useRouter();

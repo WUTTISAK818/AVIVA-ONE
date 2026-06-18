@@ -201,7 +201,7 @@ export default function ReportsReviewPage() {
         .gte("created_at", r.report_date + "T00:00:00")
         .lte("created_at", r.report_date + "T23:59:59")
         .limit(1)
-        .single();
+        .maybeSingle();
       if (constRaw?.photo_url) {
         setSelectedDailySummaryPhoto(constRaw.photo_url);
       }

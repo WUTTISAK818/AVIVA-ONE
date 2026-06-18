@@ -108,7 +108,8 @@ export default function NotificationBell() {
       .order("created_at", { ascending: false })
       .limit(50);
     const all = (data as Notification[]) ?? [];
-    const visible = user && !user.isManager
+    // ทุกคน (รวมผู้บริหาร) ต้อง filter เฉพาะแจ้งเตือนที่เกี่ยวข้องกับตัว/แผนกของตัว
+    const visible = user
       ? all.filter(n => !n.to_dept || deptRelated(n.to_dept, user.department) || deptRelated(n.from_dept, user.department))
       : all;
     const shown = visible.slice(0, 30);

@@ -108,6 +108,7 @@ export default function ReportsReviewPage() {
   const [weekStats, setWeekStats]       = useState<WeekStat[]>([]);
   const [commentText, setCommentText]   = useState("");
   const [showMissing, setShowMissing]   = useState(false);
+  const [selectedDailySummaryPhoto, setSelectedDailySummaryPhoto] = useState<string | null>(null);
 
   const canAccess = user?.isManager || user?.isAdmin;
 
@@ -182,12 +183,29 @@ export default function ReportsReviewPage() {
   async function openReport(r: WReport) {
     setSelected(r);
     setCommentText("");
+    setSelectedDailySummaryPhoto(null);
     const { data } = await supabase
       .from("work_report_items")
       .select("*")
       .eq("report_id", r.id)
       .order("created_at");
     setSelItems((data ?? []) as WItem[]);
+
+    // Fetch daily summary photo if from construction department
+    if (r.department === "ฝ่ายก่อสร้าง") {
+      const { data: constRaw } = await supabase
+        .from("construction_reports")
+        .select("photo_url, work_type")
+        .eq("reported_by", r.employee_name)
+        .eq("work_type", "สรุปประจำวัน")
+        .gte("created_at", r.report_date + "T00:00:00")
+        .lte("created_at", r.report_date + "T23:59:59")
+        .limit(1)
+        .single();
+      if (constRaw?.photo_url) {
+        setSelectedDailySummaryPhoto(constRaw.photo_url);
+      }
+    }
   }
 
   async function acknowledge() {
@@ -712,6 +730,19 @@ export default function ReportsReviewPage() {
                 <div className="bg-aviva-bg/50 rounded-xl p-3">
                   <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-1.5">สรุปภาพรวม</p>
                   <p className="text-sm text-aviva-text leading-relaxed">{selected.summary}</p>
+                </div>
+              )}
+
+              {selectedDailySummaryPhoto && (
+                <div className="bg-aviva-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">รูปภาพสรุปประจำวัน</p>
+                  <img
+                    src={selectedDailySummaryPhoto}
+                    alt="Daily summary photo"
+                    style={{width: "100%", maxHeight: "300px", objectFit: "contain", borderRadius: "6px"}}
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => window.open(selectedDailySummaryPhoto, '_blank')}
+                  />
                 </div>
               )}
 

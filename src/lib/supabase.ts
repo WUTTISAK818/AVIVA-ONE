@@ -1,7 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// กัน build/runtime พังถ้า env หาย/ผิดรูป (เช่นลืมใส่ https://)
+function normalizeUrl(raw: string | undefined): string {
+  let u = (raw ?? "").trim();
+  if (!u) return "https://placeholder.supabase.co";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u; // เติม protocol ให้อัตโนมัติ
+  return u;
+}
+
+const supabaseUrl = normalizeUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim() || "public-anon-key";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

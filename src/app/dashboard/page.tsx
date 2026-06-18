@@ -71,6 +71,12 @@ interface ActiveHouseInfo {
   contractor: string;
 }
 
+interface ConstructionProgressStats {
+  completedUnits: number;
+  inProgressUnits: number;
+  notStartedUnits: number;
+}
+
 function formatMillions(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   return `${(n / 1_000).toFixed(0)}K`;
@@ -87,6 +93,8 @@ const KPI_LABELS: Record<string, string> = {
   sold: "ยูนิตที่ขายแล้ว (Closed Deal)",
   available: "ยูนิตว่าง",
   revenue: "รายได้ 20 รายการล่าสุด",
+  completed: "สร้างเสร็จแล้ว",
+  in_progress: "กำลังสร้าง",
 };
 
 interface InsightItem {
@@ -111,6 +119,7 @@ export default function DashboardPage() {
     pendingClaims: 0, totalLeads: 0, pendingDocs: 0,
   });
   const [constructionStats, setConstructionStats] = useState<ConstructionStats>({ total: 0, inReview: 0, approved: 0, paid: 0 });
+  const [constructionProgressStats, setConstructionProgressStats] = useState<ConstructionProgressStats>({ completedUnits: 0, inProgressUnits: 0, notStartedUnits: 0 });
   const [delayedHouseStats, setDelayedHouseStats] = useState({ count: 0, maxDays: 0, worstHouse: "" });
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
@@ -202,6 +211,14 @@ export default function DashboardPage() {
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "revenue") {
         const { data, error } = await supabase.from("finance_transactions").select("amount,created_at,description,transaction_type").eq("project_id", PROJECT_ID).eq("transaction_type", "income").order("created_at", { ascending: false }).limit(20);
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "completed") {
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).eq("progress", 100).order("plot_number");
+        if (error) throw error;
+        setKpiItems((data as Record<string, unknown>[]) ?? []);
+      } else if (type === "in_progress") {
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).gt("progress", 0).lt("progress", 100).order("plot_number");
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       }
@@ -297,6 +314,21 @@ export default function DashboardPage() {
             worstHouse: delayed[0].house_number ?? "",
           });
         }
+      });
+
+    supabase.from("houses")
+      .select("progress")
+      .eq("project_id", PROJECT_ID)
+      .then(({ data }) => {
+        const houses = (data ?? []) as { progress: number }[];
+        const completed = houses.filter(h => h.progress === 100).length;
+        const inProgress = houses.filter(h => h.progress > 0 && h.progress < 100).length;
+        const notStarted = houses.filter(h => h.progress === 0).length;
+        setConstructionProgressStats({
+          completedUnits: completed,
+          inProgressUnits: inProgress,
+          notStartedUnits: notStarted,
+        });
       });
 
     const refreshInsts = () => {
@@ -531,7 +563,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v6.33</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v6.34</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -728,6 +760,44 @@ export default function DashboardPage() {
                   <p className="text-xl font-bold text-green-400">{available}</p>
                   <p className="text-[10px] text-aviva-secondary leading-tight">ว่างอยู่</p>
                 </button>
+              </div>
+            </div>
+
+            <div>
+              <SectionHeader title="ความคืบหน้าก่อสร้าง" subtitle="สถานะโครงการก่อสร้าง" />
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => openKpi("completed")}
+                  className="bg-green-500/10 rounded-2xl border border-green-500/30 p-3 text-center active:scale-95 transition-all">
+                  <Package size={15} className="text-green-400 mx-auto mb-1.5" />
+                  <p className="text-xl font-bold text-green-400">{constructionProgressStats.completedUnits}</p>
+                  <p className="text-[10px] text-aviva-secondary leading-tight">สร้างเสร็จแล้ว</p>
+                  {totalUnits > 0 && (
+                    <p className="text-[9px] text-green-400/70 mt-1 font-medium">
+                      {Math.round((constructionProgressStats.completedUnits / totalUnits) * 100)}%
+                    </p>
+                  )}
+                </button>
+                <button onClick={() => openKpi("in_progress")}
+                  className="bg-orange-500/10 rounded-2xl border border-orange-500/30 p-3 text-center active:scale-95 transition-all">
+                  <HardHat size={15} className="text-orange-400 mx-auto mb-1.5" />
+                  <p className="text-xl font-bold text-orange-400">{constructionProgressStats.inProgressUnits}</p>
+                  <p className="text-[10px] text-aviva-secondary leading-tight">กำลังสร้าง</p>
+                  {totalUnits > 0 && (
+                    <p className="text-[9px] text-orange-400/70 mt-1 font-medium">
+                      {Math.round((constructionProgressStats.inProgressUnits / totalUnits) * 100)}%
+                    </p>
+                  )}
+                </button>
+                <div className="bg-aviva-card rounded-2xl border border-aviva-gold/15 p-3 text-center">
+                  <div className="w-4 h-4 rounded-full bg-gray-400 mx-auto mb-1.5" />
+                  <p className="text-xl font-bold text-aviva-text">{constructionProgressStats.notStartedUnits}</p>
+                  <p className="text-[10px] text-aviva-secondary leading-tight">ยังไม่เริ่ม</p>
+                  {totalUnits > 0 && (
+                    <p className="text-[9px] text-aviva-secondary/70 mt-1 font-medium">
+                      {Math.round((constructionProgressStats.notStartedUnits / totalUnits) * 100)}%
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 

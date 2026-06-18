@@ -73,6 +73,81 @@ WHERE email LIKE 'ceo.test@%'
 -- Expected result: 9
 
 -- ========================================================================
+-- SECTION 2.5: BACKUP & DELETE DEMO WORK QUEUE (26 items)
+-- ========================================================================
+
+-- First, count demo work items
+SELECT COUNT(*) as total_demo_work_items
+FROM work_reports
+WHERE user_email IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+-- Expected: 26 demo work items
+
+-- Backup demo work items (save result to Google Drive)
+SELECT
+  id,
+  user_email,
+  employee_name,
+  report_date,
+  summary,
+  status,
+  created_at
+FROM work_reports
+WHERE user_email IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+)
+ORDER BY created_at DESC;
+
+-- Save above result as JSON/CSV to Google Drive → AVIVA-ONE-BACKUP-DemoWorkItems-2026-06-18.json
+
+-- DELETE demo work items (CASCADE delete work_report_items)
+DELETE FROM work_reports
+WHERE user_email IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+
+-- Verify deletion
+SELECT COUNT(*) as remaining_demo_work_items
+FROM work_reports
+WHERE user_email IN (
+  'ceo.test@aviva.th',
+  'demo.admin@aviva.th',
+  'demo.sales@aviva.th',
+  'demo.finance@aviva.th',
+  'demo.construction@aviva.th',
+  'demo.accounting@aviva.th',
+  'demo.hr@aviva.th',
+  'demo.marketing@aviva.th',
+  'demo.aftersales@aviva.th'
+);
+-- Expected: 0
+
+-- ========================================================================
 -- SECTION 3: BACKUP TEST HOUSES (RUN BEFORE DELETION)
 -- ========================================================================
 
@@ -309,12 +384,13 @@ EXECUTION STEPS:
 1. BACKUP FIRST: Always save query results to Google Drive before running deletes
 2. RUN SECTION 1: Export all demo accounts to JSON (emergency backup)
 3. RUN SECTION 2: Count — should show 9 demo accounts
-4. RUN SECTION 5: Verify all 6 production users are present ✅
-5. RUN SECTIONS 3-6: Back up test houses + dependencies
-6. RUN SECTION 7: Delete test data in order (Step 1-5)
-7. RUN SECTION 8: Verify all deletions successful
-8. RUN SECTION 11: Final check — 0 demo accounts, 6 production users remain
-9. DOCUMENT CLEANUP: Save all results + timestamps to deployment report
+4. RUN SECTION 2.5: Backup + DELETE 26 demo work items ← NEW (DO THIS EARLY!)
+5. RUN SECTION 5: Verify all 6 production users are present ✅
+6. RUN SECTIONS 3-6: Back up test houses + dependencies
+7. RUN SECTION 7: Delete test data in order (Step 1-5)
+8. RUN SECTION 8: Verify all deletions successful
+9. RUN SECTION 11: Final check — 0 demo accounts, 6 production users remain
+10. DOCUMENT CLEANUP: Save all results + timestamps to deployment report
 
 If you cannot delete via SQL (no direct access):
 - Use Supabase Dashboard → Authentication → Users → Delete each demo account manually

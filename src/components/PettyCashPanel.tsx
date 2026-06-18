@@ -6,13 +6,14 @@
 // - "เติมเงิน" เพิ่มวงเงิน + ลงบัญชี (เดบิต เงินสดย่อย / เครดิต เงินฝากธนาคาร)
 // - เตือนเมื่อยอดคงเหลือใกล้หมด
 import { useEffect, useState, useCallback } from "react";
-import { Wallet, ArrowDownCircle, ArrowUpCircle, AlertTriangle, X, Pencil } from "lucide-react";
+import { Wallet, ArrowDownCircle, ArrowUpCircle, AlertTriangle, X, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import { postJv } from "@/lib/jv";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
+import { isManagerRole } from "@/lib/roles";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const LOW_THRESHOLD = 1000; // เตือนเมื่อเงินสดย่อยเหลือน้อยกว่านี้
@@ -66,6 +67,7 @@ export default function PettyCashPanel() {
   const [editDesc, setEditDesc] = useState("");
   const [editCat, setEditCat] = useState(PETTY_CATEGORIES[0]);
   const [editDate, setEditDate] = useState(todayISO());
+  const [confirmDelete, setConfirmDelete] = useState<Entry | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -188,6 +190,19 @@ export default function PettyCashPanel() {
     load();
   };
 
+  const deleteEntry = async (e: Entry) => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("petty_cash_entries")
+      .delete()
+      .eq("id", e.id);
+    if (error) { setErr("ลบไม่สำเร็จ"); setSaving(false); return; }
+    await logAction("finance", "petty_delete",
+      `ลบรายการเงินสดย่อย ${baht(e.amount)} — ${e.description}`);
+    setSaving(false); setConfirmDelete(null);
+    load();
+  };
+
   return (
     <GlassCard className={`p-4 ${low ? "border border-orange-500/30 bg-orange-500/5" : ""}`}>
       <div className="flex items-center justify-between mb-3">
@@ -251,6 +266,11 @@ export default function PettyCashPanel() {
                 <button onClick={() => openEdit(e)} className="text-aviva-secondary/60 hover:text-aviva-gold p-1" title="แก้ไขรายละเอียด/หมวด">
                   <Pencil size={12} />
                 </button>
+                {isManagerRole(user?.role) && (
+                  <button onClick={() => setConfirmDelete(e)} className="text-aviva-secondary/60 hover:text-red-400 p-1" title="ลบรายการ">
+                    <Trash2 size={12} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -375,6 +395,39 @@ export default function PettyCashPanel() {
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50">
                 {saving ? "กำลังบันทึก…" : "บันทึกการแก้ไข"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ยืนยันการลบรายการ */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4" onClick={() => !saving && setConfirmDelete(null)}>
+          <div className="w-full max-w-sm bg-aviva-bg border border-red-500/30 rounded-2xl p-5" onClick={(ev) => ev.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-red-400">ลบรายการเงินสดย่อย</h3>
+              <button onClick={() => !saving && setConfirmDelete(null)} className="text-aviva-secondary"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="text-sm text-aviva-secondary">
+                <p className="mb-2">ยืนยันการลบรายการนี้:</p>
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-aviva-text">
+                  <p className="font-semibold text-red-400">{confirmDelete.entry_type === "expense" ? "−" : "+"}{baht(confirmDelete.amount)}</p>
+                  <p className="text-sm mt-1">{confirmDelete.description}</p>
+                  <p className="text-xs text-aviva-secondary/70 mt-2">{fmtTxnDate(confirmDelete.txn_date, confirmDelete.created_at)}</p>
+                </div>
+              </div>
+              {err && <div className="text-[11px] text-red-400">{err}</div>}
+              <div className="flex gap-3">
+                <button onClick={() => !saving && setConfirmDelete(null)}
+                  className="flex-1 bg-aviva-card text-aviva-text py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50">
+                  ยกเลิก
+                </button>
+                <button onClick={() => deleteEntry(confirmDelete)} disabled={saving}
+                  className="flex-1 bg-red-500/30 text-red-400 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-500/50 disabled:opacity-50">
+                  {saving ? "กำลังลบ…" : "ลบถาวร"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

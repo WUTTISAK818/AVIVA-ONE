@@ -1,0 +1,180 @@
+================================================================================
+AVIVA ONE v6.36 - DEMO USERS QUICK REFERENCE CARD
+Go-Live Testing: 18-20 June 2026
+================================================================================
+
+PROJECT DETAILS
+================================================================================
+Project Name:     AVIVA ONE v6.36
+Supabase ID:      ipxeraxcbxxsjimzougk
+Project URL:      https://ipxeraxcbxxsjimzougk.supabase.co
+Total Demo Users: 11 (balanced testing set)
+Status:           READY FOR EXECUTION
+
+DEMO USERS (11 TOTAL)
+================================================================================
+
+#1  CEO                    | demo.ceo@alisa.com              | Demo@CEO123
+#2  COO                    | demo.coo@alisa.com              | Demo@COO123
+#3  Project Manager        | demo.project_mgr@alisa.com      | Demo@ProjectMgr123
+#4  Sales Manager          | demo.sales_mgr@alisa.com        | Demo@SalesMgr123
+#5  Finance Manager        | demo.finance_mgr@alisa.com      | Demo@FinanceMgr123
+#6  HR Manager             | demo.hr_mgr@alisa.com           | Demo@HrMgr123
+#7  Engineer               | demo.engineer@alisa.com         | Demo@Engineer123
+#8  QA Inspector           | demo.qa_inspector@alisa.com     | Demo@QaInspector123
+#9  Accountant             | demo.accountant@alisa.com       | Demo@Accountant123
+#10 Marketing              | demo.marketing@alisa.com        | Demo@Marketing123
+#11 Admin                  | demo.admin@alisa.com            | Demo@Admin123
+
+QUICK SETUP (3 STEPS)
+================================================================================
+
+Step 1: Access Supabase SQL Editor
+  URL: https://supabase.com/dashboard/project/ipxeraxcbxxsjimzougk/sql/new
+
+Step 2: Copy and Execute SQL
+  File: /home/user/AVIVA-ONE/DEMO_USERS_CREATION_EXECUTION_GUIDE.md
+  Section: "Step 2: Copy & Execute SQL"
+
+Step 3: Verify Creation
+  Run verification query from execution guide
+  Expected result: 11 demo users in profiles table
+
+SETUP TIME
+================================================================================
+Execute SQL:      5-10 minutes
+Verify:           2-3 minutes
+Create auth users: 10 minutes
+Test login:        5 minutes
+Total:            ~30 minutes
+
+KEY FILES
+================================================================================
+1. DEMO_USERS_CREATION_EXECUTION_GUIDE.md  - Step-by-step execution guide
+2. SQL_CREATE_COMPLETE_DEMO_USERS.sql      - All SQL scripts
+3. COMPLETE_DEMO_USERS_SUMMARY.md          - Role analysis and summary
+4. DEMO_ACCOUNTS_CREDENTIALS.txt           - Credential backup
+5. DEMO_USER_TESTING_GUIDE_v6.36.md        - Testing scenarios
+
+CREDENTIALS FORMAT
+================================================================================
+Email:    demo.[role]@alisa.com
+Password: Demo@[Role]123  (case-sensitive)
+
+Examples:
+- demo.ceo@alisa.com → Demo@CEO123
+- demo.sales_mgr@alisa.com → Demo@SalesMgr123
+- demo.qa_inspector@alisa.com → Demo@QaInspector123
+
+PASSWORD RULES
+================================================================================
+✓ Case sensitive
+✓ Format: Demo@[RolePrefix]123
+✓ Contains: Uppercase, Lowercase, Number, Special char (@)
+✓ Min 8 characters
+
+ROLE ACCESS LEVELS
+================================================================================
+
+SUPER ROLES (Full Access):
+  ✓ CEO        - Full access to all modules
+  ✓ COO        - Full access to all modules
+  ✓ Admin      - Full access to all modules
+
+MANAGER ROLES (Departmental Access):
+  ✓ Project Manager    - Construction + Reports
+  ✓ Sales Manager      - CRM + Sales + Reports
+  ✓ Finance Manager    - Finance + Reports
+  ✓ HR Manager         - HR + Reports
+
+STAFF ROLES (Limited Access):
+  ✓ Engineer           - Construction
+  ✓ QA Inspector       - Quality checks
+  ✓ Accountant         - Finance (read-only)
+  ✓ Marketing          - Marketing + CRM
+  ✓ (Add more as needed)
+
+SUCCESS CRITERIA
+================================================================================
+✓ All 11 users created in profiles table
+✓ All 11 users created in auth table
+✓ Each user can login successfully
+✓ Each user sees their correct role
+✓ RBAC enforcement working
+✓ No console errors
+✓ No Supabase auth errors
+
+TROUBLESHOOTING
+================================================================================
+
+Q: "Permission denied" when running SQL?
+A: Check you're logged in with admin access to the project
+
+Q: Users created but can't login?
+A: Verify users also created in Auth tab, passwords match exactly
+
+Q: Users see 403/Unauthorized errors?
+A: Check is_active=true, verify RLS policies, check role in roles.ts
+
+Q: Different users see different features?
+A: Expected! Review role permissions in src/lib/roles.ts
+
+CLEANUP
+================================================================================
+
+To delete all demo users after testing:
+
+DELETE FROM auth.users
+WHERE email LIKE 'demo.%@alisa.com';
+
+DELETE FROM public.profiles
+WHERE is_demo = true;
+
+Verify: SELECT COUNT(*) FROM public.profiles WHERE is_demo = true;
+Expected: 0
+
+CONTACT & SUPPORT
+================================================================================
+
+User Email: joyus818@gmail.com
+Project Repo: github.com/wuttisak818/aviva-app-gpt
+
+Issues?
+1. Check Troubleshooting section above
+2. Review Supabase logs (Dashboard → Logs → Auth)
+3. Check RLS policies (Dashboard → SQL Editor → Policies)
+
+TIMELINE
+================================================================================
+
+Day 1 (18 June):
+  ✓ Create demo users (~30 min)
+  ✓ Verify all users can login (~15 min)
+  ✓ Start testing phase 1 (5-7 hours)
+  ✓ Collect feedback
+
+Day 2 (19 June):
+  ✓ Fix issues from phase 1 (1-8 hours depending)
+  ✓ Start testing phase 2 (remaining time)
+  ✓ Document findings
+
+Day 3 (20 June):
+  ✓ Final testing & sign-off
+  ✓ Clean up demo users
+  ✓ Production readiness verification
+
+STATUS: READY FOR GO-LIVE
+================================================================================
+
+All files prepared ✓
+SQL scripts ready ✓
+Credentials prepared ✓
+Documentation complete ✓
+Testing guide ready ✓
+
+Next Step: Execute SQL script in Supabase Dashboard
+
+Generated: 18 June 2026
+Last Updated: 18 June 2026
+Version: AVIVA ONE v6.36
+================================================================================

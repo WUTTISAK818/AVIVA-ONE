@@ -118,55 +118,60 @@
 
 ---
 
-### PHASE 4: VERIFY PRODUCTION EMPLOYEES (15 minutes)
+### PHASE 4: VERIFY PRODUCTION USERS (15 minutes)
 
-#### Step 4.1: Check Employee Data
+**⚠️ CRITICAL: Keep ALL 6 production users — DO NOT DELETE**
+
+#### Step 4.1: Check All Production Users
 1. Go to: SQL Editor
-2. **Copy-paste Query #5** (Section 5: VERIFY PRODUCTION EMPLOYEES)
+2. **Copy-paste Query #5** (Section 5: VERIFY PRODUCTION USERS)
 3. Click: "Run"
-4. **Expected result:** 3 rows
+4. **Expected result:** 6 rows
 
    ```
-   | email                | full_name | role   | department    | email_confirmed_at |
-   |----------------------|-----------|--------|---------------|-------------------|
-   | sale1@alisa.com      | ฟ้า       | sales  | ฝ่ายขาย       | [timestamp]       |
-   | sale2@alisa.com      | เดียร์    | sales  | ฝ่ายขาย       | [timestamp]       |
-   | engineer@alisa.com   | พีท       | engineer| ฝ่ายก่อสร้าง  | [timestamp]       |
+   | email                | full_name | role      | email_confirmed_at |
+   |----------------------|-----------|-----------|-------------------|
+   | joyus818@gmail.com   | (Admin)   | ceo       | [timestamp]       |
+   | ceo@alisa.com        | (CEO)     | ceo       | [timestamp]       |
+   | coo@alisa.com        | (COO)     | coo       | [timestamp]       |
+   | sale1@alisa.com      | ฟ้า       | sales     | [timestamp]       |
+   | sale2@alisa.com      | เดียร์    | sales     | [timestamp]       |
+   | engineer@alisa.com   | พีท       | engineer  | [timestamp]       |
    ```
+   
+5. **Verify:** All 6 rows have `email_confirmed_at` NOT NULL
 
-#### Step 4.2: If Any Employee Missing
-**If not all 3 exist, you must CREATE them via edge function:**
+#### Step 4.2: If Any Production User Missing
+**⚠️ CRITICAL:** All 6 production users MUST exist before cleanup
+
+**If any user is missing, CREATE them:**
 
 **Option A: Use Admin Panel (Easiest)**
-1. Go to AVIVA ONE app → /settings/users page (if available)
-2. Click: "เตรียมบัญชีพนักงาน" (Seed Pilot Accounts)
-3. Click: "โหลดรายชื่อพนักงาน"
-4. Edit rows to match:
+1. Go to AVIVA ONE app → /settings/users page
+2. Click: "เตรียมบัญชีพนักงาน" (Seed Production Accounts)
+3. Fill in all required users:
+   - joyus818@gmail.com / Admin CEO
+   - ceo@alisa.com / CEO
+   - coo@alisa.com / COO
    - sale1@alisa.com / ฟ้า / ฝ่ายขาย / sales
    - sale2@alisa.com / เดียร์ / ฝ่ายขาย / sales
    - engineer@alisa.com / พีท / ฝ่ายก่อสร้าง / engineer
-5. Click: "สร้างทั้งหมด"
-6. Wait for "สร้างแล้ว ✓" status
+4. Click: "สร้างทั้งหมด"
 
 **Option B: Manual Creation via Supabase Dashboard**
 1. Go to: Supabase Dashboard → Authentication → Users
-2. Click: "Add user" button
-3. Fill for each employee:
-   ```
-   Email: sale1@alisa.com
-   Password: TempPass123
-   Confirm: Yes
-   ```
-4. Add full_name + role in User Metadata:
+2. For each missing user, click: "Add user"
+3. Fill email + metadata:
    ```json
+   Email: (user email)
+   Metadata:
    {
-     "full_name": "ฟ้า",
-     "role": "sales",
-     "department": "ฝ่ายขาย"
+     "full_name": "(name)",
+     "role": "(role)",
+     "department": "(dept)"
    }
    ```
-5. Click: "Create user"
-6. Repeat for sale2@alisa.com and engineer@alisa.com
+4. Click: "Create user"
 
 #### Step 4.3: Verify All 3 Are Confirmed
 1. Go to: Supabase Dashboard → Authentication → Users
@@ -460,10 +465,10 @@ After completing all phases, verify:
 - [ ] Phase 1: Supabase backup created ✓
 - [ ] Phase 2: Demo accounts backed up to Google Drive ✓
 - [ ] Phase 3: Test houses backed up (if applicable) ✓
-- [ ] Phase 4: 3 production employees verified ✓
+- [ ] Phase 4: 6 production users verified ✓ (joyus818, ceo@, coo@, 3x employees)
 - [ ] Phase 5: All 9 demo accounts deleted ✓ (verified count = 0)
 - [ ] Phase 6: Test houses deleted (if applicable) ✓
-- [ ] Phase 7: Production data validated ✓
+- [ ] Phase 7: Production data validated ✓ (31 houses, 134 leads)
 - [ ] Phase 8: Build test passed ✓
 - [ ] Phase 9: Code pushed + Vercel deployed ✓
 - [ ] Phase 9: Deploy report created + shared ✓
@@ -480,11 +485,15 @@ After completing all phases, verify:
 - Try SQL query again
 - If still 9 rows: Contact Supabase support
 
-### Issue: "Cannot find production employees"
+### Issue: "Cannot find production users (only X of 6 found)"
 **Solution:**
-- Use admin panel (/settings/users) to create manually
-- Or use Supabase Dashboard → "Add user" button
-- Ensure email is confirmed before go-live
+- **STOP** — do not proceed with cleanup if any production user is missing
+- Use admin panel (/settings/users) to create missing users manually
+- Or use Supabase Dashboard → "Add user" button for each missing user:
+  - joyus818@gmail.com, ceo@alisa.com, coo@alisa.com, sale1@alisa.com, 
+    sale2@alisa.com, engineer@alisa.com
+- Ensure ALL emails are confirmed (email_confirmed_at NOT NULL) before go-live
+- Re-run Phase 4 query after creating — must show all 6
 
 ### Issue: "Build failed with TypeScript errors"
 **Solution:**

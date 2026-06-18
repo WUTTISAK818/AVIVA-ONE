@@ -9,12 +9,30 @@
 -- ========================================================================
 
 -- Export demo accounts for backup before deletion
+-- PRESERVE THESE (DO NOT DELETE):
+--   ✅ joyus818@gmail.com (CEO - Admin)
+--   ✅ ceo@alisa.com (CEO)
+--   ✅ coo@alisa.com (COO)
+--   ✅ sale1@alisa.com (Sales - Faa)
+--   ✅ sale2@alisa.com (Sales - Dearr)
+--   ✅ engineer@alisa.com (Construction - Pete)
+
+-- DELETE THESE 9 DEMO ACCOUNTS ONLY:
+--   ❌ ceo.test@aviva.th
+--   ❌ demo.admin@aviva.th
+--   ❌ demo.sales@aviva.th
+--   ❌ demo.finance@aviva.th
+--   ❌ demo.construction@aviva.th
+--   ❌ demo.accounting@aviva.th
+--   ❌ demo.hr@aviva.th
+--   ❌ demo.marketing@aviva.th
+--   ❌ demo.aftersales@aviva.th
+
 SELECT
   id,
   email,
   raw_user_meta_data->>'full_name' as full_name,
-  raw_app_meta_data->>'role' as role,
-  raw_app_meta_data->>'department' as department,
+  raw_user_meta_data->>'role' as role,
   created_at,
   last_sign_in_at,
   email_confirmed_at
@@ -96,23 +114,32 @@ ORDER BY hp.created_at DESC;
 -- Save above result as JSON/CSV to Google Drive → AVIVA-ONE-BACKUP-TestHouses-Progress-2026-06-18.json
 
 -- ========================================================================
--- SECTION 5: VERIFY PRODUCTION EMPLOYEES EXIST
+-- SECTION 5: VERIFY PRODUCTION USERS EXIST (6 production accounts)
 -- ========================================================================
 
--- Verify 3 production employees
+-- Verify 6 production users are intact
 SELECT
   id,
   email,
   raw_user_meta_data->>'full_name' as full_name,
-  raw_app_meta_data->>'role' as role,
-  raw_app_meta_data->>'department' as department,
+  raw_user_meta_data->>'role' as role,
   email_confirmed_at,
+  last_sign_in_at,
   created_at
 FROM auth.users
-WHERE email IN ('sale1@alisa.com', 'sale2@alisa.com', 'engineer@alisa.com');
+WHERE email IN (
+  'joyus818@gmail.com',  -- Admin/CEO
+  'ceo@alisa.com',       -- CEO
+  'coo@alisa.com',       -- COO
+  'sale1@alisa.com',     -- Sales (Faa)
+  'sale2@alisa.com',     -- Sales (Dearr)
+  'engineer@alisa.com'   -- Construction (Pete)
+)
+ORDER BY created_at DESC;
 
--- Expected: 3 rows, all with email_confirmed_at NOT NULL
--- If missing, use admin-user-management edge function to create them
+-- Expected: 6 rows, all production accounts intact
+-- Expected roles: ceo (2x), coo (1x), engineer (1x), plus admin flag for joyus818
+-- If any missing, use admin-user-management edge function to create them
 
 -- ========================================================================
 -- SECTION 6: FIND DEPENDENCIES OF TEST HOUSES (before deletion)
@@ -238,31 +265,65 @@ WHERE email LIKE 'ceo.test@%'
   OR email LIKE 'demo.%@aviva.th';
 -- Expected: 0
 
--- Verify production employees exist + email confirmed
+-- Verify ALL 6 production users exist + email confirmed
 SELECT
-  COUNT(*) as production_employees,
-  COUNT(CASE WHEN email_confirmed_at IS NOT NULL THEN 1 END) as confirmed
+  COUNT(*) as production_users,
+  COUNT(CASE WHEN email_confirmed_at IS NOT NULL THEN 1 END) as confirmed,
+  STRING_AGG(DISTINCT email, ', ') as user_emails
 FROM auth.users
-WHERE email IN ('sale1@alisa.com', 'sale2@alisa.com', 'engineer@alisa.com');
--- Expected: 3 employees, all 3 confirmed
+WHERE email IN (
+  'joyus818@gmail.com',
+  'ceo@alisa.com',
+  'coo@alisa.com',
+  'sale1@alisa.com',
+  'sale2@alisa.com',
+  'engineer@alisa.com'
+);
+-- Expected: 6 users, all 6 confirmed email addresses
 
 -- ========================================================================
 -- NOTES FOR ADMIN
 -- ========================================================================
 
 /*
+PRODUCTION USERS — DO NOT DELETE (6 users):
+  ✅ joyus818@gmail.com (CEO - Main Admin)
+  ✅ ceo@alisa.com (CEO)
+  ✅ coo@alisa.com (COO)
+  ✅ sale1@alisa.com (Sales - Faa)
+  ✅ sale2@alisa.com (Sales - Dearr)
+  ✅ engineer@alisa.com (Construction - Pete)
+
+DEMO ACCOUNTS — DELETE ONLY THESE 9 (by email match):
+  ❌ ceo.test@aviva.th
+  ❌ demo.admin@aviva.th
+  ❌ demo.sales@aviva.th
+  ❌ demo.finance@aviva.th
+  ❌ demo.construction@aviva.th
+  ❌ demo.accounting@aviva.th
+  ❌ demo.hr@aviva.th
+  ❌ demo.marketing@aviva.th
+  ❌ demo.aftersales@aviva.th
+
+EXECUTION STEPS:
 1. BACKUP FIRST: Always save query results to Google Drive before running deletes
-2. ORDER MATTERS: Follow steps 1-5 in order (foreign key constraints)
-3. NO UNDO: These deletions are permanent. Verify with COUNT before DELETE.
-4. VERIFY AFTER: Run Section 8 queries to confirm deletion success
-5. DOCUMENT CLEANUP: Save query results + timestamps to deployment report
+2. RUN SECTION 1: Export all demo accounts to JSON (emergency backup)
+3. RUN SECTION 2: Count — should show 9 demo accounts
+4. RUN SECTION 5: Verify all 6 production users are present ✅
+5. RUN SECTIONS 3-6: Back up test houses + dependencies
+6. RUN SECTION 7: Delete test data in order (Step 1-5)
+7. RUN SECTION 8: Verify all deletions successful
+8. RUN SECTION 11: Final check — 0 demo accounts, 6 production users remain
+9. DOCUMENT CLEANUP: Save all results + timestamps to deployment report
 
 If you cannot delete via SQL (no direct access):
 - Use Supabase Dashboard → Authentication → Users → Delete each demo account manually
+  (Only the 9 listed above — keep all production users)
 - For houses: Use dashboard → each table → filter by plot_code → delete
 - This is slower but safer if unsure about SQL constraints
 
 Questions? Verify:
 - Edge function: supabase/functions/admin-user-management/index.ts
 - RLS policies: supabase/migrations/20260611_phase2.sql
+- Production user roles: joyus818=admin, ceo@=ceo, coo@=coo, engineer@=engineer
 */

@@ -61,8 +61,8 @@ export default function LoginPage() {
           <Sparkles size={28} className="text-aviva-gold" />
         </div>
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-aviva-gold tracking-widest">AVIVA ONE</h1>
-          <p className="text-xs text-aviva-secondary mt-1">Executive Operating System</p>
+          <h1 className="text-2xl font-bold text-aviva-gold tracking-widest">WinVote</h1>
+          <p className="text-xs text-aviva-secondary mt-1">ระบบเครือข่ายฐานเสียง</p>
         </div>
       </div>
 

@@ -1649,11 +1649,16 @@ export default function ConstructionPage() {
             {tab === "reports" && (
               <div className="space-y-3">
                 <PeriodFilter period={rptPeriod} onChange={(p, s, e) => { setRptPeriod(p); setRptStart(s); setRptEnd(e); }} />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <SectionHeader title="รายงานประจำวัน" subtitle="กรองตามช่วงเวลา" />
-                  {reports.length > 0 && (
-                    <button onClick={printDailyReport} className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์รายงาน</button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <a href="/reports/my-reports" className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl hover:border-aviva-gold/60 transition-all">
+                      <FileText size={12} /> ดูรายงานของฉัน
+                    </a>
+                    {reports.length > 0 && (
+                      <button onClick={printDailyReport} className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl hover:border-aviva-gold/60 transition-all"><Printer size={12} /> พิมพ์รายงาน</button>
+                    )}
+                  </div>
                 </div>
                 {reports.length === 0 ? (
                   <GlassCard className="p-8 text-center"><ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" /><p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p></GlassCard>

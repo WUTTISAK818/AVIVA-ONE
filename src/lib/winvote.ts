@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { DEMO_MODE, demo } from "./demo-data";
 
 // ===== Types =====
 export interface WinVoteDistrictKpi {
@@ -88,16 +89,19 @@ export interface WinVoteResident {
 
 // ===== Queries =====
 export async function getMunicipalitySummary() {
+  if (DEMO_MODE) return demo.getMunicipalitySummary();
   const { data } = await supabase.from("winvote_municipality_summary").select("*").single();
   return data as WinVoteMunicipalitySummary | null;
 }
 
 export async function getDistrictKpi() {
+  if (DEMO_MODE) return demo.getDistrictKpi();
   const { data } = await supabase.from("winvote_district_kpi").select("*").order("code");
   return (data ?? []) as WinVoteDistrictKpi[];
 }
 
 export async function getCommunityRollup(districtId: string) {
+  if (DEMO_MODE) return demo.getCommunityRollup(districtId);
   const { data } = await supabase
     .from("winvote_community_rollup")
     .select("*")
@@ -107,6 +111,7 @@ export async function getCommunityRollup(districtId: string) {
 }
 
 export async function getMemberLoad(communityId: string) {
+  if (DEMO_MODE) return demo.getMemberLoad(communityId);
   const { data } = await supabase
     .from("winvote_member_load")
     .select("*")
@@ -115,6 +120,7 @@ export async function getMemberLoad(communityId: string) {
 }
 
 export async function getCommunities(districtId: string) {
+  if (DEMO_MODE) return demo.getCommunities(districtId);
   const { data } = await supabase
     .from("winvote_communities")
     .select("*")
@@ -124,6 +130,7 @@ export async function getCommunities(districtId: string) {
 }
 
 export async function getMembers(communityId: string) {
+  if (DEMO_MODE) return demo.getMembers(communityId);
   const { data } = await supabase
     .from("winvote_members")
     .select("*")
@@ -134,6 +141,7 @@ export async function getMembers(communityId: string) {
 }
 
 export async function getPollingUnits(districtId: string) {
+  if (DEMO_MODE) return demo.getPollingUnits(districtId);
   const { data } = await supabase
     .from("winvote_polling_units")
     .select("*")
@@ -143,6 +151,7 @@ export async function getPollingUnits(districtId: string) {
 }
 
 export async function getResidents(memberId: string) {
+  if (DEMO_MODE) return demo.getResidents(memberId);
   const { data } = await supabase
     .from("winvote_residents")
     .select("*")
@@ -176,6 +185,7 @@ export async function checkDuplicate(opts: {
   full_name?: string;
 }): Promise<DuplicateWarning> {
   const result: DuplicateWarning = { national_id: false, phone: false, full_name: false };
+  if (DEMO_MODE) return result;
   if (opts.national_id) {
     const { count } = await supabase
       .from("winvote_residents")

@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
+import { DEMO_MODE, DEMO_USER } from "./demo-data";
 
 export interface AppUser {
   id: string;
@@ -16,7 +17,7 @@ export interface AppUser {
 const UserContext = createContext<AppUser | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null);
+  const [user, setUser] = useState<AppUser | null>(DEMO_MODE ? DEMO_USER : null);
 
   function buildUser(u: { id: string; email?: string; user_metadata?: Record<string, string> }): AppUser {
     const meta = u.user_metadata ?? {};
@@ -33,6 +34,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    if (DEMO_MODE) return; // โหมดเดโม: ใช้ผู้ใช้จำลอง ไม่ต้องเรียก Supabase auth
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (u) setUser(buildUser(u));
     });

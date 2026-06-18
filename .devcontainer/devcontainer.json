@@ -12,6 +12,7 @@
   "postAttachCommand": "npm run dev",
   "containerEnv": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://gfnelofmgzqfwvlbaabd.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmbmVsb2ZtZ3pxZnd2bGJhYWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzEwMDAsImV4cCI6MjA5NjE0NzAwMH0.zpAG-5MorIEhBjd21V5XTl6snJ_RWDewV9jqR0NfyOQ"
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmbmVsb2ZtZ3pxZnd2bGJhYWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzEwMDAsImV4cCI6MjA5NjE0NzAwMH0.zpAG-5MorIEhBjd21V5XTl6snJ_RWDewV9jqR0NfyOQ",
+    "NEXT_PUBLIC_DEMO_MODE": "1"
   }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { DEMO_MODE } from "@/lib/demo-data";
 
 const DEMO_ACCOUNTS = [
   { email: "demo.admin@aviva.th",        label: "Admin",       dept: "ฝ่ายบริหาร",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
@@ -31,6 +32,13 @@ export default function LoginPage() {
     e?.preventDefault();
     setLoading(true);
     setError("");
+
+    if (DEMO_MODE) {
+      // โหมดเดโม: ข้าม Supabase auth เข้าหน้า WinVote ด้วยข้อมูลจำลองได้เลย
+      router.push("/winvote");
+      router.refresh();
+      return;
+    }
 
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: demoEmail ?? email,

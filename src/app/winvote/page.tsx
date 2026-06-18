@@ -18,6 +18,7 @@ import LineVerifyModal from "@/components/LineVerifyModal";
 import { type ChipIdFields } from "@/lib/thai-id-reader";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
+import { DEMO_MODE } from "@/lib/demo-data";
 import {
   getMunicipalitySummary, getDistrictKpi, getCommunityRollup, getMemberLoad,
   getMembers, getPollingUnits, getResidents, validateThaiId, checkDuplicate,
@@ -113,6 +114,11 @@ export default function WinVotePage() {
           <div className="flex items-center gap-2 mb-3">
             <Network size={22} className="text-aviva-gold" />
             <h1 className="text-xl font-bold text-aviva-text">WinVote <span className="text-sm font-normal text-aviva-secondary">เครือข่ายฐานเสียง</span></h1>
+            {DEMO_MODE && (
+              <span className="ml-auto text-[10px] font-bold text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                DEMO • ข้อมูลจำลอง
+              </span>
+            )}
           </div>
           <div className="flex gap-1 bg-aviva-card rounded-2xl p-1">
             {([

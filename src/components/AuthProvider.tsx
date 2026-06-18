@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { DEMO_MODE } from "@/lib/demo-data";
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
+    if (DEMO_MODE) { setChecked(true); return; } // โหมดเดโม: ข้ามการตรวจ session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session && pathname !== "/login") {
         router.replace("/login");

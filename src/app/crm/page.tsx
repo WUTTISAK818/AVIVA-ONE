@@ -1397,9 +1397,9 @@ export default function CRMPage() {
 
         {mainTab === "map" && (
           <div className="space-y-4">
-            <SectionHeader title="แผนผังโครงการ" subtitle="สถานะแต่ละแปลง AVIVA ONE 31 หลัง" />
+            <SectionHeader title="แผนผังโครงการ" subtitle="สถานะโครงการ AVIVA Private 31 Units" />
             <div className="flex flex-wrap gap-1.5 text-[10px]">
-              {[["bg-orange-500/20 border-orange-500/30 text-orange-400","ว่าง"],["bg-yellow-500/20 border-yellow-500/30 text-yellow-400","จอง"],["bg-green-500/20 border-green-500/30 text-green-400","โอนแล้ว"]].map(([cls,lbl])=>(
+              {[["bg-orange-500/20 border-orange-500/30 text-orange-400","ว่าง"],["bg-yellow-500/20 border-yellow-500/30 text-yellow-400","จอง"],["bg-blue-500/20 border-blue-500/30 text-blue-400","ทำสัญญา"],["bg-green-500/20 border-green-500/30 text-green-400","โอนแล้ว"]].map(([cls,lbl])=>(
                 <span key={lbl} className={clsx("px-2 py-0.5 rounded-full border",cls)}>{lbl}</span>
               ))}
             </div>
@@ -1407,12 +1407,16 @@ export default function CRMPage() {
               {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map((n) => {
                 const house = houses.find(h => h.plot_number === n);
                 const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
+                const contractLead = leads.find(l => l.plot_number === n && l.status === "Contract");
                 const soldLead = leads.find(l => l.plot_number === n && l.status === "Closed Deal");
                 const st = house?.status ?? "available";
                 const isSold = st === "sold" || st === "completed" || !!soldLead;
-                const isBooked = !!bookedLead && !isSold;
+                const isContract = !!contractLead && !isSold;
+                const isBooked = !!bookedLead && !isSold && !isContract;
                 const cellCls = isSold
                   ? "bg-green-500/20 border-green-500/30 text-green-400"
+                  : isContract
+                  ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
                   : isBooked
                   ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-400"
                   : "bg-orange-500/20 border-orange-500/30 text-orange-400";
@@ -1423,16 +1427,18 @@ export default function CRMPage() {
                     <p className="text-base font-black leading-none">{house?.house_model ? `${house.house_model.charAt(0)}${n}` : String(n)}</p>
                     <p className="text-[10px] leading-tight opacity-80 mt-0.5">{house ? `${house.land_size ?? "—"}ตร.ว.` : "—"}</p>
                     {isBooked && <p className="text-[9px] mt-0.5 truncate font-medium">{bookedLead!.customer_name.split(" ")[0]}</p>}
+                    {isContract && <p className="text-[9px] mt-0.5 truncate font-medium">{contractLead!.customer_name.split(" ")[0]}</p>}
                     {isSold && <p className="text-[9px] mt-0.5 font-medium">{soldLead ? soldLead.customer_name.split(" ")[0] : "โอนแล้ว"}</p>}
                     {interestedCount > 0 && <p className="text-[9px] mt-0.5 opacity-70">{interestedCount} สนใจ</p>}
                   </button>
                 );
               })}
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="grid grid-cols-4 gap-2 mt-2">
               {[
-                { label: "ว่าง", count: Array.from({length:PLOT_COUNT},(_,i)=>i+1).filter(n => { const h=houses.find(x=>x.plot_number===n); const sold=h?.status==="sold"||h?.status==="completed"||leads.some(l=>l.plot_number===n&&l.status==="Closed Deal"); const b=!sold&&leads.some(l=>l.plot_number===n&&BOOKING_STATUSES.includes(l.status)); return !sold&&!b; }).length, color: "text-orange-400" },
+                { label: "ว่าง", count: Array.from({length:PLOT_COUNT},(_,i)=>i+1).filter(n => { const h=houses.find(x=>x.plot_number===n); const sold=h?.status==="sold"||h?.status==="completed"||leads.some(l=>l.plot_number===n&&l.status==="Closed Deal"); const b=!sold&&leads.some(l=>l.plot_number===n&&BOOKING_STATUSES.includes(l.status)); const c=!sold&&!b&&leads.some(l=>l.plot_number===n&&l.status==="Contract"); return !sold&&!b&&!c; }).length, color: "text-orange-400" },
                 { label: "จอง/Booking", count: leads.filter(l=>BOOKING_STATUSES.slice(0,2).includes(l.status)&&l.plot_number).length, color: "text-yellow-400" },
+                { label: "ทำสัญญา", count: leads.filter(l=>l.status==="Contract"&&l.plot_number).length, color: "text-blue-400" },
                 { label: "โอนแล้ว", count: leads.filter(l=>l.status==="Closed Deal"&&l.plot_number).length, color: "text-green-400" },
               ].map(({label,count,color}) => (
                 <GlassCard key={label} className="p-3 text-center">

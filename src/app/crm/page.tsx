@@ -1406,9 +1406,9 @@ export default function CRMPage() {
             <div className="grid grid-cols-5 gap-1.5">
               {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map((n) => {
                 const house = houses.find(h => h.plot_number === n);
-                const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
-                const contractLead = leads.find(l => l.plot_number === n && l.status === "Contract");
-                const soldLead = leads.find(l => l.plot_number === n && l.status === "Closed Deal");
+                const bookedLead = leads.find(l => l.plot_number && l.plot_number === n && BOOKING_STATUSES.includes(l.status));
+                const contractLead = leads.find(l => l.plot_number && l.plot_number === n && l.status === "Contract");
+                const soldLead = leads.find(l => l.plot_number && l.plot_number === n && l.status === "Closed Deal");
                 // DEBUG: Check A12 & A18
                 if ((n === 12 || n === 18) && process.env.NODE_ENV !== 'production') {
                   console.log(`Plot ${n}:`, { bookedLead: bookedLead?.customer_name, status: bookedLead?.status, contractLead: contractLead?.customer_name, soldLead: soldLead?.customer_name });
@@ -1441,7 +1441,7 @@ export default function CRMPage() {
             <div className="grid grid-cols-4 gap-2 mt-2">
               {[
                 { label: "ว่าง", count: Array.from({length:PLOT_COUNT},(_,i)=>i+1).filter(n => { const h=houses.find(x=>x.plot_number===n); const sold=h?.status==="sold"||h?.status==="completed"||leads.some(l=>l.plot_number===n&&l.status==="Closed Deal"); const b=!sold&&leads.some(l=>l.plot_number===n&&BOOKING_STATUSES.includes(l.status)); const c=!sold&&!b&&leads.some(l=>l.plot_number===n&&l.status==="Contract"); return !sold&&!b&&!c; }).length, color: "text-orange-400" },
-                { label: "จอง/Booking", count: leads.filter(l=>BOOKING_STATUSES.slice(0,2).includes(l.status)&&l.plot_number).length, color: "text-yellow-400" },
+                { label: "จอง/Booking", count: leads.filter(l=>l.status==="Booking"&&l.plot_number).length, color: "text-yellow-400" },
                 { label: "ทำสัญญา", count: leads.filter(l=>l.status==="Contract"&&l.plot_number).length, color: "text-blue-400" },
                 { label: "โอนแล้ว", count: leads.filter(l=>l.status==="Closed Deal"&&l.plot_number).length, color: "text-green-400" },
               ].map(({label,count,color}) => (
@@ -2289,10 +2289,10 @@ export default function CRMPage() {
       {mapPlotModal !== null && (() => {
         const n = mapPlotModal;
         const house = houses.find(h => h.plot_number === n);
-        const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
-        const isSold = house?.status === "sold" || house?.status === "completed" || leads.some(l => l.plot_number === n && l.status === "Closed Deal");
+        const bookedLead = leads.find(l => l.plot_number && l.plot_number === n && BOOKING_STATUSES.includes(l.status));
+        const isSold = house?.status === "sold" || house?.status === "completed" || leads.some(l => l.plot_number && l.plot_number === n && l.status === "Closed Deal");
         const isBooked = !!bookedLead && !isSold;
-        const interestedLeads = leads.filter(l => l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).sort((a, b) => b.ai_score - a.ai_score);
+        const interestedLeads = !isBooked && !isSold ? leads.filter(l => l.plot_number && l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).sort((a, b) => b.ai_score - a.ai_score) : [];
         const displayLead = isSold ? leads.find(l => l.plot_number === n && l.status === "Closed Deal") : bookedLead;
         const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว" };
         return (

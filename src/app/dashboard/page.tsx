@@ -10,6 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
+import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
 import CalendarWidget from "@/components/CalendarWidget";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -496,20 +497,8 @@ export default function DashboardPage() {
     });
   }
 
-  if (canSeeAll && stats.pendingApprovals > 0) {
-    insights.push({
-      type: "warning",
-      priority: "high",
-      title: `${stats.pendingApprovals} รายการรออนุมัติ`,
-      message: `งวดงานรอตรวจ ${constructionStats.inReview} งวด — ดำเนินการเพื่อไม่ให้กระทบกระแสเงินสด`,
-      href: "/approvals",
-      icon: Zap,
-      iconColor: "text-yellow-400",
-      bg: "bg-yellow-500/10",
-      border: "border-yellow-500/20",
-      titleColor: "text-yellow-300",
-    });
-  }
+  // Approvals ย้ายไปแสดงใน Activity Calendar แล้ว
+  // if (canSeeAll && stats.pendingApprovals > 0) { ... } - REMOVED
 
   if (canSeeAll && stats.pendingClaims > 0) {
     insights.push({
@@ -693,6 +682,14 @@ export default function DashboardPage() {
               </div>
             )}
           </GlassCard>
+        )}
+
+        {/* Daily Activity Calendar - ปฏิทินกิจกรรมขยับขึ้นบน */}
+        {canSeeAll && (
+          <div>
+            <SectionHeader title="ปฏิทินกิจกรรมประจำวัน" subtitle="ดูภาพรวมการทำงานแต่ละวัน" />
+            <DailyActivityCalendar />
+          </div>
         )}
 
         <div>
@@ -1075,8 +1072,7 @@ export default function DashboardPage() {
         )}
 
         <div>
-          <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
-          <CalendarWidget />
+          {/* CalendarWidget ย้ายขึ้นบนแล้ว - REMOVED */}
         </div>
       </div>
 

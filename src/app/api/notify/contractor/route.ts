@@ -1,44 +1,96 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { dispatchNotification } from "@/lib/dispatch-notification";
+/**
+ * POST /api/notify/contractor
+ *
+ * Central hub สำหรับส่งแจ้งเตือน contractor ผ่าน LINE/Email/In-app
+ */
 
-export const runtime = "nodejs";
+import { createClient } from '@supabase/supabase-js'
+import { buildNotificationMessage } from '@/lib/contractor-notification'
 
-function admin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-const STATUS_TEXT: Record<string, string> = {
-  approved: "งานของคุณได้รับการอนุมัติแล้ว",
-  paid: "มีการจ่ายเงินงวดงานให้คุณแล้ว",
-  rejected: "งานของคุณถูกตีกลับ กรุณาตรวจสอบ",
-};
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    const { recipientId, eventType, projectId, houseId, channel = 'in_app', metadata = {} } = body
 
-export async function POST(req: NextRequest) {
-  let payload: { ref_code?: string; status?: string; detail?: string };
-  try { payload = await req.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
-  const { ref_code, status, detail } = payload;
-  if (!ref_code || !status) return NextResponse.json({ error: "ref_code and status required" }, { status: 400 });
+    if (!recipientId || !eventType) {
+      return Response.json({ error: 'Missing recipientId or eventType' }, { status: 400 })
+    }
 
-  const db = admin();
-  const { data: c } = await db.from("contractors").select("name, phone, line_user_id, ref_code").eq("ref_code", ref_code).maybeSingle();
-  if (!c) return NextResponse.json({ error: "contractor not found" }, { status: 404 });
+    const messages = buildNotificationMessage(eventType, metadata)
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const trackUrl = site ? `${site}/track/${ref_code}` : undefined;
-  const title = "AVIVA ONE — แจ้งสถานะงาน";
-  const body = `${STATUS_TEXT[status] ?? status}${detail ? `\n${detail}` : ""}`;
+    // Save to notification_log
+    const { data: logEntry, error: logError } = await supabase
+      .from('notification_log')
+      .insert({
+        recipient_id: recipientId,
+        event_type: eventType,
+        project_id: projectId,
+        house_id: houseId,
+        subject: messages.subject,
+        message: messages.message,
+        channel,
+        status: 'pending',
+        created_at: new Date()
+      })
+      .select()
+      .single()
 
-  const result = await dispatchNotification({
-    title,
-    body,
-    url: trackUrl,
-    tag: `contractor-${ref_code}`,
-    lineUserId: c.line_user_id ?? undefined,
-    smsPhone: c.phone ?? undefined,
-  });
-  return NextResponse.json({ ok: true, ...result });
+    if (logError) throw logError
+
+    // Get contractor contact info
+    const { data: contact } = await supabase
+      .from('contractor_contacts')
+      .select('*')
+      .eq('contractor_id', recipientId)
+      .single()
+
+    let notificationSent = true
+    let sendError: any = null
+
+    // Send via channel
+    if (channel === 'line' && contact?.line_user_id) {
+      try {
+        const lineResponse = await fetch('https://api.line.biz/v2.1/bot/message/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
+          },
+          body: JSON.stringify({
+            to: contact.line_user_id,
+            messages: [{ type: 'text', text: messages.lineMessage }]
+          })
+        })
+        if (!lineResponse.ok) {
+          notificationSent = false
+          sendError = new Error(`LINE API error: ${lineResponse.statusText}`)
+        }
+      } catch (error) {
+        notificationSent = false
+        sendError = error
+      }
+    }
+
+    // Update log status
+    await supabase
+      .from('notification_log')
+      .update({
+        status: notificationSent ? 'sent' : 'failed',
+        sent_at: notificationSent ? new Date() : null,
+        error_message: sendError?.message || null
+      })
+      .eq('id', logEntry.id)
+
+    return Response.json({
+      success: notificationSent,
+      logId: logEntry.id,
+      message: notificationSent ? `Notification sent via ${channel}` : `Failed: ${sendError?.message}`
+    }, { status: notificationSent ? 200 : 207 })
+  } catch (error: any) {
+    return Response.json({ error: error.message }, { status: 500 })
+  }
 }

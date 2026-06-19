@@ -1409,6 +1409,10 @@ export default function CRMPage() {
                 const bookedLead = leads.find(l => l.plot_number === n && BOOKING_STATUSES.includes(l.status));
                 const contractLead = leads.find(l => l.plot_number === n && l.status === "Contract");
                 const soldLead = leads.find(l => l.plot_number === n && l.status === "Closed Deal");
+                // DEBUG: Check A12 & A18
+                if ((n === 12 || n === 18) && process.env.NODE_ENV !== 'production') {
+                  console.log(`Plot ${n}:`, { bookedLead: bookedLead?.customer_name, status: bookedLead?.status, contractLead: contractLead?.customer_name, soldLead: soldLead?.customer_name });
+                }
                 const st = house?.status ?? "available";
                 const isSold = st === "sold" || st === "completed" || !!soldLead;
                 const isContract = !!contractLead && !isSold;

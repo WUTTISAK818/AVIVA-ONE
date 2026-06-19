@@ -30,7 +30,7 @@ import { compressImage } from "@/lib/image-compress";
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 type HouseStatus = "complete" | "on-track" | "delayed";
-type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
+type FilterStatus = "all" | "complete" | "building" | "delayed" | "not_started";
 type Tab = "reports" | "defects";
 type Part = "inspect" | "daily" | "purchase";
 
@@ -263,12 +263,21 @@ function houseLabel(h: House): string {
   return `แปลงที่ ${h.plot_number ?? "—"} / ที่ดิน ${h.land_size ?? "—"} ตร.วา / ${h.house_model ?? "AVA"}`;
 }
 
+// สถานะการก่อสร้างจริง — อิง construction_status + progress + delayed_days (ไม่ใช่ sales status)
+type ConsState = "complete" | "building" | "delayed" | "not_started";
+function consState(h: House): ConsState {
+  if ((h.delayed_days ?? 0) > 0) return "delayed";
+  if (h.construction_status === "completed" || (h.progress ?? 0) >= 100) return "complete";
+  if (h.construction_status === "in_progress" || (h.progress ?? 0) > 0) return "building";
+  return "not_started";
+}
+
 const filterBoxes: { key: FilterStatus; label: string; border: string; numColor: string }[] = [
-  { key: "all",      label: "ทั้งหมด",       border: "border-aviva-gold/30",   numColor: "text-aviva-gold"   },
-  { key: "complete", label: "เสร็จแล้ว",     border: "border-green-400/30",    numColor: "text-green-400"    },
-  { key: "building", label: "กำลังก่อสร้าง", border: "border-blue-400/30",     numColor: "text-blue-400"     },
-  { key: "on-track", label: "ตามแผน",         border: "border-sky-400/30",      numColor: "text-sky-400"      },
-  { key: "delayed",  label: "ล่าช้า",          border: "border-red-400/30",      numColor: "text-red-400"      },
+  { key: "all",         label: "ทั้งหมด",       border: "border-aviva-gold/30",   numColor: "text-aviva-gold"   },
+  { key: "complete",    label: "เสร็จแล้ว",     border: "border-green-400/30",    numColor: "text-green-400"    },
+  { key: "building",    label: "กำลังก่อสร้าง", border: "border-blue-400/30",     numColor: "text-blue-400"     },
+  { key: "delayed",     label: "ล่าช้า",          border: "border-red-400/30",      numColor: "text-red-400"      },
+  { key: "not_started", label: "ยังไม่เริ่ม",    border: "border-gray-400/30",     numColor: "text-gray-400"     },
 ];
 
 function InspectionPanel({
@@ -911,17 +920,17 @@ export default function ConstructionPage() {
 
   const counts = {
     all: houses.length,
-    complete: houses.filter(h => h.status === "complete").length,
-    building: houses.filter(h => h.status !== "complete").length,
-    "on-track": houses.filter(h => h.status === "on-track").length,
-    delayed: houses.filter(h => h.status === "delayed").length,
+    complete: houses.filter(h => consState(h) === "complete").length,
+    building: houses.filter(h => consState(h) === "building").length,
+    delayed: houses.filter(h => consState(h) === "delayed").length,
+    not_started: houses.filter(h => consState(h) === "not_started").length,
   };
   const overallProgress = useMemo(
     () => houses.length ? Math.round(houses.reduce((s, h) => s + h.progress, 0) / houses.length) : 0,
     [houses]
   );
   const filtered = useMemo(
-    () => filterStatus === "all" ? houses : filterStatus === "building" ? houses.filter(h => h.status !== "complete") : houses.filter(h => h.status === filterStatus),
+    () => filterStatus === "all" ? houses : houses.filter(h => consState(h) === filterStatus),
     [houses, filterStatus]
   );
   const openDefects = defects.filter(d => d.status === "Open").length;
@@ -955,7 +964,7 @@ export default function ConstructionPage() {
     setAiMessages(prev => [...prev, { role: "user", content: q }]);
     setAiInput("");
     setAiLoading(true);
-    const ctx = `ข้อมูลฝ่ายก่อสร้าง AVIVA Private: ยูนิตทั้งหมด ${houses.length} หน่วย | เสร็จแล้ว ${counts.complete} | กำลังก่อสร้าง ${counts.building} (ตามแผน ${counts["on-track"]} ล่าช้า ${counts.delayed}) | ความคืบหน้าเฉลี่ย ${overallProgress}% | Defect เปิดอยู่ ${openDefects} รายการ | มีลูกค้าจอง ${customerPlots.size} หน่วย`;
+    const ctx = `ข้อมูลฝ่ายก่อสร้าง AVIVA Private: ยูนิตทั้งหมด ${houses.length} หน่วย | เสร็จแล้ว ${counts.complete} | กำลังก่อสร้าง ${counts.building} | ล่าช้า ${counts.delayed} | ยังไม่เริ่ม ${counts.not_started} | ความคืบหน้าเฉลี่ย ${overallProgress}% | Defect เปิดอยู่ ${openDefects} รายการ | มีลูกค้าจอง ${customerPlots.size} หน่วย`;
     try {
       const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, context: ctx }) });
       const d = await res.json();
@@ -1323,16 +1332,26 @@ export default function ConstructionPage() {
                   {filtered.map(house => {
                     const isSelected = instHouse?.id === house.id;
                     const hasCustomer = house.plot_number != null && customerPlots.has(house.plot_number);
-                    const statusBorder = house.status === "complete" ? "border-green-400/80"
-                      : house.status === "delayed" ? "border-red-500/70"
-                      : "border-sky-400/60";
+                    const cs = consState(house);
+                    const statusBorder = cs === "complete" ? "border-green-400/80"
+                      : cs === "delayed" ? "border-red-500/70"
+                      : cs === "building" ? "border-sky-400/60"
+                      : "border-gray-500/40";
+                    const barColor = cs === "complete" ? "bg-green-400"
+                      : cs === "delayed" ? "bg-red-500"
+                      : cs === "building" ? "bg-sky-400"
+                      : "bg-gray-500";
+                    const pct = house.progress ?? 0;
                     return (
-                      <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("relative rounded-xl border-2 p-2 flex flex-col items-center gap-0.5 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : `bg-aviva-card ${statusBorder}`)}>
+                      <button key={house.id} onClick={() => fetchInstallments(house)} className={clsx("relative rounded-xl border-2 p-2 flex flex-col items-center gap-1 transition-all active:scale-95", isSelected ? "bg-aviva-gold border-aviva-gold" : `bg-aviva-card ${statusBorder}`)}>
                         {hasCustomer && !isSelected && (
                           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-aviva-gold border border-aviva-bg" />
                         )}
                         <span className={clsx("text-sm font-black leading-none", isSelected ? "text-aviva-bg" : "text-aviva-gold")}>{(house.house_model ?? "A").charAt(0)}{house.plot_number ?? 0}</span>
-                        <span className={clsx("text-[9px] leading-tight", isSelected ? "text-aviva-bg/70" : "text-aviva-secondary")}>{house.land_size ?? "—"}ตร.ว.</span>
+                        <div className={clsx("w-full h-1 rounded-full overflow-hidden", isSelected ? "bg-aviva-bg/20" : "bg-aviva-bg")}>
+                          <div className={clsx("h-full rounded-full transition-all", isSelected ? "bg-aviva-bg" : barColor)} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className={clsx("text-[9px] font-bold leading-none", isSelected ? "text-aviva-bg/80" : "text-aviva-secondary")}>{pct}%</span>
                       </button>
                     );
                   })}
@@ -1341,8 +1360,9 @@ export default function ConstructionPage() {
               {!loading && filtered.length > 0 && (
                 <div className="flex items-center gap-3 mt-2 flex-wrap text-[9px] text-aviva-secondary/60">
                   <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-green-400/80 bg-aviva-card inline-block" />เสร็จแล้ว</span>
-                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-sky-400/60 bg-aviva-card inline-block" />ตามแผน</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-sky-400/60 bg-aviva-card inline-block" />กำลังก่อสร้าง</span>
                   <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-red-500/70 bg-aviva-card inline-block" />ล่าช้า</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border-2 border-gray-500/40 bg-aviva-card inline-block" />ยังไม่เริ่ม</span>
                   <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-aviva-gold inline-block" />มีลูกค้า</span>
                 </div>
               )}

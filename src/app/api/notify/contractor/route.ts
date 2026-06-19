@@ -7,12 +7,18 @@
 import { createClient } from '@supabase/supabase-js'
 import { buildNotificationMessage } from '@/lib/contractor-notification'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, serviceRoleKey)
+export const dynamic = 'force-dynamic'
+
+function getServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase env not configured')
+  return createClient(url, key)
+}
 
 export async function POST(request: Request) {
   try {
+    const supabase = getServiceClient()
     const body = await request.json()
     const { recipientId, eventType, projectId, houseId, channel = 'in_app', metadata = {} } = body
 

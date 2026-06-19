@@ -8,9 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { calculatePayment, calculateDaysLate } from '@/lib/finance-calculation'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, serviceRoleKey)
+export const dynamic = 'force-dynamic'
 
 interface CreatePaymentVoucherRequest {
   projectId: string
@@ -26,8 +24,16 @@ interface CreatePaymentVoucherRequest {
   createdBy: string
 }
 
+function getServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase env not configured')
+  return createClient(url, key)
+}
+
 export async function POST(request: Request) {
   try {
+    const supabase = getServiceClient()
     const body: CreatePaymentVoucherRequest = await request.json()
 
     // Validate input

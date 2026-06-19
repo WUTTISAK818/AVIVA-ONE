@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import SectionHeader from '@/components/SectionHeader'
 import GlassCard from '@/components/GlassCard'
 import Toast from '@/components/Toast'
+import ConstructionGridView from '@/components/ConstructionGridView'
 
 interface ProgressUnit {
   id: string
@@ -30,7 +31,9 @@ export default function ConstructionProgressPage() {
   const [units, setUnits] = useState<ProgressUnit[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'card' | 'grid'>('card')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [selectedUnit, setSelectedUnit] = useState<ProgressUnit | null>(null)
 
   useEffect(() => {
     loadProgress()
@@ -111,7 +114,32 @@ export default function ConstructionProgressPage() {
         </GlassCard>
       </div>
 
-      {/* Stage Filter */}
+      {/* View Mode Tabs */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setViewMode('card')}
+          className={`px-4 py-2 rounded-lg font-medium transition ${
+            viewMode === 'card'
+              ? 'bg-aviva-gold text-aviva-bg'
+              : 'bg-gray-800/50 text-gray-400 hover:text-white'
+          }`}
+        >
+          📋 Card View
+        </button>
+        <button
+          onClick={() => setViewMode('grid')}
+          className={`px-4 py-2 rounded-lg font-medium transition ${
+            viewMode === 'grid'
+              ? 'bg-aviva-gold text-aviva-bg'
+              : 'bg-gray-800/50 text-gray-400 hover:text-white'
+          }`}
+        >
+          🔲 Grid View
+        </button>
+      </div>
+
+      {/* Stage Filter (only show for card view) */}
+      {viewMode === 'card' && (
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
         <button
           onClick={() => setFilter(null)}
@@ -137,8 +165,28 @@ export default function ConstructionProgressPage() {
           </button>
         ))}
       </div>
+      )}
 
-      {/* Units Grid */}
+      {/* Grid View */}
+      {viewMode === 'grid' && (
+        <ConstructionGridView
+          units={units.map(u => ({
+            id: u.id,
+            house_number: u.house_number,
+            progress: u.overall_percentage,
+            status: u.current_stage === 'handover' ? 'complete' : (u.overall_percentage > 0 ? 'under_construction' : 'not_started'),
+            current_stage: u.current_stage,
+            open_defects: u.open_defects
+          }))}
+          onUnitClick={(unit) => {
+            const fullUnit = units.find(u => u.house_number === unit.house_number)
+            if (fullUnit) setSelectedUnit(fullUnit)
+          }}
+        />
+      )}
+
+      {/* Card View */}
+      {viewMode === 'card' && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredUnits.map(unit => {
           const stageColor = stageColors[unit.current_stage] || stageColors.foundation
@@ -196,8 +244,9 @@ export default function ConstructionProgressPage() {
           )
         })}
       </div>
+      )}
 
-      {filteredUnits.length === 0 && (
+      {viewMode === 'card' && filteredUnits.length === 0 && (
         <GlassCard className="p-12 text-center">
           <p className="text-gray-400">No units found for selected stage</p>
         </GlassCard>

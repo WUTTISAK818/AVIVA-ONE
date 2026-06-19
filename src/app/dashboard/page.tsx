@@ -102,6 +102,15 @@ interface InsightItem {
   titleColor: string;
 }
 
+interface SLAAlert {
+  id: string;
+  house_id: string;
+  alert_level: 'yellow' | 'red' | 'critical';
+  days_late: number;
+  message: string;
+  alert_sent_at: string;
+}
+
 export default function DashboardPage() {
   const ctxUser = useCurrentUser();
   const [project, setProject] = useState<Project | null>(null);
@@ -124,6 +133,7 @@ export default function DashboardPage() {
   const [activeHouses, setActiveHouses] = useState<ActiveHouseInfo[]>([]);
   const [pendingPayouts, setPendingPayouts] = useState(0);
   const [salesFunnelRange, setSalesFunnelRange] = useState<{ from: string; to: string } | null>(null);
+  const [slaAlerts, setSlaAlerts] = useState<SLAAlert[]>([]);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -377,6 +387,17 @@ export default function DashboardPage() {
         setPendingPayouts(total);
       });
 
+    supabase.from("sla_alert_history")
+      .select("*")
+      .eq("project_id", PROJECT_ID)
+      .in("alert_level", ["red", "critical"])
+      .order("alert_sent_at", { ascending: false })
+      .limit(10)
+      .then(({ data, error }) => {
+        if (!mounted || error) return;
+        setSlaAlerts((data ?? []) as SLAAlert[]);
+      });
+
     return () => { mounted = false; };
   }, []);
 
@@ -492,6 +513,25 @@ export default function DashboardPage() {
     });
   }
 
+  if (canSeeConstruction && slaAlerts.length > 0) {
+    const criticalCount = slaAlerts.filter(a => a.alert_level === "critical").length;
+    const redCount = slaAlerts.filter(a => a.alert_level === "red").length;
+    insights.push({
+      type: criticalCount > 0 ? "alert" : "warning",
+      priority: criticalCount > 0 ? "high" : "medium",
+      title: `🚨 SLA Alert: ${criticalCount > 0 ? `${criticalCount} หลังวิกฤติ` : `${redCount} หลังสำคัญ`}`,
+      message: criticalCount > 0
+        ? `${criticalCount} หลังเกิน 31 วัน — การจ่ายเงินหยุดคั่ว — ติดต่อผู้บริหารด่วน`
+        : `${redCount} หลัง ${slaAlerts[0]?.days_late ?? 0} วัน — ต้องปรับปรุง`,
+      href: "/construction/progress",
+      icon: AlertTriangle,
+      iconColor: criticalCount > 0 ? "text-red-400" : "text-orange-400",
+      bg: criticalCount > 0 ? "bg-red-500/10" : "bg-orange-500/10",
+      border: criticalCount > 0 ? "border-red-500/20" : "border-orange-500/20",
+      titleColor: criticalCount > 0 ? "text-red-400" : "text-orange-400",
+    });
+  }
+
   if (isEmployee) {
     const hour = new Date().getHours();
     insights.push({
@@ -531,7 +571,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v6.38</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v6.39</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

@@ -1166,8 +1166,8 @@ export default function CRMPage() {
                   <div className="flex items-center gap-3 mt-1.5">
                     <span className="flex items-center gap-1 text-xs text-aviva-secondary"><Phone size={10} />{lead.phone}</span>
                     <span className="text-xs text-aviva-gold font-medium">{formatBudget(lead.budget)}</span>
-                    {lead.created_at && (
-                      <span className="text-[10px] text-aviva-secondary/70">📅 {new Date(lead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                    {(lead.visit_date || lead.created_at) && (
+                      <span className="text-[10px] text-blue-400">📅 {lead.visit_date ? new Date(lead.visit_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }) : new Date(lead.created_at!).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}{lead.visit_time ? ` ${lead.visit_time}` : ""}</span>
                     )}
                   </div>
                   {lead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>}
@@ -2021,6 +2021,18 @@ export default function CRMPage() {
                     placeholder="เช่น น.ส.ศิริภัสสร ศรีกลาง"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">วันที่เข้าชม</label>
+                    <input type="date" value={form.visit_date} onChange={e => setForm(p => ({ ...p, visit_date: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">เวลาเข้าชม</label>
+                    <input type="time" value={form.visit_time} onChange={e => setForm(p => ({ ...p, visit_time: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">พนักงานขายที่ดูแล (รับผิดชอบ)</label>
                   <select value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
@@ -2144,28 +2156,6 @@ export default function CRMPage() {
                 </div>
               </div>
 
-              {/* หมวด 2.5 — วันที่เข้าชมและผู้บันทึก */}
-              <div className="space-y-3">
-                <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">2.5 · วันที่เข้าชม</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">วันที่เข้าชม</label>
-                    <input type="date" value={form.visit_date} onChange={e => setForm(p => ({ ...p, visit_date: e.target.value }))}
-                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">เวลาเข้าชม</label>
-                    <input type="time" value={form.visit_time} onChange={e => setForm(p => ({ ...p, visit_time: e.target.value }))}
-                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">บันทึกโดย (อีเมล/ชื่อ)</label>
-                  <input type="text" value={form.reported_by} readOnly placeholder={user?.full_name || user?.email || "ระบบ"}
-                    className="w-full bg-aviva-bg/50 border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-secondary/60 outline-none cursor-not-allowed" />
-                  <p className="text-[10px] text-aviva-secondary/50 mt-1">อัตโนมัติจากผู้ใช้ปัจจุบัน</p>
-                </div>
-              </div>
 
               {/* หมวด 3 — สถานะ / การเงิน */}
               <div className="space-y-3">

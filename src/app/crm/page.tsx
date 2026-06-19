@@ -1685,10 +1685,23 @@ export default function CRMPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
-              {selectedLead.created_at && (
+              {(selectedLead.visit_date || selectedLead.created_at) && (
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 col-span-2">
-                  <p className="text-blue-400 text-[10px] font-semibold">📅 วันที่เยี่ยมชม</p>
-                  <p className="text-aviva-text font-semibold mt-0.5">{new Date(selectedLead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  <p className="text-blue-400 text-[10px] font-semibold">📅 วันที่เยี่ยมชม / ติดต่อ</p>
+                  {selectedLead.visit_date ? (
+                    <p className="text-aviva-text font-semibold mt-0.5">
+                      {new Date(selectedLead.visit_date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
+                      {selectedLead.visit_time ? ` เวลา ${selectedLead.visit_time} น.` : ""}
+                    </p>
+                  ) : (
+                    <p className="text-aviva-text font-semibold mt-0.5">
+                      {new Date(selectedLead.created_at!).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
+                      <span className="text-aviva-secondary/60 text-[9px] font-normal"> (วันที่บันทึกข้อมูล)</span>
+                    </p>
+                  )}
+                  {selectedLead.reported_by && (
+                    <p className="text-aviva-secondary text-[9px] mt-1">บันทึกโดย {selectedLead.reported_by}</p>
+                  )}
                 </div>
               )}
               <div className="bg-aviva-bg rounded-xl p-3">
@@ -1816,7 +1829,7 @@ export default function CRMPage() {
             {(() => {
               const fmt = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
               const steps = ([
-                { label: "เริ่มดูแล / เยี่ยมชม", date: selectedLead.created_at ?? selectedLead.created_at_default ?? null, icon: "📍" },
+                { label: "เริ่มดูแล / เยี่ยมชม", date: selectedLead.visit_date ?? selectedLead.created_at ?? selectedLead.created_at_default ?? null, icon: "📍" },
                 { label: "จอง", date: selectedLead.booking_date ?? null, icon: "📌" },
                 { label: "ทำสัญญา", date: selectedLead.contract_signed_date ?? null, icon: "📝" },
                 { label: "อนุมัติสินเชื่อ", date: selectedLead.loan_approved_date ?? null, icon: "🏦" },
@@ -2287,8 +2300,8 @@ export default function CRMPage() {
                     <p className="text-[10px] text-aviva-secondary mb-1">{isSold ? "โอนกรรมสิทธิ์แล้ว" : "จองแล้ว"}</p>
                     <p className="text-base font-bold text-aviva-text">{displayLead.customer_name}</p>
                     <p className="text-sm text-aviva-gold font-medium mt-0.5">{displayLead.phone}</p>
-                    {displayLead.created_at && (
-                      <p className="text-[10px] text-blue-400 mt-1">📅 เยี่ยมชม {new Date(displayLead.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                    {(displayLead.visit_date || displayLead.created_at) && (
+                      <p className="text-[10px] text-blue-400 mt-1">📅 เยี่ยมชม {new Date(displayLead.visit_date ?? displayLead.created_at!).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}{displayLead.visit_time ? ` ${displayLead.visit_time} น.` : ""}</p>
                     )}
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       <span className="text-[10px] bg-aviva-bg px-2 py-0.5 rounded-full text-aviva-secondary">{STATUS_TH_MAP[displayLead.status] ?? displayLead.status}</span>
@@ -2446,8 +2459,8 @@ export default function CRMPage() {
                                 <span className="text-[10px] text-aviva-secondary/50 mr-1.5">#{idx + 1}</span>
                                 <span className="text-xs font-medium text-aviva-text">{l.customer_name}</span>
                               </div>
-                              {l.created_at && (
-                                <span className="block text-[9px] text-blue-400/80 mt-0.5">📅 เยี่ยมชม {new Date(l.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                              {(l.visit_date || l.created_at) && (
+                                <span className="block text-[9px] text-blue-400/80 mt-0.5">📅 เยี่ยมชม {new Date(l.visit_date ?? l.created_at!).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}{l.visit_time ? ` ${l.visit_time} น.` : ""}</span>
                               )}
                             </div>
                             <span className={`text-[10px] font-bold ${l.ai_score >= 70 ? "text-green-400" : l.ai_score >= 40 ? "text-yellow-400" : "text-red-400"}`}>AI {l.ai_score}%</span>

@@ -17,6 +17,7 @@ interface ProgressUnit {
   completed_stages: number
   total_stages: number
   open_defects: number
+  days_late?: number
 }
 
 const stageColors: Record<string, { bg: string; text: string; icon: string }> = {

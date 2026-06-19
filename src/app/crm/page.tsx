@@ -153,6 +153,17 @@ const sourceColor: Record<string, string> = {
   Referral: "bg-purple-500/20 text-purple-400",
 };
 
+const statusColor: Record<LeadStatus, string> = {
+  "New Lead": "bg-gray-800/20 text-gray-400",
+  "Contacted": "bg-gray-800/20 text-gray-400",
+  "Site Visit": "bg-gray-800/20 text-gray-400",
+  "Booking": "bg-yellow-900/20 text-yellow-400",
+  "Contract": "bg-blue-900/20 text-blue-400",
+  "Loan Approved": "bg-gray-800/20 text-gray-400",
+  "Transfer": "bg-green-900/20 text-green-400",
+  "Closed Deal": "bg-green-900/20 text-green-400",
+};
+
 const SOURCES = ["Facebook", "TikTok", "Google", "Instagram", "LINE OA", "Call in", "Referral", "Walk-in", "อื่นๆ"];
 const CALL_STATUSES = ["โทรติด-สนใจ", "โทรติด-ไม่สนใจ", "โทรไม่ติด", "นัดหมายแล้ว", "ส่ง LINE แล้ว"];
 

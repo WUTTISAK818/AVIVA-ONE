@@ -2380,6 +2380,21 @@ export default function CRMPage() {
                     className="w-full py-2.5 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary font-medium flex items-center justify-center gap-1.5">
                     <Pencil size={11} /> แก้ไขข้อมูลลูกค้า
                   </button>
+                  {isBooked && !isSold && (
+                    <button onClick={async () => {
+                      if (!displayLead) return;
+                      const byName = user?.full_name ?? user?.email ?? "ระบบ";
+                      await supabase.from("leads").update({ status: "Site Visit" as LeadStatus, updated_at: new Date().toISOString() }).eq("id", displayLead.id);
+                      await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", displayLead.plot_number);
+                      await createNotification({ type: "info", title: `${displayLead.customer_name} — ยกเลิกการจอง`, message: `แปลง ${displayLead.plot_number} โดย ${byName}`, from_dept: "ฝ่ายขาย", to_dept: "ฝ่ายขาย", record_id: displayLead.id });
+                      setToast({ msg: `ยกเลิกการจอง ${displayLead.customer_name} แล้ว — แปลง ${displayLead.plot_number} เปิดให้ขายอีกครั้ง`, type: "success" });
+                      setMapPlotModal(null);
+                      const r = rtRangeRef.current; fetchLeads(r.start, r.end, r.limit);
+                    }}
+                      className="w-full py-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 font-medium flex items-center justify-center gap-1.5">
+                      <X size={11} /> ยกเลิกการจอง
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">

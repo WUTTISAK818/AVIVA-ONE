@@ -1,0 +1,118 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>WinVote — ข้อเสนอการออกแบบ</title>
+<style>
+:root{--bg:#EEF2EE;--card:#FFFFFF;--ink:#15241F;--sub:#48605A;--gold:#9A7A12;--goldbg:#FBF4DD;
+--line:#D8E0DA;--green:#157F4A;--greenbg:#E3F5EC;--red:#B42318;--redbg:#FCE9E7;--amber:#B26A00;--amberbg:#FBEFD8;--blue:#1A5FB4;--bluebg:#E6EEFA;
+--fs:18px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI","IBM Plex Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:var(--fs);line-height:1.65;padding-bottom:70px}
+.hero{background:linear-gradient(160deg,#fff,#F3F6F2);border-bottom:3px solid var(--gold);padding:30px 18px}
+.wrap{max-width:1000px;margin:0 auto;padding:0 18px}
+h1{font-size:1.7em;color:var(--ink)} .hero p{color:var(--sub);margin-top:6px}
+.goal{background:var(--goldbg);border:2px solid var(--gold);border-radius:16px;padding:16px 18px;margin-top:18px;font-weight:600}
+.goal b{color:var(--gold);font-size:1.15em}
+.fontdemo{display:inline-flex;gap:6px;align-items:center;background:#fff;border:2px solid var(--line);border-radius:12px;padding:5px 10px;margin-top:10px;font-size:.8em;color:var(--sub)}
+.fontdemo span{border:1px solid var(--line);border-radius:8px;padding:2px 9px;font-weight:700}
+.sec{margin-top:30px}
+.sec h2{font-size:1.25em;display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+.num{background:var(--gold);color:#fff;width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
+.card{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}
+ul{list-style:none;margin-top:6px} li{padding:5px 0 5px 26px;position:relative}
+li:before{content:"✓";color:var(--green);font-weight:800;position:absolute;left:0}
+.tag{font-size:.72em;font-weight:700;border-radius:999px;padding:2px 10px;margin-left:6px;white-space:nowrap}
+.t-have{background:var(--greenbg);color:var(--green)} .t-build{background:var(--amberbg);color:var(--amber)} .t-new{background:var(--bluebg);color:var(--blue)}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.92em;background:#fff;border-radius:12px;overflow:hidden;border:2px solid var(--line)}
+th,td{padding:10px 12px;text-align:center;border:1px solid var(--line)}
+th{background:var(--goldbg);color:var(--ink);font-size:.9em} td.l{text-align:left;font-weight:700;background:#FAFBFA}
+.yes{color:var(--green);font-weight:800} .no{color:#C0C8C2} .part{color:var(--amber);font-weight:700}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.step{background:var(--bluebg);border:1.5px solid var(--blue);color:var(--blue);border-radius:12px;padding:7px 12px;font-weight:600;font-size:.9em}
+.ar{color:var(--gold);font-weight:800}
+.road{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}
+.ph{background:#fff;border:2px solid var(--line);border-left:6px solid var(--gold);border-radius:12px;padding:14px}
+.ph b{color:var(--gold)}
+.note{background:var(--bluebg);border:2px solid var(--blue);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:.92em;color:#143b6b}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:.8em;color:var(--sub)}
+</style></head><body>
+<div class="hero"><div class="wrap">
+  <h1>WinVote — ข้อเสนอการออกแบบ</h1>
+  <p>สะดวกสำหรับผู้สูงอายุ + ปลอดภัยระดับข้อมูลลับ · (หน้านี้ใช้โทนสว่าง/ตัวอักษรใหญ่เป็นตัวอย่าง UI ผู้สูงอายุ)</p>
+  <div class="goal">🎯 เป้าหมายหลัก: <b>10,000 ผู้สนับสนุน "ตัวจริง" ต่อเขต</b> (รวม 40,000) — จากฐานผู้มีสิทธิจริง <b>93,079</b> คน · ต้องพิสูจน์ได้ว่าจริง ไม่ปลอม ไม่โดนหลอกใช้</div>
+  <div class="fontdemo">ปรับขนาดอักษร: <span style="font-size:13px">ก</span><span style="font-size:16px">ก</span><span style="font-size:20px">ก</span><span style="font-size:26px">ก</span></div>
+</div></div>
+<div class="wrap">
+
+  <div class="sec"><h2><span class="num">1</span> UI สำหรับผู้สูงอายุ</h2>
+  <div class="card"><ul>
+    <li><b>โหมดสว่างเป็นค่าเริ่มต้น</b> + ตัวเลือกคอนทราสต์สูง (ตัวอักษรเข้ม พื้นสว่าง อ่านง่ายกลางแดด) <span class="tag t-build">ปรับ</span></li>
+    <li><b>ปุ่มปรับขนาดตัวอักษร 4 ระดับ</b> (เล็ก/กลาง/ใหญ่/ใหญ่พิเศษ) จำค่าไว้ในเครื่อง <span class="tag t-new">เพิ่ม</span></li>
+    <li>ปุ่มใหญ่ เป้าแตะ ≥ 48px, ระยะห่างเยอะ, ไอคอนใหญ่+ข้อความกำกับ</li>
+    <li>สีสื่อสถานะชัด: เขียว=ครบ ทอง=ใกล้ แดง=ต่ำ (เหมือนที่ใช้อยู่)</li>
+    <li>ลดขั้นตอน/หน้าจอซับซ้อน, ปุ่มหลักใหญ่ชัดบนสุด</li>
+  </ul></div></div>
+
+  <div class="sec"><h2><span class="num">2</span> ใช้งานตอนเน็ตหลุด (ออฟไลน์)</h2>
+  <div class="card"><ul>
+    <li><b>บันทึกข้อมูลได้แม้ไม่มีเน็ต</b> — เก็บลงเครื่อง (IndexedDB) เข้าคิวรอ <span class="tag t-new">เพิ่ม</span></li>
+    <li><b>Sync อัตโนมัติ</b>เมื่อเน็ตกลับมา + แถบสถานะ "ออฟไลน์ · รอส่ง X รายการ"</li>
+    <li>PWA ติดตั้งลงหน้าจอโทรศัพท์ เปิดเร็ว ใช้เหมือนแอป</li>
+    <li>โหลดข้อมูลพื้นที่ที่รับผิดชอบไว้ล่วงหน้า (หน่วย/ชุมชน) เปิดดูออฟไลน์ได้</li>
+    <li>กันข้อมูลหายถ้าปิดแอป/แบตหมด (เซฟร่างอัตโนมัติ)</li>
+  </ul></div></div>
+
+  <div class="sec"><h2><span class="num">3</span> ล็อกอินผูกอุปกรณ์ (กันส่งต่อรหัส)</h2>
+  <div class="card"><ul>
+    <li><b>1 บัญชี = 1 เครื่อง</b> — ผูกรหัสอุปกรณ์ครั้งแรกที่ล็อกอิน <span class="tag t-new">เพิ่ม</span></li>
+    <li>ถ้านำรหัสไปล็อกอินเครื่องอื่น → <b>ถูกบล็อก</b> ต้องให้ผู้ดูแลอนุมัติ/รีเซ็ตเครื่องก่อน</li>
+    <li>ยืนยันตอนผูกเครื่องใหม่ด้วย <b>OTP ทาง LINE/SMS</b></li>
+    <li>บังคับ session เดียว (ล็อกอินที่ใหม่ = เตะเครื่องเก่าออก)</li>
+    <li>เก็บ log การเข้าใช้ (ใคร/เมื่อไหร่/เครื่องไหน) ตรวจย้อนหลังได้</li>
+  </ul>
+  <div class="note">🔒 ผลลัพธ์: ส่งลิงก์/รหัสให้คนนอกก็เข้าไม่ได้ — เข้าได้เฉพาะเครื่องที่อนุมัติแล้วเท่านั้น ป้องกันข้อมูลลับรั่วไปคู่แข่ง</div>
+  </div></div>
+
+  <div class="sec"><h2><span class="num">4</span> สิทธิ์การเข้าถึง 5 ชั้น</h2>
+  <div class="card">
+  <table>
+    <tr><th class="l">บทบาท</th><th>เห็นทุกเขต</th><th>แก้ข้อมูล</th><th>อนุมัติ/ยืนยัน</th><th>จัดการผู้ใช้</th><th>ส่งออก/รายงาน</th></tr>
+    <tr><td class="l">ผู้บริหารระดับสูง</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    <tr><td class="l">เจ้าหน้าที่ระดับสูง</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="yes">✓</td></tr>
+    <tr><td class="l">เจ้าหน้าที่ระดับกลาง</td><td class="part">เฉพาะเขตตน</td><td class="yes">✓</td><td class="part">บางส่วน</td><td class="no">✗</td><td class="part">เขตตน</td></tr>
+    <tr><td class="l">ผู้ใช้ระดับสูง</td><td class="part">ชุมชนตน</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td class="l">ผู้ใช้ระดับกลาง</td><td class="part">ของตน</td><td class="part">เพิ่มเท่านั้น</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+  </table>
+  <div class="legend">✓ = ได้ · ✗ = ไม่ได้ · ระบุขอบเขต = จำกัดตามเขต/ชุมชนที่รับผิดชอบ</div>
+  <div class="note">บังคับจริงด้วย Row-Level Security (RLS) ที่ฐานข้อมูล — แต่ละคนเห็น/แก้ได้เฉพาะข้อมูลในขอบเขตตน แม้จะพยายามดึงตรงก็ไม่หลุด <span class="tag t-build">ปรับจากระบบ role เดิม</span></div>
+  </div></div>
+
+  <div class="sec"><h2><span class="num">5</span> ยืนยัน "ผู้สนับสนุนตัวจริง" (กันปลอม/หลอกใช้)</h2>
+  <div class="card">
+  <div class="flow">
+    <span class="step">สแกนบัตร ปชช.</span><span class="ar">→</span>
+    <span class="step">เช็คเลข 13 หลัก + กันลงซ้ำ</span><span class="ar">→</span>
+    <span class="step">เซลฟี่ + GPS + เวลา</span><span class="ar">→</span>
+    <span class="step">ยืนยันเบอร์ (OTP/LINE)</span><span class="ar">→</span>
+    <span class="step" style="background:var(--greenbg);border-color:var(--green);color:var(--green)">✓ ตัวจริง (verified)</span>
+  </div>
+  <ul style="margin-top:14px">
+    <li><b>กันลงซ้ำ:</b> เลขบัตร 13 หลักไม่ซ้ำ + เตือนชื่อ/เบอร์ซ้ำ <span class="tag t-have">มีพื้นฐานแล้ว</span></li>
+    <li><b>พิสูจน์ลงพื้นที่จริง:</b> เซลฟี่ + พิกัด GPS + เวลา → กันกรอกมั่ว/นั่งโต๊ะปั๊มข้อมูล</li>
+    <li><b>ยืนยันเบอร์เป็นเจ้าของจริง:</b> OTP ทาง LINE/SMS</li>
+    <li><b>สถานะความน่าเชื่อถือต่อคน:</b> ยังไม่ยืนยัน / ยืนยันบางส่วน / ยืนยันเต็ม</li>
+    <li><b>นับเข้าเป้า 10,000 เฉพาะ "ยืนยันเต็ม"</b> → ตัวเลขที่เห็นคือของจริง ไม่ใช่ตัวเลขลม</li>
+    <li><b>ตั้งเกณฑ์ได้:</b> กำหนดว่าต้องครบกี่อย่างถึงนับเป็นตัวจริง (เช่น บัตร+เซลฟี่+เบอร์)</li>
+    <li><b>ตรวจสอบย้อนหลัง:</b> ใครเก็บ/ที่ไหน/เมื่อไหร่ — ตามรอยได้ทุกราย</li>
+  </ul>
+  </div></div>
+
+  <div class="sec"><h2>🗺️ ลำดับการทำ (Roadmap)</h2>
+  <div class="road">
+    <div class="ph"><b>เฟส 1</b><br>UI ผู้สูงอายุ (สว่าง+ปรับขนาดอักษร) + สิทธิ์ 5 ชั้น (RBAC/RLS)</div>
+    <div class="ph"><b>เฟส 2</b><br>ล็อกอินผูกอุปกรณ์ + OTP + log การเข้าใช้</div>
+    <div class="ph"><b>เฟส 3</b><br>ยืนยันตัวจริง (บัตร+เซลฟี่+GPS+เบอร์) + สถานะ verified นับเข้าเป้า</div>
+    <div class="ph"><b>เฟส 4</b><br>ออฟไลน์ + sync + PWA ติดตั้งหน้าจอ</div>
+  </div>
+  <div class="note">ทุกอย่างทำได้บนสถาปัตยกรรมปัจจุบัน (Next.js + Supabase) — บางส่วนมีพื้นฐานอยู่แล้ว (สแกนบัตร/เซลฟี่/role) แค่ต่อยอด</div>
+  </div>
+
+</div></body></html>

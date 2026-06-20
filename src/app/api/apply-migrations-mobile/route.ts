@@ -16,6 +16,8 @@ export async function POST(req: NextRequest) {
 
     const migrationsDir = path.join(process.cwd(), "supabase/migrations");
     const files = [
+      "critical_gaps_schema.sql",
+      "20260619a_create_daily_activity_log.sql",
       "20260619b_add_construction_activity_log.sql",
       "20260619c_add_finance_activity_log.sql",
       "20260619d_add_hr_activity_log.sql",

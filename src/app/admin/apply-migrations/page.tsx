@@ -55,6 +55,7 @@ export default function ApplyMigrationsPage() {
 
           <div className="space-y-3 mb-6">
             {[
+              { name: "📋 Prerequisites", desc: "Schema & activity log tables" },
               { name: "🏗️ Construction", desc: "Progress & QC logging" },
               { name: "💰 Finance", desc: "Payment voucher logging" },
               { name: "👥 HR", desc: "Leave request logging" },

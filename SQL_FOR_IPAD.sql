@@ -1,9 +1,109 @@
 -- AVIVA ONE v6.46
--- Activity Logging System Installation
--- ทำการติดตั้ง automatic activity logging สำหรับ:
+-- Activity Logging System Installation (CORRECTED SEQUENCE)
+-- ติดตั้ง automatic activity logging สำหรับ:
 -- 1. Construction (ก่อสร้าง)
 -- 2. Finance (การเงิน)
 -- 3. HR (ทรัพยากรบุคคล)
+--
+-- ⚠️ IMPORTANT: Run migrations in this exact order:
+-- STEP 1: Create payment_vouchers table (critical_gaps)
+-- STEP 2: Create daily_activity_log table
+-- STEP 3-5: Create the three activity logging triggers
+
+-- ========================================
+-- PREREQUISITE STEP 1: SCHEMA SETUP
+-- ========================================
+-- Payment Vouchers table (สำคัญ - ต้องมีก่อน Finance trigger)
+
+CREATE TABLE IF NOT EXISTS public.payment_vouchers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id),
+  house_id UUID NOT NULL REFERENCES public.houses(id),
+  contractor_id UUID NOT NULL,
+
+  milestone_id UUID,
+  stage_name VARCHAR(100),
+
+  base_amount DECIMAL(12, 2) NOT NULL,
+  days_late INTEGER DEFAULT 0,
+  daily_penalty_rate DECIMAL(10, 2) DEFAULT 0,
+  penalty_amount DECIMAL(12, 2) DEFAULT 0,
+
+  gross_amount DECIMAL(12, 2) NOT NULL,
+  tax_3percent DECIMAL(12, 2) DEFAULT 0,
+  retention_rate DECIMAL(5, 2) DEFAULT 5.0,
+  retention_amount DECIMAL(12, 2) DEFAULT 0,
+  net_amount DECIMAL(12, 2) NOT NULL,
+
+  status VARCHAR(50) DEFAULT 'draft', -- draft, submitted, approved, paid, rejected
+  submitted_by UUID,
+  submitted_at TIMESTAMP,
+  approved_by UUID,
+  approved_at TIMESTAMP,
+  rejected_reason TEXT,
+  paid_at TIMESTAMP,
+  paid_reference VARCHAR(100),
+
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+
+  CONSTRAINT chk_status CHECK (status IN ('draft', 'submitted', 'approved', 'paid', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_vouchers_project ON public.payment_vouchers(project_id);
+CREATE INDEX IF NOT EXISTS idx_payment_vouchers_contractor ON public.payment_vouchers(contractor_id);
+CREATE INDEX IF NOT EXISTS idx_payment_vouchers_status ON public.payment_vouchers(status);
+
+-- ========================================
+-- PREREQUISITE STEP 2: DAILY ACTIVITY LOG TABLE
+-- ========================================
+-- สมุดบันทึกกิจกรรมประจำวัน (Construction, Finance, HR)
+
+CREATE TABLE IF NOT EXISTS public.daily_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id),
+
+  activity_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  activity_type VARCHAR(50) NOT NULL, -- 'construction', 'finance', 'hr'
+  category VARCHAR(50) NOT NULL, -- 'progress', 'qc_defect', 'submitted', 'approved', 'paid', etc.
+
+  performer_id UUID, -- who performed the action
+  performer_name VARCHAR(255),
+  performer_department VARCHAR(100),
+
+  description TEXT NOT NULL,
+  quantity NUMERIC(10, 2),
+  amount DECIMAL(12, 2),
+
+  reference_id UUID, -- ID of related record (house, payment_voucher, leave_request, etc.)
+  reference_type VARCHAR(50), -- 'houses', 'payment_vouchers', 'leave_requests', 'qc_defects'
+
+  created_by UUID,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for quick queries
+CREATE INDEX IF NOT EXISTS idx_daily_activity_log_project ON public.daily_activity_log(project_id);
+CREATE INDEX IF NOT EXISTS idx_daily_activity_log_date ON public.daily_activity_log(activity_date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_activity_log_type ON public.daily_activity_log(activity_type);
+CREATE INDEX IF NOT EXISTS idx_daily_activity_log_performer ON public.daily_activity_log(performer_id);
+CREATE INDEX IF NOT EXISTS idx_daily_activity_log_reference ON public.daily_activity_log(reference_type, reference_id);
+
+-- Row Level Security
+ALTER TABLE public.daily_activity_log ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to view activity logs
+CREATE POLICY IF NOT EXISTS daily_activity_select ON public.daily_activity_log
+  FOR SELECT
+  TO authenticated
+  USING (TRUE);
+
+-- Allow authenticated users to insert activities
+CREATE POLICY IF NOT EXISTS daily_activity_insert ON public.daily_activity_log
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (created_by = auth.uid() OR created_by IS NULL);
 
 -- ========================================
 -- MIGRATION 1: CONSTRUCTION ACTIVITY LOGGING
@@ -190,3 +290,13 @@ CREATE TRIGGER leave_request_log AFTER UPDATE ON public.leave_requests
 -- ========================================
 -- END: ALL MIGRATIONS COMPLETED
 -- ========================================
+-- Verification Query (run to check if successful):
+-- SELECT routine_name FROM information_schema.routines
+-- WHERE routine_schema='public' AND routine_name LIKE '%log_%'
+-- ORDER BY routine_name;
+--
+-- Expected results:
+-- - log_construction_progress
+-- - log_qc_defect
+-- - log_payment_voucher
+-- - log_leave_request

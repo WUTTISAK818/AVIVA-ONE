@@ -521,14 +521,27 @@ function ApprovalsContent() {
         to_dept: approved ? "ฝ่ายการเงิน" : targetDept,
       });
     } else if (log.workflow_type === "Document_Approval") {
+      const byName = user.full_name ?? user.email;
       if (log.source_record_id) {
         await supabase.from("documents")
           .update({
             status: approved ? "approved" : "rejected",
-            approved_by: user.full_name ?? user.email,
+            approved_by: byName,
           })
           .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
+      await logWorkflowEvent({
+        workflowType: "Document_Approval",
+        sourceRecordId: log.source_record_id ?? "",
+        docIndex: log.source_doc_index,
+        eventType: approved ? "approved" : "rejected",
+        stageFrom: "pending",
+        stageTo: approved ? "approved" : "rejected",
+        actorName: byName,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: note ?? undefined,
+      });
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติเอกสารแล้ว" : "ปฏิเสธเอกสาร",

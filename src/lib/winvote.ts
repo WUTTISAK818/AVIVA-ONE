@@ -13,6 +13,7 @@ export interface WinVoteDistrictKpi {
   polling_unit_count: number;
   resident_count: number;
   pct_of_target: number | null;
+  verified_count?: number;
 }
 
 export interface WinVoteMunicipalitySummary {
@@ -25,6 +26,7 @@ export interface WinVoteMunicipalitySummary {
   polling_unit_count: number;
   resident_count: number;
   total_target: number;
+  verified_count?: number;
 }
 
 export interface WinVoteCommunityRollup {
@@ -34,6 +36,7 @@ export interface WinVoteCommunityRollup {
   president_name: string | null;
   team_count: number;
   resident_count: number;
+  verified_count?: number;
 }
 
 export interface WinVoteMemberLoad {
@@ -44,6 +47,7 @@ export interface WinVoteMemberLoad {
   resident_quota: number;
   resident_count: number;
   quota_status: "under" | "ok" | "over";
+  verified_count?: number;
 }
 
 export interface WinVoteCommunity {

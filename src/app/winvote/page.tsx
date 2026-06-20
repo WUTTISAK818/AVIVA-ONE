@@ -394,10 +394,10 @@ function OverviewTab(props: {
         </button>
         <GlassCard gold className="p-4 mb-3">
           <ProgressBar
-            label={`${district.district_name} — ชาวบ้าน ${district.resident_count.toLocaleString()} / ${district.resident_target.toLocaleString()}`}
-            value={district.resident_count} max={district.resident_target}
+            label={`${district.district_name} — ตัวจริง ${(district.verified_count ?? 0).toLocaleString()} / ${district.resident_target.toLocaleString()}`}
+            value={district.verified_count ?? 0} max={district.resident_target}
             color={kpiColor(district.pct_of_target)}
-            sublabel={`${district.community_count} ชุมชน · ${district.team_count} ทีมงาน · ${district.polling_unit_count} หน่วยเลือกตั้ง`}
+            sublabel={`ลงทะเบียน ${district.resident_count.toLocaleString()} · ${district.community_count} ชุมชน · ${district.team_count} ทีมงาน · ${district.polling_unit_count} หน่วยเลือกตั้ง`}
           />
         </GlassCard>
         <SectionHeader title="ชุมชน" subtitle={`${communities.length} ชุมชนในเขตนี้`} />
@@ -430,14 +430,14 @@ function OverviewTab(props: {
         <GlassCard gold className="p-4">
           <p className="text-xs text-aviva-secondary mb-1">{summary.municipality_name}</p>
           <div className="grid grid-cols-2 gap-3">
-            <SummaryStat label="ชาวบ้านทั้งหมด" value={summary.resident_count.toLocaleString()} sub={`เป้ารวม ${(summary.total_target ?? 0).toLocaleString()}`} />
+            <SummaryStat label="ตัวจริง (ยืนยันแล้ว)" value={(summary.verified_count ?? 0).toLocaleString()} sub={`เป้า ${(summary.total_target ?? 0).toLocaleString()} · ลงทะเบียน ${summary.resident_count.toLocaleString()}`} />
             <SummaryStat label="เขต / ชุมชน" value={`${summary.district_count} / ${summary.community_count}`} />
             <SummaryStat label="ประธาน / ทีมงาน" value={`${summary.president_count} / ${summary.team_count}`} />
             <SummaryStat label="หน่วยเลือกตั้ง" value={`${summary.polling_unit_count}`} />
           </div>
         </GlassCard>
       )}
-      <SectionHeader title="เป้าหมายรายเขต" subtitle="แต่ละเขตต้องมีชาวบ้าน ≥ 10,000 คน" />
+      <SectionHeader title="เป้าหมายรายเขต" subtitle="แต่ละเขตต้องมีผู้สนับสนุนตัวจริง ≥ 10,000 คน" />
       <div className="space-y-3">
         {districts.map((d) => (
           <GlassCard key={d.district_id} className="p-4 cursor-pointer active:scale-[0.99]" onClick={() => onOpenDistrict(d)}>
@@ -446,10 +446,10 @@ function OverviewTab(props: {
               <ChevronRight size={16} className="text-aviva-secondary/50" />
             </div>
             <ProgressBar
-              label={`${d.resident_count.toLocaleString()} / ${d.resident_target.toLocaleString()} คน`}
-              value={d.resident_count} max={d.resident_target}
+              label={`ตัวจริง ${(d.verified_count ?? 0).toLocaleString()} / ${d.resident_target.toLocaleString()} คน`}
+              value={d.verified_count ?? 0} max={d.resident_target}
               color={kpiColor(d.pct_of_target)}
-              sublabel={`${d.community_count} ชุมชน · ${d.team_count} ทีมงาน · ${d.polling_unit_count} หน่วย`}
+              sublabel={`ลงทะเบียน ${d.resident_count.toLocaleString()} · ${d.community_count} ชุมชน · ${d.team_count} ทีมงาน · ${d.polling_unit_count} หน่วย`}
             />
           </GlassCard>
         ))}

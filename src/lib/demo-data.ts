@@ -27,10 +27,10 @@ const MUNI_ID = "demo-muni";
 
 // 4 เขต — ตัวเลขล้อกับ seed จริง (เป้าหมายเขตละ 10,000)
 const DISTRICTS: WinVoteDistrictKpi[] = [
-  { district_id: "d1", municipality_id: MUNI_ID, code: 1, district_name: "เขต 1", resident_target: 10000, community_count: 25, team_count: 96, polling_unit_count: 47, resident_count: 6420, pct_of_target: 64.2 },
-  { district_id: "d2", municipality_id: MUNI_ID, code: 2, district_name: "เขต 2", resident_target: 10000, community_count: 24, team_count: 92, polling_unit_count: 46, resident_count: 3180, pct_of_target: 31.8 },
-  { district_id: "d3", municipality_id: MUNI_ID, code: 3, district_name: "เขต 3", resident_target: 10000, community_count: 25, team_count: 98, polling_unit_count: 47, resident_count: 10240, pct_of_target: 102.4 },
-  { district_id: "d4", municipality_id: MUNI_ID, code: 4, district_name: "เขต 4", resident_target: 10000, community_count: 24, team_count: 90, polling_unit_count: 45, resident_count: 4860, pct_of_target: 48.6 },
+  { district_id: "d1", municipality_id: MUNI_ID, code: 1, district_name: "เขต 1", resident_target: 10000, community_count: 25, team_count: 96, polling_unit_count: 47, resident_count: 6420, verified_count: 5100, pct_of_target: 51.0 },
+  { district_id: "d2", municipality_id: MUNI_ID, code: 2, district_name: "เขต 2", resident_target: 10000, community_count: 24, team_count: 92, polling_unit_count: 46, resident_count: 3180, verified_count: 2400, pct_of_target: 24.0 },
+  { district_id: "d3", municipality_id: MUNI_ID, code: 3, district_name: "เขต 3", resident_target: 10000, community_count: 25, team_count: 98, polling_unit_count: 47, resident_count: 10240, verified_count: 9800, pct_of_target: 98.0 },
+  { district_id: "d4", municipality_id: MUNI_ID, code: 4, district_name: "เขต 4", resident_target: 10000, community_count: 24, team_count: 90, polling_unit_count: 45, resident_count: 4860, verified_count: 3600, pct_of_target: 36.0 },
 ];
 
 const SUMMARY: WinVoteMunicipalitySummary = {
@@ -42,6 +42,7 @@ const SUMMARY: WinVoteMunicipalitySummary = {
   president_count: 98,
   polling_unit_count: 185,
   resident_count: DISTRICTS.reduce((s, d) => s + d.resident_count, 0),
+  verified_count: DISTRICTS.reduce((s, d) => s + (d.verified_count ?? 0), 0),
   total_target: 40000,
 };
 

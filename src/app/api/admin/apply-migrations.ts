@@ -134,11 +134,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Check if functions exist
-    const { data: functions, error: funcError } = await supabase.rpc(
-      "get_function_names",
-      {}
-    ).catch(() => ({ data: [], error: null }));
+    // Check if functions exist (optional check)
+    // Functions will be created by the migrations
 
     return NextResponse.json({
       status: "connected",

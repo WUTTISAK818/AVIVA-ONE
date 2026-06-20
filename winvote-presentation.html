@@ -1,0 +1,103 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>WinVote — นำเสนอระบบ</title>
+<style>
+:root{--bg:#0D1F1B;--card:#17332D;--gold:#D4AF37;--soft:#E6C77A;--tx:#fff;--sec:#D1D5DB;--green:#22C55E;--red:#EF4444;--ln:rgba(212,175,55,.18)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI","IBM Plex Sans Thai",system-ui,sans-serif;background:#06110E;color:var(--tx);line-height:1.5;padding-bottom:60px}
+.hero{background:linear-gradient(160deg,#0D1F1B,#0a1714);border-bottom:1px solid var(--ln);padding:34px 18px 26px;text-align:center}
+.hero h1{color:var(--gold);font-size:30px;letter-spacing:5px}
+.hero p{color:var(--sec);font-size:13px;margin-top:6px}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px}
+.sec{margin-top:34px}
+.sec>h2{font-size:17px;color:var(--soft);border-left:3px solid var(--gold);padding-left:10px;margin-bottom:14px}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+.kpi{background:rgba(212,175,55,.08);border:1px solid var(--ln);border-radius:14px;padding:12px 18px;text-align:center;min-width:96px}
+.kpi b{display:block;color:var(--gold);font-size:22px}.kpi span{font-size:11px;color:var(--sec)}
+/* menu map */
+.tree{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:16px}
+.lvl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:7px 0}
+.node{background:rgba(212,175,55,.1);border:1px solid var(--ln);color:var(--soft);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600}
+.arrow{color:var(--gold);opacity:.6}
+.fn{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:8px}
+.fbox{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:13px 14px}
+.fbox h3{font-size:13px;color:var(--gold);margin-bottom:6px;display:flex;gap:6px;align-items:center}
+.fbox ul{list-style:none;font-size:12.5px;color:var(--sec)}
+.fbox li{padding:2px 0 2px 14px;position:relative}
+.fbox li:before{content:"•";color:var(--gold);position:absolute;left:0}
+.tag{font-size:10px;border-radius:999px;padding:1px 7px;margin-left:6px}
+.t-on{background:rgba(34,197,94,.15);color:var(--green)} .t-soon{background:rgba(212,175,55,.15);color:var(--gold)}
+/* data */
+.dcard{background:var(--card);border:1px solid var(--ln);border-radius:14px;margin-top:12px;overflow:hidden}
+.dcard summary{padding:12px 15px;cursor:pointer;font-size:14px;color:var(--tx);list-style:none}
+.dcard summary::-webkit-details-marker{display:none}
+.dchip{background:var(--gold);color:#10231D;font-weight:800;border-radius:8px;padding:2px 9px;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:8px 10px;border-top:1px solid rgba(255,255,255,.06)}
+th{color:var(--soft);font-size:11px;background:rgba(0,0,0,.15)}
+td.n{color:var(--sec);width:34px} td.ph{color:var(--sec);white-space:nowrap}
+.muted{color:rgba(209,213,219,.35)}
+.note{margin-top:14px;font-size:12.5px;color:var(--sec);background:rgba(212,175,55,.06);border:1px solid var(--ln);border-radius:12px;padding:12px 14px}
+.badge{display:inline-block;font-size:11px;color:var(--soft);border:1px solid var(--ln);border-radius:999px;padding:2px 10px;margin:2px}
+</style></head><body>
+<div class="hero">
+  <h1>WinVote</h1>
+  <p>ระบบเครือข่ายฐานเสียง · เอกสารนำเสนอเพื่อกำหนดค่าเบื้องต้น</p>
+  <div class="kpis">
+    <div class="kpi"><b>4</b><span>เขต</span></div>
+    <div class="kpi"><b>98</b><span>ชุมชน</span></div>
+    <div class="kpi"><b>98</b><span>ประธาน</span></div>
+    <div class="kpi"><b>185</b><span>หน่วยเลือกตั้ง</span></div>
+  </div>
+</div>
+<div class="wrap">
+
+  <div class="sec">
+    <h2>1 · โครงสร้างเมนู (Drill-down)</h2>
+    <div class="tree">
+      <div class="lvl"><span class="node">เทศบาล</span><span class="arrow">→</span><span class="node">เขต (1–4)</span><span class="arrow">→</span><span class="node">ชุมชน</span><span class="arrow">→</span><span class="node">ทีมงาน (ประธาน/ทีม)</span><span class="arrow">→</span><span class="node">ราษฎร</span></div>
+      <div style="margin-top:10px"><span class="badge">แท็บ: ภาพรวม</span><span class="badge">แท็บ: หน่วยเลือกตั้ง</span><span class="badge">แท็บ: รายงาน</span></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>2 · ฟังก์ชันแต่ละระดับ (ทำเครื่องหมายสิ่งที่ต้องการ)</h2>
+    <div class="fn">
+      <div class="fbox"><h3>📊 ภาพรวม / เขต</h3><ul>
+        <li>KPI รายเขต เทียบเป้าหมาย</li><li>แถบความคืบหน้า สีตาม %</li><li>นับชุมชน/ทีม/หน่วย/ราษฎร</li></ul></div>
+      <div class="fbox"><h3>🏘️ ชุมชน</h3><ul>
+        <li>รายชื่อชุมชน + ประธาน <span class="tag t-on">นำเข้าแล้ว</span></li><li>จำนวนทีม / ราษฎร</li><li>เพิ่ม/แก้ไขชุมชน</li></ul></div>
+      <div class="fbox"><h3>👥 ทีมงาน</h3><ul>
+        <li>ประธาน + กรรมการ</li><li>กำหนดโควตาราษฎร/คน</li><li>สถานะโควตา (ครบ/เกิน/ต่ำ)</li><li>เพิ่ม/แก้ไขสมาชิก</li></ul></div>
+      <div class="fbox"><h3>🧑‍🤝‍🧑 ราษฎร</h3><ul>
+        <li>เพิ่มราษฎรในทีม</li><li>สแกนบัตร ปชช. (กล้อง/ชิป) <span class="tag t-soon">ต้องตั้งค่า</span></li><li>ยืนยันตัวตน LINE / เซลฟี่+GPS <span class="tag t-soon">ต้องตั้งค่า</span></li><li>ตรวจข้อมูลซ้ำ</li></ul></div>
+      <div class="fbox"><h3>🗳️ หน่วยเลือกตั้ง</h3><ul>
+        <li>รายการหน่วยต่อเขต (185)</li><li>ผูกราษฎรกับหน่วย</li></ul></div>
+      <div class="fbox"><h3>📑 รายงาน</h3><ul>
+        <li>สรุป KPI ทั้งเทศบาล</li><li>เทียบเป้า/ความคืบหน้า</li></ul></div>
+    </div>
+    <div class="note">⚙️ <b>สิ่งที่ต้องกำหนดเบื้องต้น:</b> เป้าหมายราษฎรต่อเขต · โควตาต่อทีมงาน · เปิด/ปิด สแกนบัตร & ยืนยัน LINE · สิทธิ์ผู้ใช้ (admin/manager) — บอกผมได้เลยว่าจะตั้งค่าแต่ละอันยังไง</div>
+  </div>
+
+  <div class="sec">
+    <h2>3 · ข้อมูลที่นำเข้าแล้ว (จาก Excel) — แก้ไข/เพิ่มได้ภายหลัง</h2>
+    
+    <details class="dcard" open>
+      <summary><span class="dchip">เขต 1</span> <b>24 ชุมชน</b> · ประธาน 24 คน</summary>
+      <table><thead><tr><th>#</th><th>ชุมชน</th><th>ประธาน</th><th>โทร</th></tr></thead><tbody><tr><td class="n">1</td><td>วัดอิสานพัฒนา</td><td>นางอาภรณ์ เลิศธนาอนันท์</td><td class="ph">065-2699717</td></tr><tr><td class="n">2</td><td>จันทรา - พายัพ</td><td>นายธีระ สุวรรณดี</td><td class="ph">081-9973720</td></tr><tr><td class="n">3</td><td>ประปาพัฒนา</td><td>นายสง่า วิสาสะ</td><td class="ph">081-8790652</td></tr><tr><td class="n">4</td><td>หลังวัดโพธิ์</td><td>นางสมจิตร์ ชื่นชม</td><td class="ph">092-8355769</td></tr><tr><td class="n">5</td><td>บ้านสก</td><td>นางสาวประทานพร เพลิดดอน</td><td class="ph">089-5817273</td></tr><tr><td class="n">6</td><td>ตรอกตีเหล็ก</td><td>ส.อ.อิสระ ทองปลอดภัย</td><td class="ph">086-6536522</td></tr><tr><td class="n">7</td><td>เสาธง-สมอราย</td><td>นางดวงพร กาญจนะคช</td><td class="ph">086-8790560</td></tr><tr><td class="n">8</td><td>วัดม่วง-วัดสะแก</td><td>นางสาววรานันท์ นาคสวัสดิ์</td><td class="ph">064-4541155</td></tr><tr><td class="n">9</td><td>ประตูน้ำสันติสุข</td><td>นางสาวบุญริม ทิศกระโทก</td><td class="ph">086-2560030</td></tr><tr><td class="n">10</td><td>ช้างเผือก</td><td>นางนิตยา อุ่นดี</td><td class="ph">086-2607526</td></tr><tr><td class="n">11</td><td>ป่าไม้ 191</td><td>นายเฉลิมเกียรติ โกมารกุล ณ นคร</td><td class="ph">082-3774148</td></tr><tr><td class="n">12</td><td>วัดบูรพ์</td><td>นายนิพล แว่นในเมือง</td><td class="ph">086-2440329</td></tr><tr><td class="n">13</td><td>เกษตรสามัคคี 1</td><td>นายนัด พิมพ์พา</td><td class="ph">081-7092778</td></tr><tr><td class="n">14</td><td>หลังวัดดสุทธจินดา</td><td>นางสมจิตร หล่าคำ</td><td class="ph">081-9996731</td></tr><tr><td class="n">15</td><td>โรงต้มพัฒนา</td><td>ร.ต.ต.สุรพล จงดี</td><td class="ph">085-5895846</td></tr><tr><td class="n">16</td><td>ประตูชุมพลพัฒนา</td><td>นางมะลิ มีแก้ว</td><td class="ph">081-7790098</td></tr><tr><td class="n">17</td><td>เกษตรสามัคคี 2</td><td>นางสาวฐาณิชนันท์ อัครกุลพัฒน์</td><td class="ph">093-5494664</td></tr><tr><td class="n">18</td><td>สนามกีฬากลางพัฒนา</td><td>นางสาวจันทร์เพ็ญ สายสนอง</td><td class="ph">087-8765132</td></tr><tr><td class="n">19</td><td>ตลาดหลักเมือง(ศาลพระนารายณ์)</td><td>นายนพดล หวังรวมกลาง</td><td class="ph">061-6566352</td></tr><tr><td class="n">20</td><td>ประตูไชยณรงค์ - เรือนจำ</td><td>นายนุสนธ์ แก้วขาว</td><td class="ph">083-2865683</td></tr><tr><td class="n">21</td><td>วัดหนองบัวรอง</td><td>นางปวยเอ็ง วิศลดิลกพันธ์</td><td class="ph">061-4504661</td></tr><tr><td class="n">22</td><td>สุรวิชัย</td><td>นายพิสิษฐ์ เกษียรจังหรีด</td><td class="ph">082-3565359</td></tr><tr><td class="n">23</td><td>บ้านพักทหารหนองบัวรอง</td><td>นางธนัชพร อนุกูล</td><td class="ph">098-6162282</td></tr><tr><td class="n">24</td><td>บขส.เก่าสามัคคี</td><td>นายปภานนท์ วิทยาคม</td><td class="ph">081-2517498</td></tr></tbody></table>
+    </details>
+    <details class="dcard" open>
+      <summary><span class="dchip">เขต 2</span> <b>27 ชุมชน</b> · ประธาน 27 คน</summary>
+      <table><thead><tr><th>#</th><th>ชุมชน</th><th>ประธาน</th><th>โทร</th></tr></thead><tbody><tr><td class="n">1</td><td>ท้าวสุระ-เบญจรงค์</td><td>นายมาโนช สายแก้ว</td><td class="ph">081-9773642</td></tr><tr><td class="n">2</td><td>หัวสะพานพัฒนา</td><td>นางสมนึก ปิบไธสง</td><td class="ph">098-7857146</td></tr><tr><td class="n">3</td><td>จิระพัฒนา</td><td>ร.ต.ต.ประมูล นากกระแสร์</td><td class="ph">083-7230517</td></tr><tr><td class="n">4</td><td>วัดทุ่งสว่าง</td><td>นายบุญยืน คอยสันเทียะ</td><td class="ph">084-4109531</td></tr><tr><td class="n">5</td><td>เบญจรงค์</td><td>นายบุญเลิศ ม่วงอ่อน</td><td class="ph">098-1688086</td></tr><tr><td class="n">6</td><td>หลังวัดสามัคคี</td><td>นางสาวดมิศรา นาคทองสุข</td><td class="ph">097-3349233</td></tr><tr><td class="n">7</td><td>อบอุ่นพัฒนา</td><td>นายสมควร กุญชร</td><td class="ph">085-0170771</td></tr><tr><td class="n">8</td><td>ราชนิกูล 2</td><td>นายชาติชาย สุขหฤทัย</td><td class="ph">098-9388644</td></tr><tr><td class="n">9</td><td>ศาลเจ้าพ่อเสือ - ทุ่งสว่าง</td><td>นายจำลอง คิดเห็น</td><td class="ph">089-5833405</td></tr><tr><td class="n">10</td><td>ศาลาลอยพัฒนา</td><td>นางมาริณี ป้อมฝั้น</td><td class="ph">094-5430368</td></tr><tr><td class="n">11</td><td>มหาชัย-อุดมพร</td><td>นายโหน ถนนทะเล</td><td class="ph">086-2524923</td></tr><tr><td class="n">12</td><td>ท้าวสุระซอย 3</td><td>นายสุภแมน ใจอ่อน</td><td class="ph">098-1512383</td></tr><tr><td class="n">13</td><td>ทุ่งสว่าง-ศาลาลอย</td><td>ร.อ.ทรงธรรม อาศรัยป่า</td><td class="ph">063-7680753</td></tr><tr><td class="n">14</td><td>เบญจรงค์ซอย 5</td><td>นางทองม้วน แขนโคกกรวด</td><td class="ph">087-2486553</td></tr><tr><td class="n">15</td><td>ปลายสามัคคี</td><td>นางสาวสุดาภร โนนโพธิ์</td><td class="ph">083-7588859</td></tr><tr><td class="n">16</td><td>สุรนารายณ์พัฒนา(ร.พ.ช.เดิม)</td><td>นายเทียม เห็นกลาง</td><td class="ph">087-2443069</td></tr><tr><td class="n">17</td><td>วัดศาลาลอย</td><td>นายจวง ห้อยสายออ</td><td class="ph">087-4605378</td></tr><tr><td class="n">18</td><td>ราชนิกูล 1</td><td>นายอำพร ม่วงฉะ</td><td class="ph">087-9578923</td></tr><tr><td class="n">19</td><td>30 กันยาปลายนา</td><td>นางโสถิดา ชาตะสุวัจนานนท์</td><td class="ph">087-4485329</td></tr><tr><td class="n">20</td><td>ทุ่งมหาชัย</td><td>นายชิดชัย สายเชื้อ</td><td class="ph">081-9777069</td></tr><tr><td class="n">21</td><td>30 กันยาพัฒนา</td><td>นางสาวสงบ ประทีป</td><td class="ph">093-3914241</td></tr><tr><td class="n">22</td><td>สวนหม่อนพัฒนา</td><td>นางวจี หมั่นวาจา</td><td class="ph">089-2863255</td></tr><tr><td class="n">23</td><td>เบญจรงค์สามัคคี</td><td>นายธาริน เจริญพจน์</td><td class="ph">099-6454614</td></tr><tr><td class="n">24</td><td>ท้าวสุระ</td><td>พออ.สุพร ทองสิงห์</td><td class="ph">089-2853960</td></tr><tr><td class="n">25</td><td>บ้านหนองโสน</td><td>นางวันชลี สัตย์ซื่อ</td><td class="ph">086-2634496</td></tr><tr><td class="n">26</td><td>ราชนิกูล 3</td><td>นายประวัติ อินใหม่</td><td class="ph">084-8303810</td></tr><tr><td class="n">27</td><td>เทคโนวิลเลจ</td><td>นายธนนท์ ขุนสูงเนิน</td><td class="ph"><span class="muted">—</span></td></tr></tbody></table>
+    </details>
+    <details class="dcard" open>
+      <summary><span class="dchip">เขต 3</span> <b>19 ชุมชน</b> · ประธาน 19 คน</summary>
+      <table><thead><tr><th>#</th><th>ชุมชน</th><th>ประธาน</th><th>โทร</th></tr></thead><tbody><tr><td class="n">1</td><td>ชลประทาน</td><td>นายเฉลิมศักดิ์ กุศลการณ์</td><td class="ph">087-2508560</td></tr><tr><td class="n">2</td><td>เดชอุดมพัฒนา</td><td>นายวิชา เกียรติศรีสิริ</td><td class="ph">081-9679124</td></tr><tr><td class="n">3</td><td>เอ็มแบ็คสามัคคี</td><td>นางบังอร บุญละคร</td><td class="ph">098-8368098</td></tr><tr><td class="n">4</td><td>ประสพสุข</td><td>นางสุมาลี เกิดสมบัติ</td><td class="ph">098-2322742</td></tr><tr><td class="n">5</td><td>หนองไผ่ล้อมพัฒนา</td><td>นางดวงใจ สัมฤทธิ์</td><td class="ph">085-7797759</td></tr><tr><td class="n">6</td><td>เดชอุดมสามัคคี</td><td>ร.ต.วิรัช เอมโอช</td><td class="ph">085-3123775</td></tr><tr><td class="n">7</td><td>หนองไผ่ล้อม</td><td>นางนปภา ชิตสาครกุล</td><td class="ph">090-4073807</td></tr><tr><td class="n">8</td><td>เสาสูง</td><td>นายสุรพงษ์ ลิ้มในเมือง</td><td class="ph">081-8781985</td></tr><tr><td class="n">9</td><td>สืบศิริพัฒนา</td><td>นางสุจิรา คมสันคุณา</td><td class="ph">083-9665454</td></tr><tr><td class="n">10</td><td>อัมพวันพัฒนา</td><td>นายอาคม อุ้มสิน</td><td class="ph">082-1077806</td></tr><tr><td class="n">11</td><td>มุขมนตรี</td><td>นายพรณรงค์ แซ่ตัง</td><td class="ph">086-7187984</td></tr><tr><td class="n">12</td><td>หนองแก้ช้าง</td><td>นางสุภาพ สิทธิศักดิ์</td><td class="ph">085-7761145</td></tr><tr><td class="n">13</td><td>บ้านรุ่งเรือง</td><td>นายธนทรัพย์ อำพันธ์ทอง</td><td class="ph">094-2892924</td></tr><tr><td class="n">14</td><td>กศน.พัฒนา</td><td>นางนาฎยา พิมนนท์</td><td class="ph">097-1696497</td></tr><tr><td class="n">15</td><td>บ้านพักทหารหนองไผ่ล้อม</td><td>นางวารี ลาภกระโทก</td><td class="ph">061-0698948</td></tr><tr><td class="n">16</td><td>พานิชเจริญ</td><td>นายสนั่น นนทะมา</td><td class="ph">098-4786926</td></tr><tr><td class="n">17</td><td>บุญเรือง</td><td>นายประกิต พลศักดิ์</td><td class="ph">081-9660193</td></tr><tr><td class="n">18</td><td>บ้านพักรถไฟ</td><td>นางอรุณี จันทะวงษ์</td><td class="ph">089-8446585</td></tr><tr><td class="n">19</td><td>เอื้ออาทร</td><td>นางบุณฑริกา โพธิกะ</td><td class="ph"><span class="muted">—</span></td></tr></tbody></table>
+    </details>
+    <details class="dcard" open>
+      <summary><span class="dchip">เขต 4</span> <b>28 ชุมชน</b> · ประธาน 28 คน</summary>
+      <table><thead><tr><th>#</th><th>ชุมชน</th><th>ประธาน</th><th>โทร</th></tr></thead><tbody><tr><td class="n">1</td><td>หลัง ร.พ.เซนต์เมรี่</td><td>พ.ท.สำเริง ชอบรัก</td><td class="ph"><span class="muted">—</span></td></tr><tr><td class="n">2</td><td>มิตรภาพซอย 4</td><td>นางบุญนำ ผันกระโทก</td><td class="ph">088-0730038</td></tr><tr><td class="n">3</td><td>อรุณสามัคคีโชคดี</td><td>นางลอยพิมพ์ ช่วยโพธิ์กลาง</td><td class="ph">081-0871546</td></tr><tr><td class="n">4</td><td>วัดเลียบ</td><td>นายถวิล เชื้อกลาง</td><td class="ph">089-8653271,096-0130392</td></tr><tr><td class="n">5</td><td>โคราชคฤหาสน์ทอง</td><td>นายวิโรจน์ เจษฎจรัสพงศ์</td><td class="ph">082-1499593</td></tr><tr><td class="n">6</td><td>สามแยกปัก</td><td>นางศิริลักษณ์ บุญมาเจริญ</td><td class="ph">064-0874553</td></tr><tr><td class="n">7</td><td>ราชสีมา</td><td>นายเสน่ห์ นาพุดซา</td><td class="ph">081-0670698</td></tr><tr><td class="n">8</td><td>เคหะชุมชนนคราชสีมา 2</td><td>นายชัยรัตน์ กุศลการณ์</td><td class="ph">080-7296117</td></tr><tr><td class="n">9</td><td>มิตรภาพ 11(สายฝน)</td><td>นางสวาสดิ์ สุคนธรัตน์</td><td class="ph">081-9978030</td></tr><tr><td class="n">10</td><td>กองพระทราย</td><td>นายถวิล อินทรัตน์</td><td class="ph">086-8763833</td></tr><tr><td class="n">11</td><td>ประกอบพัฒนา</td><td>นายสุทธิชัย วิริยโกศล</td><td class="ph">081-8974767</td></tr><tr><td class="n">12</td><td>ปาริชาต</td><td>นางศินารีย์ กิตติวณิชย์พันธุ์</td><td class="ph">081-2824929</td></tr><tr><td class="n">13</td><td>โพธิ์ทอง</td><td>นายทองสุข แสนพลกรัง</td><td class="ph">081-0697821</td></tr><tr><td class="n">14</td><td>ราชสีมาพัฒนา</td><td>นางพูนษา สุขแปลง</td><td class="ph">084-9838273</td></tr><tr><td class="n">15</td><td>ซอยหลวงจิตร</td><td>นางสาววิภา ลดากุล</td><td class="ph">084-4732329</td></tr><tr><td class="n">16</td><td>บ้านคลองโพธิ์</td><td>นายสหาย สุขเกษม</td><td class="ph">085-3123775</td></tr><tr><td class="n">17</td><td>เพชรเยี่ยม</td><td>นางสมคิด อยู่จันทร์</td><td class="ph">085-8570666</td></tr><tr><td class="n">18</td><td>ตะคองเก่า</td><td>นางดวงจันทร์ ทิวพุดซา</td><td class="ph">081-4456653</td></tr><tr><td class="n">19</td><td>เคหะชุมชนนครราชสีมา 3</td><td>นางรุจิรา เหรียญทอง</td><td class="ph">089-9967809</td></tr><tr><td class="n">20</td><td>ตะคองเก่าเหนือ</td><td>นายบุญช่วย โนใหม่</td><td class="ph">081-0667786</td></tr><tr><td class="n">21</td><td>เคหะชุมชนนครราชสีมา</td><td>นางชัชรินทร์ อภิลักษณพันธุ์</td><td class="ph">081-6698619</td></tr><tr><td class="n">22</td><td>หลักร้อย</td><td>นางถนอมศรี มุ่งฝากกลาง</td><td class="ph">081-2643212</td></tr><tr><td class="n">23</td><td>มิตรภาพพัฒนา</td><td>นางสมหมาย มากทองคำ</td><td class="ph">081-7255054</td></tr><tr><td class="n">24</td><td>ท่าตะโกพัฒนา</td><td>นายวิเชียร แซ่ลิ้ม</td><td class="ph">095-7214536</td></tr><tr><td class="n">25</td><td>ย่าโม 4</td><td>นางนิตยา จิตตั้งบุญญา</td><td class="ph">065-1192569</td></tr><tr><td class="n">26</td><td>บุมะค่า</td><td>นางสุชาดา ปราณีตพลกรัง</td><td class="ph">087-2515110</td></tr><tr><td class="n">27</td><td>สวนพริกไทย</td><td>นายภากร กฤตยาจามร</td><td class="ph">098-1043404</td></tr><tr><td class="n">28</td><td>สำโรงจันทร์</td><td>นางยามาระตี บาลโพธิ์</td><td class="ph">083-3744748</td></tr></tbody></table>
+    </details>
+    <div class="note">รวม <b>98 ชุมชน + ประธาน 98 คน</b> · มีในไฟล์: รองประธาน/เลขาฯ/กรรมการ ของแต่ละชุมชน (พร้อมอายุ/อาชีพ/ที่อยู่) — สั่งเพิ่มเป็น "ทีมงาน" ได้</div>
+  </div>
+
+</div></body></html>

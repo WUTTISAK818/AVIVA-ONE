@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinVote — Mockup</title>
+<style>
+  :root{
+    --bg:#0D1F1B; --card:#17332D; --gold:#D4AF37; --gold-soft:#E6C77A;
+    --text:#FFFFFF; --sec:#D1D5DB; --green:#22C55E; --red:#EF4444;
+    --goldln:rgba(212,175,55,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{font-family:-apple-system,"Segoe UI","IBM Plex Sans Thai",system-ui,sans-serif;
+    background:#06110E;color:var(--text);padding:24px 12px 60px;line-height:1.45}
+  .wrap{max-width:1180px;margin:0 auto}
+  h2.title{text-align:center;color:var(--gold);font-size:22px;letter-spacing:3px;margin-bottom:4px}
+  p.sub{text-align:center;color:var(--sec);font-size:12px;margin-bottom:28px}
+  .grid{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .label{font-size:12px;color:var(--gold-soft);font-weight:600;letter-spacing:.5px}
+  .phone{width:330px;background:var(--bg);border-radius:34px;border:1px solid var(--goldln);
+    padding:0;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+  .status{height:30px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 20px;font-size:11px;color:var(--sec);opacity:.7;padding-top:8px}
+  .screen{padding:0 16px 22px}
+  /* ---- login ---- */
+  .lg{min-height:600px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+  .logo{width:62px;height:62px;border-radius:18px;background:rgba(212,175,55,.10);
+    border:1px solid rgba(212,175,55,.30);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .brand{font-size:26px;font-weight:800;color:var(--gold);letter-spacing:5px}
+  .brand-sub{font-size:11px;color:var(--sec);margin-top:3px;margin-bottom:34px}
+  .field{position:relative;width:100%;margin-bottom:12px}
+  .field svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.6}
+  .inp{width:100%;background:var(--card);border:1px solid var(--goldln);border-radius:16px;
+    padding:15px 14px 15px 42px;color:var(--sec);font-size:14px}
+  .btn{width:100%;background:var(--gold);color:#10231D;font-weight:800;border:none;border-radius:16px;
+    padding:15px;font-size:14px;margin-top:4px}
+  .demo-row{width:100%;margin-top:22px;border:1px solid rgba(212,175,55,.20);background:rgba(23,51,45,.5);
+    border-radius:16px;padding:13px 14px;display:flex;align-items:center;justify-content:space-between;color:var(--sec);font-size:13px}
+  .demo-tag{font-size:10px;background:rgba(212,175,55,.12);color:var(--gold);border:1px solid rgba(212,175,55,.25);
+    border-radius:999px;padding:2px 7px;margin-left:8px}
+  .foot{font-size:10px;color:rgba(209,213,219,.35);margin-top:22px}
+  /* ---- header/tabs ---- */
+  .hd{padding:14px 4px 10px}
+  .hd-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .hd-top h1{font-size:18px;font-weight:800}
+  .hd-top h1 span{font-size:11px;color:var(--sec);font-weight:400}
+  .badge{margin-left:auto;font-size:9px;font-weight:700;color:var(--gold-soft);
+    background:rgba(212,175,55,.10);border:1px solid rgba(212,175,55,.30);padding:2px 8px;border-radius:999px}
+  .tabs{display:flex;gap:4px;background:var(--card);border-radius:16px;padding:4px}
+  .tab{flex:1;text-align:center;font-size:11px;font-weight:600;color:var(--sec);padding:9px 0;border-radius:12px}
+  .tab.on{background:var(--gold);color:#10231D}
+  /* ---- cards ---- */
+  .card{background:var(--card);border:1px solid var(--goldln);border-radius:18px;padding:15px;margin-top:12px}
+  .sum-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .sum-h .nm{font-size:15px;font-weight:700}
+  .sum-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .stat .v{font-size:18px;font-weight:800;color:var(--gold)}
+  .stat .k{font-size:10px;color:var(--sec);margin-top:1px}
+  .prog-wrap{margin-top:14px}
+  .prog-top{display:flex;justify-content:space-between;font-size:11px;color:var(--sec);margin-bottom:5px}
+  .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:999px}
+  .sec-h{font-size:12px;color:var(--sec);margin:18px 4px 2px;font-weight:600}
+  .dist{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--goldln);
+    border-radius:16px;padding:13px 14px;margin-top:10px}
+  .dist .code{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:14px;flex:0 0 auto}
+  .dist .mid{flex:1;min-width:0}
+  .dist .dn{font-size:14px;font-weight:700}
+  .dist .dm{font-size:10px;color:var(--sec);margin-top:1px}
+  .dist .pct{font-size:15px;font-weight:800;text-align:right}
+  .mini-bar{height:6px;border-radius:999px;background:rgba(255,255,255,.07);margin-top:7px;overflow:hidden}
+  .mini-bar>i{display:block;height:100%;border-radius:999px}
+  .chev{opacity:.4}
+  /* ---- drill list ---- */
+  .crumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sec);margin:14px 4px 4px}
+  .row{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--goldln);
+    border-radius:14px;padding:11px 13px;margin-top:9px}
+  .av{width:32px;height:32px;border-radius:50%;background:rgba(212,175,55,.12);color:var(--gold);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 auto}
+  .row .rn{font-size:13px;font-weight:600}
+  .row .rs{font-size:10px;color:var(--sec)}
+  .pill{margin-left:auto;font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .note{max-width:1000px;margin:30px auto 0;color:var(--sec);font-size:12.5px;text-align:center;line-height:1.7;opacity:.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 class="title">WinVote</h2>
+  <p class="sub">ระบบเครือข่ายฐานเสียง · มอคอัพหน้าจอ (ข้อมูลจำลอง)</p>
+
+  <div class="grid">
+
+    <!-- ===== 1. LOGIN ===== -->
+    <div class="col">
+      <div class="label">1 · เข้าสู่ระบบ</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>● ● ●</span></div>
+        <div class="screen lg">
+          <div class="logo">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2.8a1 1 0 0 1 2 0l1 5.5a2 2 0 0 0 1.6 1.6l5.5 1a1 1 0 0 1 0 2l-5.5 1a2 2 0 0 0-1.6 1.6l-1 5.5a1 1 0 0 1-2 0l-1-5.5a2 2 0 0 0-1.6-1.6l-5.5-1a1 1 0 0 1 0-2l5.5-1A2 2 0 0 0 10 8.3z"/><path d="M20 2v4"/><path d="M22 4h-4"/></svg>
+          </div>
+          <div class="brand">WinVote</div>
+          <div class="brand-sub">ระบบเครือข่ายฐานเสียง</div>
+          <div class="field">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2"><path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>
+            <div class="inp">อีเมล</div>
+          </div>
+          <div class="field">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div class="inp">รหัสผ่าน</div>
+          </div>
+          <div class="btn">เข้าสู่ระบบ</div>
+          <div class="demo-row">
+            <span>⚡ บัญชีทดสอบ <span class="demo-tag">Demo</span></span>
+            <span style="opacity:.5">▾</span>
+          </div>
+          <div class="foot">ติดต่อผู้ดูแลระบบเพื่อขอรับบัญชีผู้ใช้งาน</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2. OVERVIEW ===== -->
+    <div class="col">
+      <div class="label">2 · ภาพรวม (Dashboard)</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>● ● ●</span></div>
+        <div class="screen">
+          <div class="hd">
+            <div class="hd-top">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M7 17l3-3M17 17l-3-3"/></svg>
+              <h1>WinVote <span>เครือข่ายฐานเสียง</span></h1>
+              <span class="badge">DEMO</span>
+            </div>
+            <div class="tabs">
+              <div class="tab on">ภาพรวม</div>
+              <div class="tab">หน่วยเลือกตั้ง</div>
+              <div class="tab">รายงาน</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="sum-h">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>
+              <div class="nm">เทศบาล (เดโม)</div>
+            </div>
+            <div class="sum-grid">
+              <div class="stat"><div class="v">4</div><div class="k">เขต</div></div>
+              <div class="stat"><div class="v">98</div><div class="k">ชุมชน</div></div>
+              <div class="stat"><div class="v">376</div><div class="k">ทีมงาน</div></div>
+              <div class="stat"><div class="v">185</div><div class="k">หน่วยเลือกตั้ง</div></div>
+              <div class="stat"><div class="v">24,700</div><div class="k">ราษฎรที่ลงทะเบียน</div></div>
+              <div class="stat"><div class="v">40,000</div><div class="k">เป้าหมาย</div></div>
+            </div>
+            <div class="prog-wrap">
+              <div class="prog-top"><span>ความคืบหน้ารวม</span><span style="color:var(--gold)">61.8%</span></div>
+              <div class="bar"><i style="width:61.8%;background:var(--gold)"></i></div>
+            </div>
+          </div>
+
+          <div class="sec-h">รายเขต (แตะเพื่อดูชุมชน)</div>
+
+          <!-- district rows -->
+          <div class="dist">
+            <div class="code" style="background:rgba(212,175,55,.12);color:var(--gold)">1</div>
+            <div class="mid"><div class="dn">เขต 1</div><div class="dm">25 ชุมชน · 47 หน่วย · 6,420/10,000</div>
+              <div class="mini-bar"><i style="width:64.2%;background:var(--gold)"></i></div></div>
+            <div class="pct" style="color:var(--gold)">64%</div>
+          </div>
+          <div class="dist">
+            <div class="code" style="background:rgba(239,68,68,.12);color:var(--red)">2</div>
+            <div class="mid"><div class="dn">เขต 2</div><div class="dm">24 ชุมชน · 46 หน่วย · 3,180/10,000</div>
+              <div class="mini-bar"><i style="width:31.8%;background:var(--red)"></i></div></div>
+            <div class="pct" style="color:var(--red)">32%</div>
+          </div>
+          <div class="dist">
+            <div class="code" style="background:rgba(34,197,94,.14);color:var(--green)">3</div>
+            <div class="mid"><div class="dn">เขต 3</div><div class="dm">25 ชุมชน · 47 หน่วย · 10,240/10,000</div>
+              <div class="mini-bar"><i style="width:100%;background:var(--green)"></i></div></div>
+            <div class="pct" style="color:var(--green)">102%</div>
+          </div>
+          <div class="dist">
+            <div class="code" style="background:rgba(239,68,68,.12);color:var(--red)">4</div>
+            <div class="mid"><div class="dn">เขต 4</div><div class="dm">24 ชุมชน · 45 หน่วย · 4,860/10,000</div>
+              <div class="mini-bar"><i style="width:48.6%;background:var(--red)"></i></div></div>
+            <div class="pct" style="color:var(--red)">49%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 3. DRILL DOWN ===== -->
+    <div class="col">
+      <div class="label">3 · ไล่ดูทีมงานในชุมชน</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>● ● ●</span></div>
+        <div class="screen">
+          <div class="hd">
+            <div class="hd-top">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M7 17l3-3M17 17l-3-3"/></svg>
+              <h1>WinVote <span>เครือข่ายฐานเสียง</span></h1>
+              <span class="badge">DEMO</span>
+            </div>
+          </div>
+          <div class="crumb">‹ เขต 1 › ชุมชนเขต1-01</div>
+          <div class="card" style="padding:13px 15px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div><div class="nm" style="font-size:14px">ชุมชนเขต1-01</div>
+                <div style="font-size:11px;color:var(--sec);margin-top:2px">ประธาน: สมชาย ใจดี · 4 ทีม</div></div>
+              <div style="text-align:right"><div style="font-size:18px;font-weight:800;color:var(--gold)">182</div>
+                <div style="font-size:10px;color:var(--sec)">ราษฎร</div></div>
+            </div>
+          </div>
+
+          <div class="sec-h">สมาชิกทีม · โควตา</div>
+          <div class="row">
+            <div class="av">ป</div>
+            <div><div class="rn">สมชาย ใจดี</div><div class="rs">ประธานชุมชน · 38/50</div></div>
+            <div class="pill" style="background:rgba(34,197,94,.14);color:var(--green)">ครบ</div>
+          </div>
+          <div class="row">
+            <div class="av">ท</div>
+            <div><div class="rn">วิไล ศรีสุข</div><div class="rs">ทีมงาน · 44/40</div></div>
+            <div class="pill" style="background:rgba(212,175,55,.14);color:var(--gold)">เกินโควตา</div>
+          </div>
+          <div class="row">
+            <div class="av">ท</div>
+            <div><div class="rn">ประเสริฐ ทองคำ</div><div class="rs">ทีมงาน · 27/40</div></div>
+            <div class="pill" style="background:rgba(239,68,68,.14);color:var(--red)">ต่ำกว่าโควตา</div>
+          </div>
+          <div class="row">
+            <div class="av">ท</div>
+            <div><div class="rn">กนกพร บุญมา</div><div class="rs">ทีมงาน · 35/40</div></div>
+            <div class="pill" style="background:rgba(34,197,94,.14);color:var(--green)">ครบ</div>
+          </div>
+
+          <div class="btn" style="margin-top:16px;display:flex;align-items:center;justify-content:center;gap:6px">＋ เพิ่มราษฎร / สแกนบัตร</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">
+    มอคอัพนี้สร้างจากโครงสร้างหน้าจริงของ WinVote + ข้อมูลตัวอย่าง (เทศบาล 4 เขต · 98 ชุมชน · 185 หน่วยเลือกตั้ง)<br>
+    หน้าจริงทำงานได้สมบูรณ์แล้วบน Vercel — เปิดเองได้ที่ winvote-alpha.vercel.app (ล็อกอิน demo.admin@aviva.th / Demo1234)
+  </p>
+</div>
+</body>
+</html>

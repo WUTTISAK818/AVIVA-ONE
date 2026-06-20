@@ -6,16 +6,18 @@ import type {
   WinVoteMunicipalitySummary, WinVoteDistrictKpi, WinVoteCommunityRollup,
   WinVoteMemberLoad, WinVoteMember, WinVotePollingUnit, WinVoteResident, WinVoteCommunity,
 } from "./winvote";
+import { resolveRbac } from "./rbac";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
-// ผู้ใช้จำลอง (admin) สำหรับผ่าน role gate ของหน้า WinVote
+// ผู้ใช้จำลอง (ผู้บริหารระดับสูง) สำหรับผ่าน role gate ของหน้า WinVote
 export const DEMO_USER = {
   id: "demo-admin",
   email: "demo.admin@aviva.th",
   full_name: "ผู้ดูแลระบบ (เดโม)",
-  role: "admin",
+  role: "exec",
   department: "ฝ่ายบริหาร",
+  ...resolveRbac("exec"),
   isAdmin: true,
   isManager: true,
   isProjectManager: false,

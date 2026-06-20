@@ -2,13 +2,15 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { DEMO_MODE, DEMO_USER } from "./demo-data";
+import { resolveRbac, type Rbac } from "./rbac";
 
-export interface AppUser {
+export interface AppUser extends Rbac {
   id: string;
   email: string;
   full_name: string;
   role: string;
   department: string;
+  // legacy flags (เผื่อโค้ดเดิม) — อิงจากชั้นสิทธิ์ใหม่
   isAdmin: boolean;
   isManager: boolean;
   isProjectManager: boolean;
@@ -21,14 +23,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   function buildUser(u: { id: string; email?: string; user_metadata?: Record<string, string> }): AppUser {
     const meta = u.user_metadata ?? {};
+    const rbac = resolveRbac(meta.role);
     return {
       id: u.id,
       email: u.email ?? "",
       full_name: meta.full_name ?? u.email ?? "ผู้ใช้",
       role: meta.role ?? "user",
       department: meta.department ?? "ฝ่ายบริหาร",
-      isAdmin: ["admin", "ceo"].includes(meta.role),
-      isManager: ["admin", "ceo", "manager", "director", "project_manager"].includes(meta.role),
+      ...rbac,
+      isAdmin: rbac.tier === "exec",
+      isManager: rbac.canApprove,
       isProjectManager: meta.role === "project_manager",
     };
   }

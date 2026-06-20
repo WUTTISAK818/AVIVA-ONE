@@ -64,7 +64,7 @@ export default function WinVotePage() {
   // role gate
   useEffect(() => {
     if (user === null) return; // ยังโหลดไม่เสร็จ
-    if (!user.isAdmin && !user.isManager) {
+    if (!user.canAccess) {
       router.replace("/login");
       return;
     }
@@ -111,21 +111,31 @@ export default function WinVotePage() {
       {/* Header */}
       <div className="sticky top-0 z-30 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10">
         <div className="max-w-lg mx-auto px-4 pt-12 pb-3">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <Network size={22} className="text-aviva-gold" />
             <h1 className="text-xl font-bold text-aviva-text">WinVote <span className="text-sm font-normal text-aviva-secondary">เครือข่ายฐานเสียง</span></h1>
             {DEMO_MODE && (
               <span className="ml-auto text-[10px] font-bold text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                DEMO • ข้อมูลจำลอง
+                DEMO
               </span>
             )}
           </div>
+          {user && (
+            <div className="flex items-center gap-1.5 mb-3 text-[11px] text-aviva-secondary">
+              <span className="font-semibold text-aviva-gold-soft bg-aviva-gold/10 border border-aviva-gold/25 px-2 py-0.5 rounded-full">
+                {user.tierLabel}
+              </span>
+              <span className="truncate">{user.full_name}</span>
+            </div>
+          )}
           <div className="flex gap-1 bg-aviva-card rounded-2xl p-1">
-            {([
+            {(([
               ["overview", "ภาพรวม", Building2],
               ["polling", "หน่วยเลือกตั้ง", Vote],
               ["report", "รายงาน", BarChart3],
-            ] as [Tab, string, typeof Building2][]).map(([key, label, Icon]) => (
+            ] as [Tab, string, typeof Building2][]).filter(
+              ([key]) => key !== "report" || user?.canExport
+            )).map(([key, label, Icon]) => (
               <button key={key} onClick={() => setTab(key)}
                 className={clsx(
                   "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all",

@@ -467,17 +467,58 @@ function ApprovalsContent() {
         });
       }
     } else if (log.workflow_type === "Material_Purchase") {
+      const byName = user.full_name ?? user.email;
       if (log.source_record_id) {
         await supabase.from("purchase_orders")
           .update({ status: approved ? "approved" : "rejected" })
           .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
+      }
+      if (approved) {
+        await logWorkflowEvent({
+          workflowType: "Material_Purchase",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index,
+          eventType: "approved",
+          stageFrom: "pending",
+          stageTo: "approved",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "manager",
+          routedToRole: "finance",
+          routedToName: "ฝ่ายการเงิน",
+          amount: log.amount ?? null,
+        });
+        await createWorkQueue({
+          workflowType: "Material_Purchase",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index ?? "",
+          title: `จ่ายเงินจัดซื้อ: ${log.source_doc_index ?? ""}`,
+          amount: log.amount ?? null,
+          assignedRole: "finance",
+          slaDueAt: calcSlaDueAt("Material_Purchase"),
+        });
+        notifyPush("ฝ่ายการเงิน", "คำขอซื้อรอจ่ายเงิน", log.source_doc_index ?? "", "/approvals", `po-${log.source_record_id}`);
+      } else {
+        await logWorkflowEvent({
+          workflowType: "Material_Purchase",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index,
+          eventType: "rejected",
+          stageFrom: "pending",
+          stageTo: "rejected",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "manager",
+          conditionNote: note ?? undefined,
+          amount: log.amount ?? null,
+        });
+        notifyPush("ฝ่ายก่อสร้าง", "คำขอซื้อถูกปฏิเสธ", log.source_doc_index ?? "", "/construction", `po-${log.source_record_id}`);
       }
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติสั่งซื้อแล้ว" : "ปฏิเสธสั่งซื้อ",
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
-        to_dept: targetDept,
+        to_dept: approved ? "ฝ่ายการเงิน" : targetDept,
       });
     } else if (log.workflow_type === "Document_Approval") {
       if (log.source_record_id) {

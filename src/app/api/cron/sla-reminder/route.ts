@@ -48,12 +48,13 @@ interface PendingLog {
 }
 
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const db = admin();
-  const now = Date.now();
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  try {
+    if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const db = admin();
+    const now = Date.now();
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
 
-  const { data: logs } = await db
+    const { data: logs } = await db
     .from("approval_logs")
     .select("approval_id, workflow_type, source_record_id, source_doc_index, submitted_by_user_id, sla_due_at, created_at")
     .eq("action_taken", "Pending");
@@ -196,7 +197,10 @@ export async function GET(req: NextRequest) {
     results.push(`queue:${docName}`);
   }
 
-  return NextResponse.json({ ok: true, reminded, escalated, queueEscalated, items: results });
+    return NextResponse.json({ ok: true, reminded, escalated, queueEscalated, items: results });
+  } catch (err: any) {
+    return NextResponse.json({ error: `sla-reminder failed: ${err?.message ?? "unknown"}` }, { status: 500 });
+  }
 }
 
 interface QueueItem {

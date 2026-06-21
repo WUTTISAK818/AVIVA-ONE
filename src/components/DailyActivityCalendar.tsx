@@ -6,11 +6,11 @@ import clsx from "clsx";
 
 interface ActivityData {
   [date: string]: {
-    sale: { count: number; items: any[]; total_amount: number };
-    construction: { count: number; items: any[]; total_amount: number };
-    finance: { count: number; items: any[]; total_amount: number };
-    approval: { count: number; items: any[]; total_amount: number };
-    hr: { count: number; items: any[]; total_amount: number };
+    sale: { count: number; items: any[] };
+    construction: { count: number; items: any[] };
+    finance: { count: number; items: any[] };
+    approval: { count: number; items: any[] };
+    hr: { count: number; items: any[] };
   };
 }
 
@@ -42,7 +42,7 @@ export function DailyActivityCalendar() {
       setLoading(true);
       const dateStr = currentDate.toISOString().split("T")[0];
       const response = await fetch(
-        `/api/dashboard/daily-activities?date=${dateStr}&range=${viewType}`
+        `/api/dashboard?date=${dateStr}&range=${viewType}`
       );
       const data = await response.json();
       setActivities(data.data || {});

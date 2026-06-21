@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { serverDb } from "@/lib/server-db";
+
+async function verifyAuth(req: NextRequest) {
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  );
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  return error || !user ? null : user;
+}
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
-
   try {
+    const user = await verifyAuth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const db = serverDb(req.headers.get("Authorization")?.slice(7) || "");
     const { id } = await params;
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("report_questions")
       .select("*")
       .eq("report_id", id)
@@ -32,12 +45,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
-
   try {
+    const user = await verifyAuth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const db = serverDb(req.headers.get("Authorization")?.slice(7) || "");
     const { id } = await params;
     const body = await req.json();
     const {
@@ -58,7 +70,14 @@ export async function POST(
       );
     }
 
-    const { data, error } = await supabase
+    if (question_by_id !== user.id) {
+      return NextResponse.json(
+        { success: false, error: "Cannot ask question as another user" },
+        { status: 403 }
+      );
+    }
+
+    const { data, error } = await db
       .from("report_questions")
       .insert([
         {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { serverDb } from '@/lib/server-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,19 @@ function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) throw new Error('Supabase env not configured')
   return createClient(url, key)
+}
+
+async function verifyAuth(req: NextRequest) {
+  const authHeader = req.headers.get('Authorization')
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!token) return null
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  )
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  return error || !user ? null : user
 }
 
 interface CreateChangeOrderRequest {
@@ -29,6 +43,9 @@ interface UpdateChangeOrderRequest {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await req.json()
     const {
       house_id,
@@ -44,6 +61,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+
+    if (requested_by !== user.id) {
+      return NextResponse.json(
+        { error: 'Cannot create change order as another user' },
+        { status: 403 }
       )
     }
 
@@ -129,6 +153,9 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await req.json()
     const {
       change_order_id,
@@ -196,6 +223,9 @@ export async function PATCH(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const url = new URL(req.url)
     const house_id = url.searchParams.get('house_id')
 

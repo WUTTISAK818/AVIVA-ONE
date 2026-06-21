@@ -1,17 +1,35 @@
 import { getSupabase } from '@/lib/supabase'
+import { serverDb } from '@/lib/server-db'
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
+async function verifyAuth(req: NextRequest) {
+  const authHeader = req.headers.get('Authorization')
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!token) return null
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  )
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  return error || !user ? null : user
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const sb = getSupabase()
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const db = serverDb(req.headers.get('Authorization')?.slice(7) || '')
     const { searchParams } = new URL(req.url)
 
     const period_id = searchParams.get('period_id')
     const project_id = searchParams.get('project_id')
 
-    let query = sb.from('contractor_scorecard').select('*')
+    let query = db.from('contractor_scorecard').select('*')
 
     if (period_id) query = query.eq('period_id', period_id)
     if (project_id) query = query.eq('project_id', project_id)
@@ -29,7 +47,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const sb = getSupabase()
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const db = serverDb(req.headers.get('Authorization')?.slice(7) || '')
     const body = await req.json()
 
     const {
@@ -60,7 +81,7 @@ export async function POST(req: NextRequest) {
       performance_tier: performance_tier || 'C',
     }
 
-    const { data, error } = await sb
+    const { data, error } = await db
       .from('contractor_scorecard')
       .upsert([scoreData], { onConflict: 'contractor_name,period_id,project_id' })
       .select()

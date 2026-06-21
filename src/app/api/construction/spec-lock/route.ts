@@ -10,6 +10,19 @@ function getSupabase() {
   return createClient(url, key)
 }
 
+async function verifyAuth(req: NextRequest) {
+  const authHeader = req.headers.get('Authorization')
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!token) return null
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  )
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  return error || !user ? null : user
+}
+
 interface LockSpecRequest {
   house_id: string
   locked_by: string
@@ -22,6 +35,9 @@ interface UnlockSpecRequest {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await req.json()
     const { house_id, locked_by } = body as LockSpecRequest
 
@@ -29,6 +45,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+
+    if (locked_by !== user.id) {
+      return NextResponse.json(
+        { error: 'Cannot lock as another user' },
+        { status: 403 }
       )
     }
 
@@ -74,6 +97,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const url = new URL(req.url)
     const house_id = url.searchParams.get('house_id')
     const unlocked_by = url.searchParams.get('unlocked_by')
@@ -82,6 +108,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required parameters' },
         { status: 400 }
+      )
+    }
+
+    if (unlocked_by !== user.id) {
+      return NextResponse.json(
+        { error: 'Cannot unlock as another user' },
+        { status: 403 }
       )
     }
 
@@ -127,6 +160,9 @@ export async function DELETE(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await verifyAuth(req)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const url = new URL(req.url)
     const house_id = url.searchParams.get('house_id')
 

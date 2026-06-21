@@ -26,9 +26,9 @@ export function DailyActivityCalendar() {
   const [loading, setLoading] = useState(true);
 
   const activityConfig: Record<ActivityType, { icon: any; color: string; label: string; bgColor: string }> = {
-    sale: { icon: TrendingUp, color: "text-green-400", label: "ยอดขาย", bgColor: "bg-green-500/10" },
-    construction: { icon: Hammer, color: "text-blue-400", label: "ก่อสร้าง", bgColor: "bg-blue-500/10" },
-    finance: { icon: DollarSign, color: "text-yellow-400", label: "เงิน", bgColor: "bg-yellow-500/10" },
+    sale: { icon: TrendingUp, color: "text-green-400", label: "ฝ่ายขาย", bgColor: "bg-green-500/10" },
+    construction: { icon: Hammer, color: "text-blue-400", label: "ฝ่ายก่อสร้าง", bgColor: "bg-blue-500/10" },
+    finance: { icon: DollarSign, color: "text-yellow-400", label: "บัญชี", bgColor: "bg-yellow-500/10" },
     approval: { icon: AlertCircle, color: "text-orange-400", label: "อนุมัติ", bgColor: "bg-orange-500/10" },
     hr: { icon: Activity, color: "text-purple-400", label: "HR", bgColor: "bg-purple-500/10" },
   };
@@ -271,7 +271,7 @@ export function DailyActivityCalendar() {
         </div>
 
         {/* View switcher */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-nowrap">
           <button
             onClick={() => {
               const today = new Date();
@@ -279,7 +279,7 @@ export function DailyActivityCalendar() {
               setViewType("day");
             }}
             className={clsx(
-              "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all",
+              "px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all whitespace-nowrap",
               viewType === "day" && Math.abs(currentDate.getTime() - new Date().getTime()) < 86400000
                 ? "bg-aviva-gold text-aviva-bg"
                 : "bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary hover:border-aviva-gold/50"
@@ -292,13 +292,13 @@ export function DailyActivityCalendar() {
               key={view}
               onClick={() => setViewType(view)}
               className={clsx(
-                "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all",
+                "px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all whitespace-nowrap",
                 viewType === view
                   ? "bg-aviva-gold text-aviva-bg"
                   : "bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary hover:border-aviva-gold/50"
               )}
             >
-              {view === "day" ? "วัน" : view === "week" ? "สัปดาห์" : "เดือน"}
+              {view === "day" ? "วัน" : view === "week" ? "สัป" : "เดือน"}
             </button>
           ))}
         </div>
@@ -317,7 +317,7 @@ export function DailyActivityCalendar() {
 
       {/* Legend - Department colors */}
       <div className="bg-aviva-bg/50 rounded-xl p-3 border border-aviva-gold/10">
-        <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">สัญลักษณ์แผนกงาน</p>
+        <p className="text-[9px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">สัญลักษณ์แผนกงาน</p>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
             const config = activityConfig[type];

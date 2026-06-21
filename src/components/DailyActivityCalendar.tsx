@@ -272,6 +272,21 @@ export function DailyActivityCalendar() {
 
         {/* View switcher */}
         <div className="flex gap-1">
+          <button
+            onClick={() => {
+              const today = new Date();
+              setCurrentDate(today);
+              setViewType("day");
+            }}
+            className={clsx(
+              "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all",
+              viewType === "day" && Math.abs(currentDate.getTime() - new Date().getTime()) < 86400000
+                ? "bg-aviva-gold text-aviva-bg"
+                : "bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary hover:border-aviva-gold/50"
+            )}
+          >
+            วันนี้
+          </button>
           {(["day", "week", "month"] as ViewType[]).map((view) => (
             <button
               key={view}
@@ -298,6 +313,23 @@ export function DailyActivityCalendar() {
         ) : (
           renderCalendar()
         )}
+      </div>
+
+      {/* Legend - Department colors */}
+      <div className="bg-aviva-bg/50 rounded-xl p-3 border border-aviva-gold/10">
+        <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">สัญลักษณ์แผนกงาน</p>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
+            const config = activityConfig[type];
+            const IconComp = config.icon;
+            return (
+              <div key={type} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-aviva-card border border-aviva-gold/10">
+                <IconComp size={14} className={config.color} />
+                <span className="text-[10px] font-semibold text-aviva-text">{config.label}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Expanded activity details */}

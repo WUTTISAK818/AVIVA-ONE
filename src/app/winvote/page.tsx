@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Network, Users, MapPin, Vote, ChevronRight, ChevronLeft, Plus, X,
-  Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown, MessageCircle,
+  Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown, MessageCircle, Target,
 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
@@ -22,11 +22,13 @@ import { DEMO_MODE } from "@/lib/demo-data";
 import {
   getMunicipalitySummary, getDistrictKpi, getCommunityRollup, getMemberLoad,
   getMembers, getPollingUnits, getResidents, validateThaiId, checkDuplicate,
+  getDistrictStrategy, getUnitStrategy,
   type WinVoteMunicipalitySummary, type WinVoteDistrictKpi, type WinVoteCommunityRollup,
   type WinVoteMemberLoad, type WinVotePollingUnit, type WinVoteResident,
+  type WinVoteDistrictStrategy, type WinVoteUnitStrategy,
 } from "@/lib/winvote";
 
-type Tab = "overview" | "polling" | "report";
+type Tab = "overview" | "polling" | "results" | "report";
 
 const emptyResident = {
   national_id: "", full_name: "", date_of_birth: "", gender: "" as string,
@@ -132,6 +134,7 @@ export default function WinVotePage() {
             {(([
               ["overview", "ภาพรวม", Building2],
               ["polling", "หน่วยเลือกตั้ง", Vote],
+              ["results", "ผลเลือกตั้ง", Target],
               ["report", "รายงาน", BarChart3],
             ] as [Tab, string, typeof Building2][]).filter(
               ([key]) => key !== "report" || user?.canExport
@@ -187,6 +190,10 @@ export default function WinVotePage() {
 
         {tab === "polling" && (
           <PollingTab districts={districts} showToast={showToast} />
+        )}
+
+        {tab === "results" && (
+          <ResultsTab showToast={showToast} />
         )}
 
         {tab === "report" && (
@@ -709,6 +716,115 @@ function PollingTab({ districts, showToast }: { districts: WinVoteDistrictKpi[];
               <p className="text-sm font-bold text-aviva-text">หน่วยที่ {u.unit_no}</p>
               <p className="text-[11px] text-aviva-secondary truncate">{u.name}</p>
               <p className="text-xs text-aviva-gold font-semibold mt-1">{u.resident_count} ชาวบ้าน</p>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ===================== Results Tab (ผลเลือกตั้ง / M5) =====================
+function ResultsTab({ showToast }: { showToast: (m: string, t?: ToastType) => void }) {
+  const [loading, setLoading] = useState(true);
+  const [dist, setDist] = useState<WinVoteDistrictStrategy[]>([]);
+  const [risk, setRisk] = useState<WinVoteUnitStrategy[]>([]);
+
+  useEffect(() => {
+    setLoading(true);
+    (async () => {
+      const [d, r] = await Promise.all([getDistrictStrategy(), getUnitStrategy({ atRiskOnly: true })]);
+      setDist(d); setRisk(r); setLoading(false);
+    })().catch(() => { setLoading(false); showToast("โหลดผลเลือกตั้งไม่สำเร็จ", "error"); });
+  }, [showToast]);
+
+  if (loading) return <div className="h-60 rounded-2xl bg-aviva-card/60 animate-pulse" />;
+
+  if (dist.length === 0) return (
+    <GlassCard className="p-6 text-center">
+      <p className="text-sm text-aviva-secondary">ยังไม่มีข้อมูลผลเลือกตั้ง</p>
+    </GlassCard>
+  );
+
+  const ourTotal = dist.reduce((s, d) => s + d.our_votes, 0);
+  const rivalTotal = dist.reduce((s, d) => s + d.rival_votes, 0);
+  const votedTotal = dist.reduce((s, d) => s + d.voted, 0);
+  const eligTotal = dist.reduce((s, d) => s + d.eligible, 0);
+  const atRiskTotal = dist.reduce((s, d) => s + d.units_at_risk, 0);
+  const margin = ourTotal - rivalTotal;
+  const turnout = eligTotal ? (votedTotal / eligTotal) * 100 : 0;
+
+  return (
+    <>
+      {/* สรุปรวม */}
+      <GlassCard gold className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] text-aviva-secondary">คะแนนฝั่งเรา (เบอร์ 2)</p>
+            <p className="text-2xl font-extrabold text-aviva-gold">{ourTotal.toLocaleString()}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-aviva-secondary">คู่แข่ง (เบอร์ 1)</p>
+            <p className="text-2xl font-extrabold text-aviva-text">{rivalTotal.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs">
+          <span className={clsx("font-bold px-2 py-0.5 rounded-full", margin >= 0 ? "text-green-400 bg-green-500/10" : "text-red-400 bg-red-500/10")}>
+            {margin >= 0 ? "นำ" : "ตาม"} {Math.abs(margin).toLocaleString()}
+          </span>
+          <span className="text-aviva-secondary">turnout {turnout.toFixed(1)}% · เสี่ยง {atRiskTotal} หน่วย</span>
+        </div>
+      </GlassCard>
+
+      {/* รายเขต */}
+      <SectionHeader title="รายเขต" subtitle={`${dist.length} เขต · 185 หน่วย`} />
+      <div className="space-y-2">
+        {dist.map((d) => {
+          const ourPct = d.voted ? (d.our_votes / d.voted) * 100 : 0;
+          const rivalPct = d.voted ? (d.rival_votes / d.voted) * 100 : 0;
+          return (
+            <GlassCard key={d.district_code} className="p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-bold text-aviva-text">{d.district_name}</p>
+                <div className="flex items-center gap-2">
+                  {d.units_at_risk > 0 && (
+                    <span className="text-[10px] font-bold text-red-300 bg-red-500/15 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                      <AlertTriangle size={10} /> {d.units_at_risk}
+                    </span>
+                  )}
+                  <span className={clsx("text-xs font-bold px-2 py-0.5 rounded-full", d.margin >= 0 ? "text-green-400 bg-green-500/10" : "text-red-400 bg-red-500/10")}>
+                    {d.margin >= 0 ? "+" : ""}{d.margin.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <div className="h-2 rounded-full bg-white/5 overflow-hidden flex">
+                <div className="h-full bg-aviva-gold" style={{ width: `${ourPct}%` }} />
+                <div className="h-full bg-red-500/80" style={{ width: `${rivalPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between mt-1.5 text-[11px] text-aviva-secondary">
+                <span><b className="text-aviva-gold">{d.our_votes.toLocaleString()}</b> ({d.our_share_pct}%)</span>
+                <span>{d.unit_count} หน่วย · turnout {d.turnout_pct}%</span>
+                <span><b className="text-aviva-text">{d.rival_votes.toLocaleString()}</b></span>
+              </div>
+            </GlassCard>
+          );
+        })}
+      </div>
+
+      {/* หน่วยเสี่ยง */}
+      <SectionHeader title="หน่วยเสี่ยง" subtitle={`${risk.length} หน่วย (แพ้/เสมอ) เรียงจากแพ้มากสุด`} />
+      {risk.length === 0 ? (
+        <GlassCard className="p-4"><p className="text-xs text-aviva-secondary">ไม่มีหน่วยเสี่ยง 🎉</p></GlassCard>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {risk.map((u) => (
+            <GlassCard key={`${u.district_code}-${u.unit_no}`} className="p-3 relative overflow-hidden">
+              <span className="absolute top-2.5 right-3 text-sm font-extrabold text-red-400">{u.margin > 0 ? "+" : ""}{u.margin}</span>
+              <p className="text-[10px] text-aviva-secondary">เขต {u.district_code}</p>
+              <p className="text-base font-bold text-aviva-text">หน่วย {u.unit_no}</p>
+              <p className="text-[11px] text-aviva-secondary mt-1">
+                เรา <b className="text-aviva-gold">{u.our_votes}</b> · คู่แข่ง <b className="text-aviva-text">{u.rival_votes}</b>
+              </p>
             </GlassCard>
           ))}
         </div>

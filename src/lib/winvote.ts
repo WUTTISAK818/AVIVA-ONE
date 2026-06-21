@@ -164,6 +164,83 @@ export async function getResidents(memberId: string) {
   return (data ?? []) as WinVoteResident[];
 }
 
+// ===== M5: ผลเลือกตั้ง / กลยุทธ์ (จาก views winvote.district_strategy / unit_strategy) =====
+export interface WinVoteDistrictStrategy {
+  district_code: number;
+  district_name: string;
+  unit_count: number;
+  eligible: number;
+  voted: number;
+  turnout_pct: number;
+  our_votes: number;
+  rival_votes: number;
+  v3_votes: number;
+  v4_votes: number;
+  margin: number;
+  margin_pct: number;
+  our_share_pct: number;
+  units_at_risk: number;
+}
+
+export interface WinVoteUnitStrategy {
+  district_code: number;
+  unit_no: string;
+  unit_name: string | null;
+  location: string | null;
+  eligible: number;
+  voted: number;
+  our_votes: number;
+  rival_votes: number;
+  margin: number;
+  margin_pct: number;
+  status: "safe" | "close" | "at_risk";
+}
+
+const num = (v: unknown): number => (v == null ? 0 : Number(v));
+
+/** สรุปกลยุทธ์รายเขต (185 หน่วย) — เบอร์ 2 = ฝั่งเรา, เบอร์ 1 = คู่แข่งหลัก */
+export async function getDistrictStrategy() {
+  if (DEMO_MODE) return [] as WinVoteDistrictStrategy[];
+  const { data } = await supabase.schema("winvote").from("district_strategy").select("*").order("district_code");
+  return (data ?? []).map((r): WinVoteDistrictStrategy => ({
+    district_code: num(r.district_code),
+    district_name: r.district_name,
+    unit_count: num(r.unit_count),
+    eligible: num(r.eligible),
+    voted: num(r.voted),
+    turnout_pct: num(r.turnout_pct),
+    our_votes: num(r.our_votes),
+    rival_votes: num(r.rival_votes),
+    v3_votes: num(r.v3_votes),
+    v4_votes: num(r.v4_votes),
+    margin: num(r.margin),
+    margin_pct: num(r.margin_pct),
+    our_share_pct: num(r.our_share_pct),
+    units_at_risk: num(r.units_at_risk),
+  }));
+}
+
+/** ผลรายหน่วย + สถานะ (safe/close/at_risk) — atRiskOnly=true เพื่อเอาเฉพาะหน่วยเสี่ยง */
+export async function getUnitStrategy(opts?: { atRiskOnly?: boolean }) {
+  if (DEMO_MODE) return [] as WinVoteUnitStrategy[];
+  let q = supabase.schema("winvote").from("unit_strategy").select("*");
+  if (opts?.atRiskOnly) q = q.eq("status", "at_risk");
+  const { data } = await q.order("margin", { ascending: true });
+  return (data ?? []).map((r): WinVoteUnitStrategy => ({
+    district_code: num(r.district_code),
+    unit_no: r.unit_no,
+    unit_name: r.unit_name ?? null,
+    location: r.location ?? null,
+    eligible: num(r.eligible),
+    voted: num(r.voted),
+    our_votes: num(r.our_votes),
+    rival_votes: num(r.rival_votes),
+    margin: num(r.margin),
+    margin_pct: num(r.margin_pct),
+    status: r.status,
+  }));
+}
+
 // ===== Validation =====
 /** ตรวจสอบเลขบัตรประชาชนไทย 13 หลัก (รวม checksum หลักสุดท้าย) */
 export function validateThaiId(id: string): boolean {

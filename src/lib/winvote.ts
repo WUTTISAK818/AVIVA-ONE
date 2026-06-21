@@ -198,9 +198,26 @@ export interface WinVoteUnitStrategy {
 
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
+// ข้อมูลตัวอย่างสำหรับโหมด DEMO (อิงผลรวมจริง 185 หน่วย เพื่อให้ preview เห็นหน้า M5)
+const DEMO_DISTRICT_STRATEGY: WinVoteDistrictStrategy[] = [
+  { district_code: 1, district_name: "เขต 1", unit_count: 52, eligible: 21123, voted: 10586, turnout_pct: 50.12, our_votes: 4748, rival_votes: 2362, v3_votes: 0, v4_votes: 0, margin: 2386, margin_pct: 22.54, our_share_pct: 44.85, units_at_risk: 7 },
+  { district_code: 2, district_name: "เขต 2", unit_count: 45, eligible: 23017, voted: 11940, turnout_pct: 51.87, our_votes: 5307, rival_votes: 2215, v3_votes: 0, v4_votes: 0, margin: 3092, margin_pct: 25.90, our_share_pct: 44.45, units_at_risk: 1 },
+  { district_code: 3, district_name: "เขต 3", unit_count: 47, eligible: 23291, voted: 11963, turnout_pct: 51.36, our_votes: 4988, rival_votes: 2893, v3_votes: 0, v4_votes: 0, margin: 2095, margin_pct: 17.51, our_share_pct: 41.70, units_at_risk: 4 },
+  { district_code: 4, district_name: "เขต 4", unit_count: 41, eligible: 24570, voted: 12879, turnout_pct: 52.42, our_votes: 6000, rival_votes: 2766, v3_votes: 0, v4_votes: 0, margin: 3234, margin_pct: 25.11, our_share_pct: 46.59, units_at_risk: 3 },
+];
+const DEMO_AT_RISK: WinVoteUnitStrategy[] = ([
+  [4,"015",44,90], [1,"006",16,55], [1,"028",24,44], [3,"010",25,42], [1,"015",39,51],
+  [1,"043",61,71], [4,"036",50,59], [3,"013",68,77], [1,"033",36,43], [1,"041",37,43],
+  [4,"002",62,66], [3,"004",73,76], [2,"012",42,43], [1,"009",50,51], [3,"037",79,79],
+] as [number, string, number, number][]).map(([d, no, ours, rival]) => ({
+  district_code: d, unit_no: no, unit_name: `หน่วยเลือกตั้งที่ ${Number(no)} เขต ${d}`, location: null,
+  eligible: 0, voted: 0, our_votes: ours, rival_votes: rival, margin: ours - rival, margin_pct: 0,
+  status: "at_risk" as const,
+}));
+
 /** สรุปกลยุทธ์รายเขต (185 หน่วย) — เบอร์ 2 = ฝั่งเรา, เบอร์ 1 = คู่แข่งหลัก */
 export async function getDistrictStrategy() {
-  if (DEMO_MODE) return [] as WinVoteDistrictStrategy[];
+  if (DEMO_MODE) return DEMO_DISTRICT_STRATEGY;
   const { data } = await supabase.schema("winvote").from("district_strategy").select("*").order("district_code");
   return (data ?? []).map((r): WinVoteDistrictStrategy => ({
     district_code: num(r.district_code),
@@ -222,7 +239,7 @@ export async function getDistrictStrategy() {
 
 /** ผลรายหน่วย + สถานะ (safe/close/at_risk) — atRiskOnly=true เพื่อเอาเฉพาะหน่วยเสี่ยง */
 export async function getUnitStrategy(opts?: { atRiskOnly?: boolean }) {
-  if (DEMO_MODE) return [] as WinVoteUnitStrategy[];
+  if (DEMO_MODE) return DEMO_AT_RISK;
   let q = supabase.schema("winvote").from("unit_strategy").select("*");
   if (opts?.atRiskOnly) q = q.eq("status", "at_risk");
   const { data } = await q.order("margin", { ascending: true });

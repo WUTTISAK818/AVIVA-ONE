@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { replyLine } from "@/lib/line";
+import { verifyLineSignature } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -19,8 +20,28 @@ interface LineEvent {
 }
 
 export async function POST(req: NextRequest) {
+  // Verify LINE webhook signature to prevent spoofed payloads
+  const signature = req.headers.get("x-line-signature");
+  const lineChannelSecret = process.env.LINE_CHANNEL_SECRET;
+
+  if (!signature || !lineChannelSecret) {
+    console.error("Missing LINE signature or channel secret");
+    return NextResponse.json({ ok: false, error: "Webhook validation failed" }, { status: 401 });
+  }
+
+  // Clone request to read body for signature verification
+  const bodyText = await req.text();
+  if (!verifyLineSignature(bodyText, signature, lineChannelSecret)) {
+    console.error("Invalid LINE webhook signature");
+    return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
+  }
+
   let body: { events?: LineEvent[] };
-  try { body = await req.json(); } catch { return NextResponse.json({ ok: true }); }
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return NextResponse.json({ ok: true });
+  }
   const db = admin();
 
   for (const ev of body.events ?? []) {

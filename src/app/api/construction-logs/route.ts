@@ -1,10 +1,37 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { dbErrorResponse } from '@/lib/api'
-
-const DEFAULT_AUTHOR = 'พีท (ผู้จัดการก่อสร้าง)'
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
 // POST /api/construction-logs  — create a log as draft or submit-for-approval
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // Verify authentication and get actual author from token
+  const authHeader = request.headers.get('Authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  );
+
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Get user's full name from users table for audit trail
+  const { data: userData } = await supabase
+    .from('users')
+    .select('full_name, id')
+    .eq('id', user.id)
+    .single();
+
+  const authorName = userData?.full_name || user.email || 'Unknown User';
+  const userId = userData?.id || user.id;
+
   let body: Record<string, unknown>
   try {
     body = await request.json()
@@ -34,7 +61,8 @@ export async function POST(request: Request) {
     draft_report: body.draft_report ? String(body.draft_report) : null,
     photo_urls: photoUrls.length ? photoUrls : null,
     submit_status: submit ? 'submitted' : 'draft',
-    submitted_by: submit ? String(body.submitted_by ?? DEFAULT_AUTHOR) : null,
+    submitted_by: submit ? authorName : null,
+    submitted_by_user_id: submit ? userId : null,
     submitted_at: submit ? new Date().toISOString() : null,
   }
 

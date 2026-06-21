@@ -6,7 +6,10 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 import { calculatePayment, calculateDaysLate } from '@/lib/finance-calculation'
+import { verifyAuth } from '@/lib/api-auth'
+import { MANAGER_ROLES } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,8 +34,17 @@ function getServiceClient() {
   return createClient(url, key)
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Verify authorization - only finance managers and admins can create vouchers
+    const { user, error: authError } = await verifyAuth(request as NextRequest, ['admin', 'ceo', 'coo', 'finance_manager', 'manager']);
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: authError || "Unauthorized - Finance role required" },
+        { status: 401 }
+      );
+    }
+
     const supabase = getServiceClient()
     const body: CreatePaymentVoucherRequest = await request.json()
 

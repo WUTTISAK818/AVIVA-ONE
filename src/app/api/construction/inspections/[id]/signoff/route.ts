@@ -163,14 +163,15 @@ export async function POST(
                 today.getTime() + contract.contractual_days_per_stage * 24 * 60 * 60 * 1000
               )
 
-              // Call payment voucher creation API
+              // Call payment voucher creation API using user's own auth token
+              const userAuthToken = req.headers.get('Authorization') || '';
               const paymentResponse = await fetch(
                 `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/finance/payment-voucher/create`,
                 {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+                    'Authorization': userAuthToken
                   },
                   body: JSON.stringify({
                     projectId: house.project_id,

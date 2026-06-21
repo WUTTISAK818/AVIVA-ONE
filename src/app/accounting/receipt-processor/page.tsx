@@ -44,7 +44,7 @@ interface GLSuggestion {
 interface ProcessedReceipt {
   documentId: string;
   fileName: string;
-  status: "uploaded" | "processing" | "ready_for_approval" | "review_needed" | "saved" | "error";
+  status: "uploaded" | "processing" | "ready_for_approval" | "review_needed" | "saved" | "error" | "pending_approval";
   extracted_data?: ReceiptData;
   gl_suggestion?: GLSuggestion;
   confidence?: number;
@@ -334,9 +334,8 @@ export default function ReceiptProcessorPage() {
   return (
     <div className="min-h-screen bg-aviva-bg p-4 md:p-8">
       <SectionHeader
-        title="Receipt OCR Processor"
+        title="📋 Receipt OCR Processor"
         subtitle="Upload receipts → AI reads → Auto-save to GL"
-        icon={Upload}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WinVote — ผลเลือกตั้ง / วิเคราะห์ M5</title>
+<style>
+  :root{
+    --bg:#0D1F1B; --bg2:#06110E; --card:#17332D; --card2:#10231D;
+    --gold:#D4AF37; --goldsoft:#E6C77A; --goldln:rgba(212,175,55,.22);
+    --text:#F4EFE2; --sec:#A9B8B0; --red:#EF4444; --amber:#F59E0B; --green:#22C55E;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","IBM Plex Sans Thai",system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 70% -10%,#102a23,#06110E 60%);color:var(--text);
+    line-height:1.45;padding:0 0 60px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+
+  /* top bar */
+  .top{display:flex;align-items:center;gap:14px;padding:18px 16px;position:sticky;top:0;
+    background:rgba(6,17,14,.82);backdrop-filter:blur(8px);border-bottom:1px solid var(--goldln);z-index:5}
+  .logo{width:42px;height:42px;border-radius:12px;background:rgba(212,175,55,.12);
+    border:1px solid var(--goldln);display:grid;place-items:center;color:var(--gold);font-weight:900;font-size:20px}
+  .brand{font-weight:800;letter-spacing:.5px}
+  .brand small{display:block;font-weight:500;color:var(--sec);font-size:11px;letter-spacing:0}
+  .tabs{margin-left:auto;display:flex;gap:6px}
+  .tab{padding:8px 14px;border-radius:11px;color:var(--sec);font-size:13px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+  .tab.on{background:rgba(212,175,55,.12);color:var(--gold);border-color:var(--goldln)}
+
+  h2.section{font-size:13px;letter-spacing:.16em;color:var(--gold);text-transform:uppercase;margin:26px 4px 12px;font-weight:700}
+
+  /* KPI cards */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--goldln);
+    border-radius:18px;padding:16px 16px 14px}
+  .kpi .lab{font-size:12px;color:var(--sec);font-weight:600}
+  .kpi .val{font-size:26px;font-weight:900;margin-top:6px;letter-spacing:.3px}
+  .kpi .sub{font-size:11px;color:var(--sec);margin-top:3px}
+  .gold{color:var(--gold)} .red{color:var(--red)} .green{color:var(--green)} .amber{color:var(--amber)}
+
+  /* district table */
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--goldln);border-radius:20px;padding:6px 4px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:13px 16px;text-align:left;font-size:14px}
+  th{font-size:11px;letter-spacing:.08em;color:var(--sec);text-transform:uppercase;font-weight:700;border-bottom:1px solid var(--goldln)}
+  tbody tr{border-bottom:1px solid rgba(255,255,255,.04)}
+  tbody tr:last-child{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:700}
+  .rt{text-align:right} .ct{text-align:center}
+  .bar{height:9px;border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden;display:flex;min-width:140px}
+  .bar i{display:block;height:100%}
+  .bar .us{background:linear-gradient(90deg,var(--gold),var(--goldsoft))}
+  .bar .ri{background:var(--red);opacity:.85}
+  .pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800}
+  .pill.win{background:rgba(34,197,94,.14);color:var(--green)}
+  .chip{display:inline-block;min-width:26px;text-align:center;padding:2px 8px;border-radius:8px;font-weight:800;font-size:12px}
+  .chip.r{background:rgba(239,68,68,.16);color:#ffb4b4}
+
+  /* status split */
+  .split{display:flex;gap:12px;margin-top:12px}
+  .seg{flex:1;border-radius:16px;padding:14px 16px;border:1px solid var(--goldln);background:var(--card2)}
+  .seg b{font-size:24px;font-weight:900;display:block}
+  .seg.safe b{color:var(--green)} .seg.close b{color:var(--amber)} .seg.risk b{color:var(--red)}
+  .seg span{font-size:12px;color:var(--sec)}
+
+  /* at-risk grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .u{border-radius:14px;padding:12px 13px;border:1px solid var(--goldln);background:var(--card2);position:relative;overflow:hidden}
+  .u .d{font-size:11px;color:var(--sec);font-weight:600}
+  .u .no{font-size:18px;font-weight:900;margin:1px 0 7px}
+  .u .vs{font-size:12px;color:var(--sec)}
+  .u .vs b{color:var(--text)}
+  .u .m{position:absolute;top:11px;right:12px;font-weight:900;font-size:14px}
+  .u.sev3{box-shadow:inset 3px 0 0 var(--red)}  .u.sev3 .m{color:#ff7a7a}
+  .u.sev2{box-shadow:inset 3px 0 0 #f97316}     .u.sev2 .m{color:#fb923c}
+  .u.sev1{box-shadow:inset 3px 0 0 var(--amber)} .u.sev1 .m{color:#fbbf24}
+  .note{font-size:12px;color:var(--sec);margin:10px 4px 0}
+  .foot{text-align:center;color:var(--sec);font-size:11px;margin-top:30px}
+  @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)} .tabs{display:none}}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="logo">W</div>
+    <div class="brand">WinVote<small>เลือกตั้งนายกเทศมนตรี · 4 เขต</small></div>
+    <div class="tabs">
+      <div class="tab">ภาพรวม</div>
+      <div class="tab">หน่วยเลือกตั้ง</div>
+      <div class="tab on">ผลเลือกตั้ง / M5</div>
+      <div class="tab">รายงาน</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h2 class="section">สรุปผลรวม (185 หน่วย · เลือกตั้ง 2568)</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="lab">คะแนนฝั่งเรา (เบอร์ 2)</div><div class="val gold">21,043</div><div class="sub">44.4% ของผู้มาใช้สิทธิ</div></div>
+      <div class="kpi"><div class="lab">คู่แข่งหลัก (เบอร์ 1)</div><div class="val red">10,236</div><div class="sub">21.6% ของผู้มาใช้สิทธิ</div></div>
+      <div class="kpi"><div class="lab">ชนะนำ (margin)</div><div class="val green">+10,807</div><div class="sub">นำทุกเขต 4/4</div></div>
+      <div class="kpi"><div class="lab">ผู้มาใช้สิทธิ</div><div class="val">51.5%</div><div class="sub">47,368 / 92,001</div></div>
+      <div class="kpi"><div class="lab">หน่วยต้องเฝ้าระวัง</div><div class="val amber">15</div><div class="sub">at-risk จาก 185 หน่วย</div></div>
+    </div>
+
+    <h2 class="section">รายเขต</h2>
+    <div class="panel">
+      <table>
+        <thead><tr>
+          <th>เขต</th><th>หน่วย</th><th>ผู้มาใช้สิทธิ</th>
+          <th style="min-width:200px">สัดส่วนคะแนน (เรา / คู่แข่ง)</th>
+          <th class="rt">เรา</th><th class="rt">คู่แข่ง</th><th class="rt">margin</th><th class="ct">at-risk</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="num">เขต 1</td><td class="num">52</td><td class="num">10,586</td>
+            <td><div class="bar"><i class="us" style="width:44.9%"></i><i class="ri" style="width:22.3%"></i></div></td>
+            <td class="rt num gold">4,748</td><td class="rt num">2,362</td><td class="rt"><span class="pill win">+2,386</span></td><td class="ct"><span class="chip r">7</span></td>
+          </tr>
+          <tr>
+            <td class="num">เขต 2</td><td class="num">45</td><td class="num">11,940</td>
+            <td><div class="bar"><i class="us" style="width:44.5%"></i><i class="ri" style="width:18.6%"></i></div></td>
+            <td class="rt num gold">5,307</td><td class="rt num">2,215</td><td class="rt"><span class="pill win">+3,092</span></td><td class="ct"><span class="chip r">1</span></td>
+          </tr>
+          <tr>
+            <td class="num">เขต 3</td><td class="num">47</td><td class="num">11,963</td>
+            <td><div class="bar"><i class="us" style="width:41.7%"></i><i class="ri" style="width:24.2%"></i></div></td>
+            <td class="rt num gold">4,988</td><td class="rt num">2,893</td><td class="rt"><span class="pill win">+2,095</span></td><td class="ct"><span class="chip r">4</span></td>
+          </tr>
+          <tr>
+            <td class="num">เขต 4</td><td class="num">41</td><td class="num">12,879</td>
+            <td><div class="bar"><i class="us" style="width:46.6%"></i><i class="ri" style="width:21.5%"></i></div></td>
+            <td class="rt num gold">6,000</td><td class="rt num">2,766</td><td class="rt"><span class="pill win">+3,234</span></td><td class="ct"><span class="chip r">3</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="split">
+      <div class="seg safe"><b>143</b><span>หน่วยปลอดภัย (safe · นำ ≥ 10%)</span></div>
+      <div class="seg close"><b>27</b><span>หน่วยสูสี (close · นำ &lt; 10%)</span></div>
+      <div class="seg risk"><b>15</b><span>หน่วยเสี่ยง (at-risk · แพ้/เสมอ)</span></div>
+    </div>
+
+    <h2 class="section">หน่วยเสี่ยง 15 หน่วย — เรียงจากแพ้มากสุด</h2>
+    <div class="grid">
+      <div class="u sev3"><div class="m">−46</div><div class="d">เขต 4</div><div class="no">หน่วย 015</div><div class="vs">เรา <b>44</b> · คู่แข่ง <b>90</b></div></div>
+      <div class="u sev3"><div class="m">−39</div><div class="d">เขต 1</div><div class="no">หน่วย 006</div><div class="vs">เรา <b>16</b> · คู่แข่ง <b>55</b></div></div>
+      <div class="u sev2"><div class="m">−20</div><div class="d">เขต 1</div><div class="no">หน่วย 028</div><div class="vs">เรา <b>24</b> · คู่แข่ง <b>44</b></div></div>
+      <div class="u sev2"><div class="m">−17</div><div class="d">เขต 3</div><div class="no">หน่วย 010</div><div class="vs">เรา <b>25</b> · คู่แข่ง <b>42</b></div></div>
+      <div class="u sev2"><div class="m">−12</div><div class="d">เขต 1</div><div class="no">หน่วย 015</div><div class="vs">เรา <b>39</b> · คู่แข่ง <b>51</b></div></div>
+      <div class="u sev2"><div class="m">−10</div><div class="d">เขต 1</div><div class="no">หน่วย 043</div><div class="vs">เรา <b>61</b> · คู่แข่ง <b>71</b></div></div>
+      <div class="u sev1"><div class="m">−9</div><div class="d">เขต 4</div><div class="no">หน่วย 036</div><div class="vs">เรา <b>50</b> · คู่แข่ง <b>59</b></div></div>
+      <div class="u sev1"><div class="m">−9</div><div class="d">เขต 3</div><div class="no">หน่วย 013</div><div class="vs">เรา <b>68</b> · คู่แข่ง <b>77</b></div></div>
+      <div class="u sev1"><div class="m">−7</div><div class="d">เขต 1</div><div class="no">หน่วย 033</div><div class="vs">เรา <b>36</b> · คู่แข่ง <b>43</b></div></div>
+      <div class="u sev1"><div class="m">−6</div><div class="d">เขต 1</div><div class="no">หน่วย 041</div><div class="vs">เรา <b>37</b> · คู่แข่ง <b>43</b></div></div>
+      <div class="u sev1"><div class="m">−4</div><div class="d">เขต 4</div><div class="no">หน่วย 002</div><div class="vs">เรา <b>62</b> · คู่แข่ง <b>66</b></div></div>
+      <div class="u sev1"><div class="m">−3</div><div class="d">เขต 3</div><div class="no">หน่วย 004</div><div class="vs">เรา <b>73</b> · คู่แข่ง <b>76</b></div></div>
+      <div class="u sev1"><div class="m">−1</div><div class="d">เขต 2</div><div class="no">หน่วย 012</div><div class="vs">เรา <b>42</b> · คู่แข่ง <b>43</b></div></div>
+      <div class="u sev1"><div class="m">−1</div><div class="d">เขต 1</div><div class="no">หน่วย 009</div><div class="vs">เรา <b>50</b> · คู่แข่ง <b>51</b></div></div>
+      <div class="u sev1"><div class="m">0</div><div class="d">เขต 3</div><div class="no">หน่วย 037</div><div class="vs">เรา <b>79</b> · คู่แข่ง <b>79</b></div></div>
+    </div>
+    <p class="note">💡 3 หน่วยล่าง (เขต 2-012, เขต 1-009, เขต 3-037) เฉือนกันแค่ −1 ถึง 0 → พลิกเป็นชนะได้ง่ายสุด · เขต 1 มีหน่วยเสี่ยงกระจุกมากสุด (7 หน่วย)</p>
+
+    <p class="foot">WinVote · prototype หน้าจอ "ผลเลือกตั้ง / M5" — ข้อมูลจริงจากตาราง winvote.unit_results (185 หน่วย) ผ่าน views district_strategy / unit_strategy</p>
+  </div>
+</body>
+</html>

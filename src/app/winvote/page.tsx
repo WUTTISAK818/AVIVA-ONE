@@ -492,7 +492,7 @@ function AddMemberModal(props: {
   const save = async () => {
     if (!form.full_name.trim()) { showToast("กรุณากรอกชื่อ", "warning"); return; }
     setSaving(true);
-    const { error } = await supabase.from("winvote_members").insert({
+    const { error } = await supabase.schema("winvote").from("members").insert({
       community_id: communityId,
       full_name: form.full_name.trim(),
       phone: form.phone.trim() || null,
@@ -579,7 +579,7 @@ function AddResidentModal(props: {
     if (!form.national_id || !form.full_name.trim()) { showToast("กรุณากรอกเลขบัตรและชื่อ", "warning"); return; }
     if (!validateThaiId(form.national_id)) { showToast("เลขบัตรประชาชนไม่ถูกต้อง (checksum)", "error"); return; }
     setSaving(true);
-    const { error } = await supabase.from("winvote_residents").insert({
+    const { error } = await supabase.schema("winvote").from("residents").insert({
       member_id: memberId,
       polling_unit_id: form.polling_unit_id || null,
       national_id: form.national_id,
@@ -678,7 +678,7 @@ function PollingTab({ districts, showToast }: { districts: WinVoteDistrictKpi[];
       const pu = await getPollingUnits(districtId);
       // นับชาวบ้านต่อหน่วย
       const { data } = await supabase
-        .from("winvote_residents")
+        .schema("winvote").from("residents")
         .select("polling_unit_id")
         .not("polling_unit_id", "is", null);
       const counts = new Map<string, number>();

@@ -94,20 +94,20 @@ export interface WinVoteResident {
 // ===== Queries =====
 export async function getMunicipalitySummary() {
   if (DEMO_MODE) return demo.getMunicipalitySummary();
-  const { data } = await supabase.from("winvote_municipality_summary").select("*").single();
+  const { data } = await supabase.schema("winvote").from("municipality_summary").select("*").single();
   return data as WinVoteMunicipalitySummary | null;
 }
 
 export async function getDistrictKpi() {
   if (DEMO_MODE) return demo.getDistrictKpi();
-  const { data } = await supabase.from("winvote_district_kpi").select("*").order("code");
+  const { data } = await supabase.schema("winvote").from("district_kpi").select("*").order("code");
   return (data ?? []) as WinVoteDistrictKpi[];
 }
 
 export async function getCommunityRollup(districtId: string) {
   if (DEMO_MODE) return demo.getCommunityRollup(districtId);
   const { data } = await supabase
-    .from("winvote_community_rollup")
+    .schema("winvote").from("community_rollup")
     .select("*")
     .eq("district_id", districtId)
     .order("community_name");
@@ -117,7 +117,7 @@ export async function getCommunityRollup(districtId: string) {
 export async function getMemberLoad(communityId: string) {
   if (DEMO_MODE) return demo.getMemberLoad(communityId);
   const { data } = await supabase
-    .from("winvote_member_load")
+    .schema("winvote").from("member_load")
     .select("*")
     .eq("community_id", communityId);
   return (data ?? []) as WinVoteMemberLoad[];
@@ -126,7 +126,7 @@ export async function getMemberLoad(communityId: string) {
 export async function getCommunities(districtId: string) {
   if (DEMO_MODE) return demo.getCommunities(districtId);
   const { data } = await supabase
-    .from("winvote_communities")
+    .schema("winvote").from("communities")
     .select("*")
     .eq("district_id", districtId)
     .order("name");
@@ -136,7 +136,7 @@ export async function getCommunities(districtId: string) {
 export async function getMembers(communityId: string) {
   if (DEMO_MODE) return demo.getMembers(communityId);
   const { data } = await supabase
-    .from("winvote_members")
+    .schema("winvote").from("members")
     .select("*")
     .eq("community_id", communityId)
     .order("member_role")
@@ -147,7 +147,7 @@ export async function getMembers(communityId: string) {
 export async function getPollingUnits(districtId: string) {
   if (DEMO_MODE) return demo.getPollingUnits(districtId);
   const { data } = await supabase
-    .from("winvote_polling_units")
+    .schema("winvote").from("polling_units")
     .select("*")
     .eq("district_id", districtId)
     .order("unit_no");
@@ -157,7 +157,7 @@ export async function getPollingUnits(districtId: string) {
 export async function getResidents(memberId: string) {
   if (DEMO_MODE) return demo.getResidents(memberId);
   const { data } = await supabase
-    .from("winvote_residents")
+    .schema("winvote").from("residents")
     .select("*")
     .eq("member_id", memberId)
     .order("full_name");
@@ -192,21 +192,21 @@ export async function checkDuplicate(opts: {
   if (DEMO_MODE) return result;
   if (opts.national_id) {
     const { count } = await supabase
-      .from("winvote_residents")
+      .schema("winvote").from("residents")
       .select("id", { count: "exact", head: true })
       .eq("national_id", opts.national_id);
     result.national_id = (count ?? 0) > 0;
   }
   if (opts.phone) {
     const { count } = await supabase
-      .from("winvote_residents")
+      .schema("winvote").from("residents")
       .select("id", { count: "exact", head: true })
       .eq("phone", opts.phone);
     result.phone = (count ?? 0) > 0;
   }
   if (opts.full_name) {
     const { count } = await supabase
-      .from("winvote_residents")
+      .schema("winvote").from("residents")
       .select("id", { count: "exact", head: true })
       .eq("full_name", opts.full_name);
     result.full_name = (count ?? 0) > 0;

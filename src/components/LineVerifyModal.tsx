@@ -61,7 +61,7 @@ export default function LineVerifyModal({ residentId, residentName, phone, onClo
     if (!qrDataUrl) return;
     pollRef.current = setInterval(async () => {
       const { data } = await supabase
-        .from("winvote_residents")
+        .schema("winvote").from("residents")
         .select("phone_verified")
         .eq("id", residentId)
         .single();

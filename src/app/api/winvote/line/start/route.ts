@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   // ดึงเบอร์ของชาวบ้าน (และตรวจสิทธิ์เข้าถึงผ่าน RLS)
   const { data: resident, error: rErr } = await supabase
-    .from("winvote_residents")
+    .schema("winvote").from("residents")
     .select("id, phone, phone_verified")
     .eq("id", resident_id)
     .single();
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (resident.phone_verified) return NextResponse.json({ alreadyVerified: true });
 
   const verifyToken = crypto.randomBytes(12).toString("hex");
-  const { error: insErr } = await supabase.from("winvote_phone_verifications").insert({
+  const { error: insErr } = await supabase.schema("winvote").from("phone_verifications").insert({
     resident_id: resident.id,
     phone: resident.phone,
     token: verifyToken,

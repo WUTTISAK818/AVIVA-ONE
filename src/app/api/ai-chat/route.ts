@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  const results = await Promise.all([
+  const settledResults = await Promise.allSettled([
     db.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
     db.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
     db.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
@@ -205,13 +205,27 @@ export async function POST(req: NextRequest) {
     db.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
     db.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
     db.from("loan_applications").select("status").then(r => r.data ?? []),
-  ]).catch(() => null);
+  ]);
 
-  if (!results) {
-    return NextResponse.json({ response: "ไม่สามารถดึงข้อมูลโครงการได้ในขณะนี้ กรุณาลองใหม่ค่ะ" });
+  // Extract results and log any errors
+  const results = settledResults.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    } else {
+      console.error(`Failed to load data at index ${index}:`, result.reason);
+      // Return defaults for failed queries
+      return ['project', 'leads', 'houses', 'txns', 'campaigns', 'employees', 'pendingApprovals', 'pendingClaims', 'installments', 'loanApps'][index] === 'project' ? null : [];
+    }
+  });
+
+  // Check if critical data (project) failed to load
+  const [project] = results;
+  if (!project) {
+    console.error('Critical data load failure: project data unavailable');
+    return NextResponse.json({ response: "ไม่สามารถดึงข้อมูลโครงการได้ในขณะนี้ กรุณาลองใหม่ค่ะ" }, { status: 500 });
   }
 
-  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments, loanApps] = results;
+  const [, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments, loanApps] = results;
   const loans = (loanApps as { status: string }[]) ?? [];
   const loanStat = {
     submitted: loans.filter(l => l.status === "submitted").length,
@@ -219,9 +233,6 @@ export async function POST(req: NextRequest) {
     rejected: loans.filter(l => l.status === "rejected").length,
   };
 
-  if (!project) {
-    return NextResponse.json({ response: "ไม่พบข้อมูลโครงการ กรุณาตรวจสอบการตั้งค่าค่ะ" });
-  }
 
   type HouseRow = { house_number: string; status: string; delayed_days?: number };
   type CampaignRow = { name: string; platform: string; status: string; leads_generated: number };

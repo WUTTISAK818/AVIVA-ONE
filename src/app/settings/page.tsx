@@ -1,4 +1,5 @@
 "use client";
+import { APP_VERSION } from "@/lib/version";
 import { useState, useEffect } from "react";
 import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList, HardHat, Bot, Lightbulb, BarChart3 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
@@ -207,7 +208,7 @@ export default function SettingsPage() {
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 6.38</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version {APP_VERSION}</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

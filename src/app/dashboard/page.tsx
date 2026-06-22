@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_VERSION } from "@/lib/version";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock, ClipboardList } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
@@ -9,6 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
+import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
 import CalendarWidget from "@/components/CalendarWidget";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -495,20 +497,8 @@ export default function DashboardPage() {
     });
   }
 
-  if (canSeeAll && stats.pendingApprovals > 0) {
-    insights.push({
-      type: "warning",
-      priority: "high",
-      title: `${stats.pendingApprovals} รายการรออนุมัติ`,
-      message: `งวดงานรอตรวจ ${constructionStats.inReview} งวด — ดำเนินการเพื่อไม่ให้กระทบกระแสเงินสด`,
-      href: "/approvals",
-      icon: Zap,
-      iconColor: "text-yellow-400",
-      bg: "bg-yellow-500/10",
-      border: "border-yellow-500/20",
-      titleColor: "text-yellow-300",
-    });
-  }
+  // Approvals ย้ายไปแสดงใน Activity Calendar แล้ว
+  // if (canSeeAll && stats.pendingApprovals > 0) { ... } - REMOVED
 
   if (canSeeAll && stats.pendingClaims > 0) {
     insights.push({
@@ -563,7 +553,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v6.38</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v{APP_VERSION}</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -692,6 +682,14 @@ export default function DashboardPage() {
               </div>
             )}
           </GlassCard>
+        )}
+
+        {/* Daily Activity Calendar - ปฏิทินกิจกรรมขยับขึ้นบน */}
+        {canSeeAll && (
+          <div>
+            <SectionHeader title="ปฏิทินกิจกรรมประจำวัน" subtitle="ดูภาพรวมการทำงานแต่ละวัน" />
+            <DailyActivityCalendar />
+          </div>
         )}
 
         <div>
@@ -1074,8 +1072,7 @@ export default function DashboardPage() {
         )}
 
         <div>
-          <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
-          <CalendarWidget />
+          {/* CalendarWidget ย้ายขึ้นบนแล้ว - REMOVED */}
         </div>
       </div>
 

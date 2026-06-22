@@ -98,6 +98,16 @@ export async function POST(
         approved_at: new Date().toISOString(),
         approval_notes,
       }
+    } else if (action === 'reject') {
+      if (!body.rejected_reason) {
+        return NextResponse.json({ error: 'Missing rejected_reason', ok: false }, { status: 400 })
+      }
+      signoffData = {
+        ...signoffData,
+        rejected_by: body.rejected_by,
+        rejected_at: new Date().toISOString(),
+        rejected_reason: body.rejected_reason
+      }
     } else if (action === 'owner-sign') {
       if (!owner_signed_by) {
         return NextResponse.json({ error: 'Missing owner_signed_by', ok: false }, { status: 400 })
@@ -119,6 +129,113 @@ export async function POST(
       .single()
 
     if (error) throw error
+
+    // 🔴 P1: FINANCE AUTO-SYNC — Create Payment Voucher automatically
+    if (action === 'approve') {
+      try {
+        // Get construction progress details for payment voucher
+        const { data: constructionData, error: constructionErr } = await sb
+          .from('construction_unit_progress')
+          .select('*')
+          .eq('house_id', house_id)
+          .single()
+
+        if (!constructionErr && constructionData) {
+          // Get contractor contract details
+          const { data: house, error: houseErr } = await sb
+            .from('houses')
+            .select('project_id, contractor_id')
+            .eq('id', house_id)
+            .single()
+
+          if (!houseErr && house) {
+            const { data: contract, error: contractErr } = await sb
+              .from('contractor_contracts')
+              .select('*')
+              .eq('contractor_id', house.contractor_id)
+              .eq('project_id', house.project_id)
+              .single()
+
+            if (!contractErr && contract) {
+              // Calculate expected completion date
+              const today = new Date()
+              const expectedCompletionDate = new Date(
+                today.getTime() + contract.contractual_days_per_stage * 24 * 60 * 60 * 1000
+              )
+
+              // Call payment voucher creation API using user's own auth token
+              const userAuthToken = req.headers.get('Authorization') || '';
+              const paymentResponse = await fetch(
+                `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/finance/payment-voucher/create`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': userAuthToken
+                  },
+                  body: JSON.stringify({
+                    projectId: house.project_id,
+                    houseId: house_id,
+                    constructionProgressId: constructionData.id,
+                    contractorId: house.contractor_id,
+                    stageName: constructionData.current_stage,
+                    contractPaymentPerMilestone: contract.payment_per_milestone,
+                    contractDueDate: expectedCompletionDate.toISOString(),
+                    approvedDate: new Date().toISOString(),
+                    dailyPenaltyRate: contract.daily_penalty_rate,
+                    retentionRate: contract.retention_rate,
+                    createdBy: body.approved_by
+                  })
+                }
+              )
+
+              if (paymentResponse.ok) {
+                const voucherResult = await paymentResponse.json()
+                console.log('✅ Payment Voucher created:', voucherResult.voucher?.id)
+              } else {
+                console.error('⚠️ Failed to create payment voucher:', await paymentResponse.text())
+              }
+            }
+          }
+        }
+      } catch (paymentError) {
+        console.error('⚠️ Payment voucher creation error (non-critical):', paymentError)
+        // Don't throw - let signoff complete even if voucher fails
+      }
+    }
+
+    // 🔴 P2: CONTRACTOR NOTIFICATION — Send alerts
+    if ((action === 'approve' || action === 'reject') && house_id) {
+      try {
+        const { data: house } = await sb.from('houses').select('contractor_id, house_number').eq('id', house_id).single()
+        const { data: progress } = await sb.from('construction_unit_progress').select('current_stage').eq('house_id', house_id).single()
+
+        if (house && progress) {
+          const eventType = action === 'approve' ? 'milestone_approved' : 'milestone_rejected'
+          const notifyData = {
+            recipientId: house.contractor_id,
+            eventType,
+            projectId: body.project_id,
+            houseId: house_id,
+            channel: 'line',
+            metadata: {
+              projectName: 'AVIVA Private',
+              houseNumber: house.house_number,
+              stageName: progress.current_stage,
+              ...(action === 'reject' && { reason: body.rejected_reason, engineerName: body.rejected_by })
+            }
+          }
+
+          await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notify/contractor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notifyData)
+          })
+        }
+      } catch (notifyError) {
+        console.error('⚠️ Notification send error (non-critical):', notifyError)
+      }
+    }
 
     return NextResponse.json({
       data,

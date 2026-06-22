@@ -467,27 +467,81 @@ function ApprovalsContent() {
         });
       }
     } else if (log.workflow_type === "Material_Purchase") {
+      const byName = user.full_name ?? user.email;
       if (log.source_record_id) {
         await supabase.from("purchase_orders")
           .update({ status: approved ? "approved" : "rejected" })
           .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
+      }
+      if (approved) {
+        await logWorkflowEvent({
+          workflowType: "Material_Purchase",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index,
+          eventType: "approved",
+          stageFrom: "pending",
+          stageTo: "approved",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "manager",
+          routedToRole: "finance",
+          routedToName: "ฝ่ายการเงิน",
+          amount: log.amount ?? null,
+        });
+        await createWorkQueue({
+          workflowType: "Material_Purchase",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index ?? "",
+          title: `จ่ายเงินจัดซื้อ: ${log.source_doc_index ?? ""}`,
+          amount: log.amount ?? null,
+          assignedRole: "finance",
+          slaDueAt: calcSlaDueAt("Material_Purchase"),
+        });
+        notifyPush("ฝ่ายการเงิน", "คำขอซื้อรอจ่ายเงิน", log.source_doc_index ?? "", "/approvals", `po-${log.source_record_id}`);
+      } else {
+        await logWorkflowEvent({
+          workflowType: "Material_Purchase",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index,
+          eventType: "rejected",
+          stageFrom: "pending",
+          stageTo: "rejected",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "manager",
+          conditionNote: note ?? undefined,
+          amount: log.amount ?? null,
+        });
+        notifyPush("ฝ่ายก่อสร้าง", "คำขอซื้อถูกปฏิเสธ", log.source_doc_index ?? "", "/construction", `po-${log.source_record_id}`);
       }
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติสั่งซื้อแล้ว" : "ปฏิเสธสั่งซื้อ",
         message: log.source_doc_index ?? "",
         from_dept: "ฝ่ายอนุมัติ",
-        to_dept: targetDept,
+        to_dept: approved ? "ฝ่ายการเงิน" : targetDept,
       });
     } else if (log.workflow_type === "Document_Approval") {
+      const byName = user.full_name ?? user.email;
       if (log.source_record_id) {
         await supabase.from("documents")
           .update({
             status: approved ? "approved" : "rejected",
-            approved_by: user.full_name ?? user.email,
+            approved_by: byName,
           })
           .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
+      await logWorkflowEvent({
+        workflowType: "Document_Approval",
+        sourceRecordId: log.source_record_id ?? "",
+        docIndex: log.source_doc_index,
+        eventType: approved ? "approved" : "rejected",
+        stageFrom: "pending",
+        stageTo: approved ? "approved" : "rejected",
+        actorName: byName,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: note ?? undefined,
+      });
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติเอกสารแล้ว" : "ปฏิเสธเอกสาร",
@@ -496,7 +550,13 @@ function ApprovalsContent() {
         to_dept: targetDept,
       });
     } else if (log.workflow_type === "Finance_Approval") {
-      if (approved && log.source_record_id) {
+      const byName = user.full_name ?? user.email;
+      if (log.source_record_id) {
+        await supabase.from("approvals")
+          .update({ status: approved ? "approved" : "rejected", approved_by: byName, approved_at: new Date().toISOString() })
+          .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "finance", byName);
+
         // If second-level approval (admin), also approve first-level logs
         if (user.isAdmin && log.amount && log.amount >= 500000) {
           await supabase.from("approval_logs")
@@ -505,13 +565,32 @@ function ApprovalsContent() {
             .eq("workflow_type", "Finance_Approval")
             .eq("action_taken", "Pending");
         }
-        await supabase.from("approvals")
-          .update({ status: "approved", approved_by: user.full_name ?? user.email, approved_at: new Date().toISOString() })
-          .eq("id", log.source_record_id);
-      } else if (!approved && log.source_record_id) {
-        await supabase.from("approvals")
-          .update({ status: "rejected", approved_by: user.full_name ?? user.email, approved_at: new Date().toISOString() })
-          .eq("id", log.source_record_id);
+      }
+      if (approved) {
+        await logWorkflowEvent({
+          workflowType: "Finance_Approval",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index,
+          eventType: "approved",
+          stageFrom: "in_review",
+          stageTo: "approved",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "finance",
+          amount: log.amount ?? null,
+        });
+      } else {
+        await logWorkflowEvent({
+          workflowType: "Finance_Approval",
+          sourceRecordId: log.source_record_id ?? "",
+          docIndex: log.source_doc_index,
+          eventType: "rejected",
+          stageFrom: "in_review",
+          stageTo: "rejected",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "finance",
+          conditionNote: note ?? undefined,
+          amount: log.amount ?? null,
+        });
       }
       await createNotification({
         type: approved ? "success" : "info",
@@ -521,11 +600,24 @@ function ApprovalsContent() {
         to_dept: targetDept,
       });
     } else if (log.workflow_type === "Leave_Request") {
+      const byName = user.full_name ?? user.email;
       if (log.source_record_id) {
         await supabase.from("leave_requests")
           .update({ status: approved ? "approved" : "rejected" })
           .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
       }
+      await logWorkflowEvent({
+        workflowType: "Leave_Request",
+        sourceRecordId: log.source_record_id ?? "",
+        docIndex: log.source_doc_index,
+        eventType: approved ? "approved" : "rejected",
+        stageFrom: "pending",
+        stageTo: approved ? "approved" : "rejected",
+        actorName: byName,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: note ?? undefined,
+      });
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติการลาแล้ว" : "ปฏิเสธการลา",
@@ -534,6 +626,7 @@ function ApprovalsContent() {
         to_dept: targetDept,
       });
     } else if (log.workflow_type === "Booking_Deposit") {
+      const byName = user.full_name ?? user.email;
       // ปฏิเสธเงินจอง → คืนสถานะลูกค้าเป็น New Lead + ปล่อยแปลงกลับเป็นว่าง
       if (!approved && log.source_record_id) {
         const { data: lead } = await supabase.from("leads").select("plot_number").eq("id", log.source_record_id).maybeSingle();
@@ -541,6 +634,21 @@ function ApprovalsContent() {
         const plot = (lead as { plot_number?: number } | null)?.plot_number;
         if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
       }
+      if (log.source_record_id) {
+        await closeWorkQueue(log.source_record_id, "manager", byName);
+      }
+      await logWorkflowEvent({
+        workflowType: "Booking_Deposit",
+        sourceRecordId: log.source_record_id ?? "",
+        docIndex: log.source_doc_index,
+        eventType: approved ? "approved" : "rejected",
+        stageFrom: "pending",
+        stageTo: approved ? "approved" : "rejected",
+        actorName: byName,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: note ?? undefined,
+        amount: log.amount ?? null,
+      });
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติเงินจองแล้ว" : "ปฏิเสธเงินจอง — คืนสถานะลูกค้า",
@@ -549,14 +657,38 @@ function ApprovalsContent() {
         to_dept: "ฝ่ายขาย",
       });
     } else if (log.workflow_type === "Contract_Approval") {
+      const byName = user.full_name ?? user.email;
       if (approved && log.source_record_id) {
         // Group C: อนุมัติแล้วจึง "ปิดการขายจริง" — รับรู้รายได้ + บ้าน sold + lead=Closed Deal
-        const fin = await finalizeSale(log.source_record_id, user.full_name ?? user.email, user.id);
-        await closeWorkQueue(log.source_record_id, "sales_ai", user.full_name ?? user.email);
-        broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: user.full_name ?? user.email, byUserId: user.id });
+        const fin = await finalizeSale(log.source_record_id, byName, user.id);
+        await closeWorkQueue(log.source_record_id, "sales_ai", byName);
+        await logWorkflowEvent({
+          workflowType: "Contract_Approval",
+          sourceRecordId: log.source_record_id,
+          docIndex: log.source_doc_index,
+          eventType: "approved",
+          stageFrom: "pending",
+          stageTo: "approved",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "sales_ai",
+          amount: fin.amount ?? log.amount ?? null,
+        });
+        broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: byName, byUserId: user.id });
       } else if (!approved && log.source_record_id) {
         // ปฏิเสธปิดการขาย → คืนสถานะเป็น "อนุมัติสินเชื่อ" (ขั้นก่อนปิด) ไม่รับรู้รายได้
         await supabase.from("leads").update({ status: "Loan Approved" }).eq("id", log.source_record_id);
+        await logWorkflowEvent({
+          workflowType: "Contract_Approval",
+          sourceRecordId: log.source_record_id,
+          docIndex: log.source_doc_index,
+          eventType: "rejected",
+          stageFrom: "pending",
+          stageTo: "rejected",
+          actorName: byName,
+          actorRole: user.isAdmin ? "admin" : "sales_ai",
+          conditionNote: note ?? undefined,
+          amount: log.amount ?? null,
+        });
       }
       await createNotification({
         type: approved ? "success" : "info",
@@ -566,6 +698,25 @@ function ApprovalsContent() {
         to_dept: "ฝ่ายขาย",
       });
     } else if (log.workflow_type === "Marketing_Budget") {
+      const byName = user.full_name ?? user.email;
+      if (log.source_record_id) {
+        await supabase.from("marketing_budgets")
+          .update({ status: approved ? "approved" : "rejected" })
+          .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
+      }
+      await logWorkflowEvent({
+        workflowType: "Marketing_Budget",
+        sourceRecordId: log.source_record_id ?? "",
+        docIndex: log.source_doc_index,
+        eventType: approved ? "approved" : "rejected",
+        stageFrom: "pending",
+        stageTo: approved ? "approved" : "rejected",
+        actorName: byName,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: note ?? undefined,
+        amount: log.amount ?? null,
+      });
       await createNotification({
         type: approved ? "success" : "info",
         title: approved ? "อนุมัติงบการตลาดแล้ว" : "ปฏิเสธงบการตลาด",

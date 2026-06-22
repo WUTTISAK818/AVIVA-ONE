@@ -2,9 +2,9 @@
 -- Tables: documents, general_ledger, expenses
 
 -- ============================================================================
--- 1. Documents table (for receipt/invoice/bill metadata)
+-- 1. Receipt Documents table (for receipt/invoice/bill metadata - OCR System)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS public.documents (
+CREATE TABLE IF NOT EXISTS public.receipt_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   uploaded_by uuid NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
@@ -18,18 +18,18 @@ CREATE TABLE IF NOT EXISTS public.documents (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_documents_project ON public.documents(project_id);
-CREATE INDEX idx_documents_uploaded_by ON public.documents(uploaded_by);
-CREATE INDEX idx_documents_status ON public.documents(status);
-CREATE INDEX idx_documents_created_at ON public.documents(created_at DESC);
+CREATE INDEX idx_receipt_documents_project ON public.receipt_documents(project_id);
+CREATE INDEX idx_receipt_documents_uploaded_by ON public.receipt_documents(uploaded_by);
+CREATE INDEX idx_receipt_documents_status ON public.receipt_documents(status);
+CREATE INDEX idx_receipt_documents_created_at ON public.receipt_documents(created_at DESC);
 
--- RLS: Users can only see own documents
-ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own documents" ON public.documents
+-- RLS: Users can only see own receipt documents
+ALTER TABLE public.receipt_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own receipt documents" ON public.receipt_documents
   FOR SELECT USING (uploaded_by = auth.uid() OR auth.jwt()->>'role' = 'admin');
-CREATE POLICY "Users can insert own documents" ON public.documents
+CREATE POLICY "Users can insert own receipt documents" ON public.receipt_documents
   FOR INSERT WITH CHECK (uploaded_by = auth.uid() AND auth.jwt()->>'role' IN ('admin', 'ceo', 'coo', 'manager', 'director', 'accounting', 'finance'));
-CREATE POLICY "Users can update own documents" ON public.documents
+CREATE POLICY "Users can update own receipt documents" ON public.receipt_documents
   FOR UPDATE USING (uploaded_by = auth.uid() OR auth.jwt()->>'role' = 'admin');
 
 -- ============================================================================
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS public.general_ledger (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   document_type text, -- 'receipt', 'invoice', 'transfer', etc.
-  document_id uuid REFERENCES public.documents(id) ON DELETE SET NULL,
+  document_id uuid REFERENCES public.receipt_documents(id) ON DELETE SET NULL,
   account_code text NOT NULL, -- GL account code (e.g., '5201', '6100')
   description text NOT NULL,
   debit_amount numeric(12, 2) NOT NULL DEFAULT 0,
@@ -179,7 +179,7 @@ CREATE POLICY "Users can view GL accounts" ON public.gl_accounts
 -- Note: This assumes notifications table already exists
 -- If not, create it separately
 
-GRANT SELECT, INSERT, UPDATE ON public.documents TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.receipt_documents TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.general_ledger TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.expenses TO authenticated;
 GRANT SELECT ON public.gl_accounts TO authenticated;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAuth } from "@/lib/api-auth";
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   // Verify authentication before accessing tasks

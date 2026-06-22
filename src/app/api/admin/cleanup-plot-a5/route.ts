@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 

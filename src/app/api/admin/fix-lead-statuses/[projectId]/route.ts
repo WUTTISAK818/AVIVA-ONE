@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { validateLeadStatuses, autoFixLeadStatuses, generateReport } from "@/lib/lead-status-fix";
 import { isManagerRole } from "@/lib/roles";
+export const dynamic = 'force-dynamic';
 
 async function verifyAdminAccess(req: NextRequest): Promise<boolean> {
   const authHeader = req.headers.get("Authorization");

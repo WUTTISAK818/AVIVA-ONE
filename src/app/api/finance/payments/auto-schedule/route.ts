@@ -62,8 +62,13 @@ export async function POST(request: NextRequest) {
         status,
         approved_at,
         contractor:contractor_id(
+          id,
+          contractor_name,
           email,
-          phone_number
+          phone_number,
+          bank_account,
+          bank_name,
+          account_holder
         )
         `
       )
@@ -94,13 +99,22 @@ export async function POST(request: NextRequest) {
     const scheduledDate = new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000); // Schedule for tomorrow
 
     for (const voucher of vouchers) {
+      // Check if contractor has bank details
+      const contractor = voucher.contractor as any;
+      if (!contractor?.bank_account || !contractor?.bank_name) {
+        console.warn(
+          `Contractor ${contractor?.contractor_name} missing bank details, skipping`
+        );
+        continue;
+      }
+
       const instruction = {
         payment_voucher_id: voucher.id,
         project_id: voucher.project_id,
         amount: voucher.net_amount,
-        to_account: "pending", // TODO: Get from contractor bank account
-        to_bank: "pending", // TODO: Get from contractor bank details
-        description: `Payment for voucher ${voucher.id}`,
+        to_account: contractor.bank_account,
+        to_bank: contractor.bank_name,
+        description: `Payment for ${contractor.contractor_name} - Voucher ${voucher.id}`,
         scheduled_date: scheduledDate.toISOString().split("T")[0],
         status: "pending",
         created_by: user.user.id,

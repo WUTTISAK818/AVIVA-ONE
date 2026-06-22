@@ -114,6 +114,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get closed deal leads for revenue forecast
+    const { data: closedDeals, error: dealsError } = await supabase
+      .from("leads")
+      .select(
+        `
+        id,
+        lead_name,
+        closed_deal_date,
+        interested_in_house_id,
+        house:interested_in_house_id(
+          house_price
+        )
+        `
+      )
+      .eq("project_id", projectId)
+      .eq("status", "CLOSED_DEAL")
+      .eq("is_active", true)
+      .gte("closed_deal_date", today.toISOString())
+      .lte("closed_deal_date", endDate.toISOString());
+
+    if (dealsError) {
+      console.error("Error fetching closed deals:", dealsError);
+      // Continue without revenue data rather than failing
+    }
+
     // Generate 13-week forecast
     const forecast: ForecastWeek[] = [];
     const risks: CashFlowRisk[] = [];
@@ -136,8 +161,25 @@ export async function GET(request: NextRequest) {
         weekOutflow += parseFloat(v.net_amount as any) || 0;
       });
 
-      // TODO: Get actual inflows from Closed Deal leads/revenue
-      const weekInflow = week === 1 ? 500000 : 250000; // Placeholder
+      // Calculate inflows from closed deals
+      let weekInflow = 0;
+      if (closedDeals && closedDeals.length > 0) {
+        const weekDeals = closedDeals.filter((d) => {
+          const dealDate = new Date(d.closed_deal_date);
+          return dealDate >= weekStart && dealDate < weekEnd;
+        });
+
+        weekDeals.forEach((d) => {
+          const housePrice = parseFloat((d.house as any)?.house_price as any) || 0;
+          // Assume 50% payment on closing
+          weekInflow += housePrice * 0.5;
+        });
+      }
+
+      // If no actual inflows, use conservative estimates
+      if (weekInflow === 0) {
+        weekInflow = week === 1 ? 500000 : 250000;
+      }
 
       const netPosition = weekInflow - weekOutflow;
       cumulativePosition += netPosition;

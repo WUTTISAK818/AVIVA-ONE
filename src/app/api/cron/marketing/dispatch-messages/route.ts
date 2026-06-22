@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getSMSProvider, getEmailProvider, getLINEProvider } from "@/lib/messaging-providers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
 
-// Mock send functions - replace with real implementations
+// Initialize providers
+const smsProvider = getSMSProvider();
+const emailProvider = getEmailProvider();
+const lineProvider = getLINEProvider();
+
 async function sendSMS(phone: string, message: string): Promise<boolean> {
   try {
-    console.log(`[SMS] Sending to ${phone}: ${message.substring(0, 50)}...`);
-    // TODO: Integrate with SMS provider (Twilio, etc.)
-    return true;
+    const result = await smsProvider.send(phone, message);
+    if (result.success) {
+      console.log(`[SMS] ✓ Sent to ${phone} (ID: ${result.messageId})`);
+    } else {
+      console.warn(`[SMS] ✗ Failed to ${phone}: ${result.error}`);
+    }
+    return result.success;
   } catch (error) {
     console.error("SMS send error:", error);
     return false;
@@ -19,9 +28,13 @@ async function sendSMS(phone: string, message: string): Promise<boolean> {
 
 async function sendEmail(email: string, subject: string, body: string): Promise<boolean> {
   try {
-    console.log(`[EMAIL] Sending to ${email}: ${subject}`);
-    // TODO: Integrate with email provider (SendGrid, etc.)
-    return true;
+    const result = await emailProvider.send(email, subject, body);
+    if (result.success) {
+      console.log(`[EMAIL] ✓ Sent to ${email} (ID: ${result.messageId})`);
+    } else {
+      console.warn(`[EMAIL] ✗ Failed to ${email}: ${result.error}`);
+    }
+    return result.success;
   } catch (error) {
     console.error("Email send error:", error);
     return false;
@@ -30,9 +43,13 @@ async function sendEmail(email: string, subject: string, body: string): Promise<
 
 async function sendLINE(userId: string, message: string): Promise<boolean> {
   try {
-    console.log(`[LINE] Sending to ${userId}: ${message.substring(0, 50)}...`);
-    // TODO: Integrate with LINE API
-    return true;
+    const result = await lineProvider.send(userId, message);
+    if (result.success) {
+      console.log(`[LINE] ✓ Sent to ${userId} (ID: ${result.messageId})`);
+    } else {
+      console.warn(`[LINE] ✗ Failed to ${userId}: ${result.error}`);
+    }
+    return result.success;
   } catch (error) {
     console.error("LINE send error:", error);
     return false;

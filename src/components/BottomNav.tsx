@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList, Inbox, FileText } from "lucide-react";
+import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList, Inbox, FileText, Clock, DollarSign, Camera } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -44,11 +44,16 @@ export default function BottomNav() {
   // ผู้บริหาร/ผจก.โครงการ: เอกสาร+รายงาน ย้ายไปอยู่ในออฟฟิศแล้ว จึงซ่อนจากแถบล่างเพื่อลดความแออัด
   const isExec = !!user && (user.isManager || user.isAdmin);
 
+  const isHRUser = user && (user.isAdmin || user.isManager || user.department === "ฝ่ายบุคคล");
+
   const tabs = [
     { href: "/dashboard",    label: "หน้าหลัก",    icon: LayoutGrid,   show: true,  badge: 0 },
     { href: "/crm",          label: "ขาย",          icon: Users,        show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
     { href: "/documents/generate", label: "เอกสารขาย",  icon: FileText,     show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
     { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
+    { href: "/attendance",   label: "ลงเวลา",       icon: Clock,        show: isHRUser, badge: 0 },
+    { href: "/payroll",      label: "เงินเดือน",    icon: DollarSign,   show: isHRUser, badge: 0 },
+    { href: "/cctv",         label: "กล้องวงจรปิด",  icon: Camera,       show: isHRUser, badge: 0 },
     { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
     { href: "/reports",      label: "รายงาน",       icon: ClipboardList, show: !isExec, badge: 0 },

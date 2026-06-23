@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronLeft, BookOpen, Home, TrendingUp, HardHat, Briefcase, Wrench, ChevronDown, ChevronRight, DollarSign, Megaphone, ClipboardList, GitMerge, Scale, Calculator, Receipt, ShieldCheck, CalendarCheck } from "lucide-react";
+import { ChevronLeft, BookOpen, Home, TrendingUp, HardHat, Briefcase, Wrench, ChevronDown, ChevronRight, DollarSign, Megaphone, ClipboardList, GitMerge, Scale, Calculator, Receipt, ShieldCheck, CalendarCheck, Clock, Camera } from "lucide-react";
 import Link from "next/link";
 import GlassCard from "@/components/GlassCard";
 
@@ -710,6 +710,51 @@ const sections: Section[] = [
         "จ่ายผู้รับเหมาตามงวด → หัก WHT 3% + เงินประกันผลงาน 5% อัตโนมัติ (ปรับอัตราได้) ต้นทุนเข้า 'งานระหว่างก่อสร้าง'",
         "ปิดการขาย/โอนกรรมสิทธิ์ → ลง JV รับรู้รายได้ (Cr 4100) + ตัดต้นทุนขาย (Dr 5210/Cr 1180) อัตโนมัติ",
         "ยังต้องทำมือ: ภาษีขายตอนโอน (ปันส่วนที่ดิน-สิ่งปลูกสร้าง), ลูกหนี้ AR ผ่อนดาวน์, กระทบยอดธนาคาร",
+      ]},
+    ],
+  },
+  {
+    id: "devices",
+    title: "ลงเวลา & อุปกรณ์ (v6.57)",
+    icon: Clock,
+    color: "text-blue-400",
+    bg: "bg-blue-400/10 border-blue-400/20",
+    topics: [
+      { title: "ลงเวลาด้วยสแกนลายนิ้วมือ (Hikvision)", steps: [
+        "ติดตั้ง: เครื่องสแกนลายนิ้ว Hikvision DS-K1T320MFWX-B ที่ประตูสำนักงาน",
+        "ขั้นตอน: สแกนลายนิ้วมือ → บันทึกเวลาอัตโนมัติ → คำนวณเงินเดือน",
+        "ระบบตรวจจับการมาสาย: หลังจาก 09:00 น. อัตโนมัติหักค่าบำรุง",
+        "ติดตามผ่าน: ไปหน้า /attendance เพื่อดูสถิติรายวัน/รายเดือน",
+      ]},
+      { title: "กล้องวงจรปิดสแกนใบหน้า (Tapo - เร็ว ๆ นี้)", steps: [
+        "คุณสมบัติ: ติดตามพนักงาน + ตรวจจับลูกค้าใหม่ด้วย AI",
+        "ใช้สำหรับ: เชื่อมโยงลงเวลา + รายงานผู้บริหาร + สำหรับฝ่ายขาย",
+        "ฝ่ายขาย: ดูจำนวนลูกค้ามา / ระยะเวลาเยี่ยมชมบ้าน / ความสมดุลกับพนักงาน",
+        "ฝ่ายบุคคล: ตรวจสอบการมา-กลับ / ระดับความสม่ำเสมอ",
+      ]},
+      { title: "การตั้งค่าอุปกรณ์ (Admin)", steps: [
+        "ไปที่ Settings → Devices (ใหม่) — ดูสถานะอุปกรณ์ทั้งหมด",
+        "เชื่อมโยง Employee ID ↔ Hikvision Person ID: กรอกชื่อพนักงาน + เลขบุคคลบนเครื่อง → บันทึก",
+        "ดูความคืบหน้า: แสดง % พนักงานที่เชื่อมโยงแล้ว (เช่น 40/45 = 89%)",
+        "ทดสอบการซิงค์ (Sync): กดปุ่ม 'Manual Sync' → ดึงข้อมูลวันนี้จากเครื่อง → บันทึกลงฐานข้อมูล",
+      ]},
+      { title: "รายงานประจำวัน (Admin & HR)", steps: [
+        "ไปที่ /attendance — ดูพนักงาน check-in/out เวลา, ระยะเวลาทำงาน, สถานะ",
+        "ไปที่ /payroll — คำนวณเงินเดือนตามลงเวลา อัตโนมัติหักค่าบำรุงสาย",
+        "ไปที่ /cctv — ดูภาพรวมจากกล้องวงจรปิด เหตุการณ์, พนักงานที่พบ, ลูกค้า",
+        "ตัวกรอง: เลือกวันที่อื่น / เลือก employee / เลือกกล้อง (เมื่อมีหลายตัว)",
+      ]},
+      { title: "ความหมายสัญญาณเตือน (Status)", steps: [
+        "เขียว (Green): ออนไลน์ / ขอแล้วเมื่อเร็ว ๆ นี้ / ข้อมูลอัปเดต",
+        "เหลือง (Yellow): ออฟไลน์ชั่วคราว / ยังไม่เชื่อมโยงพนักงาน",
+        "แดง (Red): ปกติออฟไลน์ / ไม่มีการซิงค์ / ต้องเช็ค WiFi / ต้องติดต่อทีมITช่วย",
+        "ดูเวลา 'Last Sync' — ถ้าเก่าเกิน 1 ชั่วโมง อาจมีปัญหาเครือข่าย",
+      ]},
+      { title: "วิธี troubleshoot", steps: [
+        "เครื่องออฟไลน์: ตรวจสอบ WiFi บนเครื่อง / รีสตาร์ทเครื่อง / ตรวจสอบ IP ที่ /settings/devices",
+        "ไม่บันทึกลงเวลา: ตรวจเช็ก Employee Mapping (ทำลายพนักงานแล้วไหม) / ทดสอบ Manual Sync",
+        "ข้อมูลพลาด: ดูที่ Sync Logs → ตรวจเช็ก Error messages → ทำซ้ำการซิงค์",
+        "ติดต่อ Support: ถ้าไม่สามารถแก้ได้ ส่ง Sync Logs + Screenshot ไป joyus818@gmail.com",
       ]},
     ],
   },

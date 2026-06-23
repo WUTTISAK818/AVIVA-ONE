@@ -1,179 +1,158 @@
 "use client";
-import { ChevronLeft, Building2, ChevronDown, Shield, Star, Users, HardHat, Briefcase, TrendingUp, Wrench, Megaphone, Crown } from "lucide-react";
+import { ChevronLeft, Building2, TrendingUp, HardHat, BookOpen, DollarSign, Megaphone, Users, FileText, CheckCircle, Crown } from "lucide-react";
 import Link from "next/link";
 import GlassCard from "@/components/GlassCard";
 
-interface OrgNode {
-  title: string;
-  role: string;
-  level: number;
+interface DeptCard {
   icon: typeof Building2;
+  title: string;
   color: string;
   bg: string;
-  approvals?: string[];
-  children?: OrgNode[];
+  description: string;
+  responsibilities: string[];
 }
 
-const orgData: OrgNode = {
-  title: "ผู้บริหารสูงสุด — CEO / COO",
-  role: "CEO / COO · สิทธิ์สูงสุด (เหนือ Admin)",
-  level: 1,
-  icon: Crown,
-  color: "text-aviva-gold",
-  bg: "bg-aviva-gold/15 border-aviva-gold/40",
-  approvals: [
-    "เข้าถึงข้อมูลได้ทุกส่วน และทำได้ทุกอย่างทุกฝ่าย",
-    "อนุมัติได้ทุกประเภทและทุกวงเงิน (เหนือทุกระดับ)",
-    "กำหนดนโยบายและตัดสินใจเชิงกลยุทธ์สูงสุด",
-  ],
-  children: [
-    {
-      title: "ผู้อำนวยการ / เจ้าของโครงการ",
-      role: "Director / Admin",
-      level: 2,
-      icon: Shield,
-      color: "text-aviva-gold",
-      bg: "bg-aviva-gold/10 border-aviva-gold/30",
-      approvals: [
-        "อนุมัติงบโครงการทุกประเภท",
-        "อนุมัติสัญญา (CONTRACT)",
-        "อนุมัติรายจ่ายเกิน 500,000 บาท",
-        "ตัดสินใจเชิงกลยุทธ์",
-      ],
-      children: [
-    {
-      title: "ผู้จัดการโครงการ",
-      role: "Manager",
-      level: 2,
-      icon: Star,
-      color: "text-purple-400",
-      bg: "bg-purple-400/10 border-purple-400/20",
-      approvals: [
-        "อนุมัติรายจ่ายสูงสุด 500,000 บาท",
-        "อนุมัติงวดงานก่อสร้าง (INST)",
-        "อนุมัติใบสั่งซื้อ (PO)",
-        "อนุมัติการลา (LEAVE)",
-        "อนุมัติงบการตลาด (MKTG)",
-        "จัดการผู้ใช้งานในระบบ",
-      ],
-      children: [
-        {
-          title: "หัวหน้าฝ่ายขาย",
-          role: "Sales Lead",
-          level: 3,
-          icon: TrendingUp,
-          color: "text-green-400",
-          bg: "bg-green-400/10 border-green-400/20",
-          approvals: [
-            "ออกใบเสนอราคา / ใบจอง (BOOK)",
-            "บันทึก Leads และ CRM",
-            "มอบหมายแปลงให้ลูกค้า",
-            "ส่งสัญญาให้ผู้จัดการอนุมัติ",
-          ],
-        },
-        {
-          title: "หัวหน้าฝ่ายก่อสร้าง",
-          role: "Construction Lead",
-          level: 3,
-          icon: HardHat,
-          color: "text-orange-400",
-          bg: "bg-orange-400/10 border-orange-400/20",
-          approvals: [
-            "ส่งตรวจงวดงาน (INST)",
-            "ยื่น PO จัดซื้อวัสดุ",
-            "รายงานความคืบหน้าก่อสร้าง",
-            "บันทึก Defect / ปัญหาหน้างาน",
-          ],
-        },
-        {
-          title: "หัวหน้าฝ่ายออฟฟิศ / HR",
-          role: "Office / HR Lead",
-          level: 3,
-          icon: Briefcase,
-          color: "text-blue-400",
-          bg: "bg-blue-400/10 border-blue-400/20",
-          approvals: [
-            "จัดการเอกสาร (DOC)",
-            "บริหารงานบุคคลและเงินเดือน",
-            "ขออนุมัติรายจ่ายการเงิน (FIN)",
-            "ออก Payslip พนักงาน",
-          ],
-        },
-        {
-          title: "ฝ่ายหลังการขาย (รับผิดชอบร่วม)",
-          role: "After-Sales — ขาย + ก่อสร้าง",
-          level: 3,
-          icon: Wrench,
-          color: "text-red-400",
-          bg: "bg-red-400/10 border-red-400/20",
-          approvals: [
-            "รับแจ้งซ่อม / ประกัน (WR) — ฝ่ายขาย",
-            "มอบหมายช่างซ่อม — ฝ่ายก่อสร้าง",
-            "ติดตามสถานะเคสและแก้ไข — ฝ่ายก่อสร้าง",
-            "ประสานงานลูกค้าและนัดหมาย — ฝ่ายขาย",
-            "บันทึกคะแนนความพึงพอใจ — ฝ่ายขาย",
-            "ตรวจรับงานซ่อมเสร็จ — ฝ่ายก่อสร้าง",
-          ],
-        },
-        {
-          title: "ฝ่ายการตลาด",
-          role: "Marketing",
-          level: 3,
-          icon: Megaphone,
-          color: "text-pink-400",
-          bg: "bg-pink-400/10 border-pink-400/20",
-          approvals: [
-            "ยื่น MKTG ขออนุมัติงบ",
-            "จัดกิจกรรมและ Event",
-            "ดูแลสื่อออนไลน์และโฆษณา",
-          ],
-        },
-      ],
-    },
-  ],
-    },
-  ],
-};
+const departments: DeptCard[] = [
+  {
+    icon: Crown,
+    title: "ผู้บริหารสูงสุด",
+    color: "text-aviva-gold",
+    bg: "bg-aviva-gold/15 border-aviva-gold/40",
+    description: "CEO / COO · สิทธิ์สูงสุด (เหนือทุกระดับ)",
+    responsibilities: [
+      "เข้าถึงข้อมูลได้ทุกส่วน ทำได้ทุกอย่างทุกฝ่าย",
+      "อนุมัติทุกประเภทและทุกวงเงิน",
+      "กำหนดนโยบายและตัดสินใจเชิงกลยุทธ์",
+    ],
+  },
+  {
+    icon: TrendingUp,
+    title: "ฝ่ายขาย",
+    color: "text-green-400",
+    bg: "bg-green-400/10 border-green-400/20",
+    description: "Sales · Leads · CRM",
+    responsibilities: [
+      "ออกใบเสนอราคา (BOOK) และติดตามลูกค้า",
+      "บันทึก Leads และจัดการ CRM",
+      "ออก Contract และมอบหมายแปลง",
+      "บริหารการขายและความสัมพันธ์ลูกค้า",
+    ],
+  },
+  {
+    icon: HardHat,
+    title: "ฝ่ายก่อสร้าง",
+    color: "text-orange-400",
+    bg: "bg-orange-400/10 border-orange-400/20",
+    description: "Construction · Projects · Quality",
+    responsibilities: [
+      "ดำเนินการก่อสร้างและตรวจสอบคุณภาพ",
+      "ส่งตรวจงวดงาน (INST) และขออนุมัติ",
+      "บันทึก Defect และแนวทางแก้ไข",
+      "ยื่น PO สำหรับวัสดุและเครื่องมือ",
+    ],
+  },
+  {
+    icon: BookOpen,
+    title: "ฝ่ายบัญชี",
+    color: "text-blue-400",
+    bg: "bg-blue-400/10 border-blue-400/20",
+    description: "Accounting · Documents · Records",
+    responsibilities: [
+      "บันทึกใบสั่งซื้อ (PO) ใบเสร็จ ใบแจ้งหนี้",
+      "จัดหมวดหมู่และเก็บรักษาเอกสาร",
+      "สมุดบัญชีรายวันและประมาณการ",
+      "ตรวจสอบเอกสารประกอบการทำงาน",
+    ],
+  },
+  {
+    icon: DollarSign,
+    title: "ฝ่ายการเงิน",
+    color: "text-yellow-500",
+    bg: "bg-yellow-500/10 border-yellow-500/20",
+    description: "Finance · Payroll · Cash Flow",
+    responsibilities: [
+      "วิเคราะห์กระแสเงินสดและงบประมาณ",
+      "จัดการเงินเดือนพนักงานและตัดเงิน",
+      "ยืนยันการชำระเงินและเบิกจ่าย",
+      "รายงานสถานะการเงินและแนวโน้ม",
+    ],
+  },
+  {
+    icon: Megaphone,
+    title: "ฝ่ายการตลาด",
+    color: "text-pink-400",
+    bg: "bg-pink-400/10 border-pink-400/20",
+    description: "Marketing · Campaigns · Events",
+    responsibilities: [
+      "วางแผนและดำเนินการ Campaign",
+      "จัดกิจกรรมและ Event ประชาสัมพันธ์",
+      "ดูแลสื่อออนไลน์ โซเชียลและโฆษณา",
+      "รายงานผลการตลาดและ KPI",
+    ],
+  },
+  {
+    icon: Users,
+    title: "ฝ่าย HR / บุคคล",
+    color: "text-cyan-400",
+    bg: "bg-cyan-400/10 border-cyan-400/20",
+    description: "HR · Attendance · Staffing",
+    responsibilities: [
+      "บริหารงานบุคคลและสัญญาจ้าง",
+      "ลงเวลาเข้า-ออก และติดตามเงินเดือน",
+      "อนุมัติการลา (LEAVE) และเอกสารพนักงาน",
+      "พัฒนาบุคลากรและการฝึกอบรม",
+    ],
+  },
+  {
+    icon: FileText,
+    title: "สำนักเลขานุการ/ออฟฟิศ",
+    color: "text-purple-400",
+    bg: "bg-purple-400/10 border-purple-400/20",
+    description: "Office · Documents · Administration",
+    responsibilities: [
+      "จัดการเอกสาร (DOC) ทั่วไปและประเมิน",
+      "ติดตามใบสั่ง ใบขออนุมัติ และรายงาน",
+      "บริหารการประชุมและการประสานงาน",
+      "ตรวจสอบและเก็บเอกสารสำคัญ",
+    ],
+  },
+  {
+    icon: CheckCircle,
+    title: "อนุมัติ",
+    color: "text-emerald-400",
+    bg: "bg-emerald-400/10 border-emerald-400/20",
+    description: "Approvals · Workflows · Authority",
+    responsibilities: [
+      "ติดตามเอกสารรอการอนุมัติ (PO, LEAVE, etc)",
+      "ประมวลผลการอนุมัติตามลำดับชั้นอำนาจ",
+      "แจ้งเตือนผู้อนุมัติและเก็บบันทึก",
+      "รายงานสถานะการไหลของการอนุมัติ",
+    ],
+  },
+];
 
-function OrgCard({ node }: { node: OrgNode }) {
-  const Icon = node.icon;
+function DepartmentCard({ dept }: { dept: DeptCard }) {
+  const Icon = dept.icon;
   return (
-    <div className="space-y-2">
-      <GlassCard className={`p-4 border ${node.bg}`}>
-        <div className="flex items-start gap-3">
-          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${node.bg}`}>
-            <Icon size={16} className={node.color} />
-          </div>
-          <div className="flex-1">
-            <p className={`text-sm font-bold ${node.color}`}>{node.title}</p>
-            <p className="text-xs text-aviva-secondary">{node.role}</p>
-            {node.approvals && (
-              <ul className="mt-2 space-y-0.5">
-                {node.approvals.map((a, i) => (
-                  <li key={i} className="text-[10px] text-aviva-secondary flex items-start gap-1">
-                    <span className={`mt-0.5 flex-shrink-0 ${node.color}`}>•</span>
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+    <GlassCard className={`p-4 border ${dept.bg}`}>
+      <div className="flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${dept.bg}`}>
+          <Icon size={16} className={dept.color} />
         </div>
-      </GlassCard>
-
-      {node.children && node.children.length > 0 && (
-        <div className="pl-6 space-y-2">
-          <div className="flex items-center gap-1 py-1">
-            <div className="w-px h-4 bg-aviva-gold/20 ml-2" />
-            <ChevronDown size={12} className="text-aviva-gold/40" />
-            <span className="text-[10px] text-aviva-secondary/50">รายงานต่อ</span>
-          </div>
-          {node.children.map((child, i) => (
-            <OrgCard key={i} node={child} />
-          ))}
+        <div className="flex-1">
+          <p className={`text-sm font-bold ${dept.color}`}>{dept.title}</p>
+          <p className="text-xs text-aviva-secondary">{dept.description}</p>
+          <ul className="mt-2 space-y-0.5">
+            {dept.responsibilities.map((r, i) => (
+              <li key={i} className="text-[10px] text-aviva-secondary flex items-start gap-1">
+                <span className={`mt-0.5 flex-shrink-0 ${dept.color}`}>→</span>
+                {r}
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
-    </div>
+      </div>
+    </GlassCard>
   );
 }
 
@@ -209,10 +188,14 @@ export default function OrgChartPage() {
           <p className="text-xs text-aviva-secondary mt-0.5">หมู่บ้านจัดสรร · 31 ยูนิต</p>
         </GlassCard>
 
-        {/* Org hierarchy */}
+        {/* Departments Grid */}
         <div>
-          <p className="text-xs font-semibold text-aviva-secondary/70 uppercase tracking-wider mb-3">สายการบังคับบัญชา</p>
-          <OrgCard node={orgData} />
+          <p className="text-xs font-semibold text-aviva-secondary/70 uppercase tracking-wider mb-3">แผนกและหน้าที่ปฏิบัติการ</p>
+          <div className="grid grid-cols-1 gap-3">
+            {departments.map((dept, i) => (
+              <DepartmentCard key={i} dept={dept} />
+            ))}
+          </div>
         </div>
 
         {/* Approval matrix */}

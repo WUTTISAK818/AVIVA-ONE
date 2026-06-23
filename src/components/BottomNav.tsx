@@ -58,7 +58,6 @@ export default function BottomNav() {
     { href: "/crm",          label: "ขาย",          icon: Users,        show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
     { href: "/documents/generate", label: "เอกสารขาย",  icon: FileText,     show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
     { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
-    { href: "/hr",           label: "บุคคล",        icon: Users,        show: isHRUser, badge: 0 },
     { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
     { href: "/reports",      label: "รายงาน",       icon: ClipboardList, show: !isExec, badge: 0 },

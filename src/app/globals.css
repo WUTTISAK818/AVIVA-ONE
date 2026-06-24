@@ -54,6 +54,17 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 1px 4px rgba(0,0,0,0.09), 0 0 0 1px rgba(0,0,0,0.06);
 }
 
+/* Focus indicators for keyboard navigation (WCAG 2.1 Level A) */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #D4AF37;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* Light mode — inputs get a visible border */
 .theme-light input:not([class*="bg-aviva-gold"]),
 .theme-light textarea,
@@ -63,6 +74,13 @@ h1, h2, h3, h4, h5, h6 {
 .theme-light input:focus:not([class*="bg-aviva-gold"]),
 .theme-light textarea:focus {
   border-color: #6B5512 !important;
+}
+.theme-light button:focus-visible,
+.theme-light a:focus-visible,
+.theme-light input:focus-visible,
+.theme-light textarea:focus-visible,
+.theme-light select:focus-visible {
+  outline-color: #6B5512;
 }
 
 /* Light mode — sticky headers get a real shadow instead of faint border */

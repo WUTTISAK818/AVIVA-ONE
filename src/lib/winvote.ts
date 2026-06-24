@@ -92,75 +92,88 @@ export interface WinVoteResident {
 }
 
 // ===== Queries =====
+// แจ้ง error ออก console แทนการกลืนเงียบ (ช่วยดีบักเมื่อ DB ล่ม / RLS บล็อก)
+function logErr(where: string, error: unknown) {
+  if (error) console.error(`[winvote] ${where}:`, (error as { message?: string })?.message ?? error);
+}
+
 export async function getMunicipalitySummary() {
   if (DEMO_MODE) return demo.getMunicipalitySummary();
-  const { data } = await supabase.schema("winvote").from("municipality_summary").select("*").maybeSingle();
+  const { data, error } = await supabase.schema("winvote").from("municipality_summary").select("*").maybeSingle();
+  logErr("getMunicipalitySummary", error);
   return data as WinVoteMunicipalitySummary | null;
 }
 
 export async function getDistrictKpi() {
   if (DEMO_MODE) return demo.getDistrictKpi();
-  const { data } = await supabase.schema("winvote").from("district_kpi").select("*").order("code");
+  const { data, error } = await supabase.schema("winvote").from("district_kpi").select("*").order("code");
+  logErr("getDistrictKpi", error);
   return (data ?? []) as WinVoteDistrictKpi[];
 }
 
 export async function getCommunityRollup(districtId: string) {
   if (DEMO_MODE) return demo.getCommunityRollup(districtId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .schema("winvote").from("community_rollup")
     .select("*")
     .eq("district_id", districtId)
     .order("community_name");
+  logErr("getCommunityRollup", error);
   return (data ?? []) as WinVoteCommunityRollup[];
 }
 
 export async function getMemberLoad(communityId: string) {
   if (DEMO_MODE) return demo.getMemberLoad(communityId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .schema("winvote").from("member_load")
     .select("*")
     .eq("community_id", communityId);
+  logErr("getMemberLoad", error);
   return (data ?? []) as WinVoteMemberLoad[];
 }
 
 export async function getCommunities(districtId: string) {
   if (DEMO_MODE) return demo.getCommunities(districtId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .schema("winvote").from("communities")
     .select("*")
     .eq("district_id", districtId)
     .order("name");
+  logErr("getCommunities", error);
   return (data ?? []) as WinVoteCommunity[];
 }
 
 export async function getMembers(communityId: string) {
   if (DEMO_MODE) return demo.getMembers(communityId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .schema("winvote").from("members")
     .select("*")
     .eq("community_id", communityId)
     .order("member_role")
     .order("full_name");
+  logErr("getMembers", error);
   return (data ?? []) as WinVoteMember[];
 }
 
 export async function getPollingUnits(districtId: string) {
   if (DEMO_MODE) return demo.getPollingUnits(districtId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .schema("winvote").from("polling_units")
     .select("*")
     .eq("district_id", districtId)
     .order("unit_no");
+  logErr("getPollingUnits", error);
   return (data ?? []) as WinVotePollingUnit[];
 }
 
 export async function getResidents(memberId: string) {
   if (DEMO_MODE) return demo.getResidents(memberId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .schema("winvote").from("residents")
     .select("*")
     .eq("member_id", memberId)
     .order("full_name");
+  logErr("getResidents", error);
   return (data ?? []) as WinVoteResident[];
 }
 
@@ -218,7 +231,8 @@ const DEMO_AT_RISK: WinVoteUnitStrategy[] = ([
 /** สรุปกลยุทธ์รายเขต (185 หน่วย) — เบอร์ 2 = ฝั่งเรา, เบอร์ 1 = คู่แข่งหลัก */
 export async function getDistrictStrategy() {
   if (DEMO_MODE) return DEMO_DISTRICT_STRATEGY;
-  const { data } = await supabase.schema("winvote").from("district_strategy").select("*").order("district_code");
+  const { data, error } = await supabase.schema("winvote").from("district_strategy").select("*").order("district_code");
+  logErr("getDistrictStrategy", error);
   return (data ?? []).map((r): WinVoteDistrictStrategy => ({
     district_code: num(r.district_code),
     district_name: r.district_name,
@@ -242,7 +256,8 @@ export async function getUnitStrategy(opts?: { atRiskOnly?: boolean }) {
   if (DEMO_MODE) return DEMO_AT_RISK;
   let q = supabase.schema("winvote").from("unit_strategy").select("*");
   if (opts?.atRiskOnly) q = q.eq("status", "at_risk");
-  const { data } = await q.order("margin", { ascending: true });
+  const { data, error } = await q.order("margin", { ascending: true });
+  logErr("getUnitStrategy", error);
   return (data ?? []).map((r): WinVoteUnitStrategy => ({
     district_code: num(r.district_code),
     unit_no: r.unit_no,

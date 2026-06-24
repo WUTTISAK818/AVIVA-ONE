@@ -121,7 +121,8 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {/* Demo Accounts */}
+      {/* Demo Accounts — แสดงเฉพาะโหมดเดโม (กันรหัสผ่าน Demo1234 โชว์บน production) */}
+      {DEMO_MODE && (
       <div className="mt-6 w-full max-w-sm">
         <button
           onClick={() => setShowDemo((p) => !p)}
@@ -158,6 +159,7 @@ export default function LoginPage() {
           </div>
         )}
       </div>
+      )}
 
       <div className="mt-6 w-full max-w-sm text-center">
         <p className="text-[10px] text-aviva-secondary/30">

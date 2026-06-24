@@ -2068,7 +2068,7 @@ function HRContent() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [filterDept, setFilterDept] = useState("ทั้งหมด");
   const [kpiModalHR, setKpiModalHR] = useState<"employees" | "probation" | "salary" | null>(null);
-  const [hrTab, setHrTab] = useState<"บุคคล" | "เงินเดือน" | "การลา">("บุคคล");
+  const [hrTab, setHrTab] = useState<"บุคคล" | "ลงเวลา" | "เงินเดือน" | "การลา" | "กล้องวงจรปิด">("บุคคล");
   const [leaveForm, setLeaveForm] = useState({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string}[]>([]);
@@ -2298,18 +2298,49 @@ function HRContent() {
   return (
     <>
       {hrToast && <Toast message={hrToast.msg} type={hrToast.type} onClose={() => setHrToast(null)} />}
-      <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
+      <div className="px-4 pt-6 pb-0 max-w-lg mx-auto">
         <DeptAIChat dept="hr" label="AI ฝ่ายบุคคล" />
         <DeptBriefingPanel dept="hr" label="ฝ่ายบุคคล" />
-        <div className="mt-3 flex gap-2">
-          {(["บุคคล", "เงินเดือน", "การลา"] as const).map(t => (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {(["บุคคล", "ลงเวลา", "เงินเดือน", "การลา", "กล้องวงจรปิด"] as const).map(t => (
             <button key={t} onClick={() => setHrTab(t)}
-              className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
-                hrTab === t ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+              className={clsx("py-3 px-2 rounded-xl text-xs font-medium border transition-all text-center",
+                hrTab === t ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10 hover:border-aviva-gold/30"
               )}>{t}</button>
           ))}
         </div>
       </div>
+
+      {hrTab === "ลงเวลา" && (
+        <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+          <GlassCard className="p-4">
+            <p className="text-xs text-aviva-secondary mb-3 block">เลือกวันที่เพื่อดูรายงานลงเวลา</p>
+            <input type="date" defaultValue={today}
+              className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 mb-4" />
+            <div className="grid grid-cols-4 gap-2">
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">เข้างาน</p>
+                <p className="text-lg font-bold text-green-400 mt-1">—</p>
+              </GlassCard>
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">ขาด</p>
+                <p className="text-lg font-bold text-red-400 mt-1">—</p>
+              </GlassCard>
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">สาย</p>
+                <p className="text-lg font-bold text-yellow-400 mt-1">—</p>
+              </GlassCard>
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">อัตรา %</p>
+                <p className="text-lg font-bold text-blue-400 mt-1">—</p>
+              </GlassCard>
+            </div>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <p className="text-xs text-aviva-secondary text-center">ข้อมูลลงเวลาในระบบการจัดการ</p>
+          </GlassCard>
+        </div>
+      )}
 
       {hrTab === "เงินเดือน" && <PayrollContent />}
 
@@ -2719,6 +2750,37 @@ function HRContent() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {hrTab === "กล้องวงจรปิด" && (
+        <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+          <GlassCard className="p-4">
+            <p className="text-xs text-aviva-secondary mb-3 block">เลือกวันที่เพื่อดูบันทึก CCTV</p>
+            <input type="date" defaultValue={today}
+              className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 mb-4" />
+            <div className="grid grid-cols-4 gap-2">
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">เหตุการณ์</p>
+                <p className="text-lg font-bold text-blue-400 mt-1">—</p>
+              </GlassCard>
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">พนักงาน</p>
+                <p className="text-lg font-bold text-green-400 mt-1">—</p>
+              </GlassCard>
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">ผู้มาเยี่ยม</p>
+                <p className="text-lg font-bold text-purple-400 mt-1">—</p>
+              </GlassCard>
+              <GlassCard className="p-3 text-center">
+                <p className="text-xs text-aviva-secondary">แจ้งเตือน</p>
+                <p className="text-lg font-bold text-red-400 mt-1">—</p>
+              </GlassCard>
+            </div>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <p className="text-xs text-aviva-secondary text-center">ข้อมูล CCTV ในระบบการจัดการ</p>
+          </GlassCard>
         </div>
       )}
 

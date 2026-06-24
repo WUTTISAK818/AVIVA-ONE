@@ -1,4 +1,4 @@
 import { redirect } from "next/navigation";
 export default function HRPage() {
-  redirect("/office");
+  redirect("/office?tab=hr");
 }

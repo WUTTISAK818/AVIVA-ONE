@@ -1,12 +1,7 @@
 {
   "buildCommand": "npm run build",
-  "crons": [
-    { "path": "/api/cron/sla-reminder", "schedule": "0 1 * * *" },
-    { "path": "/api/cron/evening-report", "schedule": "0 11 * * *" },
-    { "path": "/api/cron/finance/auto-schedule-payments", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/finance/cash-flow-alerts", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/marketing/dispatch-messages", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/hikvision/sync-attendance", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/tapo/sync-camera", "schedule": "*/5 * * * *" }
-  ]
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_TARGET": "one"
+  }
 }

@@ -1,21 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Activity, TrendingUp, Hammer, DollarSign, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingUp, HardHat, BookOpen, DollarSign, Megaphone, Users, FileText, CheckCircle } from "lucide-react";
 import clsx from "clsx";
+import { useCurrentUser } from "@/lib/user-context";
 
 interface ActivityData {
   [date: string]: {
-    sale: { count: number; items: any[] };
+    sales: { count: number; items: any[] };
     construction: { count: number; items: any[] };
+    accounting: { count: number; items: any[] };
     finance: { count: number; items: any[] };
-    approval: { count: number; items: any[] };
+    marketing: { count: number; items: any[] };
     hr: { count: number; items: any[] };
+    approvals: { count: number; items: any[] };
+    office: { count: number; items: any[] };
   };
 }
 
 type ViewType = "day" | "week" | "month";
-type ActivityType = "sale" | "construction" | "finance" | "approval" | "hr";
+type ActivityType = "sales" | "construction" | "accounting" | "finance" | "marketing" | "hr" | "approvals" | "office";
 
 export function DailyActivityCalendar() {
   const [activities, setActivities] = useState<ActivityData>({});
@@ -24,26 +28,37 @@ export function DailyActivityCalendar() {
   const [expandedActivity, setExpandedActivity] = useState<ActivityType | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const user = useCurrentUser();
 
   const activityConfig: Record<ActivityType, { icon: any; color: string; label: string; bgColor: string }> = {
-    sale: { icon: TrendingUp, color: "text-green-400", label: "ฝ่ายขาย", bgColor: "bg-green-500/10" },
-    construction: { icon: Hammer, color: "text-blue-400", label: "ฝ่ายก่อสร้าง", bgColor: "bg-blue-500/10" },
-    finance: { icon: DollarSign, color: "text-yellow-400", label: "บัญชี", bgColor: "bg-yellow-500/10" },
-    approval: { icon: AlertCircle, color: "text-orange-400", label: "อนุมัติ", bgColor: "bg-orange-500/10" },
-    hr: { icon: Activity, color: "text-purple-400", label: "HR", bgColor: "bg-purple-500/10" },
+    sales: { icon: TrendingUp, color: "text-green-400", label: "Sales", bgColor: "bg-green-500/10" },
+    construction: { icon: HardHat, color: "text-orange-400", label: "Const", bgColor: "bg-orange-500/10" },
+    accounting: { icon: BookOpen, color: "text-blue-400", label: "Acct", bgColor: "bg-blue-500/10" },
+    finance: { icon: DollarSign, color: "text-yellow-400", label: "Fin", bgColor: "bg-yellow-500/10" },
+    marketing: { icon: Megaphone, color: "text-pink-400", label: "Mkt", bgColor: "bg-pink-500/10" },
+    hr: { icon: Users, color: "text-cyan-400", label: "HR", bgColor: "bg-cyan-500/10" },
+    approvals: { icon: CheckCircle, color: "text-emerald-400", label: "Appr", bgColor: "bg-emerald-500/10" },
+    office: { icon: FileText, color: "text-purple-400", label: "Office", bgColor: "bg-purple-500/10" },
   };
+
+  const isManager = user?.role && ["admin", "ceo", "coo", "director", "manager", "project_manager"].includes(user.role);
 
   useEffect(() => {
     fetchActivities();
-  }, [currentDate, viewType]);
+  }, [currentDate, viewType, user]);
 
   const fetchActivities = async () => {
     try {
       setLoading(true);
       const dateStr = currentDate.toISOString().split("T")[0];
-      const response = await fetch(
-        `/api/dashboard?date=${dateStr}&range=${viewType}`
-      );
+      const params = new URLSearchParams({
+        date: dateStr,
+        range: viewType,
+      });
+      if (!isManager && user?.department) {
+        params.append("department", user.department);
+      }
+      const response = await fetch(`/api/dashboard?${params}`);
       const data = await response.json();
       setActivities(data.data || {});
     } catch (error) {
@@ -81,7 +96,7 @@ export function DailyActivityCalendar() {
           {currentDate.toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
         {dayData ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
             {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
               const data = dayData[type];
               if (data.count === 0) return null;
@@ -91,13 +106,13 @@ export function DailyActivityCalendar() {
                 <button
                   key={type}
                   onClick={() => setExpandedActivity(expandedActivity === type ? null : type)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all`}
+                  className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all`}
                 >
-                  <div className="flex items-center gap-2">
-                    <IconComp size={16} className={config.color} />
-                    <span className="text-sm font-semibold text-aviva-text">{config.label}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <IconComp size={14} className={config.color} />
+                    <span className="font-semibold text-aviva-text truncate">{config.label}</span>
                   </div>
-                  <span className={`text-sm font-bold ${config.color}`}>{data.count}</span>
+                  <span className={`font-bold ${config.color} flex-shrink-0`}>{data.count}</span>
                 </button>
               );
             })}
@@ -141,25 +156,27 @@ export function DailyActivityCalendar() {
         <div className="grid grid-cols-7 gap-2">{days}</div>
         {selectedDate && activities[selectedDate] && (
           <div className="bg-aviva-bg rounded-xl p-3 space-y-2">
-            {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
-              const data = activities[selectedDate]?.[type];
-              if (!data || data.count === 0) return null;
-              const config = activityConfig[type];
-              const IconComp = config.icon;
-              return (
-                <button
-                  key={type}
-                  onClick={() => setExpandedActivity(expandedActivity === type ? null : type)}
-                  className={`w-full flex items-center justify-between p-2 rounded-lg border ${config.bgColor} border-${config.color}/20`}
-                >
-                  <div className="flex items-center gap-2">
-                    <IconComp size={14} className={config.color} />
-                    <span className="text-xs font-semibold text-aviva-text">{config.label}</span>
-                  </div>
-                  <span className={`text-xs font-bold ${config.color}`}>{data.count}</span>
-                </button>
-              );
-            })}
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
+                const data = activities[selectedDate]?.[type];
+                if (!data || data.count === 0) return null;
+                const config = activityConfig[type];
+                const IconComp = config.icon;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setExpandedActivity(expandedActivity === type ? null : type)}
+                    className={`flex items-center justify-between p-1.5 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20`}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <IconComp size={12} className={config.color} />
+                      <span className="font-semibold text-aviva-text truncate">{config.label}</span>
+                    </div>
+                    <span className={`font-bold ${config.color} flex-shrink-0 ml-1`}>{data.count}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -317,15 +334,15 @@ export function DailyActivityCalendar() {
 
       {/* Legend - Department colors */}
       <div className="bg-aviva-bg/50 rounded-xl p-3 border border-aviva-gold/10">
-        <p className="text-[9px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">สัญลักษณ์แผนกงาน</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-[9px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">แผนกงาน</p>
+        <div className="grid grid-cols-4 gap-2">
           {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
             const config = activityConfig[type];
             const IconComp = config.icon;
             return (
-              <div key={type} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-aviva-card border border-aviva-gold/10">
-                <IconComp size={14} className={config.color} />
-                <span className="text-[10px] font-semibold text-aviva-text">{config.label}</span>
+              <div key={type} className="flex items-center gap-1.5 px-1.5 py-1 rounded-lg bg-aviva-card border border-aviva-gold/10">
+                <IconComp size={12} className={config.color} />
+                <span className="text-[9px] font-semibold text-aviva-text">{config.label}</span>
               </div>
             );
           })}

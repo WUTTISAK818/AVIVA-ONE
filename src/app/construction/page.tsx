@@ -1373,10 +1373,10 @@ export default function ConstructionPage() {
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-bold text-aviva-text">{houseLabel(instHouse)}</p>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => openDefectModal(instHouse)} className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
-                    <button onClick={() => openEditHouse(instHouse)} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
-                    <button onClick={printInstReport} className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์</button>
-                    <button onClick={() => { setInstHouse(null); setHouseCustomer(null); }} className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
+                    <button onClick={() => openDefectModal(instHouse)} aria-label="บัญชีข้อบกพร่อง" className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
+                    <button onClick={() => openEditHouse(instHouse)} aria-label="แก้ไข" className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
+                    <button onClick={printInstReport} aria-label="พิมพ์" className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์</button>
+                    <button onClick={() => { setInstHouse(null); setHouseCustomer(null); }} aria-label="ปิด" className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
                   </div>
                 </div>
 
@@ -1705,7 +1705,7 @@ export default function ConstructionPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <button onClick={e => openEditReport(r, e)} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"><Pencil size={12} className="text-aviva-secondary" /></button>
+                          <button onClick={e => openEditReport(r, e)} aria-label="แก้ไข" className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"><Pencil size={12} className="text-aviva-secondary" /></button>
                           <div className="text-right"><p className="text-lg font-bold text-aviva-gold">{r.progress}%</p><p className="text-[10px] text-aviva-secondary">ความคืบหน้า</p></div>
                         </div>
                       </div>
@@ -1843,17 +1843,17 @@ export default function ConstructionPage() {
                 <h2 className="text-lg font-bold text-aviva-text">สรุปรายงานประจำวัน</h2>
                 <p className="text-[11px] text-aviva-secondary mt-0.5">รวบรวมงานทั้งวัน — แก้ไขได้ก่อนส่ง/พิมพ์</p>
               </div>
-              <button onClick={() => setShowSummaryModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowSummaryModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่รายงาน</label>
-                <input type="date" value={summaryForm.date} onChange={e => setSummaryForm(p => ({ ...p, date: e.target.value }))}
+                <label htmlFor="summaryform-date" className="text-xs text-aviva-secondary mb-1 block">วันที่รายงาน</label>
+                <input id="summaryform-date" type="date" value={summaryForm.date} onChange={e => setSummaryForm(p => ({ ...p, date: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
-                <input type="text" value={summaryForm.reporter} onChange={e => setSummaryForm(p => ({ ...p, reporter: e.target.value }))}
+                <label htmlFor="summaryform-reporter" className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
+                <input id="summaryform-reporter" type="text" value={summaryForm.reporter} onChange={e => setSummaryForm(p => ({ ...p, reporter: e.target.value }))}
                   placeholder="ชื่อวิศวกร / หัวหน้าทีม"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
@@ -1865,22 +1865,22 @@ export default function ConstructionPage() {
               <span>Defect: <strong className={defects.filter(d => d.status === "Open").length > 0 ? "text-red-400" : "text-green-400"}>{defects.filter(d => d.status === "Open").length}</strong></span>
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">งานตรวจผู้รับเหมา</label>
-              <textarea value={summaryForm.contractor_summary}
+              <label htmlFor="summaryform-contractor_summary" className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">งานตรวจผู้รับเหมา</label>
+              <textarea id="summaryform-contractor_summary" value={summaryForm.contractor_summary}
                 onChange={e => setSummaryForm(p => ({ ...p, contractor_summary: e.target.value }))}
                 rows={4}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">งานรายวัน</label>
-              <textarea value={summaryForm.daily_summary}
+              <label htmlFor="summaryform-daily_summary" className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">งานรายวัน</label>
+              <textarea id="summaryform-daily_summary" value={summaryForm.daily_summary}
                 onChange={e => setSummaryForm(p => ({ ...p, daily_summary: e.target.value }))}
                 rows={4}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">ปัญหา / ข้อสังเกตพิเศษ</label>
-              <textarea value={summaryForm.problems}
+              <label htmlFor="summaryform-problems" className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">ปัญหา / ข้อสังเกตพิเศษ</label>
+              <textarea id="summaryform-problems" value={summaryForm.problems}
                 onChange={e => setSummaryForm(p => ({ ...p, problems: e.target.value }))}
                 rows={3}
                 placeholder="ระบุปัญหาเพิ่มเติม หรือข้อสังเกตสำหรับผู้บริหาร..."
@@ -1918,50 +1918,50 @@ export default function ConstructionPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">บันทึก Defect{defectHouse ? ` — ${defectHouse.house_number}` : ""}</h2>
-              <button onClick={() => { setShowDefectModal(false); setDefectHouse(null); }}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => { setShowDefectModal(false); setDefectHouse(null); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               {!defectHouse && (
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
-                  <select value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <label htmlFor="defectform-house_id" className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
+                  <select id="defectform-house_id" value={defectForm.house_id} onChange={e => setDefectForm({ ...defectForm, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
                     {houses.map(h => <option key={h.id} value={h.id}>{houseLabel(h)}</option>)}
                   </select>
                 </div>
               )}
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
-                <select value={defectForm.defect_category} onChange={e => setDefectForm({ ...defectForm, defect_category: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <label htmlFor="defectform-defect_category" className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
+                <select id="defectform-defect_category" value={defectForm.defect_category} onChange={e => setDefectForm({ ...defectForm, defect_category: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {DEFECT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
-                <textarea value={defectForm.description} onChange={e => setDefectForm({ ...defectForm, description: e.target.value })} placeholder="อธิบายปัญหาที่พบ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+                <label htmlFor="defectform-description" className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
+                <textarea id="defectform-description" value={defectForm.description} onChange={e => setDefectForm({ ...defectForm, description: e.target.value })} placeholder="อธิบายปัญหาที่พบ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
-                  <select value={defectForm.severity} onChange={e => setDefectForm({ ...defectForm, severity: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <label htmlFor="defectform-severity" className="text-xs text-aviva-secondary mb-1 block">ความรุนแรง</label>
+                  <select id="defectform-severity" value={defectForm.severity} onChange={e => setDefectForm({ ...defectForm, severity: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="low">เล็กน้อย</option><option value="medium">ปานกลาง</option><option value="high">สูง</option><option value="critical">วิกฤต</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไขภายใน</label>
-                  <input type="date" value={defectForm.due_date} onChange={e => setDefectForm({ ...defectForm, due_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <label htmlFor="defectform-due_date" className="text-xs text-aviva-secondary mb-1 block">กำหนดแก้ไขภายใน</label>
+                  <input id="defectform-due_date" type="date" value={defectForm.due_date} onChange={e => setDefectForm({ ...defectForm, due_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">งวดงานที่เกี่ยวข้อง</label>
-                <select value={defectForm.installment_no} onChange={e => setDefectForm({ ...defectForm, installment_no: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <label htmlFor="defectform-installment_no" className="text-xs text-aviva-secondary mb-1 block">งวดงานที่เกี่ยวข้อง</label>
+                <select id="defectform-installment_no" value={defectForm.installment_no} onChange={e => setDefectForm({ ...defectForm, installment_no: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   <option value="">— ไม่ระบุ —</option>
                   {INSTALLMENT_NAMES.map((n, i) => <option key={i + 1} value={String(i + 1)}>{n}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
-                <input type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })} placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <label htmlFor="defectform-assigned_to" className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
+                <input id="defectform-assigned_to" type="text" value={defectForm.assigned_to} onChange={e => setDefectForm({ ...defectForm, assigned_to: e.target.value })} placeholder="ชื่อผู้รับผิดชอบหรือผู้รับเหมา" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
             <button onClick={handleSaveDefect} disabled={saving || !defectForm.description || (!defectHouse && !defectForm.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึก Defect"}</button>
@@ -1974,53 +1974,53 @@ export default function ConstructionPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">{editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}</h2>
-              <button onClick={() => { setShowModal(false); setEditingReport(null); }}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => { setShowModal(false); setEditingReport(null); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               {!selectedHouse && !editingReport && (
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
-                  <select value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <label htmlFor="dailyform-house_id" className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
+                  <select id="dailyform-house_id" value={form.house_id} onChange={e => setForm({ ...form, house_id: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือกยูนิต --</option>
                     {houses.map(h => <option key={h.id} value={h.id}>{houseLabel(h)} ({h.progress}%)</option>)}
                   </select>
                 </div>
               )}
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทงาน</label>
-                <select value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                <label htmlFor="dailyform-work_type" className="text-xs text-aviva-secondary mb-1 block">ประเภทงาน</label>
+                <select id="dailyform-work_type" value={form.work_type} onChange={e => setForm({ ...form, work_type: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {WORK_TYPES.map(wt => <option key={wt} value={wt}>{wt}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">งานที่ทำวันนี้ *</label>
-                <textarea value={form.work_detail} onChange={e => setForm({ ...form, work_detail: e.target.value })} placeholder="อธิบายงานที่ดำเนินการ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+                <label htmlFor="dailyform-work_detail" className="text-xs text-aviva-secondary mb-1 block">งานที่ทำวันนี้ *</label>
+                <textarea id="dailyform-work_detail" value={form.work_detail} onChange={e => setForm({ ...form, work_detail: e.target.value })} placeholder="อธิบายงานที่ดำเนินการ..." rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า</label>
-                  <select value={form.progress} onChange={e => setForm({ ...form, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <label htmlFor="dailyform-progress" className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า</label>
+                  <select id="dailyform-progress" value={form.progress} onChange={e => setForm({ ...form, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="">-- เลือก --</option>
                     {[10,20,30,40,50,60,70,80,90,100].map(p => <option key={p} value={String(p)}>{p}%</option>)}
                   </select>
                 </div>
                 {!editingReport && (
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                    <select value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <label htmlFor="dailyform-new_status" className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                    <select id="dailyform-new_status" value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                       <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
                     </select>
                   </div>
                 )}
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
-                <input type="text" value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} list="reporter-list" placeholder="ชื่อวิศวกร / ช่างควบคุมงาน" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <label htmlFor="dailyform-reported_by" className="text-xs text-aviva-secondary mb-1 block">ผู้จัดทำรายงาน</label>
+                <input id="dailyform-reported_by" type="text" value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} list="reporter-list" placeholder="ชื่อวิศวกร / ช่างควบคุมงาน" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 <datalist id="reporter-list">{reporterNames.map(name => <option key={name} value={name} />)}</datalist>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ปัญหา / ข้อสังเกต</label>
-                <input type="text" value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })} placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <label htmlFor="dailyform-issue" className="text-xs text-aviva-secondary mb-1 block">ปัญหา / ข้อสังเกต</label>
+                <input id="dailyform-issue" type="text" value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })} placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน</label>
@@ -2042,37 +2042,37 @@ export default function ConstructionPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">แก้ไขยูนิต — {editingHouse.house_number}</h2>
-              <button onClick={() => { setShowHouseEditModal(false); setEditingHouse(null); }}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => { setShowHouseEditModal(false); setEditingHouse(null); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">หมายเลขยูนิต</label>
-                  <input type="text" value={houseForm.house_number} onChange={e => setHouseForm({ ...houseForm, house_number: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <label htmlFor="houseeditform-house_number" className="text-xs text-aviva-secondary mb-1 block">หมายเลขยูนิต</label>
+                  <input id="houseeditform-house_number" type="text" value={houseForm.house_number} onChange={e => setHouseForm({ ...houseForm, house_number: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                  <select value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <label htmlFor="houseeditform-status" className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                  <select id="houseeditform-status" value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับเหมา</label>
-                <input type="text" value={houseForm.contractor} onChange={e => setHouseForm({ ...houseForm, contractor: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                <label htmlFor="houseeditform-contractor" className="text-xs text-aviva-secondary mb-1 block">ผู้รับเหมา</label>
+                <input id="houseeditform-contractor" type="text" value={houseForm.contractor} onChange={e => setHouseForm({ ...houseForm, contractor: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">เฟส / ขั้นตอน</label>
-                <input type="text" value={houseForm.phase} onChange={e => setHouseForm({ ...houseForm, phase: e.target.value })} placeholder="เช่น งานโครงสร้าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                <label htmlFor="houseeditform-phase" className="text-xs text-aviva-secondary mb-1 block">เฟส / ขั้นตอน</label>
+                <input id="houseeditform-phase" type="text" value={houseForm.phase} onChange={e => setHouseForm({ ...houseForm, phase: e.target.value })} placeholder="เช่น งานโครงสร้าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า (%)</label>
-                  <input type="number" min="0" max="100" value={houseForm.progress} onChange={e => setHouseForm({ ...houseForm, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <label htmlFor="houseeditform-progress" className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า (%)</label>
+                  <input id="houseeditform-progress" type="number" min="0" max="100" value={houseForm.progress} onChange={e => setHouseForm({ ...houseForm, progress: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ล่าช้า (วัน)</label>
-                  <input type="number" min="0" value={houseForm.delayed_days} onChange={e => setHouseForm({ ...houseForm, delayed_days: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <label htmlFor="houseeditform-delayed_days" className="text-xs text-aviva-secondary mb-1 block">ล่าช้า (วัน)</label>
+                  <input id="houseeditform-delayed_days" type="number" min="0" value={houseForm.delayed_days} onChange={e => setHouseForm({ ...houseForm, delayed_days: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -2099,7 +2099,7 @@ export default function ConstructionPage() {
                 <h2 className="text-base font-bold text-aviva-text">ผู้รับเหมาลงชื่อรับทราบ</h2>
                 <p className="text-xs text-aviva-secondary mt-0.5">{ackInst.name} — {instHouse?.house_number}</p>
               </div>
-              <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl p-3 space-y-1 text-[11px] text-aviva-secondary">
               <p className="font-semibold text-aviva-gold mb-1">ผลการตรวจงาน</p>
@@ -2153,7 +2153,7 @@ export default function ConstructionPage() {
                 <h2 className="text-lg font-bold text-aviva-text">ใบขอสั่งซื้อ</h2>
                 <p className="text-[11px] text-aviva-secondary mt-0.5">Purchase Request — ฝ่ายก่อสร้าง</p>
               </div>
-              <button onClick={() => setShowPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowPRModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดจำหน่าย / บริษัทที่สั่งซื้อ *</label>

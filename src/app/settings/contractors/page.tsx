@@ -195,7 +195,7 @@ export default function ContractorsPage() {
           <div className="bg-aviva-card w-full max-w-lg mx-auto rounded-t-2xl p-5 pb-10 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-aviva-text">{edit ? "แก้ไขผู้รับเหมา" : "เพิ่มผู้รับเหมา"}</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -229,7 +229,7 @@ export default function ContractorsPage() {
           <div className="bg-aviva-card w-full max-w-lg mx-auto rounded-t-2xl p-5 pb-10 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
               <h2 className="font-bold text-aviva-text">ผูกแปลง — {linkFor.name}</h2>
-              <button onClick={() => setLinkFor(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setLinkFor(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <p className="text-xs text-aviva-secondary/70 mb-4">เลือกแปลง/ยูนิตที่ผู้รับเหมารายนี้รับผิดชอบ (ref: {linkFor.ref_code})</p>
             <div className="space-y-2">

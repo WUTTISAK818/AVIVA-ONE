@@ -173,7 +173,7 @@ export default function ActivityPage() {
           <GlassCard className="p-4 space-y-2.5">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-aviva-text">บันทึกกิจกรรม</p>
-              <button onClick={() => setShowForm(false)}><X size={16} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowForm(false)} aria-label="ปิด"><X size={16} className="text-aviva-secondary" /></button>
             </div>
             <div className="flex gap-2">
               <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}

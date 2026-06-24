@@ -1565,7 +1565,7 @@ export default function CRMPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
-              <button onClick={() => setShowActModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowActModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1631,7 +1631,7 @@ export default function CRMPage() {
                 <h2 className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
                 <p className="text-xs text-aviva-secondary mt-0.5">{crmLogLead.customer_name}</p>
               </div>
-              <button onClick={() => setCrmLogLead(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setCrmLogLead(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1702,7 +1702,7 @@ export default function CRMPage() {
                 <p className="text-xs text-aviva-secondary mt-0.5">{selectedLead.phone} · {selectedLead.source}</p>
                 <p className="text-[11px] text-aviva-gold mt-0.5">👤 เซลล์ผู้ดูแล: {selectedLead.assigned_to || "ยังไม่ระบุ"}</p>
               </div>
-              <button onClick={() => setSelectedLead(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setSelectedLead(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -2018,7 +2018,7 @@ export default function CRMPage() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[88vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่มลูกค้าใหม่"}</h2>
-              <button onClick={requestCloseModal}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={requestCloseModal} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
             {dupLead && (
@@ -2220,29 +2220,29 @@ export default function CRMPage() {
                 <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">4 · วันที่สำคัญ / สัญญา</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งถัดไป</label>
-                    <input type="date" value={form.next_follow_up_date} onChange={e => setForm(p => ({ ...p, next_follow_up_date: e.target.value }))}
+                    <label htmlFor="crmform-next_follow_up_date" className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งถัดไป</label>
+                    <input id="crmform-next_follow_up_date" type="date" value={form.next_follow_up_date} onChange={e => setForm(p => ({ ...p, next_follow_up_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">นัดส่งมอบ</label>
-                    <input type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
+                    <label htmlFor="crmform-delivery_date" className="text-xs text-aviva-secondary mb-1 block">นัดส่งมอบ</label>
+                    <input id="crmform-delivery_date" type="date" value={form.delivery_date} onChange={e => setForm(p => ({ ...p, delivery_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
-                    <input type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
+                    <label htmlFor="crmform-contract_price" className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
+                    <input id="crmform-contract_price" type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
                       placeholder="เช่น 5170000"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">วันเซ็นสัญญา</label>
-                    <input type="date" value={form.contract_signed_date} onChange={e => setForm(p => ({ ...p, contract_signed_date: e.target.value }))}
+                    <label htmlFor="crmform-contract_signed_date" className="text-xs text-aviva-secondary mb-1 block">วันเซ็นสัญญา</label>
+                    <input id="crmform-contract_signed_date" type="date" value={form.contract_signed_date} onChange={e => setForm(p => ({ ...p, contract_signed_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">วันกู้ผ่าน</label>
-                    <input type="date" value={form.loan_approved_date} onChange={e => setForm(p => ({ ...p, loan_approved_date: e.target.value }))}
+                    <label htmlFor="crmform-loan_approved_date" className="text-xs text-aviva-secondary mb-1 block">วันกู้ผ่าน</label>
+                    <input id="crmform-loan_approved_date" type="date" value={form.loan_approved_date} onChange={e => setForm(p => ({ ...p, loan_approved_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                 </div>
@@ -2303,7 +2303,7 @@ export default function CRMPage() {
                   <h2 className="text-base font-bold text-aviva-text">แปลงที่ {n}</h2>
                   <p className="text-xs text-aviva-secondary">{house?.house_model ?? "—"} · {house?.land_size ?? "—"} ตร.วา</p>
                 </div>
-                <button onClick={() => setMapPlotModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+                <button onClick={() => setMapPlotModal(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
               </div>
               {(isBooked || isSold) && displayLead ? (
                 <div className="space-y-3">

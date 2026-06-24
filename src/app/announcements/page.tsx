@@ -204,10 +204,11 @@ export default function AnnouncementsPage() {
           <GlassCard className="mb-6">
             <form onSubmit={handleCreateAnnouncement} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-aviva-text mb-2">
+                <label htmlFor="announcementform-title" className="block text-sm font-semibold text-aviva-text mb-2">
                   Title
                 </label>
                 <input
+                  id="announcementform-title"
                   type="text"
                   value={formData.title}
                   onChange={(e) =>
@@ -219,10 +220,11 @@ export default function AnnouncementsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-aviva-text mb-2">
+                <label htmlFor="announcementform-content" className="block text-sm font-semibold text-aviva-text mb-2">
                   Content
                 </label>
                 <textarea
+                  id="announcementform-content"
                   value={formData.content}
                   onChange={(e) =>
                     setFormData({ ...formData, content: e.target.value })

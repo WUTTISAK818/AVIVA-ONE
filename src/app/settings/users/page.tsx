@@ -300,7 +300,7 @@ export default function UsersPage() {
           <div className="bg-aviva-card w-full max-w-lg mx-auto rounded-t-2xl p-5 pb-10 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-aviva-text">{editUser ? "แก้ไขข้อมูลผู้ใช้" : "เพิ่มผู้ใช้ใหม่"}</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               {!editUser && (

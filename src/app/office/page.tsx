@@ -1257,44 +1257,44 @@ function AccountingContent() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">วันที่</label>
-                  <input type="date" value={form.receipt_date}
+                  <label htmlFor="accform-receipt_date" className="text-xs text-aviva-secondary mb-1 block">วันที่</label>
+                  <input id="accform-receipt_date" type="date" value={form.receipt_date}
                     onChange={e => setForm({ ...form, receipt_date: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">เลขที่บิล (ถ้ามี)</label>
-                  <input type="text" value={form.receipt_number}
+                  <label htmlFor="accform-receipt_number" className="text-xs text-aviva-secondary mb-1 block">เลขที่บิล (ถ้ามี)</label>
+                  <input id="accform-receipt_number" type="text" value={form.receipt_number}
                     onChange={e => setForm({ ...form, receipt_number: e.target.value })}
                     placeholder="RC-001"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้ขาย / แหล่งที่มา *</label>
-                <input type="text" value={form.vendor_name}
+                <label htmlFor="accform-vendor_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้ขาย / แหล่งที่มา *</label>
+                <input id="accform-vendor_name" type="text" value={form.vendor_name}
                   onChange={e => setForm({ ...form, vendor_name: e.target.value })}
                   placeholder="ร้าน / บริษัท / ชื่อ"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด</label>
-                <input type="text" value={form.description}
+                <label htmlFor="accform-description" className="text-xs text-aviva-secondary mb-1 block">รายละเอียด</label>
+                <input id="accform-description" type="text" value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   placeholder="รายละเอียดสินค้า/บริการ"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท) *</label>
-                  <input type="number" value={form.amount}
+                  <label htmlFor="accform-amount" className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท) *</label>
+                  <input id="accform-amount" type="number" value={form.amount}
                     onChange={e => setForm({ ...form, amount: e.target.value })}
                     placeholder="0"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
-                  <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                  <label htmlFor="accform-category" className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
+                  <select id="accform-category" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {ACCOUNTING_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -1810,47 +1810,47 @@ function MarketingContent() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อแคมเปญ *</label>
-                <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                <label htmlFor="mktform-name" className="text-xs text-aviva-secondary mb-1 block">ชื่อแคมเปญ *</label>
+                <input id="mktform-name" type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="เช่น AVIVA — Facebook Q3 2026"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">Platform</label>
-                  <select value={form.platform} onChange={e => setForm({ ...form, platform: e.target.value })}
+                  <label htmlFor="mktform-platform" className="text-xs text-aviva-secondary mb-1 block">Platform</label>
+                  <select id="mktform-platform" value={form.platform} onChange={e => setForm({ ...form, platform: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {["Facebook", "TikTok", "Google", "LINE", "อื่นๆ"].map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
-                  <input type="number" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
+                  <label htmlFor="mktform-budget" className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
+                  <input id="mktform-budget" type="number" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
                     placeholder="50000"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับผิดชอบ / ผู้อนุมัติ</label>
-                <input type="text" value={form.executive_name} onChange={e => setForm({ ...form, executive_name: e.target.value })}
+                <label htmlFor="mktform-executive_name" className="text-xs text-aviva-secondary mb-1 block">ผู้รับผิดชอบ / ผู้อนุมัติ</label>
+                <input id="mktform-executive_name" type="text" value={form.executive_name} onChange={e => setForm({ ...form, executive_name: e.target.value })}
                   placeholder="ชื่อผู้บริหารที่รับผิดชอบ"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ลิงก์ข้อมูลแคมเปญ</label>
-                <input type="url" value={form.campaign_link} onChange={e => setForm({ ...form, campaign_link: e.target.value })}
+                <label htmlFor="mktform-campaign_link" className="text-xs text-aviva-secondary mb-1 block">ลิงก์ข้อมูลแคมเปญ</label>
+                <input id="mktform-campaign_link" type="url" value={form.campaign_link} onChange={e => setForm({ ...form, campaign_link: e.target.value })}
                   placeholder="https://docs.google.com/..."
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">วันเริ่ม</label>
-                  <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })}
+                  <label htmlFor="mktform-start_date" className="text-xs text-aviva-secondary mb-1 block">วันเริ่ม</label>
+                  <input id="mktform-start_date" type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">วันสิ้นสุด</label>
-                  <input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })}
+                  <label htmlFor="mktform-end_date" className="text-xs text-aviva-secondary mb-1 block">วันสิ้นสุด</label>
+                  <input id="mktform-end_date" type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
@@ -1869,40 +1869,40 @@ function MarketingContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">กำหนดงบประมาณ</h2>
-              <button onClick={() => setShowBudgetModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowBudgetModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ปี</label>
-                  <select value={budgetForm.year} onChange={e => setBudgetForm({ ...budgetForm, year: Number(e.target.value) })}
+                  <label htmlFor="budgetform-year" className="text-xs text-aviva-secondary mb-1 block">ปี</label>
+                  <select id="budgetform-year" value={budgetForm.year} onChange={e => setBudgetForm({ ...budgetForm, year: Number(e.target.value) })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">เดือน</label>
-                  <select value={budgetForm.month} onChange={e => setBudgetForm({ ...budgetForm, month: Number(e.target.value) })}
+                  <label htmlFor="budgetform-month" className="text-xs text-aviva-secondary mb-1 block">เดือน</label>
+                  <select id="budgetform-month" value={budgetForm.month} onChange={e => setBudgetForm({ ...budgetForm, month: Number(e.target.value) })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {MONTH_TH.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท) *</label>
-                <input type="number" value={budgetForm.budget_amount} onChange={e => setBudgetForm({ ...budgetForm, budget_amount: e.target.value })}
+                <label htmlFor="budgetform-budget_amount" className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท) *</label>
+                <input id="budgetform-budget_amount" type="number" value={budgetForm.budget_amount} onChange={e => setBudgetForm({ ...budgetForm, budget_amount: e.target.value })}
                   placeholder="100000"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้อนุมัติงบ</label>
-                <input type="text" value={budgetForm.executive_name} onChange={e => setBudgetForm({ ...budgetForm, executive_name: e.target.value })}
+                <label htmlFor="budgetform-executive_name" className="text-xs text-aviva-secondary mb-1 block">ผู้อนุมัติงบ</label>
+                <input id="budgetform-executive_name" type="text" value={budgetForm.executive_name} onChange={e => setBudgetForm({ ...budgetForm, executive_name: e.target.value })}
                   placeholder="ชื่อผู้บริหาร"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea value={budgetForm.notes} onChange={e => setBudgetForm({ ...budgetForm, notes: e.target.value })}
+                <label htmlFor="budgetform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea id="budgetform-notes" value={budgetForm.notes} onChange={e => setBudgetForm({ ...budgetForm, notes: e.target.value })}
                   placeholder="รายละเอียดแผนการใช้งบ..."
                   rows={2} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
@@ -1928,8 +1928,8 @@ function MarketingContent() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                <select value={editCampForm.status} onChange={e => setEditCampForm(p => ({ ...p, status: e.target.value }))}
+                <label htmlFor="editcampform-status" className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                <select id="editcampform-status" value={editCampForm.status} onChange={e => setEditCampForm(p => ({ ...p, status: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   <option value="active">กำลังทำงาน</option>
                   <option value="paused">หยุดชั่วคราว</option>
@@ -1938,28 +1938,28 @@ function MarketingContent() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ยอดใช้จ่าย (฿)</label>
-                  <input type="number" value={editCampForm.spent} onChange={e => setEditCampForm(p => ({ ...p, spent: e.target.value }))}
+                  <label htmlFor="editcampform-spent" className="text-xs text-aviva-secondary mb-1 block">ยอดใช้จ่าย (฿)</label>
+                  <input id="editcampform-spent" type="number" value={editCampForm.spent} onChange={e => setEditCampForm(p => ({ ...p, spent: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">Leads ที่ได้</label>
-                  <input type="number" value={editCampForm.leads_generated} onChange={e => setEditCampForm(p => ({ ...p, leads_generated: e.target.value }))}
+                  <label htmlFor="editcampform-leads_generated" className="text-xs text-aviva-secondary mb-1 block">Leads ที่ได้</label>
+                  <input id="editcampform-leads_generated" type="number" value={editCampForm.leads_generated} onChange={e => setEditCampForm(p => ({ ...p, leads_generated: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">Impressions</label>
-                  <input type="number" value={editCampForm.impressions} onChange={e => setEditCampForm(p => ({ ...p, impressions: e.target.value }))}
+                  <label htmlFor="editcampform-impressions" className="text-xs text-aviva-secondary mb-1 block">Impressions</label>
+                  <input id="editcampform-impressions" type="number" value={editCampForm.impressions} onChange={e => setEditCampForm(p => ({ ...p, impressions: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">Clicks</label>
-                  <input type="number" value={editCampForm.clicks} onChange={e => setEditCampForm(p => ({ ...p, clicks: e.target.value }))}
+                  <label htmlFor="editcampform-clicks" className="text-xs text-aviva-secondary mb-1 block">Clicks</label>
+                  <input id="editcampform-clicks" type="number" value={editCampForm.clicks} onChange={e => setEditCampForm(p => ({ ...p, clicks: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">Conversions</label>
-                  <input type="number" value={editCampForm.conversions} onChange={e => setEditCampForm(p => ({ ...p, conversions: e.target.value }))}
+                  <label htmlFor="editcampform-conversions" className="text-xs text-aviva-secondary mb-1 block">Conversions</label>
+                  <input id="editcampform-conversions" type="number" value={editCampForm.conversions} onChange={e => setEditCampForm(p => ({ ...p, conversions: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
@@ -1978,30 +1978,30 @@ function MarketingContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">ขอสั่งซื้อ/จ้างบริการ</h2>
-              <button onClick={() => setShowMktPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowMktPRModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / บริษัทรับจ้าง *</label>
-                <input type="text" value={mktPRForm.supplier_name} onChange={e => setMktPRForm(p => ({ ...p, supplier_name: e.target.value }))}
+                <label htmlFor="mktprform-supplier_name" className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / บริษัทรับจ้าง *</label>
+                <input id="mktprform-supplier_name" type="text" value={mktPRForm.supplier_name} onChange={e => setMktPRForm(p => ({ ...p, supplier_name: e.target.value }))}
                   placeholder="ชื่อร้าน / บริษัท"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
-                <input type="text" value={mktPRForm.description} onChange={e => setMktPRForm(p => ({ ...p, description: e.target.value }))}
+                <label htmlFor="mktprform-description" className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
+                <input id="mktprform-description" type="text" value={mktPRForm.description} onChange={e => setMktPRForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="เช่น ค่าจ้างทำกราฟิก, ค่าโฆษณา Facebook"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
-                <input type="number" value={mktPRForm.amount} onChange={e => setMktPRForm(p => ({ ...p, amount: e.target.value }))}
+                <label htmlFor="mktprform-amount" className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
+                <input id="mktprform-amount" type="number" value={mktPRForm.amount} onChange={e => setMktPRForm(p => ({ ...p, amount: e.target.value }))}
                   placeholder="0"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea value={mktPRForm.notes} onChange={e => setMktPRForm(p => ({ ...p, notes: e.target.value }))}
+                <label htmlFor="mktprform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea id="mktprform-notes" value={mktPRForm.notes} onChange={e => setMktPRForm(p => ({ ...p, notes: e.target.value }))}
                   placeholder="รายละเอียดเพิ่มเติม"
                   rows={2}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
@@ -2665,45 +2665,45 @@ function HRContent() {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ชื่อ-นามสกุล *</label>
-                  <input type="text" value={form.full_name}
+                  <label htmlFor="empform-full_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อ-นามสกุล *</label>
+                  <input id="empform-full_name" type="text" value={form.full_name}
                     onChange={e => setForm({ ...form, full_name: e.target.value })}
                     placeholder="ชื่อจริง นามสกุล"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเล่น</label>
-                  <input type="text" value={form.nickname}
+                  <label htmlFor="empform-nickname" className="text-xs text-aviva-secondary mb-1 block">ชื่อเล่น</label>
+                  <input id="empform-nickname" type="text" value={form.nickname}
                     onChange={e => setForm({ ...form, nickname: e.target.value })}
                     placeholder="ชื่อเล่น"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
-                <input type="tel" value={form.phone}
+                <label htmlFor="empform-phone" className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
+                <input id="empform-phone" type="tel" value={form.phone}
                   onChange={e => setForm({ ...form, phone: e.target.value })}
                   placeholder="0XX-XXX-XXXX"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">Email</label>
-                <input type="email" value={form.email}
+                <label htmlFor="empform-email" className="text-xs text-aviva-secondary mb-1 block">Email</label>
+                <input id="empform-email" type="email" value={form.email}
                   onChange={e => setForm({ ...form, email: e.target.value })}
                   placeholder="email@example.com"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ฝ่าย</label>
-                  <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}
+                  <label htmlFor="empform-department" className="text-xs text-aviva-secondary mb-1 block">ฝ่าย</label>
+                  <select id="empform-department" value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ตำแหน่ง</label>
-                  <input type="text" value={form.position}
+                  <label htmlFor="empform-position" className="text-xs text-aviva-secondary mb-1 block">ตำแหน่ง</label>
+                  <input id="empform-position" type="text" value={form.position}
                     onChange={e => setForm({ ...form, position: e.target.value })}
                     placeholder="เช่น พนักงานขาย"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
@@ -2711,23 +2711,23 @@ function HRContent() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">เงินเดือน (บาท)</label>
-                  <input type="number" value={form.base_salary}
+                  <label htmlFor="empform-base_salary" className="text-xs text-aviva-secondary mb-1 block">เงินเดือน (บาท)</label>
+                  <input id="empform-base_salary" type="number" value={form.base_salary}
                     onChange={e => setForm({ ...form, base_salary: e.target.value })}
                     placeholder="15000"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ค่าคอม (%)</label>
-                  <input type="number" value={form.commission_rate}
+                  <label htmlFor="empform-commission_rate" className="text-xs text-aviva-secondary mb-1 block">ค่าคอม (%)</label>
+                  <input id="empform-commission_rate" type="number" value={form.commission_rate}
                     onChange={e => setForm({ ...form, commission_rate: e.target.value })}
                     placeholder="1.5" step="0.1"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันเริ่มงาน</label>
-                <input type="date" value={form.start_date}
+                <label htmlFor="empform-start_date" className="text-xs text-aviva-secondary mb-1 block">วันเริ่มงาน</label>
+                <input id="empform-start_date" type="date" value={form.start_date}
                   onChange={e => setForm({ ...form, start_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
@@ -2767,7 +2767,7 @@ function HRContent() {
                   </span>
                 )}
               </h2>
-              <button onClick={() => setKpiModalHR(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setKpiModalHR(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="overflow-y-auto space-y-2 flex-1">
               {kpiModalHR === "salary" ? (
@@ -2844,30 +2844,30 @@ function HRContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">ขอสั่งซื้ออุปกรณ์สำนักงาน</h2>
-              <button onClick={() => setShowPRModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowPRModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / ร้านค้า *</label>
-                <input type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
+                <label htmlFor="hrprform-supplier_name" className="text-xs text-aviva-secondary mb-1 block">ผู้จำหน่าย / ร้านค้า *</label>
+                <input id="hrprform-supplier_name" type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
                   placeholder="ชื่อร้าน / บริษัท"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
-                <input type="text" value={prForm.description} onChange={e => setPrForm(p => ({ ...p, description: e.target.value }))}
+                <label htmlFor="hrprform-description" className="text-xs text-aviva-secondary mb-1 block">รายการที่ต้องการ *</label>
+                <input id="hrprform-description" type="text" value={prForm.description} onChange={e => setPrForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="เช่น กระดาษ A4 x 10 รีม, ปากกา x 20 ด้าม"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
-                <input type="number" value={prForm.amount} onChange={e => setPrForm(p => ({ ...p, amount: e.target.value }))}
+                <label htmlFor="hrprform-amount" className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท)</label>
+                <input id="hrprform-amount" type="number" value={prForm.amount} onChange={e => setPrForm(p => ({ ...p, amount: e.target.value }))}
                   placeholder="0"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
+                <label htmlFor="hrprform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea id="hrprform-notes" value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
                   placeholder="รายละเอียดเพิ่มเติม"
                   rows={2}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
@@ -3169,15 +3169,15 @@ function AfterSalesContent() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
-                <input type="text" value={form.customer_name}
+                <label htmlFor="claimform-customer_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
+                <input id="claimform-customer_name" type="text" value={form.customer_name}
                   onChange={e => setForm({ ...form, customer_name: e.target.value })}
                   placeholder="ชื่อเจ้าของบ้าน"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">บ้าน/แปลงที่</label>
-                <select value={form.house_number}
+                <label htmlFor="claimform-house_number" className="text-xs text-aviva-secondary mb-1 block">บ้าน/แปลงที่</label>
+                <select id="claimform-house_number" value={form.house_number}
                   onChange={e => setForm({ ...form, house_number: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   <option value="">— เลือกแปลง —</option>
@@ -3187,30 +3187,30 @@ function AfterSalesContent() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
-                  <select value={form.issue_type} onChange={e => setForm({ ...form, issue_type: e.target.value })}
+                  <label htmlFor="claimform-issue_type" className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
+                  <select id="claimform-issue_type" value={form.issue_type} onChange={e => setForm({ ...form, issue_type: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {ISSUE_TYPES.map(t => <option key={t} value={t}>{issueTh[t]}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
-                  <select value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
+                  <label htmlFor="claimform-assigned_to" className="text-xs text-aviva-secondary mb-1 block">มอบหมายให้</label>
+                  <select id="claimform-assigned_to" value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                     {assignees.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียดปัญหา *</label>
-                <textarea value={form.description}
+                <label htmlFor="claimform-description" className="text-xs text-aviva-secondary mb-1 block">รายละเอียดปัญหา *</label>
+                <textarea id="claimform-description" value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   placeholder="อธิบายปัญหาที่พบ..." rows={3}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่นัดซ่อม</label>
-                <input type="date" value={form.scheduled_date}
+                <label htmlFor="claimform-scheduled_date" className="text-xs text-aviva-secondary mb-1 block">วันที่นัดซ่อม</label>
+                <input id="claimform-scheduled_date" type="date" value={form.scheduled_date}
                   onChange={e => setForm({ ...form, scheduled_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
@@ -3232,7 +3232,7 @@ function AfterSalesContent() {
                 <h2 className="text-lg font-bold text-aviva-text">{selectedClaim.customer_name}</h2>
                 <p className="text-xs text-aviva-secondary">{issueTh[selectedClaim.issue_type]} · {selectedClaim.assigned_to}</p>
               </div>
-              <button onClick={() => setSelectedClaim(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setSelectedClaim(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <p className="text-sm text-aviva-text">{selectedClaim.description}</p>
             <p className="text-xs text-aviva-secondary">อัปเดตสถานะ:</p>
@@ -3280,7 +3280,7 @@ function AfterSalesContent() {
                   </span>
                 )}
               </h2>
-              <button onClick={() => setKpiModalAS(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setKpiModalAS(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="overflow-y-auto space-y-2 flex-1">
               {(kpiModalAS === "all" ? claims : claims.filter(c => c.status === kpiModalAS)).map(c => {
@@ -3572,7 +3572,7 @@ function ApprovalsContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เหตุผลการปฏิเสธ</h2>
-              <button onClick={() => setRejectingId(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setRejectingId(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <textarea value={rejectComment} onChange={(e) => setRejectComment(e.target.value)}
               placeholder="ระบุเหตุผล..." rows={3}
@@ -3894,7 +3894,7 @@ function MaterialsContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">สร้างใบสั่งซื้อ (PO)</h2>
-              <button onClick={() => setShowPOModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => setShowPOModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -4138,7 +4138,7 @@ function PayrollContent() {
                 <button onClick={() => printPayslip(payslipEmp)} className="text-xs text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg flex items-center gap-1">
                   <Printer size={11} /> พิมพ์สลิป
                 </button>
-                <button onClick={() => setPayslipEmp(null)}><X size={18} className="text-aviva-secondary" /></button>
+                <button onClick={() => setPayslipEmp(null)} aria-label="ปิด"><X size={18} className="text-aviva-secondary" /></button>
               </div>
             </div>
             <div className="text-center border-b border-aviva-gold/20 pb-3">

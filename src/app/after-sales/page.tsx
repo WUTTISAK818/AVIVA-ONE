@@ -308,50 +308,50 @@ export default function AfterSalesPage() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
-                <input value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})}
+                <label htmlFor="asform-customer_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
+                <input id="asform-customer_name" value={form.customer_name} onChange={e => setForm({...form, customer_name: e.target.value})}
                   placeholder="ชื่อ-นามสกุลลูกค้า"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ยูนิต/แปลงที่</label>
-                <input value={form.house_number} onChange={e => setForm({...form, house_number: e.target.value})}
+                <label htmlFor="asform-house_number" className="text-xs text-aviva-secondary mb-1 block">ยูนิต/แปลงที่</label>
+                <input id="asform-house_number" value={form.house_number} onChange={e => setForm({...form, house_number: e.target.value})}
                   placeholder="เช่น แปลงที่ 5 / ที่ดิน 52 ตร.วา / AVA"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
-                <select value={form.issue_type} onChange={e => setForm({...form, issue_type: e.target.value})}
+                <label htmlFor="asform-issue_type" className="text-xs text-aviva-secondary mb-1 block">ประเภทปัญหา</label>
+                <select id="asform-issue_type" value={form.issue_type} onChange={e => setForm({...form, issue_type: e.target.value})}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {ISSUE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียดปัญหา *</label>
-                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                <label htmlFor="asform-description" className="text-xs text-aviva-secondary mb-1 block">รายละเอียดปัญหา *</label>
+                <textarea id="asform-description" value={form.description} onChange={e => setForm({...form, description: e.target.value})}
                   rows={3} placeholder="อธิบายปัญหาที่พบโดยละเอียด..."
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">เจ้าหน้าที่ผู้รับผิดชอบ</label>
-                <input value={form.assigned_to} onChange={e => setForm({...form, assigned_to: e.target.value})}
+                <label htmlFor="asform-assigned_to" className="text-xs text-aviva-secondary mb-1 block">เจ้าหน้าที่ผู้รับผิดชอบ</label>
+                <input id="asform-assigned_to" value={form.assigned_to} onChange={e => setForm({...form, assigned_to: e.target.value})}
                   placeholder="พิมพ์ชื่อเจ้าหน้าที่ / ช่าง / ผู้รับเหมา"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">วันที่ทำเรื่องแจ้ง</label>
-                  <input type="date" value={form.report_date} onChange={e => setForm({...form, report_date: e.target.value})}
+                  <label htmlFor="asform-report_date" className="text-xs text-aviva-secondary mb-1 block">วันที่ทำเรื่องแจ้ง</label>
+                  <input id="asform-report_date" type="date" value={form.report_date} onChange={e => setForm({...form, report_date: e.target.value})}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">นัดซ่อมวันที่</label>
-                  <input type="date" value={form.scheduled_date} onChange={e => setForm({...form, scheduled_date: e.target.value})}
+                  <label htmlFor="asform-scheduled_date" className="text-xs text-aviva-secondary mb-1 block">นัดซ่อมวันที่</label>
+                  <input id="asform-scheduled_date" type="date" value={form.scheduled_date} onChange={e => setForm({...form, scheduled_date: e.target.value})}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ (ประมาณ)</label>
-                  <input type="date" value={form.estimated_completion_date} onChange={e => setForm({...form, estimated_completion_date: e.target.value})}
+                  <label htmlFor="asform-estimated_completion_date" className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ (ประมาณ)</label>
+                  <input id="asform-estimated_completion_date" type="date" value={form.estimated_completion_date} onChange={e => setForm({...form, estimated_completion_date: e.target.value})}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>

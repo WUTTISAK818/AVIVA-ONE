@@ -618,33 +618,33 @@ function FinanceContent() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วิธีการชำระเงิน</label>
-                <select value={payForm.payment_method} onChange={e => setPayForm({ ...payForm, payment_method: e.target.value })}
+                <label htmlFor="payform-payment_method" className="text-xs text-aviva-secondary mb-1 block">วิธีการชำระเงิน</label>
+                <select id="payform-payment_method" value={payForm.payment_method} onChange={e => setPayForm({ ...payForm, payment_method: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {["โอนเงิน", "เช็ค", "เงินสด"].map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">เลขที่อ้างอิง (ถ้ามี)</label>
-                <input type="text" value={payForm.reference_number} onChange={e => setPayForm({ ...payForm, reference_number: e.target.value })}
+                <label htmlFor="payform-reference_number" className="text-xs text-aviva-secondary mb-1 block">เลขที่อ้างอิง (ถ้ามี)</label>
+                <input id="payform-reference_number" type="text" value={payForm.reference_number} onChange={e => setPayForm({ ...payForm, reference_number: e.target.value })}
                   placeholder="เลขที่โอน / เลขที่เช็ค"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่จ่าย</label>
-                <input type="date" value={payForm.entry_date} onChange={e => setPayForm({ ...payForm, entry_date: e.target.value })}
+                <label htmlFor="payform-entry_date" className="text-xs text-aviva-secondary mb-1 block">วันที่จ่าย</label>
+                <input id="payform-entry_date" type="date" value={payForm.entry_date} onChange={e => setPayForm({ ...payForm, entry_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">หัก ณ ที่จ่าย (%)</label>
-                  <input type="number" inputMode="decimal" value={payForm.wht_rate}
+                  <label htmlFor="payform-wht_rate" className="text-xs text-aviva-secondary mb-1 block">หัก ณ ที่จ่าย (%)</label>
+                  <input id="payform-wht_rate" type="number" inputMode="decimal" value={payForm.wht_rate}
                     onChange={e => setPayForm({ ...payForm, wht_rate: Number(e.target.value) })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">เงินประกันผลงาน (%)</label>
-                  <input type="number" inputMode="decimal" value={payForm.retention_rate}
+                  <label htmlFor="payform-retention_rate" className="text-xs text-aviva-secondary mb-1 block">เงินประกันผลงาน (%)</label>
+                  <input id="payform-retention_rate" type="number" inputMode="decimal" value={payForm.retention_rate}
                     onChange={e => setPayForm({ ...payForm, retention_rate: Number(e.target.value) })}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
@@ -661,8 +661,8 @@ function FinanceContent() {
                 );
               })()}
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <input type="text" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
+                <label htmlFor="payform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <input id="payform-notes" type="text" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
                   placeholder="หมายเหตุเพิ่มเติม"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
@@ -698,8 +698,8 @@ function FinanceContent() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท) *</label>
-                <input type="number" value={form.amount}
+                <label htmlFor="finform-amount" className="text-xs text-aviva-secondary mb-1 block">จำนวนเงิน (บาท) *</label>
+                <input id="finform-amount" type="number" value={form.amount}
                   onChange={e => setForm({ ...form, amount: e.target.value })}
                   placeholder="0"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
@@ -710,22 +710,22 @@ function FinanceContent() {
                 )}
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
-                <input type="text" value={form.description}
+                <label htmlFor="finform-description" className="text-xs text-aviva-secondary mb-1 block">รายละเอียด *</label>
+                <input id="finform-description" type="text" value={form.description}
                   onChange={e => setForm({ ...form, description: e.target.value })}
                   placeholder="อธิบายรายการ..."
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
-                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                <label htmlFor="finform-category" className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
+                <select id="finform-category" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {FINANCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">Cost Center (ระบุถ้ามี)</label>
-                <input type="text" value={form.cost_center}
+                <label htmlFor="finform-cost_center" className="text-xs text-aviva-secondary mb-1 block">Cost Center (ระบุถ้ามี)</label>
+                <input id="finform-cost_center" type="text" value={form.cost_center}
                   onChange={e => setForm({ ...form, cost_center: e.target.value })}
                   placeholder="เช่น CC-001 ฝ่ายก่อสร้าง"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
@@ -2377,8 +2377,8 @@ function HRContent() {
           <GlassCard className="p-4 space-y-3">
             <p className="text-sm font-semibold text-aviva-text">ยื่นคำขอลา</p>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ชื่อพนักงาน *</label>
-              <select value={leaveForm.employee_name} onChange={e => { setLeaveForm({...leaveForm, employee_name: e.target.value}); fetchLeaveBalance(e.target.value); }}
+              <label htmlFor="leaveform-employee_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อพนักงาน *</label>
+              <select id="leaveform-employee_name" value={leaveForm.employee_name} onChange={e => { setLeaveForm({...leaveForm, employee_name: e.target.value}); fetchLeaveBalance(e.target.value); }}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                 <option value="">— เลือกพนักงาน —</option>
                 {employees.filter(e => e.status === "active").map(e => (
@@ -2413,27 +2413,27 @@ function HRContent() {
               </div>
             )}
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา</label>
-              <select value={leaveForm.leave_type} onChange={e => setLeaveForm({...leaveForm, leave_type: e.target.value})}
+              <label htmlFor="leaveform-leave_type" className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา</label>
+              <select id="leaveform-leave_type" value={leaveForm.leave_type} onChange={e => setLeaveForm({...leaveForm, leave_type: e.target.value})}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                 {["ลาพักร้อน","ลาป่วย","ลากิจ","ลาครอบครัว","ลาอื่นๆ"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่เริ่มลา</label>
-                <input type="date" value={leaveForm.date_from} onChange={e => setLeaveForm({...leaveForm, date_from: e.target.value})}
+                <label htmlFor="leaveform-date_from" className="text-xs text-aviva-secondary mb-1 block">วันที่เริ่มลา</label>
+                <input id="leaveform-date_from" type="date" value={leaveForm.date_from} onChange={e => setLeaveForm({...leaveForm, date_from: e.target.value})}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่กลับ</label>
-                <input type="date" value={leaveForm.date_to} onChange={e => setLeaveForm({...leaveForm, date_to: e.target.value})}
+                <label htmlFor="leaveform-date_to" className="text-xs text-aviva-secondary mb-1 block">วันที่กลับ</label>
+                <input id="leaveform-date_to" type="date" value={leaveForm.date_to} onChange={e => setLeaveForm({...leaveForm, date_to: e.target.value})}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">เหตุผล</label>
-              <input type="text" value={leaveForm.reason} onChange={e => setLeaveForm({...leaveForm, reason: e.target.value})}
+              <label htmlFor="leaveform-reason" className="text-xs text-aviva-secondary mb-1 block">เหตุผล</label>
+              <input id="leaveform-reason" type="text" value={leaveForm.reason} onChange={e => setLeaveForm({...leaveForm, reason: e.target.value})}
                 placeholder="ระบุเหตุผล (ถ้ามี)"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>

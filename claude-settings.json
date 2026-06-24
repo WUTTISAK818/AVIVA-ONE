@@ -1,0 +1,45 @@
+{
+  "language": {
+    "primary": "thai",
+    "description": "ทั้งหมดใช้ภาษาไทยเป็นหลัก",
+    "englishAllowed": [
+      "technical-terms",
+      "api-names",
+      "database-names",
+      "component-names",
+      "function-names",
+      "variable-names",
+      "library-names",
+      "package-names",
+      "file-paths",
+      "urls",
+      "routing"
+    ],
+    "examples": {
+      "incorrect": "The component fetches data from the API",
+      "correct": "Component ดึงข้อมูลจาก API"
+    }
+  },
+  "reporting": {
+    "format": "thai-primary",
+    "reports": {
+      "style": "ภาษาไทย",
+      "summaries": "ภาษาไทย",
+      "explanations": "ภาษาไทย",
+      "results": "ภาษาไทย"
+    }
+  },
+  "memory": {
+    "persistent": false,
+    "description": "ไม่มี long-term memory ระหว่าง sessions",
+    "instruction": "เขียนข้อมูลสำคัญลง CLAUDE.md, AGENTS.md หรือ claude-settings.json เท่านั้น",
+    "note": "ถ้าไม่เขียนลงไฟล์ → session ใหม่ ฉันจะลืม"
+  },
+  "project": {
+    "name": "AVIVA Private",
+    "application": "AVIVA ONE",
+    "useCase": "การจัดการโครงการก่อสร้างและขายอสังหาริมทรัพย์"
+  },
+  "version": "1.0",
+  "lastUpdated": "2025-06-24"
+}

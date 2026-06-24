@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Network, Users, MapPin, Vote, ChevronRight, ChevronLeft, Plus, X,
-  Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown, MessageCircle, Target,
+  Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown, MessageCircle, Target, TrendingUp,
 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
@@ -15,6 +15,7 @@ import IdCardCapture, { type ExtractedIdFields } from "@/components/IdCardCaptur
 import ChipCardReader from "@/components/ChipCardReader";
 import PresenceCapture, { type PresenceProof } from "@/components/PresenceCapture";
 import LineVerifyModal from "@/components/LineVerifyModal";
+import WinAnalysis from "@/components/WinAnalysis";
 import { type ChipIdFields } from "@/lib/thai-id-reader";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -28,7 +29,7 @@ import {
   type WinVoteDistrictStrategy, type WinVoteUnitStrategy,
 } from "@/lib/winvote";
 
-type Tab = "overview" | "polling" | "results" | "report";
+type Tab = "overview" | "polling" | "results" | "report" | "analysis";
 
 const emptyResident = {
   national_id: "", full_name: "", date_of_birth: "", gender: "" as string,
@@ -135,6 +136,7 @@ export default function WinVotePage() {
               ["overview", "ภาพรวม", Building2],
               ["polling", "หน่วยเลือกตั้ง", Vote],
               ["results", "ผลเลือกตั้ง", Target],
+              ["analysis", "วิเคราะห์", TrendingUp],
               ["report", "รายงาน", BarChart3],
             ] as [Tab, string, typeof Building2][]).filter(
               ([key]) => key !== "report" || user?.canExport
@@ -194,6 +196,10 @@ export default function WinVotePage() {
 
         {tab === "results" && (
           <ResultsTab showToast={showToast} />
+        )}
+
+        {tab === "analysis" && (
+          <WinAnalysis />
         )}
 
         {tab === "report" && (

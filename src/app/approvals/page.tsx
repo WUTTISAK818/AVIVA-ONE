@@ -386,6 +386,22 @@ function ApprovalsContent() {
     // Cascade logic based on workflow type
     if (log.workflow_type === "Installment_Review") {
       const byName = user.full_name ?? user.email;
+
+      // CRITICAL: Check for open defects before approving (Phase 1 fix)
+      if (approved && log.source_record_id) {
+        const { data: openDefects } = await supabase
+          .from("qc_defects")
+          .select("id")
+          .eq("contractor_installment_id", log.source_record_id)
+          .eq("status", "open");
+
+        if (openDefects && openDefects.length > 0) {
+          setProcessingId(null);
+          alert(`ไม่สามารถอนุมัติ — มี ${openDefects.length} defects ที่ยังเปิดอยู่\nกรุณาปิด QC defects ทั้งหมดก่อนขอการอนุมัติ`);
+          return;
+        }
+      }
+
       // Resolve the contractor linked to this installment's house (for LINE/SMS).
       let contractorRef: string | null = null;
       if (log.source_record_id) {

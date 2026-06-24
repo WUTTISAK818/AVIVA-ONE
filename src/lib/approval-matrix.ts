@@ -25,6 +25,7 @@ export function calcSlaDueAt(workflowType: string): string {
 export const APPROVAL_THRESHOLDS: Record<string, { managerMax: number; adminMin: number }> = {
   Finance_Approval:   { managerMax: 499_999,  adminMin: 500_000 },
   Material_Purchase:  { managerMax: 50_000,   adminMin: 50_001  },
+  Purchase_Request:   { managerMax: 50_000,   adminMin: 50_001  },
   Installment_Review: { managerMax: Infinity, adminMin: Infinity },
   Leave_Request:      { managerMax: Infinity, adminMin: Infinity },
   Document_Approval:  { managerMax: Infinity, adminMin: Infinity },

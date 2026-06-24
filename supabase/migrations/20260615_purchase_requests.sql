@@ -36,7 +36,12 @@ create policy authenticated_insert_pr on public.purchase_requests
 
 drop policy if exists authenticated_update_pr on public.purchase_requests;
 create policy authenticated_update_pr on public.purchase_requests
-  for update to authenticated using (true) with check (true);
+  for update to authenticated using (
+    -- Requester can update their own draft PR
+    requester = auth.jwt() ->> 'email' OR
+    -- Manager/admin can update status
+    auth.jwt() ->> 'role' IN ('admin', 'manager')
+  ) with check (true);
 
 -- ลงทะเบียนเลขที่เอกสาร PR ในตัวนับ (next_doc_number ต้องมีแถวนี้ ไม่งั้นจะ RAISE + เลขซ้ำ)
 insert into public.document_sequences (workflow_type, prefix, last_seq, year, total_issued)

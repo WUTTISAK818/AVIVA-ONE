@@ -724,6 +724,51 @@ function ApprovalsContent() {
         from_dept: "ฝ่ายอนุมัติ",
         to_dept: "ฝ่ายการตลาด",
       });
+    } else if (log.workflow_type === "Purchase_Request") {
+      const byName = user.full_name ?? user.email;
+      if (log.source_record_id) {
+        await supabase.from("purchase_requests")
+          .update({
+            status: approved ? "approved" : "rejected",
+            approver: byName,
+            approved_at: approved ? new Date().toISOString() : null,
+            reject_reason: approved ? null : (note ?? null)
+          })
+          .eq("id", log.source_record_id);
+        await closeWorkQueue(log.source_record_id, "manager", byName);
+        if (approved) {
+          await createWorkQueue({
+            workflowType: "Purchase_Request",
+            sourceRecordId: log.source_record_id,
+            docIndex: log.source_doc_index,
+            title: `บันทึกจ่าย: ${log.source_doc_index ?? ""}`,
+            amount: log.amount ?? null,
+            assignedRole: "finance",
+            slaDueAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        }
+      }
+      await logWorkflowEvent({
+        workflowType: "Purchase_Request",
+        sourceRecordId: log.source_record_id ?? "",
+        docIndex: log.source_doc_index,
+        eventType: approved ? "approved" : "rejected",
+        stageFrom: "pending",
+        stageTo: approved ? "approved" : "rejected",
+        actorName: byName,
+        actorRole: user.isAdmin ? "admin" : "manager",
+        conditionNote: note ?? undefined,
+        amount: log.amount ?? null,
+      });
+      await createNotification({
+        type: approved ? "success" : "info",
+        title: approved ? "อนุมัติเสนอซื้อแล้ว — รอบันทึกจ่าย" : "ปฏิเสธเสนอซื้อ",
+        message: `${log.source_doc_index ?? ""}\n${note ?? ""}`,
+        from_dept: "ผู้บริหาร",
+        to_dept: "ฝ่ายการเงิน",
+        record_id: log.source_record_id ?? undefined,
+        link: "/office?tab=finance",
+      });
     }
 
     // ปิดงานในกล่องผู้จัดการ + บันทึก timeline (Installment_Review จัดการเองด้านบนแล้ว — กัน event ซ้ำ)

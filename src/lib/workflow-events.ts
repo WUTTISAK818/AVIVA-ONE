@@ -4,7 +4,7 @@
 // Every helper is best-effort and never throws, so it can be layered onto
 // existing approval/construction flows without changing their behaviour.
 import { supabase } from "./supabase";
-import { calcSlaDueAt } from "./approval-matrix";
+import { calcSlaDueAt, getApproverRole } from "./approval-matrix";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -108,13 +108,14 @@ export async function submitApprovalQueue(opts: {
   actorName?: string | null;
   actorRole?: string | null;
 }): Promise<void> {
+  const approverRole = getApproverRole(opts.workflowType, opts.amount ?? null);
   await createWorkQueue({
     workflowType: opts.workflowType,
     sourceRecordId: opts.sourceRecordId,
     docIndex: opts.docIndex ?? null,
     title: opts.title,
     amount: opts.amount ?? null,
-    assignedRole: "manager",
+    assignedRole: approverRole,
     slaDueAt: calcSlaDueAt(opts.workflowType),
   });
   await logWorkflowEvent({

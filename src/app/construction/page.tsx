@@ -1836,11 +1836,11 @@ export default function ConstructionPage() {
       </div>
 
       {showSummaryModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-aviva-text">สรุปรายงานประจำวัน</h2>
+                <h2 id="summary-modal-title" className="text-lg font-bold text-aviva-text">สรุปรายงานประจำวัน</h2>
                 <p className="text-[11px] text-aviva-secondary mt-0.5">รวบรวมงานทั้งวัน — แก้ไขได้ก่อนส่ง/พิมพ์</p>
               </div>
               <button onClick={() => setShowSummaryModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
@@ -1914,10 +1914,10 @@ export default function ConstructionPage() {
       )}
 
       {showDefectModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14" role="dialog" aria-modal="true" aria-labelledby="defect-modal-title">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">บันทึก Defect{defectHouse ? ` — ${defectHouse.house_number}` : ""}</h2>
+              <h2 id="defect-modal-title" className="text-lg font-bold text-aviva-text">บันทึก Defect{defectHouse ? ` — ${defectHouse.house_number}` : ""}</h2>
               <button onClick={() => { setShowDefectModal(false); setDefectHouse(null); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
@@ -1970,10 +1970,10 @@ export default function ConstructionPage() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">{editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}</h2>
+              <h2 id="report-modal-title" className="text-lg font-bold text-aviva-text">{editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}</h2>
               <button onClick={() => { setShowModal(false); setEditingReport(null); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
@@ -2038,10 +2038,10 @@ export default function ConstructionPage() {
       )}
 
       {showHouseEditModal && editingHouse && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14" role="dialog" aria-modal="true" aria-labelledby="house-edit-modal-title">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">แก้ไขยูนิต — {editingHouse.house_number}</h2>
+              <h2 id="house-edit-modal-title" className="text-lg font-bold text-aviva-text">แก้ไขยูนิต — {editingHouse.house_number}</h2>
               <button onClick={() => { setShowHouseEditModal(false); setEditingHouse(null); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
@@ -2077,12 +2077,12 @@ export default function ConstructionPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ</label>
-                  <input type="date" value={houseForm.planned_completion_date} onChange={e => setHouseForm({ ...houseForm, planned_completion_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                  <label htmlFor="houseeditform-planned_completion_date" className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ</label>
+                  <input id="houseeditform-planned_completion_date" type="date" value={houseForm.planned_completion_date} onChange={e => setHouseForm({ ...houseForm, planned_completion_date: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">วิศวกร/ช่างควบคุม</label>
-                  <input type="text" value={houseForm.site_engineer} onChange={e => setHouseForm({ ...houseForm, site_engineer: e.target.value })} placeholder="ชื่อวิศวกรประจำยูนิต" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+                  <label htmlFor="houseeditform-site_engineer" className="text-xs text-aviva-secondary mb-1 block">วิศวกร/ช่างควบคุม</label>
+                  <input id="houseeditform-site_engineer" type="text" value={houseForm.site_engineer} onChange={e => setHouseForm({ ...houseForm, site_engineer: e.target.value })} placeholder="ชื่อวิศวกรประจำยูนิต" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
             </div>
@@ -2092,11 +2092,11 @@ export default function ConstructionPage() {
       )}
 
       {showAckModal && ackInst && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14" role="dialog" aria-modal="true" aria-labelledby="ack-modal-title">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-aviva-text">ผู้รับเหมาลงชื่อรับทราบ</h2>
+                <h2 id="ack-modal-title" className="text-base font-bold text-aviva-text">ผู้รับเหมาลงชื่อรับทราบ</h2>
                 <p className="text-xs text-aviva-secondary mt-0.5">{ackInst.name} — {instHouse?.house_number}</p>
               </div>
               <button onClick={() => { setShowAckModal(false); setAckInst(null); setAckName(""); }} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
@@ -2114,8 +2114,9 @@ export default function ConstructionPage() {
               <p>มูลค่างวด: <span className="text-aviva-gold font-semibold">฿{ackInst.amount.toLocaleString("th-TH")}</span></p>
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1.5 block font-medium">ชื่อผู้รับเหมา (ลงชื่อรับทราบผลการตรวจ) *</label>
+              <label htmlFor="consform-ack_name" className="text-xs text-aviva-secondary mb-1.5 block font-medium">ชื่อผู้รับเหมา (ลงชื่อรับทราบผลการตรวจ) *</label>
               <input
+                id="consform-ack_name"
                 type="text"
                 value={ackName}
                 onChange={e => setAckName(e.target.value)}
@@ -2133,9 +2134,9 @@ export default function ConstructionPage() {
       )}
 
       {confirmInst && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">
-            <h2 className="text-base font-bold text-aviva-text">ยืนยันการส่งเบิก?</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" role="presentation">
+          <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4" role="alertdialog" aria-labelledby="confirm-modal-title">
+            <h2 id="confirm-modal-title" className="text-base font-bold text-aviva-text">ยืนยันการส่งเบิก?</h2>
             <p className="text-sm text-aviva-secondary">{confirmInst.name} — เปลี่ยนสถานะเป็น &quot;{instStatusConfig[({ pending: "in_review", in_review: "approved", approved: "paid" } as Record<string,string>)[confirmInst.status] ?? confirmInst.status]?.label}&quot;</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmInst(null)} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
@@ -2146,18 +2147,18 @@ export default function ConstructionPage() {
       )}
 
       {showPRModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto mb-14" role="dialog" aria-modal="true" aria-labelledby="pr-modal-title">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-aviva-text">ใบขอสั่งซื้อ</h2>
+                <h2 id="pr-modal-title" className="text-lg font-bold text-aviva-text">ใบขอสั่งซื้อ</h2>
                 <p className="text-[11px] text-aviva-secondary mt-0.5">Purchase Request — ฝ่ายก่อสร้าง</p>
               </div>
               <button onClick={() => setShowPRModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ผู้จัดจำหน่าย / บริษัทที่สั่งซื้อ *</label>
-              <input type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
+              <label htmlFor="consform-supplier_name" className="text-xs text-aviva-secondary mb-1 block">ผู้จัดจำหน่าย / บริษัทที่สั่งซื้อ *</label>
+              <input id="consform-supplier_name" type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
                 placeholder="ชื่อร้านค้า / บริษัท"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>
@@ -2218,8 +2219,8 @@ export default function ConstructionPage() {
               )}
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ / เหตุผลที่ต้องการสั่งซื้อ</label>
-              <textarea value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
+              <label htmlFor="consform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ / เหตุผลที่ต้องการสั่งซื้อ</label>
+              <textarea id="consform-notes" value={prForm.notes} onChange={e => setPrForm(p => ({ ...p, notes: e.target.value }))}
                 placeholder="อธิบายความจำเป็นและการใช้งาน..."
                 rows={3}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />

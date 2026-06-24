@@ -1561,10 +1561,10 @@ export default function CRMPage() {
 
       {/* Add Activity Modal */}
       {showActModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
+              <h2 id="activity-modal-title" className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมรายวัน</h2>
               <button onClick={() => setShowActModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
@@ -1624,11 +1624,11 @@ export default function CRMPage() {
 
       {/* CRM Log Modal */}
       {crmLogLead && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14" role="dialog" aria-modal="true" aria-labelledby="contact-log-modal-title">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
+                <h2 id="contact-log-modal-title" className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
                 <p className="text-xs text-aviva-secondary mt-0.5">{crmLogLead.customer_name}</p>
               </div>
               <button onClick={() => setCrmLogLead(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
@@ -1689,15 +1689,15 @@ export default function CRMPage() {
 
       {/* Lead Detail Modal */}
       {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={() => setSelectedLead(null)}>
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[85vh] overflow-y-auto mb-14 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={() => setSelectedLead(null)} role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[85vh] overflow-y-auto mb-14 space-y-4" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="lead-detail-modal-title">
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   {selectedLead.lead_code && (
                     <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-2 py-0.5 rounded-md border border-aviva-gold/20">{selectedLead.lead_code}</span>
                   )}
-                  <h2 className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
+                  <h2 id="lead-detail-modal-title" className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
                 </div>
                 <p className="text-xs text-aviva-secondary mt-0.5">{selectedLead.phone} · {selectedLead.source}</p>
                 <p className="text-[11px] text-aviva-gold mt-0.5">👤 เซลล์ผู้ดูแล: {selectedLead.assigned_to || "ยังไม่ระบุ"}</p>
@@ -2014,10 +2014,10 @@ export default function CRMPage() {
 
       {/* Add / Edit Lead Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={requestCloseModal}>
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[88vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={requestCloseModal} role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[88vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="lead-edit-modal-title">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่มลูกค้าใหม่"}</h2>
+              <h2 id="lead-edit-modal-title" className="text-lg font-bold text-aviva-text">{editingLead ? "แก้ไขข้อมูลลูกค้า" : "เพิ่มลูกค้าใหม่"}</h2>
               <button onClick={requestCloseModal} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
@@ -2267,9 +2267,9 @@ export default function CRMPage() {
 
       {/* ยืนยันออกโดยไม่บันทึก */}
       {confirmDiscard && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6" onClick={() => setConfirmDiscard(false)}>
-          <div className="w-full max-w-xs bg-aviva-card rounded-2xl p-5 border border-aviva-gold/20" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-bold text-aviva-text mb-1">ออกโดยไม่บันทึก?</p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6" onClick={() => setConfirmDiscard(false)} role="presentation">
+          <div className="w-full max-w-xs bg-aviva-card rounded-2xl p-5 border border-aviva-gold/20" onClick={e => e.stopPropagation()} role="alertdialog" aria-labelledby="confirm-discard-title">
+            <p id="confirm-discard-title" className="text-sm font-bold text-aviva-text mb-1">ออกโดยไม่บันทึก?</p>
             <p className="text-xs text-aviva-secondary leading-relaxed mb-4">มีข้อมูลที่ยังไม่ได้บันทึก หากออกตอนนี้ ข้อมูลที่กรอกไว้จะหายไป</p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmDiscard(false)}
@@ -2296,11 +2296,11 @@ export default function CRMPage() {
         const displayLead = isSold ? leads.find(l => l.plot_number === n && l.status === "Closed Deal") : bookedLead;
         const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว" };
         return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={() => setMapPlotModal(null)}>
-            <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={() => setMapPlotModal(null)} role="presentation">
+            <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="plot-modal-title">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-base font-bold text-aviva-text">แปลงที่ {n}</h2>
+                  <h2 id="plot-modal-title" className="text-base font-bold text-aviva-text">แปลงที่ {n}</h2>
                   <p className="text-xs text-aviva-secondary">{house?.house_model ?? "—"} · {house?.land_size ?? "—"} ตร.วา</p>
                 </div>
                 <button onClick={() => setMapPlotModal(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>

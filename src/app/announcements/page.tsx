@@ -237,10 +237,11 @@ export default function AnnouncementsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-aviva-text mb-2">
+                  <label htmlFor="announcementform-priority" className="block text-sm font-semibold text-aviva-text mb-2">
                     Priority
                   </label>
                   <select
+                    id="announcementform-priority"
                     value={formData.priority}
                     onChange={(e) =>
                       setFormData({
@@ -257,10 +258,11 @@ export default function AnnouncementsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-aviva-text mb-2">
+                  <label htmlFor="announcementform-type" className="block text-sm font-semibold text-aviva-text mb-2">
                     Type
                   </label>
                   <select
+                    id="announcementform-type"
                     value={formData.announcement_type}
                     onChange={(e) =>
                       setFormData({
@@ -279,10 +281,11 @@ export default function AnnouncementsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-aviva-text mb-2">
+                <label htmlFor="announcementform-expires_at" className="block text-sm font-semibold text-aviva-text mb-2">
                   Expires At (Optional)
                 </label>
                 <input
+                  id="announcementform-expires_at"
                   type="datetime-local"
                   value={formData.expires_at}
                   onChange={(e) =>

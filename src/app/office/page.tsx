@@ -3898,13 +3898,13 @@ function MaterialsContent() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้จำหน่าย *</label>
-                <input value={poForm.supplier_name} onChange={e => setPoForm(p => ({ ...p, supplier_name: e.target.value }))}
+                <label htmlFor="poform-supplier_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้จำหน่าย *</label>
+                <input id="poform-supplier_name" value={poForm.supplier_name} onChange={e => setPoForm(p => ({ ...p, supplier_name: e.target.value }))}
                   placeholder="บ. วัสดุก่อสร้าง จก." className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
-                <div className="space-y-2">
+                <label htmlFor="poform-materials" className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
+                <div id="poform-materials" className="space-y-2">
                   <datalist id="po-mat-names">{materials.map(m => <option key={m.id} value={m.name} />)}</datalist>
                   {poItemRows.map((row, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-1.5 items-center">
@@ -3928,13 +3928,13 @@ function MaterialsContent() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">กำหนดส่งของ</label>
-                <input type="date" value={poForm.delivery_date} onChange={e => setPoForm(p => ({ ...p, delivery_date: e.target.value }))}
+                <label htmlFor="poform-delivery_date" className="text-xs text-aviva-secondary mb-1 block">กำหนดส่งของ</label>
+                <input id="poform-delivery_date" type="date" value={poForm.delivery_date} onChange={e => setPoForm(p => ({ ...p, delivery_date: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <input value={poForm.notes} onChange={e => setPoForm(p => ({ ...p, notes: e.target.value }))}
+                <label htmlFor="poform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <input id="poform-notes" value={poForm.notes} onChange={e => setPoForm(p => ({ ...p, notes: e.target.value }))}
                   placeholder="หมายเหตุเพิ่มเติม" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
@@ -4072,8 +4072,8 @@ function PayrollContent() {
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <div className="flex items-center gap-3">
         <div className="flex-1">
-          <label className="text-xs text-aviva-secondary mb-1 block">เดือนที่คำนวณ</label>
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+          <label htmlFor="payroll-month" className="text-xs text-aviva-secondary mb-1 block">เดือนที่คำนวณ</label>
+          <input id="payroll-month" type="month" value={month} onChange={e => setMonth(e.target.value)}
             className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
         </div>
         <div className="text-right mt-4">
@@ -4368,8 +4368,8 @@ function CommunityContent() {
           </div>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">แปลงบ้าน (ผูกกับทะเบียนบ้าน)</label>
-              <select value={form.house_id}
+              <label htmlFor="commform-house_id" className="text-xs text-aviva-secondary mb-1 block">แปลงบ้าน (ผูกกับทะเบียนบ้าน)</label>
+              <select id="commform-house_id" value={form.house_id}
                 onChange={(e) => {
                   const h = houses.find(h => h.id === e.target.value);
                   setForm({ ...form, house_id: e.target.value, area_sqw: h?.land_size != null ? String(h.land_size) : form.area_sqw });
@@ -4382,20 +4382,20 @@ function CommunityContent() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเจ้าของ *</label>
-              <input type="text" value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
+              <label htmlFor="commform-owner_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อเจ้าของ *</label>
+              <input id="commform-owner_name" type="text" value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
                 placeholder="ชื่อ-นามสกุล"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
-              <input type="tel" value={form.owner_phone} onChange={(e) => setForm({ ...form, owner_phone: e.target.value })}
+              <label htmlFor="commform-owner_phone" className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
+              <input id="commform-owner_phone" type="tel" value={form.owner_phone} onChange={(e) => setForm({ ...form, owner_phone: e.target.value })}
                 placeholder="0XX-XXX-XXXX"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">พื้นที่ (ตร.ว.) *</label>
-              <input type="number" value={form.area_sqw} onChange={(e) => setForm({ ...form, area_sqw: e.target.value })}
+              <label htmlFor="commform-area_sqw" className="text-xs text-aviva-secondary mb-1 block">พื้นที่ (ตร.ว.) *</label>
+              <input id="commform-area_sqw" type="number" value={form.area_sqw} onChange={(e) => setForm({ ...form, area_sqw: e.target.value })}
                 placeholder="50"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               {form.area_sqw && (
@@ -4671,39 +4671,39 @@ function DocumentsContent() {
           </div>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ชื่อเอกสาร *</label>
-              <input type="text" value={form.name}
+              <label htmlFor="docform-name" className="text-xs text-aviva-secondary mb-1 block">ชื่อเอกสาร *</label>
+              <input id="docform-name" type="text" value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="เช่น สัญญาจะซื้อจะขาย บ้านเลข A-01"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                <label htmlFor="docform-category" className="text-xs text-aviva-secondary mb-1 block">หมวดหมู่</label>
+                <select id="docform-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                   {["Contract","Loan","Permit","Utility","Other"].map(c =>
                     <option key={c} value={c}>{docCategoryTh[c] ?? c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">อัปโหลดโดย</label>
-                <input type="text" value={form.uploaded_by}
+                <label htmlFor="docform-uploaded_by" className="text-xs text-aviva-secondary mb-1 block">อัปโหลดโดย</label>
+                <input id="docform-uploaded_by" type="text" value={form.uploaded_by}
                   onChange={(e) => setForm({ ...form, uploaded_by: e.target.value })}
                   placeholder="ชื่อผู้อัปโหลด"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">คำอธิบายเอกสาร</label>
-              <textarea value={form.description}
+              <label htmlFor="docform-description" className="text-xs text-aviva-secondary mb-1 block">คำอธิบายเอกสาร</label>
+              <textarea id="docform-description" value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="อธิบายวัตถุประสงค์และเนื้อหาของเอกสาร..." rows={2}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ลิงค์ไฟล์ (Google Drive / URL)</label>
-              <input type="url" value={form.file_url}
+              <label htmlFor="docform-file_url" className="text-xs text-aviva-secondary mb-1 block">ลิงค์ไฟล์ (Google Drive / URL)</label>
+              <input id="docform-file_url" type="url" value={form.file_url}
                 onChange={(e) => setForm({ ...form, file_url: e.target.value })}
                 placeholder="https://drive.google.com/..."
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />

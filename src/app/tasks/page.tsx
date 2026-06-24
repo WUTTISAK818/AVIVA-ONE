@@ -302,10 +302,11 @@ export default function TasksPage() {
           <GlassCard className="mb-6">
             <form onSubmit={handleCreateTask} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-aviva-text mb-2">
+                <label htmlFor="taskform-title" className="block text-sm font-semibold text-aviva-text mb-2">
                   Task Title
                 </label>
                 <input
+                  id="taskform-title"
                   type="text"
                   value={formData.title}
                   onChange={(e) =>
@@ -317,10 +318,11 @@ export default function TasksPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-aviva-text mb-2">
+                <label htmlFor="taskform-description" className="block text-sm font-semibold text-aviva-text mb-2">
                   Description
                 </label>
                 <textarea
+                  id="taskform-description"
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
@@ -332,10 +334,11 @@ export default function TasksPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-aviva-text mb-2">
+                  <label htmlFor="taskform-assigned_to_email" className="block text-sm font-semibold text-aviva-text mb-2">
                     Assign To (Email)
                   </label>
                   <input
+                    id="taskform-assigned_to_email"
                     type="email"
                     value={formData.assigned_to_email}
                     onChange={(e) =>
@@ -350,10 +353,11 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-aviva-text mb-2">
+                  <label htmlFor="taskform-priority" className="block text-sm font-semibold text-aviva-text mb-2">
                     Priority
                   </label>
                   <select
+                    id="taskform-priority"
                     value={formData.task_priority}
                     onChange={(e) =>
                       setFormData({
@@ -372,10 +376,11 @@ export default function TasksPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-aviva-text mb-2">
+                  <label htmlFor="taskform-due_date" className="block text-sm font-semibold text-aviva-text mb-2">
                     Due Date
                   </label>
                   <input
+                    id="taskform-due_date"
                     type="date"
                     value={formData.due_date}
                     onChange={(e) =>
@@ -386,10 +391,11 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-aviva-text mb-2">
+                  <label htmlFor="taskform-due_time" className="block text-sm font-semibold text-aviva-text mb-2">
                     Due Time
                   </label>
                   <input
+                    id="taskform-due_time"
                     type="time"
                     value={formData.due_time}
                     onChange={(e) =>

@@ -7,14 +7,11 @@ import { supabase } from "@/lib/supabase";
 import { DEMO_MODE } from "@/lib/demo-data";
 
 const DEMO_ACCOUNTS = [
-  { email: "demo.admin@aviva.th",        label: "Admin",       dept: "ฝ่ายบริหาร",      color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
-  { email: "demo.sales@aviva.th",         label: "นายหน้า",     dept: "ฝ่ายขาย",          color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
-  { email: "demo.finance@aviva.th",       label: "การเงิน",     dept: "ฝ่ายการเงิน",      color: "text-green-400    bg-green-500/10    border-green-500/20" },
-  { email: "demo.construction@aviva.th",  label: "ก่อสร้าง",    dept: "ฝ่ายก่อสร้าง",     color: "text-orange-400   bg-orange-500/10   border-orange-500/20" },
-  { email: "demo.accounting@aviva.th",    label: "บัญชี",       dept: "ฝ่ายบัญชี",        color: "text-purple-400   bg-purple-500/10   border-purple-500/20" },
-  { email: "demo.hr@aviva.th",            label: "บุคคล",       dept: "ฝ่ายบุคคล",        color: "text-pink-400     bg-pink-500/10     border-pink-500/20" },
-  { email: "demo.marketing@aviva.th",     label: "การตลาด",     dept: "ฝ่ายการตลาด",      color: "text-cyan-400     bg-cyan-500/10     border-cyan-500/20" },
-  { email: "demo.aftersales@aviva.th",    label: "หลังการขาย",  dept: "ฝ่ายหลังการขาย",   color: "text-teal-400     bg-teal-500/10     border-teal-500/20" },
+  { email: "demo.admin@winvote.local",     label: "Admin",  dept: "ผู้ดูแลระบบ",    color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
+  { email: "demo.district1@winvote.local", label: "เขต 1",  dept: "หัวหน้าเขต 1",   color: "text-blue-400     bg-blue-500/10     border-blue-500/20" },
+  { email: "demo.district2@winvote.local", label: "เขต 2",  dept: "หัวหน้าเขต 2",   color: "text-green-400    bg-green-500/10    border-green-500/20" },
+  { email: "demo.district3@winvote.local", label: "เขต 3",  dept: "หัวหน้าเขต 3",   color: "text-orange-400   bg-orange-500/10   border-orange-500/20" },
+  { email: "demo.district4@winvote.local", label: "เขต 4",  dept: "หัวหน้าเขต 4",   color: "text-purple-400   bg-purple-500/10   border-purple-500/20" },
 ];
 
 const DEMO_PASSWORD = "Demo1234";

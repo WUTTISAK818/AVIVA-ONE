@@ -678,6 +678,11 @@ function PollingTab({ districts, showToast }: { districts: WinVoteDistrictKpi[];
   const [units, setUnits] = useState<(WinVotePollingUnit & { resident_count: number })[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // districts โหลดแบบ async — sync ค่าเริ่มต้นเมื่อยังว่าง (กัน tab ว่างถาวรใน race)
+  useEffect(() => {
+    if (!districtId && districts.length) setDistrictId(districts[0].district_id);
+  }, [districts, districtId]);
+
   useEffect(() => {
     if (!districtId) return;
     setLoading(true);

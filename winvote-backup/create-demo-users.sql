@@ -19,14 +19,11 @@ declare
   rec record;
   uid uuid;
   accounts jsonb := '[
-    {"email":"demo.admin@aviva.th",        "name":"ผู้ดูแลระบบ",      "role":"admin",   "dept":"ฝ่ายบริหาร"},
-    {"email":"demo.sales@aviva.th",        "name":"หัวหน้านายหน้า",   "role":"manager", "dept":"ฝ่ายขาย"},
-    {"email":"demo.finance@aviva.th",      "name":"หัวหน้าการเงิน",   "role":"manager", "dept":"ฝ่ายการเงิน"},
-    {"email":"demo.construction@aviva.th", "name":"หัวหน้าก่อสร้าง",  "role":"manager", "dept":"ฝ่ายก่อสร้าง"},
-    {"email":"demo.accounting@aviva.th",   "name":"หัวหน้าบัญชี",     "role":"manager", "dept":"ฝ่ายบัญชี"},
-    {"email":"demo.hr@aviva.th",           "name":"หัวหน้าบุคคล",     "role":"manager", "dept":"ฝ่ายบุคคล"},
-    {"email":"demo.marketing@aviva.th",    "name":"หัวหน้าการตลาด",   "role":"manager", "dept":"ฝ่ายการตลาด"},
-    {"email":"demo.aftersales@aviva.th",   "name":"หัวหน้าหลังการขาย","role":"manager", "dept":"ฝ่ายหลังการขาย"}
+    {"email":"demo.admin@winvote.local",     "name":"ผู้ดูแลระบบ",   "role":"admin",   "dept":"ส่วนกลาง"},
+    {"email":"demo.district1@winvote.local", "name":"หัวหน้าเขต 1",  "role":"manager", "dept":"เขตเลือกตั้ง 1"},
+    {"email":"demo.district2@winvote.local", "name":"หัวหน้าเขต 2",  "role":"manager", "dept":"เขตเลือกตั้ง 2"},
+    {"email":"demo.district3@winvote.local", "name":"หัวหน้าเขต 3",  "role":"manager", "dept":"เขตเลือกตั้ง 3"},
+    {"email":"demo.district4@winvote.local", "name":"หัวหน้าเขต 4",  "role":"manager", "dept":"เขตเลือกตั้ง 4"}
   ]'::jsonb;
 begin
   for rec in select * from jsonb_array_elements(accounts) as a(obj)

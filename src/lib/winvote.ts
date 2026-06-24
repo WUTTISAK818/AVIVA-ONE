@@ -94,7 +94,7 @@ export interface WinVoteResident {
 // ===== Queries =====
 export async function getMunicipalitySummary() {
   if (DEMO_MODE) return demo.getMunicipalitySummary();
-  const { data } = await supabase.schema("winvote").from("municipality_summary").select("*").single();
+  const { data } = await supabase.schema("winvote").from("municipality_summary").select("*").maybeSingle();
   return data as WinVoteMunicipalitySummary | null;
 }
 

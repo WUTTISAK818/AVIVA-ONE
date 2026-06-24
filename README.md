@@ -51,9 +51,14 @@ cp .env.example .env.local
 | ลำดับ | ไฟล์ | ทำอะไร |
 |---|---|---|
 | 1 | `winvote-schema-migration.sql` | สร้าง schema `winvote` + ตาราง + view ทั้งหมด |
-| 2 | `seed-winvote-schema.sql` | ใส่ข้อมูลตั้งต้น (เทศบาล/เขต/ชุมชน) — idempotent |
-| 3 | `import-unit-results.sql` | นำเข้าผลคะแนนรายหน่วย (185 หน่วย) |
-| 4 | `create-demo-users.sql` | สร้างผู้ใช้สำหรับล็อกอินจริง |
+| 2 | `seed-winvote-schema.sql` | ใส่ข้อมูลครบชุด: เทศบาล/เขต/ชุมชน + **185 polling_units + 185 unit_results** — idempotent |
+| 3 | `create-demo-users.sql` | สร้างผู้ใช้สำหรับล็อกอินจริง |
+
+> **หมายเหตุ:** `seed-winvote-schema.sql` โหลดผลคะแนน 185 หน่วยให้ครบในตัวแล้ว
+> ไฟล์ `import-unit-results.sql` เป็น **ตัวเลือกเสริม** ไว้ใช้ re-import เฉพาะผลคะแนนภายหลัง
+> (idempotent, `on conflict do update`) — **ไม่ต้องรันในการ setup ปกติ**
+
+ตรวจหลัง setup: `select count(*) from winvote.unit_results;` ควรได้ **185**
 
 ---
 

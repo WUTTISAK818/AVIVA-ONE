@@ -123,17 +123,19 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (house) {
+      // Create notification - unified notifications table
       await sb
-        .from('notification_log')
+        .from('notifications')
         .insert({
-          recipient_type: 'project_manager',
-          event_type: 'change_order_requested',
-          project_id: house.project_id,
-          house_id,
-          subject: `Change Order ${coNumber} — ${house.house_number}`,
+          type: 'workflow_update',
+          title: `Change Order ${coNumber} — ${house.house_number}`,
           message: `${description}\nราคาเพิ่มเติม: ฿${price_impact.toLocaleString()}\nเพิ่มเวลา: ${timeline_impact} วัน`,
-          channel: 'in_app',
-          status: 'pending'
+          from_dept: 'สนามงาน',
+          to_dept: 'ผู้จัดการโครงการ',
+          project_id: house.project_id,
+          record_id: house_id,
+          is_read: false,
+          link: `/construction?house=${house_id}`
         })
     }
 

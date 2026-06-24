@@ -123,19 +123,20 @@ export async function POST(request: NextRequest) {
 
     if (updateError) throw updateError
 
-    // Create notification for Finance Manager to review
+    // Create notification for Finance Manager to review - unified notifications table
+    const PROJECT_ID = body.projectId
     await supabase
-      .from('notification_log')
+      .from('notifications')
       .insert({
-        recipient_type: 'finance_manager',
-        event_type: 'payment_voucher_created',
-        project_id: body.projectId,
-        house_id: body.houseId,
-        payment_voucher_id: voucher.id,
-        subject: `Payment Voucher ${voucherNumber} Ready for Review`,
+        type: 'approval',
+        title: `Payment Voucher ${voucherNumber} Ready for Review`,
         message: `📝 ${body.stageName} payment voucher (${voucherNumber}) has been created\n💰 Net Amount: ฿${paymentCalc.netAmount.toLocaleString()}\n⏰ Ready to submit for approval`,
-        channel: 'in_app',
-        status: 'pending'
+        from_dept: 'ก่อสร้าง',
+        to_dept: 'การเงิน',
+        project_id: PROJECT_ID,
+        record_id: voucher.id,
+        is_read: false,
+        link: `/office?tab=finance`
       })
 
     return Response.json(

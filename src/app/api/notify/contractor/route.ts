@@ -2,12 +2,15 @@
  * POST /api/notify/contractor
  *
  * Central hub สำหรับส่งแจ้งเตือน contractor ผ่าน LINE/Email/In-app
+ * 🔄 Updated: Writes to `notifications` table (unified notification system)
  */
 
 import { createClient } from '@supabase/supabase-js'
 import { buildNotificationMessage } from '@/lib/contractor-notification'
 
 export const dynamic = 'force-dynamic'
+
+const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001"
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -20,7 +23,7 @@ export async function POST(request: Request) {
   try {
     const supabase = getServiceClient()
     const body = await request.json()
-    const { recipientId, eventType, projectId, houseId, channel = 'in_app', metadata = {} } = body
+    const { recipientId, eventType, projectId, houseId, channel = 'in_app', metadata = {}, toDept = null } = body
 
     if (!recipientId || !eventType) {
       return Response.json({ error: 'Missing recipientId or eventType' }, { status: 400 })
@@ -28,24 +31,37 @@ export async function POST(request: Request) {
 
     const messages = buildNotificationMessage(eventType, metadata)
 
-    // Save to notification_log
-    const { data: logEntry, error: logError } = await supabase
-      .from('notification_log')
+    // Determine notification type from eventType
+    const typeMapping: Record<string, string> = {
+      'milestone_approved': 'approval',
+      'milestone_rejected': 'approval',
+      'payment_approved': 'approval',
+      'sla_alert': 'info',
+      'spec_changed': 'workflow_update',
+      'change_order': 'workflow_update',
+      'contractor_scorecard': 'info'
+    }
+    const notificationType = typeMapping[eventType] || 'info'
+
+    // Save to unified notifications table
+    const { data: notif, error: notifError } = await supabase
+      .from('notifications')
       .insert({
-        recipient_id: recipientId,
-        event_type: eventType,
-        project_id: projectId,
-        house_id: houseId,
-        subject: messages.subject,
+        type: notificationType,
+        title: messages.subject,
         message: messages.message,
-        channel,
-        status: 'pending',
-        created_at: new Date()
+        from_dept: 'บริหารโครงการ',
+        to_dept: toDept || 'ผู้รับเหมา',
+        project_id: projectId || PROJECT_ID,
+        is_read: false,
+        record_id: houseId || null,
+        link: null
       })
       .select()
       .single()
 
-    if (logError) throw logError
+    if (notifError) throw notifError
+    const logEntry = notif
 
     // Get contractor contact info
     const { data: contact } = await supabase
@@ -81,15 +97,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Update log status
-    await supabase
-      .from('notification_log')
-      .update({
-        status: notificationSent ? 'sent' : 'failed',
-        sent_at: notificationSent ? new Date() : null,
-        error_message: sendError?.message || null
-      })
-      .eq('id', logEntry.id)
+    // Update notification if send failed (mark as read to hide from UI)
+    if (!notificationSent) {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', logEntry.id)
+    }
 
     return Response.json({
       success: notificationSent,

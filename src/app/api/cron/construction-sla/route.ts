@@ -110,19 +110,26 @@ export async function GET(req: NextRequest) {
             results.push(`${unit.house_number}:${slaStatus.alertLevel}:${slaStatus.daysLate}d`)
           }
 
-          // Create notifications for each role
+          // Create notifications for each role - unified notifications table
           for (const role of slaStatus.notifyRoles) {
+            const deptMap: Record<string, string> = {
+              'project_manager': 'ผู้จัดการโครงการ',
+              'director': 'ผู้บริหาร',
+              'engineer': 'วิศวกร',
+              'contractor': 'ผู้รับเหมา'
+            }
             await db
-              .from('notification_log')
+              .from('notifications')
               .insert({
-                recipient_type: role,
-                event_type: `sla_alert_${slaStatus.alertLevel}`,
-                project_id: PROJECT_ID,
-                house_id: unit.house_id,
-                subject: `${slaStatus.icon} SLA Alert: ${unit.house_number} ${slaStatus.message}`,
+                type: 'info',
+                title: `${slaStatus.icon} SLA Alert: ${unit.house_number} ${slaStatus.message}`,
                 message: `Unit ${unit.house_number} is ${slaStatus.daysLate} days late at stage: ${unit.current_stage}`,
-                channel: 'in_app',
-                status: 'pending'
+                from_dept: 'ระบบ',
+                to_dept: deptMap[role] || role,
+                project_id: PROJECT_ID,
+                record_id: unit.house_id,
+                is_read: false,
+                link: `/construction?house=${unit.house_id}`
               })
           }
         } catch (alertErr) {

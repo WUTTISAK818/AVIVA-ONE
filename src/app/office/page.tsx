@@ -601,7 +601,7 @@ function FinanceContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">บันทึกจ่าย — {payingInst.name}</h2>
-              <button onClick={() => { setShowPayModal(false); setPayingInst(null); }}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => { setShowPayModal(false); setPayingInst(null); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl px-3 py-2.5 space-y-1">
               <p className="text-sm text-aviva-secondary">จำนวนเงิน: <span className="text-aviva-gold font-bold text-base">฿{payingInst.amount.toLocaleString()}</span></p>
@@ -681,7 +681,7 @@ function FinanceContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">เพิ่มรายการเงิน</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
             <div className="flex gap-2">
@@ -796,7 +796,7 @@ function FinanceContent() {
                  kpiModal === "expense" ? "รายจ่ายทั้งหมด" :
                  kpiModal === "cashflow" ? "รายการทั้งหมด" : "รออนุมัติ"}
               </h2>
-              <button onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setKpiModal(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="overflow-y-auto space-y-2 flex-1">
               {kpiModal === "pending" ? (
@@ -1241,7 +1241,7 @@ function AccountingContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">บันทึกบิล / ใบเสร็จ</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div className="flex gap-2">
@@ -1321,7 +1321,7 @@ function AccountingContent() {
                   ({(kpiModalAcct === "all" ? receipts : receipts.filter(r => r.receipt_type === kpiModalAcct)).length} รายการ)
                 </span>
               </h2>
-              <button onClick={() => setKpiModalAcct(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setKpiModalAcct(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="overflow-y-auto space-y-2 flex-1">
               {(kpiModalAcct === "all" ? receipts : receipts.filter(r => r.receipt_type === kpiModalAcct)).map(r => (
@@ -1806,7 +1806,7 @@ function MarketingContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">สร้างแคมเปญใหม่</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1924,7 +1924,7 @@ function MarketingContent() {
                 <h2 className="text-lg font-bold text-aviva-text">อัปเดตแคมเปญ</h2>
                 <p className="text-xs text-aviva-secondary">{editCampaign.name}</p>
               </div>
-              <button onClick={() => setEditCampaign(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setEditCampaign(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -2660,7 +2660,7 @@ function HRContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">{editingEmployee ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มพนักงาน"}</h2>
-              <button onClick={() => { setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm); }}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => { setShowModal(false); setEditingEmployee(null); setForm(emptyEmployeeForm); }}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -3165,7 +3165,7 @@ function AfterSalesContent() {
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">แจ้งซ่อม / Warranty</h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button aria-label="ปิด" onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -4364,7 +4364,7 @@ function CommunityContent() {
         <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-aviva-text">เพิ่มสมาชิกใหม่</h2>
-            <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            <button aria-label="ปิด" onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
           </div>
           <div className="space-y-3">
             <div>
@@ -4667,7 +4667,7 @@ function DocumentsContent() {
         <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-aviva-text">เพิ่มเอกสาร</h2>
-            <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            <button aria-label="ปิด" onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
           </div>
           <div className="space-y-3">
             <div>

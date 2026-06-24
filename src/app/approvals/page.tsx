@@ -38,6 +38,9 @@ interface ApprovalLog {
   action_timestamp: string | null;
   created_at: string;
   notes: string | null;
+  escalated_at?: string | null;
+  escalation_count?: number;
+  escalated_to_role?: string | null;
 }
 
 interface CustomerInstallment {
@@ -902,6 +905,11 @@ function ApprovalsContent() {
                       <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full", cfg.bg, cfg.color)}>{cfg.label}</span>
                       <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full", actionCfg.bg, actionCfg.color)}>{actionCfg.label}</span>
                       <SlaChip sla_due_at={log.sla_due_at} action={normAction(log.action_taken)} />
+                      {log.escalated_at && (
+                        <span className="text-[9px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-full border border-red-500/20 font-semibold">
+                          🚨 Escalated {log.escalation_count ? `(${log.escalation_count})` : ""}
+                        </span>
+                      )}
                       {log.amount !== null && (
                         <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full border border-aviva-gold/20">
                           ฿{(log.amount).toLocaleString("th-TH")}
@@ -954,6 +962,24 @@ function ApprovalsContent() {
                       <div className="flex justify-between">
                         <span className="text-aviva-secondary">SLA ครบกำหนด</span>
                         <span className="text-aviva-text">{new Date(log.sla_due_at).toLocaleDateString("th-TH", { dateStyle: "short" })}</span>
+                      </div>
+                    )}
+                    {log.escalated_at && (
+                      <div className="flex justify-between">
+                        <span className="text-aviva-secondary">Escalated At</span>
+                        <span className="text-red-400 font-semibold">{new Date(log.escalated_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}</span>
+                      </div>
+                    )}
+                    {log.escalation_count !== undefined && log.escalation_count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-aviva-secondary">Escalation Count</span>
+                        <span className="text-red-400 font-semibold">{log.escalation_count}x</span>
+                      </div>
+                    )}
+                    {log.escalated_to_role && (
+                      <div className="flex justify-between">
+                        <span className="text-aviva-secondary">Escalated To</span>
+                        <span className="text-aviva-text capitalize">{log.escalated_to_role}</span>
                       </div>
                     )}
                     {log.notes && (

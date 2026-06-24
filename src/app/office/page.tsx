@@ -2077,6 +2077,7 @@ function HRContent() {
   const [showPRModal, setShowPRModal] = useState(false);
   const [prForm, setPrForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
   const [prSaving, setPrSaving] = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState<{annual:number;sick:number;study:number;annual_status:"Normal"|"Low"|"Critical"}|null>(null);
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -2106,6 +2107,21 @@ function HRContent() {
     });
   };
 
+  const fetchLeaveBalance = async (employeeName: string) => {
+    if (!employeeName) { setLeaveBalance(null); return; }
+    const emp = employees.find(e => e.full_name === employeeName);
+    if (!emp) return;
+    const { data } = await supabase.from("employee_payroll_config").select("annual_leave_balance,sick_leave_balance,study_leave_balance,annual_leave_status").eq("employee_id", emp.id).single();
+    if (data) {
+      setLeaveBalance({
+        annual: data.annual_leave_balance ?? 15,
+        sick: data.sick_leave_balance ?? 10,
+        study: data.study_leave_balance ?? 5,
+        annual_status: data.annual_leave_status ?? "Normal"
+      });
+    }
+  };
+
   useEffect(() => { fetchEmployees(); }, []);
 
   useEffect(() => { if (hrTab === "การลา") fetchLeave(); }, [hrTab]);
@@ -2126,6 +2142,18 @@ function HRContent() {
       return;
     }
     const days = Math.max(1, Math.ceil((new Date(leaveForm.date_to).getTime() - new Date(leaveForm.date_from).getTime()) / 86400000) + 1);
+
+    // Check against new leave balance system (Phase 2.1)
+    if (leaveBalance) {
+      const balanceMap = { "ลาพักร้อน": leaveBalance.annual, "ลาป่วย": leaveBalance.sick, "ลากิจ": leaveBalance.study };
+      const balance = balanceMap[leaveForm.leave_type as keyof typeof balanceMap];
+      if (balance != null && days > balance) {
+        setHrToast({ msg: `ลาครบ — เหลือ ${balance} วัน (ขอ ${days} วัน)\nกรุณาตรวจสอบยอดวันลาของคุณ`, type: "error" });
+        setLeaveSaving(false);
+        return;
+      }
+    }
+
     // C3: เตือน/บล็อกเมื่อยื่นลาเกินสิทธิต่อปี (สะสมจากใบลาที่อนุมัติแล้ว + ที่ขอใหม่)
     const quota = LEAVE_QUOTA[leaveForm.leave_type];
     if (quota != null) {
@@ -2350,7 +2378,7 @@ function HRContent() {
             <p className="text-sm font-semibold text-aviva-text">ยื่นคำขอลา</p>
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ชื่อพนักงาน *</label>
-              <select value={leaveForm.employee_name} onChange={e => setLeaveForm({...leaveForm, employee_name: e.target.value})}
+              <select value={leaveForm.employee_name} onChange={e => { setLeaveForm({...leaveForm, employee_name: e.target.value}); fetchLeaveBalance(e.target.value); }}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                 <option value="">— เลือกพนักงาน —</option>
                 {employees.filter(e => e.status === "active").map(e => (
@@ -2358,6 +2386,32 @@ function HRContent() {
                 ))}
               </select>
             </div>
+            {leaveBalance && leaveForm.employee_name && (
+              <div className="p-3 bg-aviva-bg border border-aviva-gold/20 rounded-lg space-y-2">
+                <p className="text-xs font-semibold text-aviva-secondary">ยอดวันลาคงเหลือ</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center">
+                    <p className="text-[10px] text-aviva-secondary">ลาพักร้อน</p>
+                    <p className={clsx("text-base font-bold", leaveBalance.annual_status === "Critical" ? "text-red-400" : leaveBalance.annual_status === "Low" ? "text-yellow-400" : "text-green-400")}>
+                      {leaveBalance.annual} วัน
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-aviva-secondary">ลาป่วย</p>
+                    <p className="text-base font-bold text-aviva-text">{leaveBalance.sick} วัน</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-aviva-secondary">ลากิจ</p>
+                    <p className="text-base font-bold text-aviva-text">{leaveBalance.study} วัน</p>
+                  </div>
+                </div>
+                {leaveBalance.annual_status !== "Normal" && (
+                  <p className={clsx("text-[10px] text-center font-medium", leaveBalance.annual_status === "Critical" ? "text-red-400" : "text-yellow-400")}>
+                    ⚠️ {leaveBalance.annual_status === "Critical" ? "วันลาคงเหลือน้อยมาก" : "วันลาคงเหลือน้อย"}
+                  </p>
+                )}
+              </div>
+            )}
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา</label>
               <select value={leaveForm.leave_type} onChange={e => setLeaveForm({...leaveForm, leave_type: e.target.value})}

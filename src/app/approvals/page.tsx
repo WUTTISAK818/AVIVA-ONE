@@ -1004,11 +1004,11 @@ function ApprovalsContent() {
 
       {/* Detail / Action Modal */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14" role="dialog" aria-labelledby="approval-modal-title" aria-modal="true">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-aviva-text">ดำเนินการอนุมัติ</h2>
-              <button onClick={() => setDetail(null)}><X size={20} className="text-aviva-secondary" /></button>
+              <h2 id="approval-modal-title" className="text-base font-bold text-aviva-text">ดำเนินการอนุมัติ</h2>
+              <button aria-label="ปิด" onClick={() => setDetail(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="bg-aviva-bg rounded-xl p-4 space-y-2 text-sm">
               <div className="flex justify-between">

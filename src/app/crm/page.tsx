@@ -2118,8 +2118,8 @@ export default function CRMPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">รหัสไปรษณีย์</label>
-                    <input type="tel" inputMode="numeric" maxLength={5} value={form.addr_zipcode}
+                    <label htmlFor="crmform-addr_zipcode" className="text-xs text-aviva-secondary mb-1 block">รหัสไปรษณีย์</label>
+                    <input id="crmform-addr_zipcode" type="tel" inputMode="numeric" maxLength={5} value={form.addr_zipcode}
                       onChange={e => setForm(p => ({ ...p, addr_zipcode: e.target.value.replace(/\D/g, "").slice(0, 5) }))}
                       placeholder="อัตโนมัติ"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
@@ -2140,15 +2140,15 @@ export default function CRMPage() {
                 <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">2 · ความสนใจ / ที่มา</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">ช่องทางที่มา</label>
-                    <select value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
+                    <label htmlFor="crmform-source" className="text-xs text-aviva-secondary mb-1 block">ช่องทางที่มา</label>
+                    <select id="crmform-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                       {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">แปลงที่สนใจ</label>
-                    <select value={form.plot_number} onChange={e => setForm(p => ({ ...p, plot_number: e.target.value }))}
+                    <label htmlFor="crmform-plot_number" className="text-xs text-aviva-secondary mb-1 block">แปลงที่สนใจ</label>
+                    <select id="crmform-plot_number" value={form.plot_number} onChange={e => setForm(p => ({ ...p, plot_number: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                       <option value="">— ยังไม่ระบุ —</option>
                       {Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).map(n => <option key={n} value={String(n)}>แปลง {n}</option>)}
@@ -2159,8 +2159,8 @@ export default function CRMPage() {
                   <SelectWithOther label="งบประมาณ (ช่วงราคา)" value={form.budget_range} options={OPT_BUDGET} onChange={v => setForm(p => ({ ...p, budget_range: v }))} />
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ — ระบุราคาที่แน่นอน (บาท, ถ้าทราบ)</label>
-                  <input type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
+                  <label htmlFor="crmform-budget" className="text-xs text-aviva-secondary mb-1 block">งบประมาณ — ระบุราคาที่แน่นอน (บาท, ถ้าทราบ)</label>
+                  <input id="crmform-budget" type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
                     placeholder="เช่น 4500000"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                 </div>
@@ -2170,8 +2170,8 @@ export default function CRMPage() {
                 </div>
                 <SelectWithOther label="เหตุผลที่เข้าชม" value={form.visit_reason} options={OPT_REASON} onChange={v => setForm(p => ({ ...p, visit_reason: v }))} />
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">โครงการที่เปรียบเทียบ (คู่แข่ง)</label>
-                  <input type="text" value={form.competitor_projects} onChange={e => setForm(p => ({ ...p, competitor_projects: e.target.value }))}
+                  <label htmlFor="crmform-competitor_projects" className="text-xs text-aviva-secondary mb-1 block">โครงการที่เปรียบเทียบ (คู่แข่ง)</label>
+                  <input id="crmform-competitor_projects" type="text" value={form.competitor_projects} onChange={e => setForm(p => ({ ...p, competitor_projects: e.target.value }))}
                     placeholder="เช่น Golden Neo, ศุภาลัย ฯลฯ"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                 </div>
@@ -2182,23 +2182,23 @@ export default function CRMPage() {
               <div className="space-y-3">
                 <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">3 · สถานะ / การเงิน</p>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                  <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as LeadStatus }))}
+                  <label htmlFor="crmform-status" className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                  <select id="crmform-status" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as LeadStatus }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                     {crmStages.map(s => <option key={s} value={s}>{STATUS_TH[s] ?? s}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">รูปแบบการชำระ</label>
-                    <select value={form.financing_type} onChange={e => setForm(p => ({ ...p, financing_type: e.target.value }))}
+                    <label htmlFor="crmform-financing_type" className="text-xs text-aviva-secondary mb-1 block">รูปแบบการชำระ</label>
+                    <select id="crmform-financing_type" value={form.financing_type} onChange={e => setForm(p => ({ ...p, financing_type: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                       {["ไม่ระบุ", "เงินสด", "สินเชื่อธนาคาร"].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">ความเร่งด่วน</label>
-                    <select value={form.urgency} onChange={e => setForm(p => ({ ...p, urgency: e.target.value }))}
+                    <label htmlFor="crmform-urgency" className="text-xs text-aviva-secondary mb-1 block">ความเร่งด่วน</label>
+                    <select id="crmform-urgency" value={form.urgency} onChange={e => setForm(p => ({ ...p, urgency: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                       {["ปกติ", "เร่งด่วน", "สูงมาก"].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -2206,8 +2206,8 @@ export default function CRMPage() {
                 </div>
                 <SelectWithOther label="ผ่อน/เดือน" value={form.monthly_payment_range} options={OPT_PAYMENT} onChange={v => setForm(p => ({ ...p, monthly_payment_range: v }))} />
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">โอกาสปิดการขาย (Probability)</label>
-                  <select value={form.probability} onChange={e => setForm(p => ({ ...p, probability: e.target.value }))}
+                  <label htmlFor="crmform-probability" className="text-xs text-aviva-secondary mb-1 block">โอกาสปิดการขาย (Probability)</label>
+                  <select id="crmform-probability" value={form.probability} onChange={e => setForm(p => ({ ...p, probability: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                     <option value="">— ไม่ระบุ —</option>
                     {OPT_PROB.map(s => <option key={s} value={s}>{s}</option>)}

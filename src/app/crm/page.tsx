@@ -1569,7 +1569,7 @@ export default function CRMPage() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทกิจกรรม</label>
+                <label htmlFor="crmform-activity_type" className="text-xs text-aviva-secondary mb-1 block">ประเภทกิจกรรม</label>
                 <div className="grid grid-cols-2 gap-2">
                   {["รับลูกค้า Walk-in", "โทรออก", "นัดหมาย", "โอนกรรมสิทธิ์", "Site Visit", "อื่นๆ"].map(t => (
                     <button key={t} onClick={() => setActForm(f => ({ ...f, activity_type: t }))}
@@ -1582,27 +1582,27 @@ export default function CRMPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">วันที่กิจกรรม</label>
-                <input type="date" value={actForm.activity_date} onChange={e => setActForm(f => ({ ...f, activity_date: e.target.value }))}
+                <label htmlFor="crmform-activity_date" className="text-xs text-aviva-secondary mb-1 block">วันที่กิจกรรม</label>
+                <input id="crmform-activity_date" type="date" value={actForm.activity_date} onChange={e => setActForm(f => ({ ...f, activity_date: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">บันทึกในนามของ (ไม่บังคับ)</label>
-                <input type="text" placeholder={user?.full_name ?? "ชื่อพนักงาน"} value={actForm.onBehalfOf} onChange={e => setActForm(f => ({ ...f, onBehalfOf: e.target.value }))}
+                <label htmlFor="crmform-onBehalfOf" className="text-xs text-aviva-secondary mb-1 block">บันทึกในนามของ (ไม่บังคับ)</label>
+                <input id="crmform-onBehalfOf" type="text" placeholder={user?.full_name ?? "ชื่อพนักงาน"} value={actForm.onBehalfOf} onChange={e => setActForm(f => ({ ...f, onBehalfOf: e.target.value }))}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea value={actForm.note} onChange={e => setActForm(f => ({ ...f, note: e.target.value }))} rows={2}
+                <label htmlFor="crmform-activity_note" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea id="crmform-activity_note" value={actForm.note} onChange={e => setActForm(f => ({ ...f, note: e.target.value }))} rows={2}
                   placeholder="รายละเอียดเพิ่มเติม..."
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
+                <label htmlFor="crmform-activity_photo" className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
+                  <label htmlFor="crmform-activity_photo" className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
                     <Camera size={12} /> เลือกรูป
-                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                    <input id="crmform-activity_photo" type="file" accept="image/*" className="hidden" onChange={e => {
                       const file = e.target.files?.[0];
                       if (file) {
                         if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
@@ -1635,7 +1635,7 @@ export default function CRMPage() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ช่องทาง</label>
+                <label htmlFor="crmform-channel" className="text-xs text-aviva-secondary mb-1 block">ช่องทาง</label>
                 <div className="flex gap-2 flex-wrap">
                   {["Phone", "LINE", "TikTok", "Instagram", "Email", "Walk-in"].map(ch => (
                     <button key={ch} onClick={() => setCrmLogForm(f => ({ ...f, channel: ch }))}
@@ -1646,7 +1646,7 @@ export default function CRMPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ผลการติดต่อ</label>
+                <label htmlFor="crmform-callStatus" className="text-xs text-aviva-secondary mb-1 block">ผลการติดต่อ</label>
                 <div className="grid grid-cols-2 gap-2">
                   {CALL_STATUSES.map(s => (
                     <button key={s} onClick={() => setCrmLogForm(f => ({ ...f, callStatus: s }))}
@@ -1657,17 +1657,17 @@ export default function CRMPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
-                <textarea value={crmLogForm.note} onChange={e => setCrmLogForm(f => ({ ...f, note: e.target.value }))} rows={2}
+                <label htmlFor="crmform-log_note" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea id="crmform-log_note" value={crmLogForm.note} onChange={e => setCrmLogForm(f => ({ ...f, note: e.target.value }))} rows={2}
                   placeholder="บันทึกรายละเอียด..."
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
+                <label htmlFor="crmform-log_photo" className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
+                  <label htmlFor="crmform-log_photo" className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
                     <Camera size={12} /> เลือกรูป
-                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                    <input id="crmform-log_photo" type="file" accept="image/*" className="hidden" onChange={e => {
                       const file = e.target.files?.[0];
                       if (file) {
                         if (crmLogForm.photoPreview) URL.revokeObjectURL(crmLogForm.photoPreview);
@@ -2037,26 +2037,26 @@ export default function CRMPage() {
               <div className="space-y-3">
                 <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">1 · ข้อมูลลูกค้า</p>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ชื่อ-นามสกุล <span className="text-red-400">*</span></label>
-                  <input type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))}
+                  <label htmlFor="crmform-customer_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อ-นามสกุล <span className="text-red-400">*</span></label>
+                  <input id="crmform-customer_name" type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))}
                     placeholder="เช่น น.ส.ศิริภัสสร ศรีกลาง"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">วันที่เข้าชม</label>
-                    <input type="date" value={form.visit_date} onChange={e => setForm(p => ({ ...p, visit_date: e.target.value }))}
+                    <label htmlFor="crmform-visit_date" className="text-xs text-aviva-secondary mb-1 block">วันที่เข้าชม</label>
+                    <input id="crmform-visit_date" type="date" value={form.visit_date} onChange={e => setForm(p => ({ ...p, visit_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">เวลาเข้าชม</label>
-                    <input type="time" value={form.visit_time} onChange={e => setForm(p => ({ ...p, visit_time: e.target.value }))}
+                    <label htmlFor="crmform-visit_time" className="text-xs text-aviva-secondary mb-1 block">เวลาเข้าชม</label>
+                    <input id="crmform-visit_time" type="time" value={form.visit_time} onChange={e => setForm(p => ({ ...p, visit_time: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">พนักงานขายที่ดูแล (รับผิดชอบ)</label>
-                  <select value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
+                  <label htmlFor="crmform-assigned_to" className="text-xs text-aviva-secondary mb-1 block">พนักงานขายที่ดูแล (รับผิดชอบ)</label>
+                  <select id="crmform-assigned_to" value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                     <option value="">— เลือกพนักงานขาย (เว้นว่างตอนสร้าง = ตั้งเป็นผู้บันทึก) —</option>
                     {form.assigned_to && !salesStaff.some(s => s.full_name === form.assigned_to) && (
@@ -2069,21 +2069,21 @@ export default function CRMPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
-                    <input type="tel" inputMode="numeric" maxLength={12} value={form.phone ?? ""} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
+                    <label htmlFor="crmform-phone" className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
+                    <input id="crmform-phone" type="tel" inputMode="numeric" maxLength={12} value={form.phone ?? ""} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
                       placeholder="08x-xxx-xxxx"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">อีเมล</label>
-                    <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                    <label htmlFor="crmform-email" className="text-xs text-aviva-secondary mb-1 block">อีเมล</label>
+                    <input id="crmform-email" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                       placeholder="email@example.com"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ที่อยู่ที่ติดต่อได้ (บ้านเลขที่ / หมู่ / ซอย / ถนน)</label>
-                  <input type="text" value={form.addr_detail} onChange={e => setForm(p => ({ ...p, addr_detail: e.target.value }))}
+                  <label htmlFor="crmform-addr_detail" className="text-xs text-aviva-secondary mb-1 block">ที่อยู่ที่ติดต่อได้ (บ้านเลขที่ / หมู่ / ซอย / ถนน)</label>
+                  <input id="crmform-addr_detail" type="text" value={form.addr_detail} onChange={e => setForm(p => ({ ...p, addr_detail: e.target.value }))}
                     placeholder="เช่น 21/3 ม.7 ถ.มิตรภาพ"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   {form.contact_address && !form.addr_province && (
@@ -2092,16 +2092,16 @@ export default function CRMPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">จังหวัด</label>
-                    <select value={form.addr_province} onChange={e => setForm(p => ({ ...p, addr_province: e.target.value, addr_amphoe: "", addr_tambon: "", addr_zipcode: "" }))}
+                    <label htmlFor="crmform-addr_province" className="text-xs text-aviva-secondary mb-1 block">จังหวัด</label>
+                    <select id="crmform-addr_province" value={form.addr_province} onChange={e => setForm(p => ({ ...p, addr_province: e.target.value, addr_amphoe: "", addr_tambon: "", addr_zipcode: "" }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
                       <option value="">{geo ? "— เลือกจังหวัด —" : "กำลังโหลด..."}</option>
                       {geo && Object.keys(geo).sort((a, b) => a.localeCompare(b, "th")).map(pv => <option key={pv} value={pv}>{pv}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">อำเภอ/เขต</label>
-                    <select value={form.addr_amphoe} disabled={!form.addr_province}
+                    <label htmlFor="crmform-addr_amphoe" className="text-xs text-aviva-secondary mb-1 block">อำเภอ/เขต</label>
+                    <select id="crmform-addr_amphoe" value={form.addr_amphoe} disabled={!form.addr_province}
                       onChange={e => setForm(p => ({ ...p, addr_amphoe: e.target.value, addr_tambon: "", addr_zipcode: "" }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 disabled:opacity-50">
                       <option value="">— เลือกอำเภอ —</option>
@@ -2109,7 +2109,7 @@ export default function CRMPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-aviva-secondary mb-1 block">ตำบล/แขวง</label>
+                    <label htmlFor="crmform-addr_tambon" className="text-xs text-aviva-secondary mb-1 block">ตำบล/แขวง</label>
                     <select value={form.addr_tambon} disabled={!form.addr_amphoe}
                       onChange={e => { const tb = e.target.value; const zip = (geo && form.addr_province && form.addr_amphoe) ? (geo[form.addr_province]?.[form.addr_amphoe]?.[tb] ?? "") : ""; setForm(p => ({ ...p, addr_tambon: tb, addr_zipcode: zip })); }}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 disabled:opacity-50">

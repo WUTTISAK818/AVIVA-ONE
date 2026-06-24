@@ -555,7 +555,6 @@ function ApprovalsContent() {
         await supabase.from("approvals")
           .update({ status: approved ? "approved" : "rejected", approved_by: byName, approved_at: new Date().toISOString() })
           .eq("id", log.source_record_id);
-        await closeWorkQueue(log.source_record_id, "finance", byName);
 
         // If second-level approval (admin), also approve first-level logs
         if (user.isAdmin && log.amount && log.amount >= 500000) {

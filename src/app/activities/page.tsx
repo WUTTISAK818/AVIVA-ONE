@@ -120,7 +120,7 @@ export default function ActivitiesPage() {
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <dept.icon size={14} className={dept.color} />
+                  <dept.icon size={12} className={dept.color} />
                   <span className="text-xs font-semibold text-aviva-text">{dept.name}</span>
                   <span className={`text-xs font-bold ${dept.color}`}>({stats[dept.id]})</span>
                 </div>
@@ -134,7 +134,7 @@ export default function ActivitiesPage() {
           <GlassCard className={`p-4 border ${selectedDeptConfig.bg}`}>
             <div className="flex items-start gap-3">
               <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${selectedDeptConfig.bg}`}>
-                <Icon size={16} className={selectedDeptConfig.color} />
+                <Icon size={14} className={selectedDeptConfig.color} />
               </div>
               <div className="flex-1">
                 <p className={`text-sm font-bold ${selectedDeptConfig.color}`}>{selectedDeptConfig.name}</p>
@@ -164,7 +164,7 @@ export default function ActivitiesPage() {
               {activities.map((activity) => (
                 <GlassCard key={activity.id} className="p-3 border border-aviva-gold/10 hover:border-aviva-gold/30 transition-all">
                   <div className="flex items-start gap-3">
-                    <div className="text-lg flex-shrink-0">{activity.icon}</div>
+                    <div className="text-base flex-shrink-0">{activity.icon}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-aviva-text truncate">{activity.title}</p>
                       <p className="text-xs text-aviva-secondary truncate">{activity.description}</p>

@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const dateStr = searchParams.get("date") || new Date().toISOString().split("T")[0];
     const rangeType = searchParams.get("range") || "day"; // day, week, month
+    const department = searchParams.get("department"); // optional department filter
 
     let startDate = dateStr;
     let endDate = dateStr;
@@ -80,11 +81,14 @@ export async function GET(req: NextRequest) {
       if (!grouped[dateKey]) {
         grouped[dateKey] = {
           date: dateKey,
-          sale: { count: 0, items: [] },
+          sales: { count: 0, items: [] },
           construction: { count: 0, items: [] },
+          accounting: { count: 0, items: [] },
           finance: { count: 0, items: [] },
-          approval: { count: 0, items: [] },
+          marketing: { count: 0, items: [] },
           hr: { count: 0, items: [] },
+          approvals: { count: 0, items: [] },
+          office: { count: 0, items: [] },
         };
       }
       if (grouped[dateKey][type]) {
@@ -97,40 +101,60 @@ export async function GET(req: NextRequest) {
       return dateStr.split("T")[0];
     };
 
+    // Only apply department filter if provided and not a manager
+    let filterDept = false;
+    let deptFilterValue = "";
+    if (department) {
+      filterDept = true;
+      deptFilterValue = department;
+    }
+
     // Process sales activities
     (salesActivities || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.activity_date);
-      addToGroup(dateKey, "sale", 1);
+      if (!filterDept || deptFilterValue === "sales") {
+        const dateKey = getDateKey(item.activity_date);
+        addToGroup(dateKey, "sales", 1);
+      }
     });
 
     // Process CRM logs (calls/contacts)
     (crmLogs || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.created_at);
-      addToGroup(dateKey, "sale", 1);
+      if (!filterDept || deptFilterValue === "sales") {
+        const dateKey = getDateKey(item.created_at);
+        addToGroup(dateKey, "sales", 1);
+      }
     });
 
-    // Process journal entries (finance)
+    // Process journal entries (accounting)
     (jvEntries || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.jv_date);
-      addToGroup(dateKey, "finance", 1);
+      if (!filterDept || deptFilterValue === "accounting") {
+        const dateKey = getDateKey(item.jv_date);
+        addToGroup(dateKey, "accounting", 1);
+      }
     });
 
     // Process construction reports
     (constructionReports || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.created_at);
-      addToGroup(dateKey, "construction", 1);
+      if (!filterDept || deptFilterValue === "construction") {
+        const dateKey = getDateKey(item.created_at);
+        addToGroup(dateKey, "construction", 1);
+      }
     });
 
     // Process installments (construction)
     (installments || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.updated_at);
-      addToGroup(dateKey, "construction", 1);
+      if (!filterDept || deptFilterValue === "construction") {
+        const dateKey = getDateKey(item.updated_at);
+        addToGroup(dateKey, "construction", 1);
+      }
     });
 
-    // Process purchase orders (approval/construction)
+    // Process purchase orders (approvals)
     (purchaseOrders || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.created_at);
-      addToGroup(dateKey, "approval", 1);
+      if (!filterDept || deptFilterValue === "approvals") {
+        const dateKey = getDateKey(item.created_at);
+        addToGroup(dateKey, "approvals", 1);
+      }
     });
 
     return NextResponse.json({

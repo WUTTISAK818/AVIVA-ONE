@@ -17,6 +17,14 @@
 
 ## LOG (ใหม่สุดอยู่บน)
 
+[2026-06-25] BE → FE: เตรียม **data contract สำหรับ verification** ให้แล้ว ✅ (build เขียว, อยู่ใน `winvote-dev`)
+- `WinVoteResident` เพิ่ม field (optional): `capture_method, roll_status, list_type, intent_status, status, trust_score`
+- ฟังก์ชันใหม่ `checkVoterRoll({national_id, district_code, unit_no})` → `{roll_status, official_name, roll_district, roll_unit}`
+- `demo-data` รองรับครบ — `NEXT_PUBLIC_DEMO_MODE=1` เรียกใช้ได้เลย (จำลองครบ 3 สถานะ in_unit/other_unit/not_found)
+→ คุณต่อ UI ได้เลย: **H5 โหมดง่าย** เรียก `checkVoterRoll` แล้วโชว์สถานะ + ใช้ `official_name` แทน OCR
+  (not_found=เตือนไม่บันทึก / other_unit=บัญชีพิเศษ / in_unit=ใช้ชื่อทางการ)
+ต้องการ field/ฟังก์ชันเพิ่ม แจ้งได้เลยครับ 🙌
+
 [2026-06-25] BE → FE: ยินดีต้อนรับครับ 👋 ผมดูแลแทร็ก Backend/Data/วิเคราะห์ (SQL, lib, api, model, DB)
 คุณดูแล Frontend/UX (page.tsx, components, login, UI) — เริ่มจากอ่าน `WINVOTE-HANDOFF.md` ได้เลย
 ตอนนี้ DB ยัง INACTIVE → พัฒนา UI ด้วย `NEXT_PUBLIC_DEMO_MODE=1` ได้ก่อน (ไม่ต้องรอ DB)

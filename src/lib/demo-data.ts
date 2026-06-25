@@ -5,6 +5,7 @@
 import type {
   WinVoteMunicipalitySummary, WinVoteDistrictKpi, WinVoteCommunityRollup,
   WinVoteMemberLoad, WinVoteMember, WinVotePollingUnit, WinVoteResident, WinVoteCommunity,
+  RollCheckResult,
 } from "./winvote";
 import { resolveRbac } from "./rbac";
 
@@ -130,8 +131,23 @@ function residentsFor(memberId: string): WinVoteResident[] {
       phone_verified: i % 3 === 0, selfie_path: null,
       capture_lat: null, capture_lng: null, captured_at: null,
       created_at: new Date().toISOString(),
+      // verification layer (จำลอง — ให้ UI มีครบทุกสถานะไว้ทดสอบ)
+      capture_method: (["chip", "photo", "manual"] as const)[i % 3],
+      roll_status: i % 5 === 0 ? "other_unit" : "in_unit",
+      list_type: i % 5 === 0 ? "special" : "main",
+      intent_status: (["confirmed", "pending", "rejected"] as const)[i % 3],
+      status: "active",
+      trust_score: 40 + (i % 3) * 15 + (i % 3 === 0 ? 30 : 0),
     };
   });
+}
+
+// DEMO เทียบบัญชี: จำลองผลจากหลักสุดท้ายของเลขบัตร ให้มีครบ 3 สถานะ
+function demoCheckVoterRoll(opts: { national_id: string; district_code: number; unit_no: string }): RollCheckResult {
+  const last = Number(opts.national_id.slice(-1)) || 0;
+  if (last <= 6) return { roll_status: "in_unit",    official_name: "ชื่อจากบัญชี (เดโม)", roll_district: opts.district_code, roll_unit: opts.unit_no };
+  if (last <= 8) return { roll_status: "other_unit", official_name: "ชื่อจากบัญชี (เดโม)", roll_district: opts.district_code, roll_unit: "012" };
+  return { roll_status: "not_found", official_name: null, roll_district: null, roll_unit: null };
 }
 
 export const demo = {
@@ -143,4 +159,5 @@ export const demo = {
   getMembers: (communityId: string) => membersFor(communityId),
   getPollingUnits: (districtId: string) => pollingUnitsFor(districtId),
   getResidents: (memberId: string) => residentsFor(memberId),
+  checkVoterRoll: (opts: { national_id: string; district_code: number; unit_no: string }) => demoCheckVoterRoll(opts),
 };

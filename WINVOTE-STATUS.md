@@ -11,6 +11,7 @@
 - ⏸ รอ restore DB → รัน SQL 01–04 + โหลด 185 units + ทดสอบ RLS
 
 **เสร็จแล้ว (merge baseline):**
+- ✅ **data contract verification** — `WinVoteResident` +6 field + `checkVoterRoll()` + demo รองรับ (พร้อมให้ FE ต่อ UI)
 - ✅ โมเดลวิเคราะห์ Monte Carlo + เทียบ max(v1,v3,v4) — `WinAnalysis.tsx`
 - ✅ SQL artifacts 01–04 (voter_roll / RLS แยกเขต / verification tables / consent) — `winvote-backup/`
 - ✅ แก้ bug audit: LINE expires_at, LineVerifyModal poll, extract-id res.ok, dead code

@@ -89,6 +89,21 @@ export interface WinVoteResident {
   capture_lng: number | null;
   captured_at: string | null;
   created_at: string;
+  // ===== verification layer (optional — เพิ่มจาก audit; เติมจริงเมื่อ DB มี field เหล่านี้) =====
+  capture_method?: "chip" | "photo" | "manual";
+  roll_status?: "in_unit" | "other_unit" | "not_found";
+  list_type?: "main" | "special";
+  intent_status?: "confirmed" | "pending" | "rejected";
+  status?: "active" | "disqualified" | "withdrawn" | "pending";
+  trust_score?: number;
+}
+
+/** ผลการเทียบบัญชีผู้มีสิทธิ์ (voter_roll) */
+export interface RollCheckResult {
+  roll_status: "in_unit" | "other_unit" | "not_found";
+  official_name: string | null;  // ชื่อทางการจากบัญชี (ใช้แทน OCR -> สะกดถูก 100%)
+  roll_district: number | null;
+  roll_unit: string | null;
 }
 
 // ===== Queries =====
@@ -175,6 +190,29 @@ export async function getResidents(memberId: string) {
     .order("full_name");
   logErr("getResidents", error);
   return (data ?? []) as WinVoteResident[];
+}
+
+/** เทียบบัญชีผู้มีสิทธิ์ -> in_unit / other_unit / not_found + ชื่อทางการ
+ *  ใช้ในหน้าเก็บข้อมูล: not_found=เตือนไม่บันทึก, other_unit=บัญชีพิเศษ, in_unit=ใช้ official_name
+ *  DEMO: จำลองผลจากเลขบัตร · จริง: เรียก RPC winvote.check_voter_roll (รัน 01-voter-roll.sql ก่อน) */
+export async function checkVoterRoll(opts: {
+  national_id: string; election?: string; district_code: number; unit_no: string;
+}): Promise<RollCheckResult> {
+  if (DEMO_MODE) return demo.checkVoterRoll(opts);
+  const { data, error } = await supabase.schema("winvote").rpc("check_voter_roll", {
+    p_national_id: opts.national_id,
+    p_election: opts.election ?? "2568",
+    p_district_code: opts.district_code,
+    p_unit_no: opts.unit_no,
+  });
+  logErr("checkVoterRoll", error);
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    roll_status: row?.roll_status ?? "not_found",
+    official_name: row?.official_name ?? null,
+    roll_district: row?.roll_district ?? null,
+    roll_unit: row?.roll_unit ?? null,
+  };
 }
 
 // ===== M5: ผลเลือกตั้ง / กลยุทธ์ (จาก views winvote.district_strategy / unit_strategy) =====

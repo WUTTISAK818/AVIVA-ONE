@@ -80,6 +80,9 @@ export async function POST(req: NextRequest) {
       }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      return NextResponse.json({ error: "บริการอ่านบัตรขัดข้องชั่วคราว กรุณาลองใหม่หรือกรอกเอง" }, { status: 502 });
+    }
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
       return NextResponse.json({ error: "ไม่สามารถอ่านข้อมูลจากบัตรได้ กรุณาถ่ายใหม่หรือกรอกเอง" }, { status: 422 });

@@ -60,6 +60,18 @@ cp .env.example .env.local
 
 ตรวจหลัง setup: `select count(*) from winvote.unit_results;` ควรได้ **185**
 
+### Migration เสริมความปลอดภัย/ความถูกต้อง (รันหลัง setup พื้นฐาน — ตามผล Expert Audit)
+รันตามลำดับ **หลังจาก** schema + seed (ดู `WINVOTE-EXPERT-AUDIT.md` ประกอบ):
+
+| ลำดับ | ไฟล์ | ปิดช่อง |
+|---|---|---|
+| 4 | `01-voter-roll.sql` | เทียบบัญชีผู้มีสิทธิ์ + กันกรอกเลขปลอม (C1) |
+| 5 | `02-rls-district-scoping.sql` | RLS แยกเขต แทน `using(true)` (C2) — ⚠️ ต้องเติม `user_districts` ให้สตาฟก่อน |
+| 6 | `03-verification-tables.sql` | fields verification/lifecycle + dedup partial-unique + log + reconciliation |
+| 7 | `04-consent-retention.sql` | PDPA: consent + นโยบายลบข้อมูล (C4) |
+
+> ⚠️ ทุกไฟล์ในชุดนี้ **ต้องทดสอบกับ DB จริงก่อนใช้ production** (โดยเฉพาะ RLS — ทดสอบด้วย JWT non-admin)
+
 ---
 
 ## 3. รันบนเครื่อง (Local)

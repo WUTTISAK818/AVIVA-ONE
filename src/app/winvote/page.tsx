@@ -22,7 +22,7 @@ import { supabase } from "@/lib/supabase";
 import { DEMO_MODE } from "@/lib/demo-data";
 import {
   getMunicipalitySummary, getDistrictKpi, getCommunityRollup, getMemberLoad,
-  getMembers, getPollingUnits, getResidents, validateThaiId, checkDuplicate,
+  getPollingUnits, getResidents, validateThaiId, checkDuplicate,
   getDistrictStrategy, getUnitStrategy,
   type WinVoteMunicipalitySummary, type WinVoteDistrictKpi, type WinVoteCommunityRollup,
   type WinVoteMemberLoad, type WinVotePollingUnit, type WinVoteResident,

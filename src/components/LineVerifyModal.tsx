@@ -59,12 +59,19 @@ export default function LineVerifyModal({ residentId, residentName, phone, onClo
   useEffect(() => {
     if (needsSetup || error || verified) return;
     if (!qrDataUrl) return;
+    let attempts = 0;
     pollRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 200) { // ~10 นาที — เลิก poll กันค้างหมุนไม่จบ (token หมดอายุ 15 นาทีอยู่แล้ว)
+        stopPoll();
+        setError("หมดเวลายืนยัน กรุณาลองใหม่");
+        return;
+      }
       const { data } = await supabase
         .schema("winvote").from("residents")
         .select("phone_verified")
         .eq("id", residentId)
-        .single();
+        .maybeSingle();
       if (data?.phone_verified) {
         setVerified(true);
         stopPoll();

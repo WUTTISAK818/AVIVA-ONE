@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     phone: resident.phone,
     token: verifyToken,
     status: "pending",
+    expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // หมดอายุใน 15 นาที (ตั้งชัดเจน ไม่พึ่ง DB default)
     created_by: user.email ?? user.id,
   });
   if (insErr) return NextResponse.json({ error: "สร้างคำขอยืนยันไม่สำเร็จ" }, { status: 500 });

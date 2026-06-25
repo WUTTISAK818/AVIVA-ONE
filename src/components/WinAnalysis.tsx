@@ -4,15 +4,29 @@ import { useState, useMemo } from "react";
 import { TrendingUp, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 
-// ===== ข้อมูลจริงเลือกตั้งครั้งก่อน (2568) รวมรายเขต — our=เบอร์2, rival=เบอร์1 =====
+// ===== ข้อมูลจริงเลือกตั้งครั้งก่อน (2568) รวมรายเขต — our=เบอร์2 (v2), คู่แข่ง=max(v1,v3,v4) =====
 const HIST = [
-  { code: 1, name: "เขต 1", eligible: 21123, voted: 10586, our: 4748, rival: 2362 },
-  { code: 2, name: "เขต 2", eligible: 23017, voted: 11940, our: 5307, rival: 2215 },
-  { code: 3, name: "เขต 3", eligible: 23291, voted: 11963, our: 4988, rival: 2893 },
-  { code: 4, name: "เขต 4", eligible: 24570, voted: 12879, our: 6000, rival: 2766 },
+  { code: 1, name: "เขต 1", eligible: 21123, voted: 10586, v1: 2362, v2: 4748, v3: 941, v4: 1619 },
+  { code: 2, name: "เขต 2", eligible: 23017, voted: 11940, v1: 2215, v2: 5307, v3: 964, v4: 2479 },
+  { code: 3, name: "เขต 3", eligible: 23291, voted: 11963, v1: 2893, v2: 4988, v3: 1077, v4: 1899 },
+  { code: 4, name: "เขต 4", eligible: 24570, voted: 12879, v1: 2766, v2: 6000, v3: 1063, v4: 1920 },
 ];
 
+// ความไม่แน่นอน (ส่วนเบี่ยงเบนมาตรฐาน) สำหรับ Monte Carlo
+const PSD = 0.08;  // ความไม่แน่นอนของ P(เลือกเรา) แต่ละชั้น
+const TSD = 0.05;  // ความไม่แน่นอนของ turnout ฝั่งเรา
+const RSD = 0.12;  // ความไม่แน่นอนของคู่แข่ง
+const NSIM = 2000;
+
 const fmt = (n: number) => Math.round(n).toLocaleString("th-TH");
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+// Box-Muller — สุ่มค่าแบบการแจกแจงปกติ
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
 
 function Slider({ label, value, min, max, step, suffix, onChange }: {
   label: string; value: number; min: number; max: number; step: number; suffix?: string;
@@ -32,52 +46,53 @@ function Slider({ label, value, min, max, step, suffix, onChange }: {
 }
 
 export default function WinAnalysis() {
-  // สมมติฐานปรับได้ (global)
-  const [pctA, setPctA] = useState(40);   // สัดส่วนฐานเสียงชั้น A (%)
-  const [pctB, setPctB] = useState(35);   // ชั้น B
-  // ชั้น C = 100 - A - B
+  const [pctA, setPctA] = useState(40);
+  const [pctB, setPctB] = useState(35);
   const pctC = Math.max(0, 100 - pctA - pctB);
-  const [probA, setProbA] = useState(90); // P(เลือกเรา) ชั้น A
+  const [probA, setProbA] = useState(90);
   const [probB, setProbB] = useState(55);
   const [probC, setProbC] = useState(35);
-  const [ourTurnout, setOurTurnout] = useState(90); // turnout ฝั่งเรา
-  const [rivalAdj, setRivalAdj] = useState(100);     // คู่แข่งเทียบครั้งก่อน
-  const [safety, setSafety] = useState(10);          // เผื่อ margin %
-
-  // ฐานเสียงยืนยันแล้วต่อเขต (เริ่มต้น = ผลครั้งก่อน เพื่อให้เห็นภาพ)
-  const [base, setBase] = useState<number[]>(HIST.map((h) => h.our));
-
-  const tierWeight = (dProb = 0) => {
-    const a = (probA + dProb) / 100, b = (probB + dProb) / 100, c = (probC + dProb) / 100;
-    return (pctA / 100) * Math.min(1, a) + (pctB / 100) * Math.min(1, b) + (pctC / 100) * Math.min(1, c);
-  };
+  const [ourTurnout, setOurTurnout] = useState(90);
+  const [rivalAdj, setRivalAdj] = useState(100);
+  const [safety, setSafety] = useState(10);
+  const [base, setBase] = useState<number[]>(HIST.map((h) => h.v2));
 
   const rows = useMemo(() => HIST.map((h, i) => {
-    const w = tierWeight(0), wOpt = tierWeight(10), wPess = tierWeight(-10);
+    const sA = pctA / 100, sB = pctB / 100, sC = pctC / 100;
+    const pA = probA / 100, pB = probB / 100, pC = probC / 100;
     const ot = ourTurnout / 100;
-    const ourMid = base[i] * w * ot;
-    const ourOpt = base[i] * wOpt * ot;
-    const ourPess = base[i] * wPess * ot;
-    const rival = h.rival * (rivalAdj / 100);
-    const target = rival * (1 + safety / 100);
+    const weight = sA * pA + sB * pB + sC * pC;             // น้ำหนักเฉลี่ย (คะแนนคาดหวัง/หัว)
+    const rivalStrength = Math.max(h.v1, h.v3, h.v4) * (rivalAdj / 100); // คู่แข่งแกร่งสุดที่แท้จริง
 
-    let winProb: number;
-    if (ourPess > rival) winProb = 90 + Math.min(8, (ourPess - rival) / rival * 20);
-    else if (ourOpt < rival) winProb = Math.max(2, 10 - (rival - ourOpt) / rival * 20);
-    else winProb = 10 + ((ourMid - ourPess) / Math.max(1, ourOpt - ourPess)) * 80;
-    winProb = Math.max(1, Math.min(99, winProb));
+    // ===== Monte Carlo: สุ่ม NSIM ครั้ง เพื่อหา "ความน่าจะเป็นชนะ" จริง =====
+    const samples: number[] = [];
+    let wins = 0;
+    for (let s = 0; s < NSIM; s++) {
+      const w = sA * clamp01(pA + randn() * PSD) + sB * clamp01(pB + randn() * PSD) + sC * clamp01(pC + randn() * PSD);
+      const otS = clamp01(ot + randn() * TSD);
+      const ourVotes = base[i] * w * otS;
+      const rivalS = rivalStrength * Math.max(0.4, 1 + randn() * RSD);
+      samples.push(ourVotes);
+      if (ourVotes > rivalS) wins++;
+    }
+    samples.sort((a, b) => a - b);
+    const winProb = (wins / NSIM) * 100;
+    const ourMid = base[i] * weight * ot;
+    const p5 = samples[Math.floor(NSIM * 0.05)];
+    const p95 = samples[Math.floor(NSIM * 0.95)];
 
-    const needBase = (target / (w * ot));
-    const gap = needBase - base[i];
+    // ฐานเสียงที่ต้องมีเพื่อให้คาดหวังชนะ + เผื่อ margin
+    const need = (rivalStrength * (1 + safety / 100)) / Math.max(0.0001, weight * ot);
+    const gap = need - base[i];
 
-    return { ...h, ourMid, ourOpt, ourPess, rival, target, winProb, gap };
-  }), [base, pctA, pctB, probA, probB, probC, ourTurnout, rivalAdj, safety]); // eslint-disable-line
+    return { ...h, ourMid, p5, p95, rival: rivalStrength, winProb, gap };
+  }), [base, pctA, pctB, pctC, probA, probB, probC, ourTurnout, rivalAdj, safety]);
 
   const won = rows.filter((r) => r.winProb >= 50).length;
 
   const reset = () => {
     setPctA(40); setPctB(35); setProbA(90); setProbB(55); setProbC(35);
-    setOurTurnout(90); setRivalAdj(100); setSafety(10); setBase(HIST.map((h) => h.our));
+    setOurTurnout(90); setRivalAdj(100); setSafety(10); setBase(HIST.map((h) => h.v2));
   };
 
   return (
@@ -92,16 +107,14 @@ export default function WinAnalysis() {
         </button>
       </div>
       <p className="text-[11px] text-aviva-secondary -mt-2">
-        ใช้ผลจริงครั้งก่อน 185 หน่วยเป็นฐาน · ปรับค่าแล้วผลเปลี่ยนสด · ตัวเลขจำลองเพื่อทดสอบ
+        Monte Carlo {NSIM.toLocaleString()} รอบ · ฐาน = ผลจริง 185 หน่วย · คู่แข่ง = max(เบอร์ 1/3/4) · ตัวเลขจำลองเพื่อทดสอบ
       </p>
 
-      {/* สรุปรวม */}
       <div className="bg-aviva-card rounded-2xl p-4 border border-aviva-gold/15">
         <div className="text-xs text-aviva-secondary">คาดว่าชนะ</div>
         <div className="text-3xl font-bold text-aviva-gold-soft">{won}<span className="text-lg text-aviva-secondary"> / {HIST.length} เขต</span></div>
       </div>
 
-      {/* ผลรายเขต */}
       <div className="space-y-2">
         {rows.map((r, i) => {
           const status = r.winProb >= 65 ? "win" : r.winProb >= 45 ? "tossup" : "lose";
@@ -116,7 +129,7 @@ export default function WinAnalysis() {
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                 <div className="flex justify-between"><span className="text-aviva-secondary">คะแนนเราคาดหวัง</span><span className="font-semibold text-aviva-text">{fmt(r.ourMid)}</span></div>
                 <div className="flex justify-between"><span className="text-aviva-secondary">คู่แข่งแกร่งสุด</span><span className="font-semibold text-aviva-text">{fmt(r.rival)}</span></div>
-                <div className="flex justify-between"><span className="text-aviva-secondary">ช่วง</span><span className="text-aviva-secondary">{fmt(r.ourPess)}–{fmt(r.ourOpt)}</span></div>
+                <div className="flex justify-between"><span className="text-aviva-secondary">ช่วง 90% (p5–p95)</span><span className="text-aviva-secondary">{fmt(r.p5)}–{fmt(r.p95)}</span></div>
                 <div className="flex justify-between">
                   <span className="text-aviva-secondary">ฐานเสียง</span>
                   {r.gap > 0
@@ -137,7 +150,6 @@ export default function WinAnalysis() {
         })}
       </div>
 
-      {/* สมมติฐาน */}
       <div className="bg-aviva-card rounded-2xl p-4 border border-aviva-gold/15 space-y-3">
         <div className="text-xs font-bold text-aviva-text mb-1">⚙️ สมมติฐาน (ปรับได้)</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -150,7 +162,7 @@ export default function WinAnalysis() {
           <Slider label="คู่แข่งเทียบครั้งก่อน" value={rivalAdj} min={50} max={150} step={5} suffix="%" onChange={setRivalAdj} />
           <Slider label="เผื่อ margin" value={safety} min={0} max={30} step={5} suffix="%" onChange={setSafety} />
         </div>
-        <div className="text-[10px] text-aviva-secondary">ชั้น C = {pctC}% (= 100 − A − B) · ชนะ = คะแนนสูงสุด (plurality)</div>
+        <div className="text-[10px] text-aviva-secondary">ชั้น C = {pctC}% (= 100 − A − B) · ชนะ = คะแนนสูงสุด (plurality) · โอกาสชนะจากการจำลองสุ่ม {NSIM.toLocaleString()} รอบ</div>
       </div>
     </div>
   );

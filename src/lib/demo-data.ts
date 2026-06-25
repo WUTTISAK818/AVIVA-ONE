@@ -10,6 +10,16 @@ import { resolveRbac } from "./rbac";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
+// ⚠️ ความปลอดภัย: DEMO_MODE ข้าม auth ทั้งหมด — ต้องไม่เปิดบน production เด็ดขาด
+// เตือนดังๆ ใน console ถ้าถูกเปิด (เห็นได้ทันทีถ้าเผลอตั้งบน production)
+if (DEMO_MODE && typeof window !== "undefined") {
+  // eslint-disable-next-line no-console
+  console.warn(
+    "%c[WinVote] ⚠️ DEMO_MODE เปิดอยู่ — ข้ามการล็อกอิน/ใช้ข้อมูลจำลอง ห้ามใช้บน production กับข้อมูลจริง",
+    "color:#f87171;font-weight:bold;font-size:14px"
+  );
+}
+
 // ผู้ใช้จำลอง (ผู้บริหารระดับสูง) สำหรับผ่าน role gate ของหน้า WinVote
 export const DEMO_USER = {
   id: "demo-admin",

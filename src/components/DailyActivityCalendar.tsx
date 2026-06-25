@@ -141,6 +141,24 @@ export function DailyActivityCalendar() {
                     {item.createdBy && (
                       <p className="text-[10px] text-aviva-secondary">โดย {item.createdBy}</p>
                     )}
+                    {item.photos && item.photos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-1 mt-2">
+                        {item.photos.slice(0, 3).map((photo: string, photoIdx: number) => (
+                          <div key={photoIdx} className="aspect-square rounded bg-aviva-bg/30 overflow-hidden">
+                            <img
+                              src={photo}
+                              alt={`Photo ${photoIdx + 1}`}
+                              className="w-full h-full object-cover hover:scale-110 transition-transform cursor-pointer"
+                            />
+                          </div>
+                        ))}
+                        {item.photos.length > 3 && (
+                          <div className="aspect-square rounded bg-aviva-bg/30 flex items-center justify-center text-[11px] font-semibold text-aviva-secondary">
+                            +{item.photos.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

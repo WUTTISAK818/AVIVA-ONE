@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         .lte("jv_date", endDate),
       supabase
         .from("construction_reports")
-        .select("id, created_at, title, detail, created_by, project_id, status, report_date")
+        .select("id, created_at, title, detail, created_by, project_id, status, report_date, photo_urls")
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
       supabase
@@ -187,6 +187,7 @@ export async function GET(req: NextRequest) {
           createdBy: item.created_by,
           date: item.report_date || dateKey,
           status: item.status,
+          photos: item.photo_urls || [],
         });
       }
     });

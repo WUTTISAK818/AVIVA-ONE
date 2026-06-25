@@ -55,3 +55,65 @@
 - Pom email: `joyus818@gmail.com`
 - ONE (Claude Code): ทำงานใน session นี้ (code.claude.com)
 - Vee (Claude Cowork): ทำงานใน Cowork system (ระบบ collaboration แยก)
+
+# SQL & Database Handoff Requirements (PERMANENT — Vee's Requirements from ONE)
+
+**Vee ส่งข้อเรียกร้องมา ให้ ONE ปฏิบัติเสมอ เพื่อไม่พัง + เร็ว:**
+
+## 1️⃣ Schema Accuracy (สำคัญสุด)
+- ❌ **ห้าม** ใช้ชื่อคอลัมน์จากความจำ
+- ✅ **ต้อง** query live schema ก่อนเขียน SQL ทุกครั้ง
+- ✅ **ต้อง** ระบุ "สมมติว่า schema X" ถ้าไม่ชัวร์
+- **ลิสต์ที่เคยผิด:** 
+  - `app_settings` ใช้ `key` ไม่ใช่ `setting_key`
+  - `contractors` ไม่มี `bank_*` columns
+  - `work_queue` ใช้ `doc_index` ไม่มี `priority` column
+  - `leave_requests` ไม่มี `employee_id` (มี `user_id` แทน)
+  - `documents` ไม่มี `status` ที่ค้าง
+
+## 2️⃣ Code Delivery Format
+- ❌ **ห้าม** ส่ง claude.ai links (Vee เปิดไม่ได้)
+- ✅ **ต้อง** paste SQL เป็น markdown code block:
+  ```sql
+  -- SQL goes here
+  SELECT * FROM table;
+  ```
+- ✅ **ต้อง** เป็น text ที่ copy/paste ได้เลย ไม่ต้องแก้ไข
+
+## 3️⃣ Version & Merge Strategy
+- ❌ **ห้าม** redeploy commit เดิม (ที่ค้าง v6.55→v6.58)
+- ✅ **ต้อง** merge งานเข้า `main` branch จริง
+- ✅ **ต้อง** บอก commit hash + target version (Pom คุม version)
+- **ตัวอย่าง:** "Merge to main as v6.64 (commit abc123)"
+
+## 4️⃣ Security & Data Safety (Enforce!)
+- ❌ **ห้าม** secret/API key ลง database (app_settings)
+  → ใช้ env var แทน
+- ❌ **ห้าม** test users / fake fixtures ลง production
+  → เก็บใน UAT branch แยก
+- ❌ **ห้าม** cleanup SQL ที่ scope ไม่ชัด (เคยลบ lead จริง)
+  → ต้องมี WHERE clause ที่ระบุ specific records
+- ✅ **ต้อง** review cleanup queries 2 ครั้ง
+
+## 5️⃣ Goal-Based SQL (ไม่ step-based)
+- ❌ **ห้าม** บอกเฉพาะ "ทำขั้นตอน 1, 2, 3"
+- ✅ **ต้อง** บอก "เป้าหมาย: [สิ่งที่ต้องได้]"
+  → Vee ปรับ SQL ให้ตรง live schema ได้เอง
+- **ตัวอย่าง:**
+  - ❌ "Add column status with default 'pending'"
+  - ✅ "Add approval status tracking: pending/approved/rejected, default pending"
+
+## 6️⃣ Verification Expected Output
+- ✅ **ต้อง** แนบ "ผลที่คาดหวัง" ตอนส่ง SQL:
+  ```sql
+  -- Expected result:
+  -- 9 rows with columns: annual_leave_*, sick_leave_*, study_leave_*
+  SELECT column_name FROM information_schema.columns 
+  WHERE table_name = 'employee_payroll_config' 
+  AND column_name LIKE '%leave%';
+  ```
+- ✅ **ต้อง** ให้ Vee รัน verify query ให้ตรงจริง
+
+---
+
+**Summary:** SQL text + schema check + merge main = วนรอบเดียวไม่พัง ✅

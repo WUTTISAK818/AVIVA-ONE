@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { toSignedUrl } from "@/lib/storage";
 import { compressImage } from "@/lib/image-compress";
+import { createNotification } from "@/lib/notify";
 import GlassCard from "@/components/GlassCard";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -281,7 +282,18 @@ export default function ReportsPage() {
       late_reason: lateR ?? null,
       updated_at: now.toISOString(),
     }).eq("id", report.id).select().single();
-    if (data) setReport(data as WReport);
+    if (data) {
+      setReport(data as WReport);
+      await createNotification({
+        type: "info",
+        title: status === "late" ? "มีรายงานส่งล่าช้า" : "มีรายงานการปฏิบัติงานใหม่",
+        message: `${report.employee_name} ส่งรายงานประจำวันแล้ว ${status === "late" ? "(ล่าช้า)" : ""}`,
+        from_dept: report.department,
+        to_dept: "ผู้บริหาร",
+        record_id: report.id,
+        link: "/reports/review",
+      });
+    }
     setSubmitting(false);
     setLateModal(false);
     showToast(status === "late" ? "ส่งรายงานล่าช้า — บันทึกแล้ว" : "ส่งรายงานเรียบร้อย ✓");

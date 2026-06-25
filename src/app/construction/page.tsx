@@ -21,6 +21,7 @@ import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
 import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/doc-templates";
 import SignedImg from "@/components/SignedImg";
+import { PhotoGallery } from "@/components/PhotoGallery";
 import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
@@ -1689,11 +1690,9 @@ export default function ConstructionPage() {
                           <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
-                          {(r.photo_urls?.length ? r.photo_urls : (r.photo_url ? [r.photo_url] : [])).length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {(r.photo_urls?.length ? r.photo_urls : [r.photo_url!]).map((purl, idx) => (
-                                <SignedImg key={idx} src={purl} alt="รูปตรวจงาน" link imgClassName="w-[100px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
-                              ))}
+                          {(r.photo_urls?.length ?? 0) > 0 && (
+                            <div className="mt-3">
+                              <PhotoGallery photos={r.photo_urls} title="รูปตรวจงาน" />
                             </div>
                           )}
                         </div>

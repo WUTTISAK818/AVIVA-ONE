@@ -42,7 +42,9 @@
 
 ## §4. ตัวขวางร่วม (Blockers)
 
-- 🔴 **Supabase WinVote = INACTIVE** → กระทบ: รัน SQL, ทดสอบ RLS, intent flow, dashboard ที่ใช้ข้อมูลจริง
+- 🔴 **Supabase WinVote = INACTIVE — เปิดไม่ได้เพราะ free tier จำกัด 2 โปรเจกต์ active/org**
+  (AVIVA ONE + AVIVA PLUS เต็ม 2 ช่องแล้ว) → ต้อง **pause/delete ตัวใดตัวหนึ่ง หรือ upgrade plan** (รอผู้ใช้ตัดสินใจ)
+  - กระทบ: รัน SQL, ทดสอบ RLS, intent flow, dashboard ที่ใช้ข้อมูลจริง
   - ทางเลี่ยงชั่วคราว: ใช้ `NEXT_PUBLIC_DEMO_MODE=1` พัฒนา/ทดสอบ UI ได้โดยไม่ต้องมี DB
 - ⏳ repo `WINVOTE` แยกจริง + Vercel ยังไม่ตั้ง (deploy ใช้ branch นี้ชั่วคราวได้)
 

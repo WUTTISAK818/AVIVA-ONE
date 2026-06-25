@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { notifyPush } from "./workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -101,13 +102,19 @@ export async function createNotification(opts: {
         break;
       }
 
-      // Success - proceed with LINE notification
+      // Success - proceed with LINE + push notifications
       if (LINE_TYPES.has(opts.type)) {
         const depts = (opts.line_to_depts ?? (toDept ? [toDept] : [])).map(normalizeDept).filter(Boolean) as string[];
         const emails = await resolveDeptEmails(depts);
         const url = opts.link ?? (opts.record_id ? `/crm?lead=${opts.record_id}` : undefined);
         await notifyPersonalLine(opts.title, opts.message, url, emails).catch(err =>
           console.error(`[createNotification] LINE notify failed:`, err)
+        );
+      }
+      // Send web push notification (best-effort)
+      if (toDept) {
+        await notifyPush(toDept, opts.title, opts.message, opts.link, opts.type).catch(err =>
+          console.error(`[createNotification] Push notify failed:`, err)
         );
       }
       return; // Success

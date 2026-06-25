@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { ClipboardList, Plus, X, Trash2, Sparkles, Download } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import { PhotoUpload } from "@/components/PhotoUpload";
 import { useCurrentUser } from "@/lib/user-context";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -31,6 +32,7 @@ interface ActivityLog {
   title: string;
   detail: string | null;
   source: string;
+  photo_urls?: string[] | null;
 }
 
 const todayBkk = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
@@ -44,6 +46,8 @@ export default function ActivityPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ category: "ลูกค้า/ขาย", title: "", detail: "", time: "" });
+  const [formActivityId, setFormActivityId] = useState<string>("");
+  const [formPhotos, setFormPhotos] = useState<string[]>([]);
   const [auto, setAuto] = useState<{ sales: number; calls: number; jv: number; construction: number; installment: number; po: number } | null>(null);
   const [autoAdded, setAutoAdded] = useState(false);
 
@@ -114,14 +118,22 @@ export default function ActivityPage() {
   const submit = async () => {
     if (!user || !form.title.trim()) return;
     setSaving(true);
-    await supabase.from("activity_logs").insert({
+    const { data, error } = await supabase.from("activity_logs").insert({
       project_id: PROJECT_ID, user_id: user.id, user_name: user.full_name ?? user.email,
       department: user.department, activity_date: date,
       activity_time: form.time || null, category: form.category,
       title: form.title.trim(), detail: form.detail.trim() || null, source: "manual",
-    });
-    setForm({ category: "ลูกค้า/ขาย", title: "", detail: "", time: "" });
-    setShowForm(false); setSaving(false); load();
+      photo_urls: formPhotos.length > 0 ? formPhotos : null,
+    }).select();
+
+    if (!error && data && data.length > 0) {
+      setForm({ category: "ลูกค้า/ขาย", title: "", detail: "", time: "" });
+      setFormActivityId(data[0].id);
+      setFormPhotos([]);
+      setShowForm(false);
+      load();
+    }
+    setSaving(false);
   };
 
   const remove = async (id: string) => {
@@ -189,6 +201,15 @@ export default function ActivityPage() {
             <textarea value={form.detail} onChange={(e) => setForm((p) => ({ ...p, detail: e.target.value }))}
               placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" rows={2}
               className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text" />
+            {user && (
+              <PhotoUpload
+                activityId={formActivityId || "temp"}
+                userId={user.id}
+                photos={formPhotos}
+                onPhotoAdded={(url) => setFormPhotos((p) => [...p, url])}
+                onPhotoRemoved={(url) => setFormPhotos((p) => p.filter((u) => u !== url))}
+              />
+            )}
             <button onClick={submit} disabled={saving || !form.title.trim()}
               className="w-full py-2.5 rounded-xl bg-aviva-gold text-aviva-bg text-sm font-bold disabled:opacity-50">
               {saving ? "กำลังบันทึก…" : "บันทึก"}
@@ -229,7 +250,19 @@ export default function ActivityPage() {
                     </div>
                     <p className="text-sm text-aviva-text font-medium">{it.title}</p>
                     {it.detail && <p className="text-xs text-aviva-secondary mt-0.5">{it.detail}</p>}
-                    <div className="flex items-center gap-1.5 mt-1">
+                    {it.photo_urls && it.photo_urls.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {it.photo_urls.map((photoUrl, idx) => (
+                          <img
+                            key={idx}
+                            src={photoUrl}
+                            alt={`Photo ${idx + 1}`}
+                            className="w-full h-16 object-cover rounded-lg"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-2">
                       <span className="text-[10px] text-aviva-gold">{it.user_name ?? "-"}</span>
                       {it.department && <span className="text-[10px] text-aviva-secondary/60">· {it.department}</span>}
                     </div>

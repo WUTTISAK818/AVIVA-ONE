@@ -91,32 +91,61 @@ export function DailyActivityCalendar() {
     const dayData = activities[dateStr];
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <p className="text-sm font-semibold text-aviva-secondary mb-3">
           {currentDate.toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
         {dayData ? (
-          <div className="grid grid-cols-2 gap-2">
-            {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
-              const data = dayData[type];
-              if (data.count === 0) return null;
-              const config = activityConfig[type];
-              const IconComp = config.icon;
-              return (
-                <button
-                  key={type}
-                  onClick={() => setExpandedActivity(expandedActivity === type ? null : type)}
-                  className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all`}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <IconComp size={14} className={config.color} />
-                    <span className="font-semibold text-aviva-text truncate">{config.label}</span>
+          <>
+            {/* Activity type buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
+                const data = dayData[type];
+                if (data.count === 0) return null;
+                const config = activityConfig[type];
+                const IconComp = config.icon;
+                const isExpanded = expandedActivity === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setExpandedActivity(isExpanded ? null : type)}
+                    className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all ${isExpanded ? `border-${config.color}/50 bg-${config.bgColor}` : ""}`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <IconComp size={14} className={config.color} />
+                      <span className="font-semibold text-aviva-text truncate">{config.label}</span>
+                    </div>
+                    <span className={`font-bold ${config.color} flex-shrink-0`}>{data.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Expanded details section */}
+            {expandedActivity && dayData[expandedActivity]?.items?.length > 0 && (
+              <div className="bg-aviva-card rounded-lg border border-aviva-gold/20 p-3 space-y-2">
+                <p className="text-xs font-semibold text-aviva-gold uppercase">รายละเอียด</p>
+                {dayData[expandedActivity].items.map((item: any, idx: number) => (
+                  <div key={`${expandedActivity}-${idx}`} className="bg-aviva-bg/50 rounded-lg p-2.5 border border-aviva-gold/10 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-aviva-text truncate">{item.title}</p>
+                        {item.detail && <p className="text-[11px] text-aviva-secondary/80 line-clamp-2">{item.detail}</p>}
+                      </div>
+                      {item.status && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-aviva-gold/20 text-aviva-gold flex-shrink-0 whitespace-nowrap">
+                          {item.status}
+                        </span>
+                      )}
+                    </div>
+                    {item.createdBy && (
+                      <p className="text-[10px] text-aviva-secondary">โดย {item.createdBy}</p>
+                    )}
                   </div>
-                  <span className={`font-bold ${config.color} flex-shrink-0`}>{data.count}</span>
-                </button>
-              );
-            })}
-          </div>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
           <p className="text-center text-aviva-secondary/60 py-4 text-sm">ไม่มี activity วันนี้</p>
         )}

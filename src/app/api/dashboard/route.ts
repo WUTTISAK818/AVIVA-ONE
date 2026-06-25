@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         .lte("jv_date", endDate),
       supabase
         .from("construction_reports")
-        .select("id, created_at")
+        .select("id, created_at, title, detail, created_by, project_id, status, report_date")
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
       supabase
@@ -120,6 +120,27 @@ export async function GET(req: NextRequest) {
       if (!filterDept || deptFilterValue === "sales") {
         const dateKey = getDateKey(item.activity_date);
         addToGroup(dateKey, "sales", 1);
+        // Add item details
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = {
+            date: dateKey,
+            sales: { count: 0, items: [] },
+            construction: { count: 0, items: [] },
+            accounting: { count: 0, items: [] },
+            finance: { count: 0, items: [] },
+            marketing: { count: 0, items: [] },
+            hr: { count: 0, items: [] },
+            approvals: { count: 0, items: [] },
+            office: { count: 0, items: [] },
+          };
+        }
+        grouped[dateKey].sales.items.push({
+          id: item.id,
+          type: "sales_activity",
+          title: "กิจกรรมขาย",
+          createdBy: item.created_by,
+          date: dateKey,
+        });
       }
     });
 
@@ -144,6 +165,29 @@ export async function GET(req: NextRequest) {
       if (!filterDept || deptFilterValue === "construction") {
         const dateKey = getDateKey(item.created_at);
         addToGroup(dateKey, "construction", 1);
+        // Add item details to items array for display
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = {
+            date: dateKey,
+            sales: { count: 0, items: [] },
+            construction: { count: 0, items: [] },
+            accounting: { count: 0, items: [] },
+            finance: { count: 0, items: [] },
+            marketing: { count: 0, items: [] },
+            hr: { count: 0, items: [] },
+            approvals: { count: 0, items: [] },
+            office: { count: 0, items: [] },
+          };
+        }
+        grouped[dateKey].construction.items.push({
+          id: item.id,
+          type: "construction_report",
+          title: item.title || "รายงานก่อสร้าง",
+          detail: item.detail,
+          createdBy: item.created_by,
+          date: item.report_date || dateKey,
+          status: item.status,
+        });
       }
     });
 

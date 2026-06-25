@@ -8,6 +8,7 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import { PhotoGallery } from "@/components/PhotoGallery";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
@@ -45,6 +46,12 @@ interface WItem {
   category: string;
   description: string;
   source: string;
+}
+
+interface WAttachment {
+  id?: string;
+  file_url: string;
+  file_name: string;
 }
 
 interface ConstructionReport {
@@ -103,6 +110,7 @@ export default function ReportsReviewPage() {
   const [selectedDept, setSelectedDept] = useState("ทั้งหมด");
   const [selected, setSelected]         = useState<WReport | null>(null);
   const [selItems, setSelItems]         = useState<WItem[]>([]);
+  const [selAttachments, setSelAttachments] = useState<WAttachment[]>([]);
   const [loading, setLoading]           = useState(false);
   const [acknowledging, setAcknowledging] = useState(false);
   const [weekStats, setWeekStats]       = useState<WeekStat[]>([]);
@@ -184,12 +192,21 @@ export default function ReportsReviewPage() {
     setSelected(r);
     setCommentText("");
     setSelectedDailySummaryPhoto(null);
+    setSelAttachments([]);
     const { data } = await supabase
       .from("work_report_items")
       .select("*")
       .eq("report_id", r.id)
       .order("created_at");
     setSelItems((data ?? []) as WItem[]);
+
+    // Fetch work report attachments
+    const { data: attachments } = await supabase
+      .from("work_report_attachments")
+      .select("*")
+      .eq("report_id", r.id)
+      .order("created_at");
+    setSelAttachments((attachments ?? []) as WAttachment[]);
 
     // Fetch daily summary photo if from construction department
     if (r.department === "ฝ่ายก่อสร้าง") {
@@ -743,6 +760,13 @@ export default function ReportsReviewPage() {
                     className="cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={() => window.open(selectedDailySummaryPhoto, '_blank')}
                   />
+                </div>
+              )}
+
+              {selAttachments.length > 0 && (
+                <div className="bg-aviva-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
+                  <PhotoGallery photos={selAttachments.map(a => a.file_url)} title="ไฟล์แนบรายงาน" />
                 </div>
               )}
 

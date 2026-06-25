@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin } from "lucide-react";
+import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { toSignedUrl } from "@/lib/storage";
 import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
+import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
 import GlassCard from "@/components/GlassCard";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -94,12 +95,20 @@ export default function ReportsPage() {
   const [historyAttachments, setHistoryAttachments] = useState<WAttachment[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast]             = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [online, setOnline]           = useState(true);
+  const [syncing, setSyncing]         = useState(false);
+  const [hasDraftChanges, setHasDraftChanges] = useState(false);
 
   useEffect(() => {
     if (user?.isManager || user?.isAdmin) {
       router.replace("/reports/review");
     }
   }, [user, router]);
+
+  useEffect(() => {
+    setOnline(isOnline());
+    useOnlineStatus(setOnline);
+  }, []);
 
   const isLate      = new Date().getHours() >= 18;
   const isSubmitted = report?.status === "submitted" || report?.status === "late";
@@ -197,10 +206,18 @@ export default function ReportsPage() {
       .then(async ({ data }) => {
         if (data) {
           setReport(data as WReport);
-          setSummary(data.summary ?? "");
-          setWorkLocation(data.work_location ?? "สำนักงาน");
+          const draft = loadDraftLocally(data.id);
+          if (draft) {
+            setSummary(draft.summary);
+            setWorkLocation(draft.workLocation);
+            setItems(draft.items);
+            setHasDraftChanges(true);
+          } else {
+            setSummary(data.summary ?? "");
+            setWorkLocation(data.work_location ?? "สำนักงาน");
+          }
           const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", data.id).order("created_at");
-          setItems((its ?? []) as WItem[]);
+          if (!draft) setItems((its ?? []) as WItem[]);
           const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", data.id);
           setAttachments(await Promise.all(((atts ?? []) as WAttachment[]).map(async a => ({ ...a, signed: (await toSignedUrl(a.file_url)) ?? undefined }))));
         } else {
@@ -268,7 +285,32 @@ export default function ReportsPage() {
 
   async function saveSummary() {
     if (!report || isSubmitted) return;
-    await supabase.from("work_reports").update({ summary, work_location: workLocation, updated_at: new Date().toISOString() }).eq("id", report.id);
+    setHasDraftChanges(true);
+    saveDraftLocally({
+      id: report.id,
+      summary,
+      workLocation,
+      items,
+      updatedAt: new Date().toISOString(),
+    });
+    if (online) {
+      await supabase.from("work_reports").update({ summary, work_location: workLocation, updated_at: new Date().toISOString() }).eq("id", report.id);
+      setHasDraftChanges(false);
+    }
+  }
+
+  async function syncDraft() {
+    if (!report || !online) return;
+    setSyncing(true);
+    try {
+      await supabase.from("work_reports").update({ summary, work_location: workLocation, updated_at: new Date().toISOString() }).eq("id", report.id);
+      clearDraftLocally(report.id);
+      setHasDraftChanges(false);
+      showToast("ซิงค์ร่างเรียบร้อย ✓");
+    } catch (err) {
+      showToast("ซิงค์ล้มเหลว — ยังเป็นร่างในเครื่อง", "error");
+    }
+    setSyncing(false);
   }
 
   async function doSubmit(lateR?: string) {
@@ -314,10 +356,22 @@ export default function ReportsPage() {
       )}
 
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
-        <div className="max-w-lg mx-auto flex items-center gap-2">
-          <ClipboardList size={18} className="text-aviva-gold" />
-          <h1 className="text-lg font-bold text-aviva-text">รายงานการปฏิบัติงาน</h1>
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ClipboardList size={18} className="text-aviva-gold" />
+            <h1 className="text-lg font-bold text-aviva-text">รายงานการปฏิบัติงาน</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {!online && <WifiOff size={16} className="text-orange-400" />}
+            {online && <Wifi size={16} className="text-green-400" />}
+            {online && hasDraftChanges && (
+              <button onClick={syncDraft} disabled={syncing} className="p-1 hover:bg-aviva-gold/20 rounded-lg transition-all disabled:opacity-50">
+                <RefreshCw size={16} className={`text-yellow-400 ${syncing ? "animate-spin" : ""}`} />
+              </button>
+            )}
+          </div>
         </div>
+        {!online && <p className="text-xs text-orange-400 mt-2 max-w-lg mx-auto">ออนไลน์ไม่ได้ — ข้อมูลจะบันทึกเฉพาะในเครื่องจนกว่าจะเชื่อมต่ออินเทอร์เน็ต</p>}
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
+import { createNotification } from "@/lib/notify";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
 
@@ -241,6 +242,22 @@ export default function ReportsReviewPage() {
     if (data) {
       setSelected(data as WReport);
       setReports(prev => prev.map(r => r.id === selected.id ? data as WReport : r));
+
+      // Send feedback notification to employee
+      const managerName = user.full_name ?? user.email;
+      const feedback = commentText.trim()
+        ? `${managerName}: ${commentText}`
+        : `${managerName} รับทราบรายงานแล้ว`;
+
+      await createNotification({
+        type: "info",
+        title: "ผู้จัดการรับทราบรายงานของคุณแล้ว",
+        message: feedback,
+        from_dept: "ผู้บริหาร",
+        to_dept: selected.department,
+        record_id: selected.id,
+        link: "/reports/my-reports",
+      }).catch(err => console.error("[acknowledge] Notification failed:", err));
     }
     setAcknowledging(false);
   }

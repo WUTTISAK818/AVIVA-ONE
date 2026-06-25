@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       { data: constructionReports },
       { data: installments },
       { data: purchaseOrders },
+      { data: activityLogs },
     ] = await Promise.all([
       supabase
         .from("sales_activities")
@@ -72,6 +73,11 @@ export async function GET(req: NextRequest) {
         .select("id, created_at")
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
+      supabase
+        .from("activity_logs")
+        .select("id, activity_date, category, created_at")
+        .gte("activity_date", startDate)
+        .lte("activity_date", endDate),
     ]);
 
     // Group by date and activity type
@@ -155,6 +161,25 @@ export async function GET(req: NextRequest) {
         const dateKey = getDateKey(item.created_at);
         addToGroup(dateKey, "approvals", 1);
       }
+    });
+
+    // Process manual activity logs (from /activity page)
+    (activityLogs || []).forEach((item: any) => {
+      const dateKey = getDateKey(item.activity_date);
+      // Map activity categories to activity types
+      const category = item.category || "อื่นๆ";
+      let activityType = "office"; // default
+
+      if (category.includes("ขาย") || category.includes("ลูกค้า")) activityType = "sales";
+      else if (category.includes("ก่อสร้าง")) activityType = "construction";
+      else if (category.includes("บัญชี")) activityType = "accounting";
+      else if (category.includes("การเงิน")) activityType = "finance";
+      else if (category.includes("การตลาด")) activityType = "marketing";
+      else if (category.includes("บุคคล")) activityType = "hr";
+      else if (category.includes("ประชุม")) activityType = "office";
+      else if (category.includes("เอกสาร")) activityType = "office";
+
+      addToGroup(dateKey, activityType, 1);
     });
 
     return NextResponse.json({

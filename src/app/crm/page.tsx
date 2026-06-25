@@ -24,7 +24,8 @@ import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
-import { compressImage } from "@/lib/image-compress";
+import { uploadPhotos } from "@/lib/upload-photos";
+import MultiPhotoInput from "@/components/MultiPhotoInput";
 import { PAYMENT_PLAN, defaultInstallments } from "@/lib/payment-plan";
 import { postJv } from "@/lib/jv";
 import { BANK, CUSTOMER_ADVANCE } from "@/lib/gl-accounts";
@@ -276,7 +277,7 @@ function SelectWithOther({ label, value, options, onChange }: { label: string; v
   );
 }
 
-const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photo: null as File | null, photoPreview: "" };
+const emptyCrmLog = { channel: "Phone", callStatus: "", note: "", photos: [] as File[] };
 
 type MainTab = "pipeline" | "team" | "map";
 
@@ -313,9 +314,9 @@ export default function CRMPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const [houses, setHouses] = useState<HouseSlot[]>([]);
-  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]>([]);
+  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; photo_urls: string[] | null; created_by_name: string | null }[]>([]);
   const [showActModal, setShowActModal] = useState(false);
-  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "", onBehalfOf: "" });
+  const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photos: [] as File[], onBehalfOf: "" });
   const [savingAct, setSavingAct] = useState(false);
   const [uploadingActPhoto, setUploadingActPhoto] = useState(false);
   const [uploadingLogPhoto, setUploadingLogPhoto] = useState(false);
@@ -377,23 +378,18 @@ export default function CRMPage() {
   }, [selectedLead]);
 
   const fetchSalesActs = () => {
-    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url,created_by_name")
+    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url,photo_urls,created_by_name")
       .order("activity_date", { ascending: false }).limit(30)
-      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; created_by_name: string | null }[]));
+      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null; photo_urls: string[] | null; created_by_name: string | null }[]));
   };
 
   const handleAddActivity = async () => {
     if (!actForm.activity_type) return;
     setSavingAct(true);
-    let photoUrl: string | null = null;
-    if (actForm.photo) {
+    let photoUrls: string[] = [];
+    if (actForm.photos.length) {
       setUploadingActPhoto(true);
-      const ext = actForm.photo.name.split(".").pop() ?? "jpg";
-      const path = `activities/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("activity-photos").upload(path, await compressImage(actForm.photo), { upsert: true });
-      if (!error) {
-        photoUrl = supabase.storage.from("activity-photos").getPublicUrl(path).data.publicUrl;
-      }
+      photoUrls = await uploadPhotos("activity-photos", `activities/${Date.now()}`, actForm.photos);
       setUploadingActPhoto(false);
     }
     const byName = actForm.onBehalfOf.trim() || user?.full_name || user?.email || null;
@@ -401,7 +397,8 @@ export default function CRMPage() {
       activity_type: actForm.activity_type,
       note: actForm.note || null,
       activity_date: actForm.activity_date,
-      photo_url: photoUrl,
+      photo_url: photoUrls[0] ?? null,
+      photo_urls: photoUrls,
       created_by_name: byName,
     });
     await createNotification({
@@ -411,10 +408,9 @@ export default function CRMPage() {
       from_dept: "ฝ่ายขาย",
       to_dept: "ผู้บริหาร",
     });
-    if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
     setSavingAct(false);
     setShowActModal(false);
-    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "", onBehalfOf: "" });
+    setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photos: [], onBehalfOf: "" });
     fetchSalesActs();
   };
 
@@ -760,7 +756,7 @@ export default function CRMPage() {
     const digits = (lead.phone ?? "").replace(/\D/g, "");
     if (digits) window.location.href = `tel:${digits}`;
     setCrmLogLead(lead);
-    setCrmLogForm({ channel: "Phone", callStatus: "", note: "", photo: null, photoPreview: "" });
+    setCrmLogForm({ channel: "Phone", callStatus: "", note: "", photos: [] });
   };
 
   const openChat = (lead: Lead, e: React.MouseEvent) => {
@@ -770,24 +766,19 @@ export default function CRMPage() {
     const link = getChatLink(lead);
     if (link) window.open(link, "_blank");
     setCrmLogLead(lead);
-    setCrmLogForm({ channel, callStatus: "", note: "", photo: null, photoPreview: "" });
+    setCrmLogForm({ channel, callStatus: "", note: "", photos: [] });
   };
 
   const saveCrmLog = async () => {
     if (!crmLogLead || !crmLogForm.callStatus) return;
     setSavingLog(true);
-    let photoUrl: string | null = null;
-    if (crmLogForm.photo) {
+    let photoUrls: string[] = [];
+    if (crmLogForm.photos.length) {
       setUploadingLogPhoto(true);
-      const ext = crmLogForm.photo.name.split(".").pop() ?? "jpg";
-      const path = `logs/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("crm-photos").upload(path, await compressImage(crmLogForm.photo), { upsert: true });
-      if (!error) {
-        photoUrl = supabase.storage.from("crm-photos").getPublicUrl(path).data.publicUrl;
-      }
+      photoUrls = await uploadPhotos("crm-photos", `logs/${Date.now()}`, crmLogForm.photos);
       setUploadingLogPhoto(false);
     }
-    await supabase.from("crm_logs").insert({ lead_id: crmLogLead.id, contact_channel: crmLogForm.channel, call_status: crmLogForm.callStatus, call_note: crmLogForm.note, photo_url: photoUrl });
+    await supabase.from("crm_logs").insert({ lead_id: crmLogLead.id, contact_channel: crmLogForm.channel, call_status: crmLogForm.callStatus, call_note: crmLogForm.note, photo_url: photoUrls[0] ?? null, photo_urls: photoUrls });
     await supabase.from("leads").update({ last_contact_date: new Date().toISOString().split("T")[0] }).eq("id", crmLogLead.id);
     await createNotification({
       type: "info",
@@ -796,7 +787,6 @@ export default function CRMPage() {
       from_dept: "ฝ่ายขาย",
       to_dept: "ผู้บริหาร",
     });
-    if (crmLogForm.photoPreview) URL.revokeObjectURL(crmLogForm.photoPreview);
     setSavingLog(false);
     setCrmLogLead(null);
     setCrmLogForm(emptyCrmLog);
@@ -1502,8 +1492,12 @@ export default function CRMPage() {
                         {a.created_by_name && (
                           <span className="text-[9px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">โดย {a.created_by_name}</span>
                         )}
-                        {a.photo_url && (
-                          <SignedImg src={a.photo_url} alt="รูปกิจกรรม" link imgClassName="w-16 h-16 rounded-lg object-cover mt-1 border border-aviva-gold/20" />
+                        {(a.photo_urls?.length ? a.photo_urls : (a.photo_url ? [a.photo_url] : [])).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {(a.photo_urls?.length ? a.photo_urls : [a.photo_url!]).map((purl, idx) => (
+                              <SignedImg key={idx} src={purl} alt="รูปกิจกรรม" link imgClassName="w-16 h-16 rounded-lg object-cover border border-aviva-gold/20" />
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1598,20 +1592,8 @@ export default function CRMPage() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
               </div>
               <div>
-                <label htmlFor="crmform-activity_photo" className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
-                <div className="flex items-center gap-3">
-                  <label htmlFor="crmform-activity_photo" className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
-                    <Camera size={12} /> เลือกรูป
-                    <input id="crmform-activity_photo" type="file" accept="image/*" className="hidden" onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
-                        setActForm(f => ({ ...f, photo: file, photoPreview: URL.createObjectURL(file) }));
-                      }
-                    }} />
-                  </label>
-                  {actForm.photoPreview && <img src={actForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
-                </div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ · เลือกได้หลายรูป)</label>
+                <MultiPhotoInput value={actForm.photos} onChange={(photos) => setActForm(f => ({ ...f, photos }))} label="เลือกรูป" />
               </div>
               <button onClick={handleAddActivity} disabled={savingAct || !actForm.activity_type}
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50">
@@ -1663,20 +1645,8 @@ export default function CRMPage() {
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/50 resize-none" />
               </div>
               <div>
-                <label htmlFor="crmform-log_photo" className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ)</label>
-                <div className="flex items-center gap-3">
-                  <label htmlFor="crmform-log_photo" className="flex items-center gap-2 px-3 py-2 bg-aviva-bg border border-aviva-gold/20 rounded-xl text-xs text-aviva-secondary cursor-pointer hover:border-aviva-gold/40">
-                    <Camera size={12} /> เลือกรูป
-                    <input id="crmform-log_photo" type="file" accept="image/*" className="hidden" onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (crmLogForm.photoPreview) URL.revokeObjectURL(crmLogForm.photoPreview);
-                        setCrmLogForm(f => ({ ...f, photo: file, photoPreview: URL.createObjectURL(file) }));
-                      }
-                    }} />
-                  </label>
-                  {crmLogForm.photoPreview && <img src={crmLogForm.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
-                </div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รูปภาพ (ไม่บังคับ · เลือกได้หลายรูป)</label>
+                <MultiPhotoInput value={crmLogForm.photos} onChange={(photos) => setCrmLogForm(f => ({ ...f, photos }))} label="เลือกรูป" />
               </div>
               <button onClick={saveCrmLog} disabled={savingLog || !crmLogForm.callStatus}
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm disabled:opacity-50">

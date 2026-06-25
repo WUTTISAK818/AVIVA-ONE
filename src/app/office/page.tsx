@@ -28,7 +28,8 @@ import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
-import { compressImage } from "@/lib/image-compress";
+import { uploadPhotos } from "@/lib/upload-photos";
+import MultiPhotoInput from "@/components/MultiPhotoInput";
 import { createLeaveRequest } from "@/lib/work-actions";
 import { resolveApprovalQueue } from "@/lib/workflow-events";
 import { finalizeSale } from "@/lib/sales-finalize";
@@ -131,7 +132,7 @@ function FinanceContent() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyFinanceForm);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"txn" | "approval" | "construction">("txn");
   const [period, setPeriod] = useState<Period>("month");
@@ -277,13 +278,10 @@ function FinanceContent() {
         assigned_to_name: "ผู้จัดการ",
       }).select("approval_id").single();
       // แนบใบเสร็จ/สลิป เข้ากับคำขออนุมัติ (ให้ผู้อนุมัติเปิดดูในหน้าตรวจสอบ)
-      if (receiptFile && logRow?.approval_id) {
-        const ext = receiptFile.name.split(".").pop() ?? "jpg";
-        const path = `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("document-attachments").upload(path, await compressImage(receiptFile), { upsert: true });
-        if (!upErr) {
-          const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
-          await attachDocumentToEntity("approval_log", logRow.approval_id, publicUrl, receiptFile.name, user?.full_name ?? user?.email ?? "ผู้ขอ");
+      if (receiptFiles.length && logRow?.approval_id) {
+        const urls = await uploadPhotos("document-attachments", `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}`, receiptFiles);
+        for (let i = 0; i < urls.length; i++) {
+          await attachDocumentToEntity("approval_log", logRow.approval_id, urls[i], receiptFiles[i]?.name ?? `แนบ-${i + 1}`, user?.full_name ?? user?.email ?? "ผู้ขอ");
         }
       }
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
@@ -346,7 +344,7 @@ function FinanceContent() {
     setSaving(false);
     setShowModal(false);
     setForm(emptyFinanceForm);
-    setReceiptFile(null);
+    setReceiptFiles([]);
     fetchData();
   };
 
@@ -768,13 +766,8 @@ function FinanceContent() {
 
             {Number(form.amount) >= 50000 && (
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสร็จ / สลิป (ให้ผู้อนุมัติตรวจสอบ)</label>
-                <label className="flex items-center gap-2 cursor-pointer bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-secondary hover:border-aviva-gold/50">
-                  <Paperclip size={14} className="text-aviva-gold" />
-                  <span className="truncate">{receiptFile ? receiptFile.name : "แตะเพื่อแนบรูป/ไฟล์ PDF"}</span>
-                  <input type="file" accept="image/*,application/pdf" className="hidden"
-                    onChange={e => setReceiptFile(e.target.files?.[0] ?? null)} />
-                </label>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสร็จ / สลิป (ให้ผู้อนุมัติตรวจสอบ · เลือกได้หลายไฟล์)</label>
+                <MultiPhotoInput value={receiptFiles} onChange={setReceiptFiles} accept="image/*,application/pdf" label="แตะเพื่อแนบรูป/ไฟล์ PDF" />
               </div>
             )}
 

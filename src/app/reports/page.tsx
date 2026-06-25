@@ -244,19 +244,24 @@ export default function ReportsPage() {
     setItems(prev => prev.filter((_, i) => i !== idx));
   }
 
-  async function uploadPhoto(file: File) {
+  async function uploadPhoto(file: File, idx = 0) {
     if (!report) return;
-    setUploading(true);
-    file = await compressImage(file);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `rpt-${report.id}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("document-attachments").upload(path, file, { upsert: true });
+    const compressed = await compressImage(file);
+    const ext = compressed.name.split(".").pop() ?? "jpg";
+    const path = `rpt-${report.id}-${Date.now()}-${idx}.${ext}`;
+    const { error } = await supabase.storage.from("document-attachments").upload(path, compressed, { upsert: true });
     if (!error) {
       const { data: urlData } = supabase.storage.from("document-attachments").getPublicUrl(path);
-      const att = { report_id: report.id, file_url: urlData.publicUrl, file_name: file.name };
+      const att = { report_id: report.id, file_url: urlData.publicUrl, file_name: compressed.name };
       const { data } = await supabase.from("work_report_attachments").insert(att).select().single();
       if (data) { const d = data as WAttachment; d.signed = (await toSignedUrl(d.file_url)) ?? undefined; setAttachments(prev => [...prev, d]); }
     }
+  }
+
+  async function uploadPhotosMulti(files: File[]) {
+    if (!report || !files.length) return;
+    setUploading(true);
+    for (let i = 0; i < files.length; i++) await uploadPhoto(files[i], i);
     setUploading(false);
   }
 
@@ -417,9 +422,9 @@ export default function ReportsPage() {
           {!isSubmitted && (
             <label className="flex items-center gap-2.5 bg-aviva-bg border border-aviva-gold/20 border-dashed rounded-xl px-4 py-3 cursor-pointer hover:border-aviva-gold/50 transition-all">
               <Camera size={16} className="text-aviva-secondary/60 flex-shrink-0" />
-              <span className="text-sm text-aviva-secondary/50">{uploading ? "กำลังอัปโหลด..." : "ถ่ายรูป / เลือกไฟล์"}</span>
-              <input type="file" accept="image/*" className="hidden" disabled={uploading}
-                onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }} />
+              <span className="text-sm text-aviva-secondary/50">{uploading ? "กำลังอัปโหลด..." : "ถ่ายรูป / เลือกไฟล์ (ได้หลายรูป)"}</span>
+              <input type="file" accept="image/*" multiple className="hidden" disabled={uploading}
+                onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) uploadPhotosMulti(fs); e.target.value = ""; }} />
             </label>
           )}
         </GlassCard>

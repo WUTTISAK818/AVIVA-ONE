@@ -25,7 +25,8 @@ import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
-import { compressImage } from "@/lib/image-compress";
+import { uploadPhotos } from "@/lib/upload-photos";
+import MultiPhotoInput from "@/components/MultiPhotoInput";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -62,6 +63,7 @@ interface Report {
   issue: string;
   created_at: string;
   photo_url: string | null;
+  photo_urls: string[] | null;
   reported_by: string | null;
 }
 
@@ -118,6 +120,7 @@ interface Inspection {
   result: 'pass' | 'fail' | 'pending';
   note: string | null;
   photo_url: string | null;
+  photo_urls: string[] | null;
   sub_contractor_name: string | null;
   inspected_by: string | null;
   inspected_at: string | null;
@@ -137,6 +140,7 @@ interface InstTask {
   task_name: string;
   is_complete: boolean;
   photo_url: string | null;
+  photo_urls: string[] | null;
   notes: string | null;
 }
 
@@ -292,7 +296,7 @@ function InspectionPanel({
   savingInsp: boolean;
   onEnsure: () => Promise<Inspection[]>;
   onSave: (insp: Inspection, result: 'pass' | 'fail', note: string, sub: string) => Promise<void>;
-  onUpload: (insp: Inspection, file: File) => Promise<void>;
+  onUpload: (insp: Inspection, files: File[]) => Promise<void>;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [localInsps, setLocalInsps] = useState<Inspection[]>([]);
@@ -367,13 +371,14 @@ function InspectionPanel({
             onChange={e => setSubs(prev => ({ ...prev, [insp.id]: e.target.value }))}
             className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-2 py-1 text-[11px] text-aviva-secondary placeholder:text-aviva-secondary/30 outline-none mb-1.5" />
           <div className="flex items-center gap-2">
-            <label className="cursor-pointer">
-              <input type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(insp, f); }} />
+            <label className="cursor-pointer relative">
+              <input type="file" accept="image/*" capture="environment" multiple className="hidden"
+                onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) onUpload(insp, fs); e.target.value = ""; }} />
               {uploadingInsp === insp.id
                 ? <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Loader2 size={12} className="text-aviva-gold animate-spin" /></div>
-                : insp.photo_url
-                  ? <SignedImg src={insp.photo_url} alt="รูปตรวจ" imgClassName="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
+                : (insp.photo_urls?.length ?? 0) > 0 || insp.photo_url
+                  ? <><SignedImg src={insp.photo_urls?.[0] ?? insp.photo_url} alt="รูปตรวจ" imgClassName="w-10 h-10 rounded-lg object-cover border border-aviva-gold/20" />
+                      {(insp.photo_urls?.length ?? 0) > 1 && <span className="absolute -top-1 -right-1 bg-aviva-gold text-aviva-bg text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{insp.photo_urls!.length}</span>}</>
                   : <div className="w-10 h-10 rounded-lg bg-aviva-bg border border-aviva-gold/10 flex items-center justify-center"><Camera size={12} className="text-aviva-secondary/50" /></div>
               }
             </label>
@@ -439,8 +444,8 @@ export default function ConstructionPage() {
   const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [dailyPhoto, setDailyPhoto] = useState<File | null>(null);
-  const [dailyPhotoPreview, setDailyPhotoPreview] = useState("");
+  const [dailyPhotos, setDailyPhotos] = useState<File[]>([]);
+  const [dailyExistingUrls, setDailyExistingUrls] = useState<string[]>([]);
   const [uploadingDailyPhoto, setUploadingDailyPhoto] = useState(false);
 
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
@@ -451,8 +456,7 @@ export default function ConstructionPage() {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryForm, setSummaryForm] = useState({ reporter: "", contractor_summary: "", daily_summary: "", problems: "", date: "" });
-  const [summaryPhoto, setSummaryPhoto] = useState<File | null>(null);
-  const [summaryPhotoPreview, setSummaryPhotoPreview] = useState("");
+  const [summaryPhotos, setSummaryPhotos] = useState<File[]>([]);
   const [uploadingSummaryPhoto, setUploadingSummaryPhoto] = useState(false);
   const [sendingSummary, setSendingSummary] = useState(false);
 
@@ -599,17 +603,16 @@ export default function ConstructionPage() {
     setSavingInsp(false);
   };
 
-  const uploadInspectionPhoto = async (insp: Inspection, file: File) => {
+  const uploadInspectionPhoto = async (insp: Inspection, files: File[]) => {
+    if (!files.length) return;
     setUploadingInsp(insp.id);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `inspections/${insp.id}.${ext}`;
-    const { error } = await supabase.storage.from("installment-photos").upload(path, await compressImage(file), { upsert: true });
-    if (error) { setUploadingInsp(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
-    const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
-    await supabase.from("installment_inspections").update({ photo_url: publicUrl }).eq("id", insp.id);
-    setInspections(prev => prev.map(i => i.id === insp.id ? { ...i, photo_url: publicUrl } : i));
+    const newUrls = await uploadPhotos("installment-photos", `inspections/${insp.id}`, files);
+    if (!newUrls.length) { setUploadingInsp(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ", type: "error" }); return; }
+    const merged = [...(insp.photo_urls ?? []), ...newUrls];
+    await supabase.from("installment_inspections").update({ photo_urls: merged, photo_url: merged[0] }).eq("id", insp.id);
+    setInspections(prev => prev.map(i => i.id === insp.id ? { ...i, photo_urls: merged, photo_url: merged[0] } : i));
     setUploadingInsp(null);
-    setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+    setToast({ msg: `อัปโหลดรูปสำเร็จ ${newUrls.length} รูป`, type: "success" });
   };
 
   const toggleTask = async (task: InstTask) => {
@@ -905,17 +908,16 @@ export default function ConstructionPage() {
     w.document.close();
   };
 
-  const uploadTaskPhoto = async (task: InstTask, file: File) => {
+  const uploadTaskPhoto = async (task: InstTask, files: File[]) => {
+    if (!files.length) return;
     setUploadingTask(task.id);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `tasks/${task.id}.${ext}`;
-    const { error } = await supabase.storage.from("installment-photos").upload(path, await compressImage(file), { upsert: true });
-    if (error) { setUploadingTask(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" }); return; }
-    const { data: { publicUrl } } = supabase.storage.from("installment-photos").getPublicUrl(path);
-    await supabase.from("installment_tasks").update({ photo_url: publicUrl }).eq("id", task.id);
-    setInstTasks(prev => prev.map(t => t.id === task.id ? { ...t, photo_url: publicUrl } : t));
+    const newUrls = await uploadPhotos("installment-photos", `tasks/${task.id}`, files);
+    if (!newUrls.length) { setUploadingTask(null); setToast({ msg: "อัปโหลดรูปไม่สำเร็จ", type: "error" }); return; }
+    const merged = [...(task.photo_urls ?? []), ...newUrls];
+    await supabase.from("installment_tasks").update({ photo_urls: merged, photo_url: merged[0] }).eq("id", task.id);
+    setInstTasks(prev => prev.map(t => t.id === task.id ? { ...t, photo_urls: merged, photo_url: merged[0] } : t));
     setUploadingTask(null);
-    setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
+    setToast({ msg: `อัปโหลดรูปสำเร็จ ${newUrls.length} รูป`, type: "success" });
   };
 
   const counts = {
@@ -980,8 +982,8 @@ export default function ConstructionPage() {
     setEditingReport(report);
     setSelectedHouse(null);
     setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "on-track", reported_by: report.reported_by ?? "", work_type: report.work_type ?? "งานตรวจสอบ" });
-    setDailyPhoto(null);
-    setDailyPhotoPreview(report.photo_url ?? "");
+    setDailyPhotos([]);
+    setDailyExistingUrls(report.photo_urls?.length ? report.photo_urls : (report.photo_url ? [report.photo_url] : []));
     setShowModal(true);
   };
 
@@ -1020,26 +1022,20 @@ export default function ConstructionPage() {
       reportId = (inserted as Report | null)?.id ?? null;
       await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
     }
-    if (dailyPhoto && reportId) {
+    if (reportId && (dailyPhotos.length > 0 || editingReport)) {
       setUploadingDailyPhoto(true);
-      const ext = dailyPhoto.name.split(".").pop() ?? "jpg";
-      const path = `daily/${reportId}.${ext}`;
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(path, await compressImage(dailyPhoto), { upsert: true });
-      if (!error) {
-        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(path);
-        await supabase.from("construction_reports").update({ photo_url: publicUrl }).eq("id", reportId);
-        setToast({ msg: "อัปโหลดรูปสำเร็จ", type: "success" });
-      } else {
-        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
-      }
+      const newUrls = await uploadPhotos("construction-daily-photos", `daily/${reportId}`, dailyPhotos);
+      const merged = [...dailyExistingUrls, ...newUrls];
+      await supabase.from("construction_reports").update({ photo_urls: merged, photo_url: merged[0] ?? null }).eq("id", reportId);
+      if (newUrls.length) setToast({ msg: `อัปโหลดรูปสำเร็จ ${newUrls.length} รูป`, type: "success" });
       setUploadingDailyPhoto(false);
     }
     setSaving(false);
     setShowModal(false);
     setSelectedHouse(null);
     setEditingReport(null);
-    setDailyPhoto(null);
-    setDailyPhotoPreview("");
+    setDailyPhotos([]);
+    setDailyExistingUrls([]);
     fetchData();
   };
 
@@ -1157,8 +1153,7 @@ export default function ConstructionPage() {
         }).join("\n") + (openDefs.length > 5 ? `\n... และอีก ${openDefs.length - 5} รายการ` : "")
       : "";
     setSummaryForm({ reporter: user?.full_name ?? "", contractor_summary: contractorText, daily_summary: dailyText, problems: problemsText, date: today });
-    setSummaryPhoto(null);
-    setSummaryPhotoPreview("");
+    setSummaryPhotos([]);
     setLoadingSummary(false);
     setShowSummaryModal(true);
   };
@@ -1167,25 +1162,20 @@ export default function ConstructionPage() {
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
     const w = window.open("", "_blank");
     if (!w) return;
-    const photoHtml = summaryPhotoPreview ? `<div style="margin:16px 0"><img src="${summaryPhotoPreview}" style="max-width:100%;max-height:280px;border-radius:8px;border:1px solid #ddd;display:block" /></div>` : "";
+    const photoHtml = summaryPhotos.length
+      ? `<div style="margin:16px 0;display:flex;flex-wrap:wrap;gap:8px">${summaryPhotos.map(f => `<img src="${URL.createObjectURL(f)}" style="max-width:48%;max-height:280px;border-radius:8px;border:1px solid #ddd;display:block" />`).join("")}</div>`
+      : "";
     w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:13px;color:#1a1a1a}.header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:20px}.logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:6px}.summary-bar{display:flex;gap:12px;background:#f9f9f9;border-radius:8px;padding:10px 14px;margin-bottom:20px;border-left:3px solid #1E4A35}.sb-item{flex:1}.sb-num{font-size:18px;font-weight:900;color:#1E4A35}.sb-lbl{font-size:10px;color:#888;margin-top:2px}section{margin-bottom:20px}h3{font-size:13px;font-weight:700;color:#1E4A35;border-bottom:1px solid #e0e0e0;padding-bottom:6px;margin-bottom:10px}pre{white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.8;color:#333;margin:0;background:#fafafa;border-radius:6px;padding:10px}.footer{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ddd;padding-top:16px}.sig{text-align:center;width:180px}.sig-line{border-top:1px solid #555;margin:48px 0 6px}.sig-name{font-size:11px;color:#555}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:20px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง</h2><div class="meta">วันที่: ${dateStr} &nbsp;·&nbsp; ผู้จัดทำ: ${summaryForm.reporter || "—"} &nbsp;·&nbsp; ความคืบหน้าเฉลี่ย: ${overallProgress}%</div></div><div class="summary-bar"><div class="sb-item"><div class="sb-num">${houses.length}</div><div class="sb-lbl">ยูนิตทั้งหมด</div></div><div class="sb-item"><div class="sb-num">${overallProgress}%</div><div class="sb-lbl">คืบหน้าเฉลี่ย</div></div><div class="sb-item"><div class="sb-num">${counts.complete}</div><div class="sb-lbl">เสร็จแล้ว</div></div><div class="sb-item"><div class="sb-num">${defects.filter(d=>d.status==="Open").length}</div><div class="sb-lbl">Defect เปิด</div></div></div><section><h3>งานตรวจผู้รับเหมา</h3><pre>${summaryForm.contractor_summary}</pre></section><section><h3>งานรายวัน</h3><pre>${summaryForm.daily_summary}</pre></section>${summaryForm.problems ? `<section><h3>ปัญหา / ข้อสังเกต</h3><pre>${summaryForm.problems}</pre></section>` : ""}${photoHtml}<div class="footer"><div style="font-size:11px;color:#aaa">จัดทำโดยระบบ AVIVA ONE — ${dateStr}</div><div class="sig"><div class="sig-line"></div><div class="sig-name">${summaryForm.reporter || "ผู้จัดทำรายงาน"}</div><div style="color:#aaa;font-size:10px;margin-top:2px">(...............................................)</div></div></div></body></html>`);
     w.document.close();
   };
 
   const submitSummaryReport = async () => {
     setSendingSummary(true);
-    let photoUrl: string | null = null;
-    if (summaryPhoto) {
+    let photoUrls: string[] = [];
+    if (summaryPhotos.length) {
       setUploadingSummaryPhoto(true);
-      const ext = summaryPhoto.name.split(".").pop() ?? "jpg";
-      const filePath = `daily/summary-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("construction-daily-photos").upload(filePath, await compressImage(summaryPhoto), { upsert: true });
-      if (error) {
-        setToast({ msg: "อัปโหลดรูปไม่สำเร็จ: " + error.message, type: "error" });
-      } else {
-        const { data: { publicUrl } } = supabase.storage.from("construction-daily-photos").getPublicUrl(filePath);
-        photoUrl = publicUrl;
-      }
+      photoUrls = await uploadPhotos("construction-daily-photos", `daily/summary-${Date.now()}`, summaryPhotos);
+      if (!photoUrls.length) setToast({ msg: "อัปโหลดรูปไม่สำเร็จ", type: "error" });
       setUploadingSummaryPhoto(false);
     }
     // Persist summary report to construction_reports table
@@ -1194,7 +1184,8 @@ export default function ConstructionPage() {
       work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,
       progress: overallProgress,
       reported_by: summaryForm.reporter || null,
-      photo_url: photoUrl,
+      photo_url: photoUrls[0] ?? null,
+      photo_urls: photoUrls,
       issue: summaryForm.problems || null,
     });
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
@@ -1206,8 +1197,7 @@ export default function ConstructionPage() {
     });
     setSendingSummary(false);
     setShowSummaryModal(false);
-    setSummaryPhoto(null);
-    setSummaryPhotoPreview("");
+    setSummaryPhotos([]);
     setToast({ msg: "ส่งรายงานสรุปให้ผู้บริหารแล้ว ✓", type: "success" });
   };
 
@@ -1235,7 +1225,7 @@ export default function ConstructionPage() {
                 </button>
               )}
               {part === "daily" && (
-                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setShowModal(true); }}
+                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setDailyPhotos([]); setDailyExistingUrls([]); setShowModal(true); }}
                   className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
                   <Plus size={14} /> รายงาน
                 </button>
@@ -1588,12 +1578,13 @@ export default function ConstructionPage() {
                                     {task.is_complete && <Check size={10} className="text-white" />}
                                   </button>
                                   <span className={clsx("text-xs flex-1 text-left", task.is_complete ? "line-through text-aviva-secondary/50" : "text-aviva-text")}>{task.task_name}</span>
-                                  <label className="cursor-pointer flex-shrink-0">
-                                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadTaskPhoto(task, f); }} />
+                                  <label className="cursor-pointer flex-shrink-0 relative">
+                                    <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) uploadTaskPhoto(task, fs); e.target.value = ""; }} />
                                     {uploadingTask === task.id
                                       ? <Loader2 size={13} className="text-aviva-gold animate-spin" />
-                                      : task.photo_url
-                                        ? <SignedImg src={task.photo_url} alt="" imgClassName="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
+                                      : (task.photo_urls?.length ?? 0) > 0 || task.photo_url
+                                        ? <><SignedImg src={task.photo_urls?.[0] ?? task.photo_url} alt="" imgClassName="w-7 h-7 rounded-lg object-cover border border-aviva-gold/20" />
+                                            {(task.photo_urls?.length ?? 0) > 1 && <span className="absolute -top-1 -right-1 bg-aviva-gold text-aviva-bg text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">{task.photo_urls!.length}</span>}</>
                                         : <Camera size={13} className="text-aviva-secondary/40" />
                                     }
                                   </label>
@@ -1698,9 +1689,11 @@ export default function ConstructionPage() {
                           <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
-                          {r.photo_url && (
-                            <div className="mt-2">
-                              <SignedImg src={r.photo_url} alt="รูปตรวจงาน" link imgClassName="w-full max-w-[160px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                          {(r.photo_urls?.length ? r.photo_urls : (r.photo_url ? [r.photo_url] : [])).length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {(r.photo_urls?.length ? r.photo_urls : [r.photo_url!]).map((purl, idx) => (
+                                <SignedImg key={idx} src={purl} alt="รูปตรวจงาน" link imgClassName="w-[100px] h-24 rounded-xl object-cover border border-aviva-gold/20" />
+                              ))}
                             </div>
                           )}
                         </div>
@@ -1887,16 +1880,8 @@ export default function ConstructionPage() {
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50 resize-none leading-relaxed" />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">แนบรูปภาพเพิ่มเติม</label>
-              <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 hover:border-aviva-gold/40 transition-all">
-                <input type="file" accept="image/*" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) { setSummaryPhoto(f); setSummaryPhotoPreview(URL.createObjectURL(f)); } }} />
-                <Camera size={15} className="text-aviva-secondary/60 flex-shrink-0" />
-                <span className="text-xs text-aviva-secondary/60 flex-1">{summaryPhoto ? summaryPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
-                {summaryPhotoPreview && (
-                  <img src={summaryPhotoPreview} alt="preview" className="w-14 h-14 rounded-lg object-cover border border-aviva-gold/20 flex-shrink-0" />
-                )}
-              </label>
+              <label className="text-[10px] font-semibold text-aviva-secondary/70 mb-1 block uppercase tracking-wider">แนบรูปภาพเพิ่มเติม (เลือกได้หลายรูป)</label>
+              <MultiPhotoInput value={summaryPhotos} onChange={setSummaryPhotos} />
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={printSummaryReport}
@@ -2023,13 +2008,8 @@ export default function ConstructionPage() {
                 <input id="dailyform-issue" type="text" value={form.issue} onChange={e => setForm({ ...form, issue: e.target.value })} placeholder="ถ้าไม่มีปัญหาให้เว้นว่าง" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน</label>
-                <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
-                  <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setDailyPhoto(f); setDailyPhotoPreview(URL.createObjectURL(f)); } }} />
-                  {uploadingDailyPhoto ? <Loader2 size={16} className="text-aviva-gold animate-spin" /> : <Camera size={16} className="text-aviva-secondary/60" />}
-                  <span className="text-sm text-aviva-secondary/60 flex-1">{dailyPhoto ? dailyPhoto.name : "ถ่ายรูป / เลือกจากคลัง"}</span>
-                  {dailyPhotoPreview && <img src={dailyPhotoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />}
-                </label>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน (เลือกได้หลายรูป)</label>
+                <MultiPhotoInput value={dailyPhotos} onChange={setDailyPhotos} existingUrls={dailyExistingUrls} onRemoveExisting={(u) => setDailyExistingUrls(prev => prev.filter(x => x !== u))} />
               </div>
             </div>
             <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}</button>

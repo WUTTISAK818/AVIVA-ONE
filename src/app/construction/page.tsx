@@ -492,10 +492,21 @@ export default function ConstructionPage() {
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
       supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
-    ]).then(([hRes, rRes, dRes, leadRes]) => {
+    ]).then(async ([hRes, rRes, dRes, leadRes]) => {
       // D2: กัน null หลัง reset ข้อมูลก่อสร้าง (progress/contractor อาจเป็น null)
       setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0, plot_code: h.plot_code ?? null, construction_status: h.construction_status ?? null })));
-      setReports((rRes.data as Report[]) ?? []);
+
+      // Convert photo_urls to signed URLs
+      const reports = (rRes.data as Report[]) ?? [];
+      const signedReports = await Promise.all(
+        reports.map(async (r) => ({
+          ...r,
+          photo_urls: r.photo_urls ? await Promise.all(r.photo_urls.map(url => toSignedUrl(url).then(signed => signed || url))) : r.photo_urls,
+          photo_url: r.photo_url ? (await toSignedUrl(r.photo_url)) || r.photo_url : r.photo_url,
+        }))
+      );
+      setReports(signedReports);
+
       setDefects((dRes.data as Defect[]) ?? []);
       const plots = new Set<number>((leadRes.data ?? []).filter((d: { plot_number: number | null }) => d.plot_number != null).map((d: { plot_number: number }) => d.plot_number));
       setCustomerPlots(plots);

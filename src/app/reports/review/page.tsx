@@ -8,6 +8,7 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
+import { toSignedUrl } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
 
@@ -201,13 +202,23 @@ export default function ReportsReviewPage() {
       .order("created_at");
     setSelItems((data ?? []) as WItem[]);
 
-    // Fetch work report attachments
+    // Fetch work report attachments with signed URLs
     const { data: attachments } = await supabase
       .from("work_report_attachments")
       .select("*")
       .eq("report_id", r.id)
       .order("created_at");
-    setSelAttachments((attachments ?? []) as WAttachment[]);
+    if (attachments && attachments.length > 0) {
+      const signedAtts = await Promise.all(
+        (attachments as WAttachment[]).map(async (a) => ({
+          ...a,
+          file_url: (await toSignedUrl(a.file_url)) || a.file_url,
+        }))
+      );
+      setSelAttachments(signedAtts);
+    } else {
+      setSelAttachments([]);
+    }
 
     // Fetch daily summary photo if from construction department
     if (r.department === "ฝ่ายก่อสร้าง") {
@@ -221,7 +232,8 @@ export default function ReportsReviewPage() {
         .limit(1)
         .maybeSingle();
       if (constRaw?.photo_url) {
-        setSelectedDailySummaryPhoto(constRaw.photo_url);
+        const signedUrl = await toSignedUrl(constRaw.photo_url);
+        setSelectedDailySummaryPhoto(signedUrl || constRaw.photo_url);
       }
     }
   }

@@ -12,7 +12,7 @@ import DeptAIChat from "@/components/DeptAIChat";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
-import { createNotification } from "@/lib/notify";
+import { createNotification, notifyActivityLine } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { maskPhone } from "@/lib/mask";
@@ -1036,6 +1036,13 @@ export default function ConstructionPage() {
       const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, reported_by: form.reported_by || null }).select().single();
       reportId = (inserted as Report | null)?.id ?? null;
       await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
+      // Send LINE notification for new construction report
+      await notifyActivityLine(
+        "ฝ่ายก่อสร้าง",
+        `รายงานก่อสร้าง: ${form.work_type || "งานอื่น"}`,
+        `${form.reported_by || "วิศวกร"} · ${new Date().toLocaleDateString("th-TH")}${form.work_detail ? ` — ${form.work_detail.substring(0, 50)}` : ""}`,
+        "/construction"
+      ).catch(err => console.error("[Construction] LINE notify failed:", err));
     }
     if (reportId && (dailyPhotos.length > 0 || editingReport)) {
       setUploadingDailyPhoto(true);
@@ -1204,12 +1211,13 @@ export default function ConstructionPage() {
       issue: summaryForm.problems || null,
     });
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
-    await createNotification({
-      type: "info",
-      title: "รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง",
-      message: `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · คืบหน้าเฉลี่ย ${overallProgress}%`,
-      from_dept: "ฝ่ายก่อสร้าง",
-    });
+    // Send LINE notification for construction summary report
+    await notifyActivityLine(
+      "ฝ่ายก่อสร้าง",
+      "รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง",
+      `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · คืบหน้าเฉลี่ย ${overallProgress}%`,
+      "/construction"
+    );
     setSendingSummary(false);
     setShowSummaryModal(false);
     setSummaryPhotos([]);

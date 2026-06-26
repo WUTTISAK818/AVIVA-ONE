@@ -13,7 +13,7 @@ import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
-import { createNotification, notifyMilestone } from "@/lib/notify";
+import { createNotification, notifyActivityLine, notifyMilestone } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
@@ -401,13 +401,13 @@ export default function CRMPage() {
       photo_urls: photoUrls,
       created_by_name: byName,
     });
-    await createNotification({
-      type: "info",
-      title: `กิจกรรมฝ่ายขาย: ${actForm.activity_type}`,
-      message: `${byName ?? "ทีมขาย"} · ${new Date(actForm.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}${actForm.note ? ` — ${actForm.note}` : ""}`,
-      from_dept: "ฝ่ายขาย",
-      to_dept: "ผู้บริหาร",
-    });
+    // Create in-app + LINE notifications for sales activity
+    await notifyActivityLine(
+      "ฝ่ายขาย",
+      `กิจกรรมฝ่ายขาย: ${actForm.activity_type}`,
+      `${byName ?? "ทีมขาย"} · ${new Date(actForm.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}${actForm.note ? ` — ${actForm.note}` : ""}`,
+      "/sales/daily-log"
+    );
     setSavingAct(false);
     setShowActModal(false);
     setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photos: [], onBehalfOf: "" });

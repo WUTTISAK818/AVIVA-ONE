@@ -3,8 +3,8 @@ import { notifyPush } from "./workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
-// ประเภทแจ้งเตือนที่ส่งเข้า LINE ส่วนตัวด้วย (รออนุมัติ/ผลอนุมัติ/เคลม/หมุดหมาย) — เว้น "info" กัน spam
-const LINE_TYPES = new Set(["approval", "claim", "success"]);
+// ประเภทแจ้งเตือนที่ส่งเข้า LINE ส่วนตัวด้วย (รออนุมัติ/ผลอนุมัติ/เคลม/หมุดหมาย/กิจกรรมขาย-ก่อสร้าง)
+const LINE_TYPES = new Set(["approval", "claim", "success", "activity"]);
 
 // ปรับชื่อแผนกให้เป็น "ภาษาไทยชุดเดียว" — กันค่าอังกฤษ/legacy (management/construction ฯลฯ)
 // หลุดเข้า to_dept/from_dept แล้วทำให้ filter รายแผนก + เจาะ LINE ส่วนตัว resolve ไม่เจอ
@@ -63,7 +63,7 @@ export async function notifyPersonalLine(title: string, body: string, url?: stri
 }
 
 export async function createNotification(opts: {
-  type: "approval" | "claim" | "document" | "success" | "info";
+  type: "approval" | "claim" | "document" | "success" | "info" | "activity";
   title: string;
   message: string;
   from_dept?: string;
@@ -126,6 +126,27 @@ export async function createNotification(opts: {
       }
       console.error(`[createNotification] Exception after 3 attempts:`, lastError);
     }
+  }
+}
+
+/**
+ * แจ้งเตือน LINE สำหรับกิจกรรมฝ่ายขาย/ก่อสร้าง ส่งไปยังผู้บริหาร + หัวหน้าแผนก
+ * ใช้เมื่อกิจกรรมใหม่ถูกสร้าง (sales_activities, construction_reports, etc.)
+ */
+export async function notifyActivityLine(dept: "ฝ่ายขาย" | "ฝ่ายก่อสร้าง", title: string, message: string, link?: string) {
+  try {
+    await createNotification({
+      type: "activity",
+      title,
+      message,
+      from_dept: dept,
+      to_dept: "ผู้บริหาร", // Send to management first
+      link,
+      line_to_depts: [dept, "ผู้บริหาร"], // Also send to department members
+    });
+  } catch (err) {
+    console.error("[notifyActivityLine] Error:", err);
+    // Best-effort — don't block activity creation on notification failure
   }
 }
 

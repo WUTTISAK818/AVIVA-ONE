@@ -70,6 +70,8 @@ export function DailyActivityCalendar() {
         setActivities({});
         return;
       }
+      console.log("[DailyActivityCalendar] API data received:", data);
+      console.log("[DailyActivityCalendar] Activities count:", Object.keys(data.data || {}).length);
       setActivities(data.data || {});
     } catch (error) {
       console.error("Error fetching activities:", error);

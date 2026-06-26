@@ -36,12 +36,12 @@ export async function GET(req: NextRequest) {
 
     // Fetch activities from real data sources (same as /activity page)
     const [
-      { data: salesActivities },
-      { data: crmLogs },
-      { data: jvEntries },
-      { data: constructionReports },
-      { data: installments },
-      { data: purchaseOrders },
+      { data: salesActivities, error: salesErr },
+      { data: crmLogs, error: crmErr },
+      { data: jvEntries, error: jvErr },
+      { data: constructionReports, error: constErr },
+      { data: installments, error: instErr },
+      { data: purchaseOrders, error: poErr },
     ] = await Promise.all([
       supabase
         .from("sales_activities")
@@ -74,6 +74,16 @@ export async function GET(req: NextRequest) {
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
     ]);
+
+    console.log("[Dashboard] Data counts:", {
+      sales: salesActivities?.length ?? 0,
+      crm: crmLogs?.length ?? 0,
+      jv: jvEntries?.length ?? 0,
+      construction: constructionReports?.length ?? 0,
+      installments: installments?.length ?? 0,
+      po: purchaseOrders?.length ?? 0,
+    });
+    console.log("[Dashboard] Errors:", { salesErr, crmErr, jvErr, constErr, instErr, poErr });
 
     // Group by date and activity type
     const grouped: Record<string, any> = {};

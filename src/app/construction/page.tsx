@@ -498,6 +498,8 @@ export default function ConstructionPage() {
 
       // Convert photo_urls to signed URLs
       const reports = (rRes.data as Report[]) ?? [];
+      console.log("[Construction] Raw reports count:", reports.length);
+      console.log("[Construction] Sample report photo_urls:", reports.slice(0, 3).map(r => ({ id: r.id, photo_urls: r.photo_urls, photo_url: r.photo_url })));
       const signedReports = await Promise.all(
         reports.map(async (r) => ({
           ...r,
@@ -505,6 +507,7 @@ export default function ConstructionPage() {
           photo_url: r.photo_url ? (await toSignedUrl(r.photo_url)) || r.photo_url : r.photo_url,
         }))
       );
+      console.log("[Construction] Signed reports sample:", signedReports.slice(0, 3).map(r => ({ id: r.id, photo_urls: r.photo_urls, photo_url: r.photo_url })));
       setReports(signedReports);
 
       setDefects((dRes.data as Defect[]) ?? []);

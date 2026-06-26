@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
 
   const { image } = await req.json();
   if (!image) return NextResponse.json({ error: "No image provided" }, { status: 400 });
+  // จำกัดขนาด payload (~7MB รูป) — กัน memory/cost amplification
+  if (typeof image !== "string" || image.length > 10_000_000)
+    return NextResponse.json({ error: "รูปใหญ่เกินไป กรุณาถ่ายใหม่หรือลดความละเอียด" }, { status: 413 });
 
   if (!OPENAI_API_KEY) {
     return NextResponse.json(

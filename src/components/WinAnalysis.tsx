@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { TrendingUp, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 
@@ -57,7 +57,16 @@ export default function WinAnalysis() {
   const [safety, setSafety] = useState(10);
   const [base, setBase] = useState<number[]>(HIST.map((h) => h.v2));
 
-  const rows = useMemo(() => HIST.map((h, i) => {
+  // debounce อินพุตที่ใช้คำนวณ Monte Carlo — slider ลื่น แต่ไม่รัน 8,000 sims ทุก pixel
+  const [calc, setCalc] = useState({ pctA, pctB, pctC, probA, probB, probC, ourTurnout, rivalAdj, safety, base });
+  useEffect(() => {
+    const t = setTimeout(() => setCalc({ pctA, pctB, pctC, probA, probB, probC, ourTurnout, rivalAdj, safety, base }), 120);
+    return () => clearTimeout(t);
+  }, [pctA, pctB, pctC, probA, probB, probC, ourTurnout, rivalAdj, safety, base]);
+
+  const rows = useMemo(() => {
+    const { pctA, pctB, pctC, probA, probB, probC, ourTurnout, rivalAdj, safety, base } = calc;
+    return HIST.map((h, i) => {
     const sA = pctA / 100, sB = pctB / 100, sC = pctC / 100;
     const pA = probA / 100, pB = probB / 100, pC = probC / 100;
     const ot = ourTurnout / 100;
@@ -86,7 +95,8 @@ export default function WinAnalysis() {
     const gap = need - base[i];
 
     return { ...h, ourMid, p5, p95, rival: rivalStrength, winProb, gap };
-  }), [base, pctA, pctB, pctC, probA, probB, probC, ourTurnout, rivalAdj, safety]);
+    });
+  }, [calc]);
 
   const won = rows.filter((r) => r.winProb >= 50).length;
 

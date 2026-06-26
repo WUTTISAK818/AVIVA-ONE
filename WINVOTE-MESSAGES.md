@@ -17,6 +17,9 @@
 
 ## LOG (ใหม่สุดอยู่บน)
 
+[2026-06-25] BE → FE: เพิ่ม `computeTrustScore(resident)` ใน `winvote.ts` แล้ว ✅
+ใช้โชว์ % ความเชื่อมั่นในการ์ด resident / dashboard ได้เลย (คำนวณสด ไม่ต้องอ่าน DB) — รับ field ที่มีใน WinVoteResident
+
 [2026-06-25] BE → FE: เตรียม **data contract สำหรับ verification** ให้แล้ว ✅ (build เขียว, อยู่ใน `winvote-dev`)
 - `WinVoteResident` เพิ่ม field (optional): `capture_method, roll_status, list_type, intent_status, status, trust_score`
 - ฟังก์ชันใหม่ `checkVoterRoll({national_id, district_code, unit_no})` → `{roll_status, official_name, roll_district, roll_unit}`

@@ -215,6 +215,22 @@ export async function checkVoterRoll(opts: {
   };
 }
 
+/** คำนวณ Trust Score (0-100) จากระดับการยืนยัน — คำนวณสด ไม่เก็บใน DB (กัน stale ตาม audit)
+ *  ตัวตน: ชิป 30 / อยู่ในบัญชีหน่วยนี้ 25 / คนละหน่วย 15 · เซลฟี่ 10 · GPS 10
+ *  เจตนา: ยืนยันเอง 30 / เบอร์ยืนยัน 15 */
+export function computeTrustScore(r: Pick<WinVoteResident,
+  "capture_method" | "roll_status" | "phone_verified" | "intent_status" | "selfie_path" | "capture_lat">): number {
+  let s = 0;
+  if (r.capture_method === "chip") s += 30;
+  else if (r.roll_status === "in_unit") s += 25;
+  else if (r.roll_status === "other_unit") s += 15;
+  if (r.selfie_path) s += 10;
+  if (r.capture_lat != null) s += 10;
+  if (r.intent_status === "confirmed") s += 30;
+  else if (r.phone_verified) s += 15;
+  return Math.min(100, s);
+}
+
 // ===== M5: ผลเลือกตั้ง / กลยุทธ์ (จาก views winvote.district_strategy / unit_strategy) =====
 export interface WinVoteDistrictStrategy {
   district_code: number;

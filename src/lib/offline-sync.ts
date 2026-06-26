@@ -5,7 +5,8 @@ interface DraftReport {
   id: string;
   summary: string;
   workLocation: string;
-  items: { id?: string; category: string; description: string; source: string }[];
+  // items ไม่เก็บใน draft แล้ว (ยึดจาก DB เสมอ) — คงเป็น optional เพื่อ backward-compat กับ draft เก่า
+  items?: { id?: string; category: string; description: string; source: string }[];
   updatedAt: string;
 }
 

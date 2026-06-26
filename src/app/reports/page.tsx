@@ -8,9 +8,8 @@ import { toSignedUrl } from "@/lib/storage";
 import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
+import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
 import GlassCard from "@/components/GlassCard";
-
-const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
@@ -75,6 +74,8 @@ export default function ReportsPage() {
   const user = useCurrentUser();
   const router = useRouter();
   const today = new Date().toISOString().split("T")[0];
+  // วันที่แบบเวลาไทย (UTC+7) — ใช้เทียบ activity_logs.activity_date ที่ฝั่ง activity บันทึกเป็นวันที่ไทย
+  const todayBkk = new Date(Date.now() + 7 * 3600_000).toISOString().split("T")[0];
   const todayThai = new Date().toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
   const [report, setReport]           = useState<WReport | null>(null);
@@ -97,6 +98,7 @@ export default function ReportsPage() {
   const [toast, setToast]             = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [online, setOnline]           = useState(true);
   const [syncing, setSyncing]         = useState(false);
+  const [pulling, setPulling]         = useState(false);
   const [hasDraftChanges, setHasDraftChanges] = useState(false);
 
   useEffect(() => {
@@ -134,86 +136,25 @@ export default function ReportsPage() {
     setLoadingHistory(false);
   }
 
-  async function loadAutoItems(reportId: string) {
-    if (!user) return;
-    const autoItems: Omit<WItem, "id">[] = [];
+  // ดึงงานที่บันทึกไว้ "ระหว่างวัน" มาเติมรายงานอัตโนมัติ — idempotent (กดซ้ำได้ ไม่เพิ่มซ้ำ)
+  // ใช้ buildAutoItems ร่วมกับหน้า CRM เพื่อให้ logic ตรงกัน คืนค่าจำนวนรายการใหม่ที่เพิ่มจริง
+  async function pullAutoItems(reportId: string, existingItems: WItem[]): Promise<number> {
+    if (!user) return 0;
+    const candidates = await buildAutoItems(user, today, todayBkk);
+    const fresh = dedupeAutoItems(candidates, existingItems.map(i => i.description));
+    if (fresh.length === 0) return 0;
+    const toInsert = fresh.map(c => ({ category: c.category, description: c.description, source: c.source, report_id: reportId }));
+    const { data: ins } = await supabase.from("work_report_items").insert(toInsert).select();
+    if (ins) setItems(prev => [...prev, ...(ins as WItem[])]);
+    return toInsert.length;
+  }
 
-    const { data: logs } = await supabase
-      .from("approval_logs")
-      .select("workflow_type, source_doc_index, amount")
-      .gte("created_at", `${today}T00:00:00`)
-      .lte("created_at", `${today}T23:59:59`)
-      .ilike("source_doc_index", `%${user.full_name ?? ""}%`);
-
-    const wfLabels: Record<string, string> = {
-      Finance_Approval:   "เบิกเงิน",
-      Material_Purchase:  "ขอจัดซื้อวัสดุ",
-      Installment_Review: "ส่งตรวจงวดงาน",
-      Leave_Request:      "ยื่นคำขอลา",
-      Document_Approval:  "ขออนุมัติเอกสาร",
-      Booking_Deposit:    "บันทึกการจอง",
-      Contract_Approval:  "ส่งสัญญาซื้อขาย",
-      Warranty_Claim:     "แจ้งซ่อม",
-    };
-
-    (logs ?? []).forEach(log => {
-      const label = wfLabels[log.workflow_type] ?? log.workflow_type;
-      const docNum = (log.source_doc_index as string)?.split(" | ")[0] ?? "";
-      const amount = log.amount ? ` (฿${Number(log.amount).toLocaleString()})` : "";
-      autoItems.push({ category: "activity", description: `${label}: ${docNum}${amount}`, source: "auto", report_id: reportId });
-    });
-
-    // ✨ FIX: Pull activity_logs from during-day manual entries
-    const { data: activityLogs } = await supabase
-      .from("activity_logs")
-      .select("category, title, detail")
-      .eq("user_id", user.id)
-      .eq("activity_date", today)
-      .order("activity_time", { ascending: false });
-
-    (activityLogs ?? []).forEach((log: Record<string, any>) => {
-      const categoryLabel = log.category ?? "กิจกรรม";
-      const detail = log.detail ? ` — ${log.detail}` : "";
-      autoItems.push({
-        category: "activity",
-        description: `${log.title}${detail}`,
-        source: "activity",
-        report_id: reportId
-      });
-    });
-
-    if (user.department === "ฝ่ายขาย") {
-      // ✨ FIX: Add .eq("created_by", user.id) to filter only this user's activities
-      const { data: acts } = await supabase
-        .from("sales_activities")
-        .select("activity_type, customer_name, note")
-        .eq("created_by", user.id)
-        .gte("created_at", `${today}T00:00:00`)
-        .lte("created_at", `${today}T23:59:59`);
-      (acts ?? []).forEach((a: Record<string, string | null>) => {
-        const desc = `[ขาย] ${a.activity_type ?? ""}: ${a.customer_name ?? ""}${a.note ? ` — ${a.note}` : ""}`;
-        autoItems.push({ category: "activity", description: desc, source: "auto", report_id: reportId });
-      });
-    }
-
-    if (user.department === "ฝ่ายก่อสร้าง") {
-      // ✨ FIX: Add filter by user (created_by_name) to filter only this user's installments
-      const { data: insts } = await supabase
-        .from("contractor_installments")
-        .select("installment_number, status")
-        .eq("created_by_name", user.full_name ?? "")
-        .gte("updated_at", `${today}T00:00:00`)
-        .lte("updated_at", `${today}T23:59:59`)
-        .eq("project_id", PROJECT_ID);
-      (insts ?? []).forEach((inst: Record<string, unknown>) => {
-        autoItems.push({ category: "activity", description: `[ก่อสร้าง] ตรวจงวดที่ ${inst.installment_number} (สถานะ: ${inst.status})`, source: "auto", report_id: reportId });
-      });
-    }
-
-    if (autoItems.length > 0) {
-      const { data: ins } = await supabase.from("work_report_items").insert(autoItems).select();
-      if (ins) setItems(prev => [...prev, ...(ins as WItem[])]);
-    }
+  async function handleRefreshAuto() {
+    if (!report || isSubmitted) return;
+    setPulling(true);
+    const n = await pullAutoItems(report.id, items);
+    setPulling(false);
+    showToast(n > 0 ? `ดึงงานระหว่างวันเพิ่ม ${n} รายการ ✓` : "ไม่มีงานใหม่ให้ดึง");
   }
 
   useEffect(() => {
@@ -229,18 +170,23 @@ export default function ReportsPage() {
       .then(async ({ data }) => {
         if (data) {
           setReport(data as WReport);
+          // draft เก็บเฉพาะ summary/workLocation (offline) — items ยึดจาก DB เสมอ กัน draft เก่าทับ auto-item ใหม่
           const draft = loadDraftLocally(data.id);
           if (draft) {
             setSummary(draft.summary);
             setWorkLocation(draft.workLocation);
-            setItems(draft.items);
             setHasDraftChanges(true);
           } else {
             setSummary(data.summary ?? "");
             setWorkLocation(data.work_location ?? "สำนักงาน");
           }
           const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", data.id).order("created_at");
-          if (!draft) setItems((its ?? []) as WItem[]);
+          const loaded = (its ?? []) as WItem[];
+          setItems(loaded);
+          // เปิด report เดิม: ดึงงานระหว่างวันที่บันทึกหลังสร้าง report มาเติม (กันซ้ำ) — เฉพาะยังไม่ส่ง
+          if (data.status !== "submitted" && data.status !== "late") {
+            await pullAutoItems(data.id, loaded);
+          }
           const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", data.id);
           setAttachments(await Promise.all(((atts ?? []) as WAttachment[]).map(async a => ({ ...a, signed: (await toSignedUrl(a.file_url)) ?? undefined }))));
         } else {
@@ -256,7 +202,7 @@ export default function ReportsPage() {
           }).select().single();
           if (created) {
             setReport(created as WReport);
-            await loadAutoItems(created.id);
+            await pullAutoItems(created.id, []);
           }
         }
       });
@@ -313,7 +259,6 @@ export default function ReportsPage() {
       id: report.id,
       summary,
       workLocation,
-      items,
       updatedAt: new Date().toISOString(),
     });
     if (online) {
@@ -450,7 +395,15 @@ export default function ReportsPage() {
         <GlassCard className="p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-aviva-secondary">รายการกิจกรรมวันนี้</p>
-            <span className="text-[10px] text-aviva-secondary/60">{items.length} รายการ</span>
+            <div className="flex items-center gap-2">
+              {!isSubmitted && (
+                <button onClick={handleRefreshAuto} disabled={pulling}
+                  className="flex items-center gap-1 text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg hover:bg-aviva-gold/10 transition-all disabled:opacity-50">
+                  <RefreshCw size={11} className={pulling ? "animate-spin" : ""} /> ดึงงานระหว่างวัน
+                </button>
+              )}
+              <span className="text-[10px] text-aviva-secondary/60">{items.length} รายการ</span>
+            </div>
           </div>
           <div className="space-y-2 mb-3">
             {items.length === 0 && (
@@ -463,7 +416,7 @@ export default function ReportsPage() {
                   <span className={`text-[10px] font-bold mt-0.5 flex-shrink-0 ${cat.color}`}>[{cat.label}]</span>
                   <p className="flex-1 text-xs text-aviva-text leading-relaxed">{item.description}</p>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {item.source === "auto" && <span className="text-[9px] text-aviva-secondary/30">auto</span>}
+                    {(item.source === "auto" || item.source === "activity") && <span className="text-[9px] text-aviva-secondary/30">{item.source === "activity" ? "ระหว่างวัน" : "auto"}</span>}
                     {!isSubmitted && (
                       <button onClick={() => removeItem(idx)}>
                         <X size={12} className="text-aviva-secondary/30 hover:text-red-400" />
@@ -529,13 +482,13 @@ export default function ReportsPage() {
                 <p className="text-xs text-orange-400">เลย 18:00 น. แล้ว — ต้องระบุเหตุผลที่ส่งล่าช้า</p>
               </div>
             )}
-            <button onClick={handleSubmit} disabled={submitting || items.length === 0}
+            <button onClick={handleSubmit} disabled={submitting || (items.length === 0 && !summary.trim())}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
               <Send size={14} />
               {submitting ? "กำลังส่ง..." : isLate ? "ส่งรายงาน (ล่าช้า)" : "ส่งรายงานประจำวัน"}
             </button>
-            {items.length === 0 && (
-              <p className="text-[11px] text-aviva-secondary/50 text-center">กรุณาเพิ่มกิจกรรมอย่างน้อย 1 รายการ</p>
+            {items.length === 0 && !summary.trim() && (
+              <p className="text-[11px] text-aviva-secondary/50 text-center">เพิ่มกิจกรรมอย่างน้อย 1 รายการ หรือกรอกสรุปภาพรวมก่อนส่ง</p>
             )}
           </div>
         ) : (

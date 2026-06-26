@@ -31,6 +31,7 @@ import { postJv } from "@/lib/jv";
 import { BANK, CUSTOMER_ADVANCE } from "@/lib/gl-accounts";
 import { COMPANY } from "@/lib/company-info";
 import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
+import { buildAutoItems } from "@/lib/report-auto-items";
 
 function escapeHtml(s: string | null | undefined): string {
   // กัน null/undefined: ลูกค้าบางรายไม่มีเบอร์/ข้อมูล — เดิม s.replace ทำหน้าพิมพ์ crash
@@ -2488,24 +2489,12 @@ export default function CRMPage() {
       {/* Floating report button */}
       <button
         onClick={async () => {
+          if (!user) { setShowReportModal(true); return; }
+          // ใช้ shared util เดียวกับหน้า /reports — ดึงงานของ "ตัวเอง" วันนี้ (กิจกรรมขาย, ติดต่อลูกค้า, เอกสาร, งานที่บันทึกระหว่างวัน)
           const today = new Date().toISOString().split("T")[0];
-          const items: AutoReportItem[] = [];
-          const { data: logs } = await supabase
-            .from("crm_logs")
-            .select("contact_channel,call_status,call_note,created_at")
-            .gte("created_at", today + "T00:00:00");
-          (logs ?? []).forEach((l: { contact_channel: string; call_status: string; call_note: string | null }) => {
-            items.push({ category: "activity", description: `${l.contact_channel}: ${l.call_status}${l.call_note ? ` — ${l.call_note}` : ""}` });
-          });
-          const { data: acts } = await supabase
-            .from("sales_activities")
-            .select("activity_type,note,activity_date,created_by_name")
-            .eq("project_id", PROJECT_ID)
-            .gte("created_at", today + "T00:00:00");
-          (acts ?? []).forEach((a: { activity_type: string; note: string | null; created_by_name: string | null }) => {
-            items.push({ category: "activity", description: `${a.activity_type}${a.created_by_name ? ` (${a.created_by_name})` : ""}${a.note ? `: ${a.note}` : ""}` });
-          });
-          setReportAutoItems(items);
+          const todayBkk = new Date(Date.now() + 7 * 3600_000).toISOString().split("T")[0];
+          const auto = await buildAutoItems(user, today, todayBkk);
+          setReportAutoItems(auto.map(a => ({ category: a.category as AutoReportItem["category"], description: a.description })));
           setShowReportModal(true);
         }}
         className="fixed bottom-24 left-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"

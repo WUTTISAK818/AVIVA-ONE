@@ -1200,8 +1200,9 @@ export default function ConstructionPage() {
       if (!photoUrls.length) setToast({ msg: "อัปโหลดรูปไม่สำเร็จ", type: "error" });
       setUploadingSummaryPhoto(false);
     }
-    // Persist summary report to construction_reports table
-    await supabase.from("construction_reports").insert({
+    // Persist summary report to construction_reports table — 1 แถว/วัน (กดส่งซ้ำ = อัปเดตแถวเดิม ไม่สร้างซ้ำ)
+    const sumDay = summaryForm.date || new Date().toISOString().split("T")[0];
+    const payload = {
       work_type: "สรุปประจำวัน",
       work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,
       progress: overallProgress,
@@ -1209,7 +1210,21 @@ export default function ConstructionPage() {
       photo_url: photoUrls[0] ?? null,
       photo_urls: photoUrls,
       issue: summaryForm.problems || null,
-    });
+    };
+    const { data: existingSummary } = await supabase
+      .from("construction_reports")
+      .select("id")
+      .eq("work_type", "สรุปประจำวัน")
+      .gte("created_at", `${sumDay}T00:00:00`)
+      .lte("created_at", `${sumDay}T23:59:59`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingSummary?.id) {
+      await supabase.from("construction_reports").update(payload).eq("id", existingSummary.id);
+    } else {
+      await supabase.from("construction_reports").insert(payload);
+    }
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
     // Send LINE notification for construction summary report
     await notifyActivityLine(

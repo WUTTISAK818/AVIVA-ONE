@@ -75,7 +75,7 @@ export default function ActivityPage() {
         supabase.from("construction_reports").select("id", { count: "exact", head: true })
           .eq("created_by", user.id).gte("created_at", dStart).lte("created_at", dEnd),
         supabase.from("contractor_installments").select("id", { count: "exact", head: true })
-          .eq("created_by_name", user.full_name ?? "___").gte("updated_at", dStart).lte("updated_at", dEnd),
+          .eq("created_by_name", user.full_name ?? "___").gte("created_at", dStart).lte("created_at", dEnd),
         supabase.from("purchase_orders").select("id", { count: "exact", head: true })
           .eq("created_by_id", user.id).gte("created_at", dStart).lte("created_at", dEnd),
       ]);

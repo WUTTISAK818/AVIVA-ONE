@@ -178,7 +178,10 @@ export function rolesForUser(user: {
   const inDept = (...k: string[]) => k.some((s) => dept.includes(s));
   const isRole = (...k: string[]) => k.some((s) => role.includes(s));
 
-  if (user.isManager || user.isAdmin) roles.add("manager");
+  // ผู้บริหาร/ผจก/admin → manager role (เข้าถึงกล่องงาน)
+  if (user.isManager || user.isAdmin || inDept("บริหาร", "ผู้จัดการ", "admin", "management")) {
+    roles.add("manager");
+  }
 
   // ฝ่ายการเงิน/บัญชี — งานรอจ่ายเงิน
   if (inDept("การเงิน", "finance", "บัญชี") || isRole("finance", "account")) roles.add("finance");

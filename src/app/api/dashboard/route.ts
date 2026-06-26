@@ -34,7 +34,10 @@ export async function GET(req: NextRequest) {
     const dStart = `${startDate}T00:00:00`;
     const dEnd = `${endDate}T23:59:59`;
 
-    // Fetch activities from real data sources (same as /activity page)
+    console.log("[Dashboard] Query range:", { dateStr, rangeType, startDate, endDate, dStart, dEnd, department });
+
+    // Fetch activities from real data sources
+    // Note: Use date strings for DATE columns, timestamps for TIMESTAMP columns
     const [
       { data: salesActivities, error: salesErr },
       { data: crmLogs, error: crmErr },
@@ -42,12 +45,13 @@ export async function GET(req: NextRequest) {
       { data: constructionReports, error: constErr },
       { data: installments, error: instErr },
       { data: purchaseOrders, error: poErr },
+      { data: dailyActivity, error: dailyErr },
     ] = await Promise.all([
       supabase
         .from("sales_activities")
         .select("id, activity_date, created_by")
-        .gte("activity_date", dStart)
-        .lte("activity_date", dEnd),
+        .gte("activity_date", startDate)
+        .lte("activity_date", endDate),
       supabase
         .from("crm_logs")
         .select("id, created_at")
@@ -73,6 +77,11 @@ export async function GET(req: NextRequest) {
         .select("id, created_at")
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
+      supabase
+        .from("daily_activity_log")
+        .select("id, activity_date")
+        .gte("activity_date", startDate)
+        .lte("activity_date", endDate),
     ]);
 
     console.log("[Dashboard] Data counts:", {
@@ -82,8 +91,9 @@ export async function GET(req: NextRequest) {
       construction: constructionReports?.length ?? 0,
       installments: installments?.length ?? 0,
       po: purchaseOrders?.length ?? 0,
+      daily: dailyActivity?.length ?? 0,
     });
-    console.log("[Dashboard] Errors:", { salesErr, crmErr, jvErr, constErr, instErr, poErr });
+    console.log("[Dashboard] Errors:", { salesErr, crmErr, jvErr, constErr, instErr, poErr, dailyErr });
 
     // Group by date and activity type
     const grouped: Record<string, any> = {};

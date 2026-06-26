@@ -792,12 +792,10 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {selAttachments.length > 0 && (
-                <div className="bg-aviva-bg/50 rounded-xl p-3">
-                  <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
-                  <PhotoGallery photos={selAttachments.map(a => a.file_url)} title="ไฟล์แนบรายงาน" />
-                </div>
-              )}
+              <div className="bg-aviva-bg/50 rounded-xl p-3">
+                <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
+                <PhotoGallery photos={selAttachments.map(a => a.file_url)} title="ไฟล์แนบรายงาน" />
+              </div>
 
               {selected.late_reason && (
                 <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">

@@ -151,14 +151,15 @@ export default function PettyCashPanel() {
       `${mode === "replenish" ? "เติมเงินสดย่อย" : `เบิกจ่ายเงินสดย่อย [${category}]`} ${baht(amt)} — ${desc.trim()} (คงเหลือ ${baht(newBal)})`
     );
 
-    // เตือนเมื่อเงินสดย่อยใกล้หมด
+    // เตือนเมื่อเงินสดย่อยใกล้หมด (send LINE to management)
     if (newBal < LOW_THRESHOLD) {
       await createNotification({
-        type: "info",
+        type: "activity",
         title: "เงินสดย่อยใกล้หมด",
         message: `คงเหลือ ${baht(newBal)} — ควรเติมเงินสดย่อยสำนักงาน`,
         from_dept: "ฝ่ายการเงิน",
         to_dept: "ผู้บริหาร",
+        line_to_depts: ["ผู้บริหาร"],
       });
     }
 

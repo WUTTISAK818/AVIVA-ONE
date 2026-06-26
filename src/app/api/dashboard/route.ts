@@ -5,9 +5,10 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 export async function GET(req: NextRequest) {
   try {
+    // Use service role key to bypass RLS for dashboard data aggregation
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
     );
     const { searchParams } = new URL(req.url);
     const dateStr = searchParams.get("date") || new Date().toISOString().split("T")[0];

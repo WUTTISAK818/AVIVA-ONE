@@ -109,27 +109,53 @@ export function DailyActivityCalendar() {
           {currentDate.toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </p>
         {dayData ? (
-          <div className="grid grid-cols-2 gap-2">
-            {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
-              const data = dayData[type];
-              if (data.count === 0) return null;
-              const config = activityConfig[type];
-              const IconComp = config.icon;
-              return (
-                <button
-                  key={type}
-                  onClick={() => setExpandedActivity(expandedActivity === type ? null : type)}
-                  className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all`}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <IconComp size={14} className={config.color} />
-                    <span className="font-semibold text-aviva-text truncate">{config.label}</span>
-                  </div>
-                  <span className={`font-bold ${config.color} flex-shrink-0`}>{data.count}</span>
-                </button>
-              );
-            })}
-          </div>
+          <>
+            {/* Activity type buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(activityConfig) as ActivityType[]).map((type) => {
+                const data = dayData[type];
+                if (data.count === 0) return null;
+                const config = activityConfig[type];
+                const IconComp = config.icon;
+                const isExpanded = expandedActivity === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setExpandedActivity(isExpanded ? null : type)}
+                    className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all ${isExpanded ? `border-${config.color}/50 bg-${config.bgColor}` : ""}`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <IconComp size={14} className={config.color} />
+                      <span className="font-semibold text-aviva-text truncate">{config.label}</span>
+                    </div>
+                    <span className={`font-bold ${config.color} flex-shrink-0`}>{data.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Expanded details section */}
+            {expandedActivity && dayData[expandedActivity]?.items?.length > 0 && (
+              <div className="bg-aviva-card rounded-lg border border-aviva-gold/20 p-3 space-y-2">
+                <p className="text-xs font-semibold text-aviva-gold uppercase">รายละเอียด</p>
+                {dayData[expandedActivity].items.map((item: any, idx: number) => (
+                  <a
+                    key={`${expandedActivity}-${idx}`}
+                    href={item.link || "#"}
+                    className="block bg-aviva-bg/50 rounded-lg p-2.5 border border-aviva-gold/10 space-y-1.5 hover:border-aviva-gold/50 hover:bg-aviva-bg/70 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-aviva-text truncate hover:underline">{item.title}</p>
+                        {item.description && <p className="text-[11px] text-aviva-secondary/80 line-clamp-2">{item.description}</p>}
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </>
+
         ) : (
           <p className="text-center text-aviva-secondary/60 py-4 text-sm">ไม่มี activity วันนี้</p>
         )}
@@ -374,11 +400,14 @@ export function DailyActivityCalendar() {
             </button>
           </div>
           {activities[selectedDate]?.[expandedActivity]?.items?.map((item, idx) => (
-            <div key={idx} className="text-[10px] p-2 bg-aviva-card rounded-lg">
-              <p className="font-semibold text-aviva-text">{item.description}</p>
-              <p className="text-aviva-secondary mt-0.5">👤 {item.performer_name}</p>
-              {item.amount && <p className="text-aviva-gold mt-0.5">฿{Number(item.amount).toLocaleString()}</p>}
-            </div>
+            <a
+              key={idx}
+              href={item.link || "#"}
+              className="block text-[10px] p-2 bg-aviva-card rounded-lg hover:bg-aviva-gold/10 hover:border-aviva-gold/30 border border-transparent transition-all cursor-pointer"
+            >
+              <p className="font-semibold text-aviva-text hover:underline">{item.title}</p>
+              <p className="text-aviva-secondary mt-0.5">{item.description}</p>
+            </a>
           ))}
         </div>
       )}

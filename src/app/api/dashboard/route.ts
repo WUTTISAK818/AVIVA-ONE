@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     console.log("[Dashboard] Query range:", { dateStr, rangeType, startDate, endDate, dStart, dEnd, department });
 
-    // Fetch activities from real data sources
+    // Fetch activities from real data sources with detailed fields
     // Note: Use date strings for DATE columns, timestamps for TIMESTAMP columns
     const [
       { data: salesActivities, error: salesErr },
@@ -46,10 +46,11 @@ export async function GET(req: NextRequest) {
       { data: installments, error: instErr },
       { data: purchaseOrders, error: poErr },
       { data: dailyActivity, error: dailyErr },
+      { data: workReports, error: workErr },
     ] = await Promise.all([
       supabase
         .from("sales_activities")
-        .select("id, activity_date, created_by")
+        .select("id, activity_date, activity_type, note, created_by_name")
         .gte("activity_date", startDate)
         .lte("activity_date", endDate),
       supabase
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
         .lte("jv_date", endDate),
       supabase
         .from("construction_reports")
-        .select("id, created_at")
+        .select("id, created_at, work_type, reported_by")
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
       supabase
@@ -82,6 +83,12 @@ export async function GET(req: NextRequest) {
         .select("id, activity_date")
         .gte("activity_date", startDate)
         .lte("activity_date", endDate),
+      supabase
+        .from("work_reports")
+        .select("id, report_date, employee_name, department, status")
+        .gte("report_date", startDate)
+        .lte("report_date", endDate)
+        .eq("report_type", "daily"),
     ]);
 
     console.log("[Dashboard] Data counts:", {
@@ -92,13 +99,14 @@ export async function GET(req: NextRequest) {
       installments: installments?.length ?? 0,
       po: purchaseOrders?.length ?? 0,
       daily: dailyActivity?.length ?? 0,
+      workReports: workReports?.length ?? 0,
     });
-    console.log("[Dashboard] Errors:", { salesErr, crmErr, jvErr, constErr, instErr, poErr, dailyErr });
+    console.log("[Dashboard] Errors:", { salesErr, crmErr, jvErr, constErr, instErr, poErr, dailyErr, workErr });
 
     // Group by date and activity type
     const grouped: Record<string, any> = {};
 
-    const addToGroup = (dateKey: string, type: string, count: number) => {
+    const addToGroup = (dateKey: string, type: string, count: number, item?: any) => {
       if (!grouped[dateKey]) {
         grouped[dateKey] = {
           date: dateKey,
@@ -114,6 +122,9 @@ export async function GET(req: NextRequest) {
       }
       if (grouped[dateKey][type]) {
         grouped[dateKey][type].count += count;
+        if (item) {
+          grouped[dateKey][type].items.push(item);
+        }
       }
     };
 
@@ -134,7 +145,12 @@ export async function GET(req: NextRequest) {
     (salesActivities || []).forEach((item: any) => {
       if (!filterDept || deptFilterValue === "sales") {
         const dateKey = getDateKey(item.activity_date);
-        addToGroup(dateKey, "sales", 1);
+        addToGroup(dateKey, "sales", 1, {
+          id: item.id,
+          title: item.activity_type || "กิจกรรมขาย",
+          description: `${item.created_by_name || "ไม่ระบุ"} · ${item.note || ""}`,
+          link: "/crm",
+        });
       }
     });
 
@@ -142,7 +158,12 @@ export async function GET(req: NextRequest) {
     (crmLogs || []).forEach((item: any) => {
       if (!filterDept || deptFilterValue === "sales") {
         const dateKey = getDateKey(item.created_at);
-        addToGroup(dateKey, "sales", 1);
+        addToGroup(dateKey, "sales", 1, {
+          id: item.id,
+          title: "สอบถามลูกค้า",
+          description: getDateKey(item.created_at),
+          link: "/crm",
+        });
       }
     });
 
@@ -150,7 +171,12 @@ export async function GET(req: NextRequest) {
     (jvEntries || []).forEach((item: any) => {
       if (!filterDept || deptFilterValue === "accounting") {
         const dateKey = getDateKey(item.jv_date);
-        addToGroup(dateKey, "accounting", 1);
+        addToGroup(dateKey, "accounting", 1, {
+          id: item.id,
+          title: "บันทึกบัญชี",
+          description: `JV Entry`,
+          link: "/office?tab=accounting",
+        });
       }
     });
 
@@ -158,7 +184,12 @@ export async function GET(req: NextRequest) {
     (constructionReports || []).forEach((item: any) => {
       if (!filterDept || deptFilterValue === "construction") {
         const dateKey = getDateKey(item.created_at);
-        addToGroup(dateKey, "construction", 1);
+        addToGroup(dateKey, "construction", 1, {
+          id: item.id,
+          title: item.work_type || "รายงานก่อสร้าง",
+          description: `รายงานโดย: ${item.reported_by || "ไม่ระบุ"}`,
+          link: "/construction",
+        });
       }
     });
 
@@ -166,7 +197,12 @@ export async function GET(req: NextRequest) {
     (installments || []).forEach((item: any) => {
       if (!filterDept || deptFilterValue === "construction") {
         const dateKey = getDateKey(item.updated_at);
-        addToGroup(dateKey, "construction", 1);
+        addToGroup(dateKey, "construction", 1, {
+          id: item.id,
+          title: "อัปเดตการจ่ายเงินก่อสร้าง",
+          description: `Installment Update`,
+          link: "/construction",
+        });
       }
     });
 
@@ -174,7 +210,39 @@ export async function GET(req: NextRequest) {
     (purchaseOrders || []).forEach((item: any) => {
       if (!filterDept || deptFilterValue === "approvals") {
         const dateKey = getDateKey(item.created_at);
-        addToGroup(dateKey, "approvals", 1);
+        addToGroup(dateKey, "approvals", 1, {
+          id: item.id,
+          title: "ใบสั่งซื้อ",
+          description: `PO Created`,
+          link: "/office?tab=purchase-orders",
+        });
+      }
+    });
+
+    // Process work reports
+    (workReports || []).forEach((item: any) => {
+      if (!filterDept || deptFilterValue === item.department) {
+        const dateKey = getDateKey(item.report_date);
+        const statusLabel = item.status === "late" ? "ส่งสาย" : "ส่งตรงเวลา";
+        addToGroup(dateKey, item.department === "sales" ? "sales" : "office", 1, {
+          id: item.id,
+          title: `รายงานประจำวัน (${statusLabel})`,
+          description: `${item.employee_name || "ไม่ระบุ"} · ${item.department}`,
+          link: "/reports/review",
+        });
+      }
+    });
+
+    // Process daily activity logs
+    (dailyActivity || []).forEach((item: any) => {
+      if (!filterDept) {
+        const dateKey = getDateKey(item.activity_date);
+        addToGroup(dateKey, "office", 1, {
+          id: item.id,
+          title: "บันทึกกิจกรรม",
+          description: `Daily Log Entry`,
+          link: "/dashboard",
+        });
       }
     });
 

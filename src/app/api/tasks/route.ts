@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const priority = searchParams.get("priority");
     const assigned_to = searchParams.get("assigned_to");
     const created_by = searchParams.get("created_by");
+    const command_type = searchParams.get("command_type");
 
     let query = supabase.from("tasks_features").select("*");
 
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
     if (priority) query = query.eq("priority", priority);
     if (assigned_to) query = query.eq("assigned_to", assigned_to);
     if (created_by) query = query.eq("created_by", created_by);
+    if (command_type) query = query.eq("command_type", command_type);
 
     const { data, error } = await query.order("created_at", { ascending: false });
 
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
           estimated_hours: body.estimated_hours,
           department: body.department,
           category: body.category,
+          command_type: body.command_type || "feature",
           status: "pending",
           progress_pct: 0,
         },

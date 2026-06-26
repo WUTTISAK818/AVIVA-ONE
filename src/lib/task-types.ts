@@ -1,5 +1,6 @@
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type CommandType = 'feature' | 'bugfix' | 'enhancement' | 'refactor' | 'other';
 
 export interface Task {
   id: string;
@@ -24,6 +25,9 @@ export interface Task {
   category?: string;
   estimated_hours?: number;
   updated_at: string;
+  command_type?: CommandType;
+  deploy_version?: string;
+  deployed_date?: string;
 }
 
 export interface TaskComment {
@@ -58,6 +62,7 @@ export interface TaskCreateInput {
   estimated_hours?: number;
   department?: string;
   category?: string;
+  command_type?: CommandType;
 }
 
 export interface TaskUpdateInput {
@@ -68,4 +73,6 @@ export interface TaskUpdateInput {
   manager_notes?: string;
   related_commits?: string[];
   related_pr_url?: string;
+  deploy_version?: string;
+  deployed_date?: string;
 }

@@ -1258,11 +1258,8 @@ export default function ConstructionPage() {
           <div className="flex gap-1.5">
             <button onClick={() => setPart("inspect")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><HardHat size={13} /> ตรวจงาน</button>
             <button onClick={() => setPart("daily")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}><FileText size={13} /> รายวัน</button>
-            <button onClick={() => setPart("purchase")} className={clsx("relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "purchase" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+            <button onClick={() => setPart("purchase")} className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all", part === "purchase" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
               <ShoppingCart size={13} /> จัดซื้อ
-              {purchaseOrders.filter(p => p.status === "pending").length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-400 text-[9px] font-bold text-white flex items-center justify-center">{purchaseOrders.filter(p => p.status === "pending").length}</span>
-              )}
             </button>
           </div>
         </div>

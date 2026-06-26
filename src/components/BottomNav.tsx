@@ -61,7 +61,7 @@ export default function BottomNav() {
     { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
     { href: "/commands",     label: "คำสั่ง",       icon: ClipboardList, show: user && (user.isAdmin || user.isManager), badge: 0 },
-    { href: "/reports",      label: "รายงาน",       icon: Clock,         show: !isExec, badge: 0 },
+    { href: "/reports",      label: "งานรายวัน",     icon: Clock,         show: !isExec, badge: 0 },
     { href: "/settings",     label: "ตั้งค่า",      icon: Settings,     show: true, badge: 0 },
   ].filter(t => t.show);
 

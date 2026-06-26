@@ -59,10 +59,23 @@ export function DailyActivityCalendar() {
         params.append("department", user.department);
       }
       const response = await fetch(`/api/dashboard?${params}`);
+      if (!response.ok) {
+        console.error(`[DailyActivityCalendar] API error: ${response.status}`);
+        setActivities({});
+        return;
+      }
       const data = await response.json();
+      if (!data.success) {
+        console.error("[DailyActivityCalendar] API returned error:", data.error);
+        setActivities({});
+        return;
+      }
+      console.log("[DailyActivityCalendar] API data received:", data);
+      console.log("[DailyActivityCalendar] Activities count:", Object.keys(data.data || {}).length);
       setActivities(data.data || {});
     } catch (error) {
       console.error("Error fetching activities:", error);
+      setActivities({});
     } finally {
       setLoading(false);
     }

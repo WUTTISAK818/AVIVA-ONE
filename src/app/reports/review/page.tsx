@@ -8,6 +8,7 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
+import { toSignedUrl } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
 
@@ -201,13 +202,23 @@ export default function ReportsReviewPage() {
       .order("created_at");
     setSelItems((data ?? []) as WItem[]);
 
-    // Fetch work report attachments
+    // Fetch work report attachments with signed URLs
     const { data: attachments } = await supabase
       .from("work_report_attachments")
       .select("*")
       .eq("report_id", r.id)
       .order("created_at");
-    setSelAttachments((attachments ?? []) as WAttachment[]);
+    if (attachments && attachments.length > 0) {
+      const signedAtts = await Promise.all(
+        (attachments as WAttachment[]).map(async (a) => ({
+          ...a,
+          file_url: (await toSignedUrl(a.file_url)) || a.file_url,
+        }))
+      );
+      setSelAttachments(signedAtts);
+    } else {
+      setSelAttachments([]);
+    }
 
     // Fetch daily summary photo if from construction department
     if (r.department === "ฝ่ายก่อสร้าง") {
@@ -221,7 +232,8 @@ export default function ReportsReviewPage() {
         .limit(1)
         .maybeSingle();
       if (constRaw?.photo_url) {
-        setSelectedDailySummaryPhoto(constRaw.photo_url);
+        const signedUrl = await toSignedUrl(constRaw.photo_url);
+        setSelectedDailySummaryPhoto(signedUrl || constRaw.photo_url);
       }
     }
   }
@@ -780,12 +792,10 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {selAttachments.length > 0 && (
-                <div className="bg-aviva-bg/50 rounded-xl p-3">
-                  <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
-                  <PhotoGallery photos={selAttachments.map(a => a.file_url)} title="ไฟล์แนบรายงาน" />
-                </div>
-              )}
+              <div className="bg-aviva-bg/50 rounded-xl p-3">
+                <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
+                <PhotoGallery photos={selAttachments.map(a => a.file_url)} title="ไฟล์แนบรายงาน" />
+              </div>
 
               {selected.late_reason && (
                 <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">

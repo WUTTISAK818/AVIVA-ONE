@@ -162,10 +162,12 @@ export default function PurchaseRequestPanel() {
       approved: false, actorName: who, actorRole: user?.role ?? null,
       conditionNote: rejectReason.trim() || undefined,
     });
+    // Send LINE notification for PR rejection
     await createNotification({
-      type: "info", title: "คำขอซื้อไม่ได้รับอนุมัติ",
+      type: "activity", title: "คำขอซื้อไม่ได้รับอนุมัติ",
       message: `${pr.pr_number} · ${pr.item}${rejectReason.trim() ? ` — ${rejectReason.trim()}` : ""}`,
       from_dept: "ฝ่ายบริหาร", to_dept: pr.requester_dept ?? undefined, record_id: pr.id, link: "/office?tab=finance",
+      line_to_depts: [pr.requester_dept ?? ""].filter(Boolean),
     });
     await logAction("office", "pr_reject", `ไม่อนุมัติคำขอซื้อ ${pr.pr_number} — ${pr.item}`, pr.id);
     setSaving(false); setRejecting(null); setRejectReason(""); load();

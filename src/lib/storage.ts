@@ -21,20 +21,35 @@ export async function toSignedUrl(
     return cached.signedUrl;
   }
 
+  // Try to extract bucket and path from URL
   const m = stored.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?([^/?]+)\/(.+?)(?:\?|$)/);
-  if (!m) return stored; // ไม่ใช่ URL ของ supabase storage (เช่นลิงก์ภายนอก) — คืนเดิม
+  if (!m) {
+    // Not a storage URL; could be a public URL, external link, or bare path
+    console.log("[toSignedUrl] Not a storage URL:", stored.substring(0, 50));
+    return stored;
+  }
+
   const bucket = m[1];
   const path = decodeURIComponent(m[2]);
+  console.log("[toSignedUrl] Creating signed URL:", { bucket, path: path.substring(0, 50) });
+
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
 
-  if (!error && data?.signedUrl) {
+  if (error) {
+    console.error("[toSignedUrl] Error creating signed URL:", error.message, { bucket, path: path.substring(0, 50) });
+    return stored; // Return original URL on error
+  }
+
+  if (data?.signedUrl) {
     // Cache the signed URL with expiration time
     signedUrlCache.set(cacheKey, {
       signedUrl: data.signedUrl,
       expiresAt: Date.now() + (expiresIn * 1000 * 0.9), // Cache for 90% of expiry time
     });
+    console.log("[toSignedUrl] Created signed URL successfully");
     return data.signedUrl;
   }
 
-  return error ? stored : (data?.signedUrl ?? stored);
+  console.warn("[toSignedUrl] No signed URL returned but no error either");
+  return stored;
 }

@@ -5,9 +5,10 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 export async function GET(req: NextRequest) {
   try {
+    // Use service role key to bypass RLS for dashboard data aggregation
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
     );
     const { searchParams } = new URL(req.url);
     const dateStr = searchParams.get("date") || new Date().toISOString().split("T")[0];
@@ -33,21 +34,24 @@ export async function GET(req: NextRequest) {
     const dStart = `${startDate}T00:00:00`;
     const dEnd = `${endDate}T23:59:59`;
 
-    // Fetch activities from real data sources (same as /activity page)
+    console.log("[Dashboard] Query range:", { dateStr, rangeType, startDate, endDate, dStart, dEnd, department });
+
+    // Fetch activities from real data sources
+    // Note: Use date strings for DATE columns, timestamps for TIMESTAMP columns
     const [
-      { data: salesActivities },
-      { data: crmLogs },
-      { data: jvEntries },
-      { data: constructionReports },
-      { data: installments },
-      { data: purchaseOrders },
-      { data: activityLogs },
+      { data: salesActivities, error: salesErr },
+      { data: crmLogs, error: crmErr },
+      { data: jvEntries, error: jvErr },
+      { data: constructionReports, error: constErr },
+      { data: installments, error: instErr },
+      { data: purchaseOrders, error: poErr },
+      { data: dailyActivity, error: dailyErr },
     ] = await Promise.all([
       supabase
         .from("sales_activities")
         .select("id, activity_date, created_by")
-        .gte("activity_date", dStart)
-        .lte("activity_date", dEnd),
+        .gte("activity_date", startDate)
+        .lte("activity_date", endDate),
       supabase
         .from("crm_logs")
         .select("id, created_at")
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
         .lte("jv_date", endDate),
       supabase
         .from("construction_reports")
-        .select("id, created_at, title, detail, created_by, project_id, status, report_date, photo_urls")
+        .select("id, created_at")
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
       supabase
@@ -74,11 +78,22 @@ export async function GET(req: NextRequest) {
         .gte("created_at", dStart)
         .lte("created_at", dEnd),
       supabase
-        .from("activity_logs")
-        .select("id, activity_date, category, created_at")
+        .from("daily_activity_log")
+        .select("id, activity_date")
         .gte("activity_date", startDate)
         .lte("activity_date", endDate),
     ]);
+
+    console.log("[Dashboard] Data counts:", {
+      sales: salesActivities?.length ?? 0,
+      crm: crmLogs?.length ?? 0,
+      jv: jvEntries?.length ?? 0,
+      construction: constructionReports?.length ?? 0,
+      installments: installments?.length ?? 0,
+      po: purchaseOrders?.length ?? 0,
+      daily: dailyActivity?.length ?? 0,
+    });
+    console.log("[Dashboard] Errors:", { salesErr, crmErr, jvErr, constErr, instErr, poErr, dailyErr });
 
     // Group by date and activity type
     const grouped: Record<string, any> = {};
@@ -120,27 +135,6 @@ export async function GET(req: NextRequest) {
       if (!filterDept || deptFilterValue === "sales") {
         const dateKey = getDateKey(item.activity_date);
         addToGroup(dateKey, "sales", 1);
-        // Add item details
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = {
-            date: dateKey,
-            sales: { count: 0, items: [] },
-            construction: { count: 0, items: [] },
-            accounting: { count: 0, items: [] },
-            finance: { count: 0, items: [] },
-            marketing: { count: 0, items: [] },
-            hr: { count: 0, items: [] },
-            approvals: { count: 0, items: [] },
-            office: { count: 0, items: [] },
-          };
-        }
-        grouped[dateKey].sales.items.push({
-          id: item.id,
-          type: "sales_activity",
-          title: "กิจกรรมขาย",
-          createdBy: item.created_by,
-          date: dateKey,
-        });
       }
     });
 
@@ -165,30 +159,6 @@ export async function GET(req: NextRequest) {
       if (!filterDept || deptFilterValue === "construction") {
         const dateKey = getDateKey(item.created_at);
         addToGroup(dateKey, "construction", 1);
-        // Add item details to items array for display
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = {
-            date: dateKey,
-            sales: { count: 0, items: [] },
-            construction: { count: 0, items: [] },
-            accounting: { count: 0, items: [] },
-            finance: { count: 0, items: [] },
-            marketing: { count: 0, items: [] },
-            hr: { count: 0, items: [] },
-            approvals: { count: 0, items: [] },
-            office: { count: 0, items: [] },
-          };
-        }
-        grouped[dateKey].construction.items.push({
-          id: item.id,
-          type: "construction_report",
-          title: item.title || "รายงานก่อสร้าง",
-          detail: item.detail,
-          createdBy: item.created_by,
-          date: item.report_date || dateKey,
-          status: item.status,
-          photos: item.photo_urls || [],
-        });
       }
     });
 
@@ -206,25 +176,6 @@ export async function GET(req: NextRequest) {
         const dateKey = getDateKey(item.created_at);
         addToGroup(dateKey, "approvals", 1);
       }
-    });
-
-    // Process manual activity logs (from /activity page)
-    (activityLogs || []).forEach((item: any) => {
-      const dateKey = getDateKey(item.activity_date);
-      // Map activity categories to activity types
-      const category = item.category || "อื่นๆ";
-      let activityType = "office"; // default
-
-      if (category.includes("ขาย") || category.includes("ลูกค้า")) activityType = "sales";
-      else if (category.includes("ก่อสร้าง")) activityType = "construction";
-      else if (category.includes("บัญชี")) activityType = "accounting";
-      else if (category.includes("การเงิน")) activityType = "finance";
-      else if (category.includes("การตลาด")) activityType = "marketing";
-      else if (category.includes("บุคคล")) activityType = "hr";
-      else if (category.includes("ประชุม")) activityType = "office";
-      else if (category.includes("เอกสาร")) activityType = "office";
-
-      addToGroup(dateKey, activityType, 1);
     });
 
     return NextResponse.json({

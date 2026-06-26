@@ -326,14 +326,16 @@ export default function ReportsPage() {
     }).eq("id", report.id).select().single();
     if (data) {
       setReport(data as WReport);
+      // Send LINE notification to management for all submitted reports
       await createNotification({
-        type: "info",
+        type: "activity",
         title: status === "late" ? "มีรายงานส่งล่าช้า" : "มีรายงานการปฏิบัติงานใหม่",
         message: `${report.employee_name} ส่งรายงานประจำวันแล้ว ${status === "late" ? "(ล่าช้า)" : ""}`,
         from_dept: report.department,
         to_dept: "ผู้บริหาร",
         record_id: report.id,
         link: "/reports/review",
+        line_to_depts: ["ผู้บริหาร"],
       });
     }
     setSubmitting(false);

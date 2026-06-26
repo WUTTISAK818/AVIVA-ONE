@@ -12,7 +12,7 @@ import DeptAIChat from "@/components/DeptAIChat";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
-import { createNotification } from "@/lib/notify";
+import { createNotification, notifyActivityLine } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { maskPhone } from "@/lib/mask";
@@ -492,10 +492,24 @@ export default function ConstructionPage() {
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
       supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
-    ]).then(([hRes, rRes, dRes, leadRes]) => {
+    ]).then(async ([hRes, rRes, dRes, leadRes]) => {
       // D2: กัน null หลัง reset ข้อมูลก่อสร้าง (progress/contractor อาจเป็น null)
       setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0, plot_code: h.plot_code ?? null, construction_status: h.construction_status ?? null })));
-      setReports((rRes.data as Report[]) ?? []);
+
+      // Convert photo_urls to signed URLs
+      const reports = (rRes.data as Report[]) ?? [];
+      console.log("[Construction] Raw reports count:", reports.length);
+      console.log("[Construction] Sample report photo_urls:", reports.slice(0, 3).map(r => ({ id: r.id, photo_urls: r.photo_urls, photo_url: r.photo_url })));
+      const signedReports = await Promise.all(
+        reports.map(async (r) => ({
+          ...r,
+          photo_urls: r.photo_urls ? await Promise.all(r.photo_urls.map(url => toSignedUrl(url).then(signed => signed || url))) : r.photo_urls,
+          photo_url: r.photo_url ? (await toSignedUrl(r.photo_url)) || r.photo_url : r.photo_url,
+        }))
+      );
+      console.log("[Construction] Signed reports sample:", signedReports.slice(0, 3).map(r => ({ id: r.id, photo_urls: r.photo_urls, photo_url: r.photo_url })));
+      setReports(signedReports);
+
       setDefects((dRes.data as Defect[]) ?? []);
       const plots = new Set<number>((leadRes.data ?? []).filter((d: { plot_number: number | null }) => d.plot_number != null).map((d: { plot_number: number }) => d.plot_number));
       setCustomerPlots(plots);
@@ -1022,6 +1036,13 @@ export default function ConstructionPage() {
       const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, reported_by: form.reported_by || null }).select().single();
       reportId = (inserted as Report | null)?.id ?? null;
       await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
+      // Send LINE notification for new construction report
+      await notifyActivityLine(
+        "ฝ่ายก่อสร้าง",
+        `รายงานก่อสร้าง: ${form.work_type || "งานอื่น"}`,
+        `${form.reported_by || "วิศวกร"} · ${new Date().toLocaleDateString("th-TH")}${form.work_detail ? ` — ${form.work_detail.substring(0, 50)}` : ""}`,
+        "/construction"
+      ).catch(err => console.error("[Construction] LINE notify failed:", err));
     }
     if (reportId && (dailyPhotos.length > 0 || editingReport)) {
       setUploadingDailyPhoto(true);
@@ -1190,12 +1211,13 @@ export default function ConstructionPage() {
       issue: summaryForm.problems || null,
     });
     const dateStr = new Date(summaryForm.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
-    await createNotification({
-      type: "info",
-      title: "รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง",
-      message: `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · คืบหน้าเฉลี่ย ${overallProgress}%`,
-      from_dept: "ฝ่ายก่อสร้าง",
-    });
+    // Send LINE notification for construction summary report
+    await notifyActivityLine(
+      "ฝ่ายก่อสร้าง",
+      "รายงานสรุปประจำวัน — ฝ่ายก่อสร้าง",
+      `${dateStr} · ${summaryForm.reporter || "วิศวกร"} · คืบหน้าเฉลี่ย ${overallProgress}%`,
+      "/construction"
+    );
     setSendingSummary(false);
     setShowSummaryModal(false);
     setSummaryPhotos([]);
@@ -1690,11 +1712,9 @@ export default function ConstructionPage() {
                           <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
-                          {(r.photo_urls?.length ?? 0) > 0 && (
-                            <div className="mt-3">
-                              <PhotoGallery photos={r.photo_urls} title="รูปตรวจงาน" />
-                            </div>
-                          )}
+                          <div className="mt-3">
+                            <PhotoGallery photos={r.photo_urls} title="รูปตรวจงาน" />
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button onClick={e => openEditReport(r, e)} aria-label="แก้ไข" className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"><Pencil size={12} className="text-aviva-secondary" /></button>

@@ -1,9 +1,10 @@
+# Next.js บน Netlify — ใช้ @netlify/plugin-nextjs จัดการ output เอง
+# ห้ามตั้ง publish เอง (plugin v5 จะตั้งให้ — ถ้าตั้ง ".next" จะกลายเป็น "Site not found")
 [build]
   command = "npm run build"
-  publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

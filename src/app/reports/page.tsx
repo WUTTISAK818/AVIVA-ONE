@@ -163,10 +163,31 @@ export default function ReportsPage() {
       autoItems.push({ category: "activity", description: `${label}: ${docNum}${amount}`, source: "auto", report_id: reportId });
     });
 
+    // ✨ FIX: Pull activity_logs from during-day manual entries
+    const { data: activityLogs } = await supabase
+      .from("activity_logs")
+      .select("category, title, detail")
+      .eq("user_id", user.id)
+      .eq("activity_date", today)
+      .order("activity_time", { ascending: false });
+
+    (activityLogs ?? []).forEach((log: Record<string, any>) => {
+      const categoryLabel = log.category ?? "กิจกรรม";
+      const detail = log.detail ? ` — ${log.detail}` : "";
+      autoItems.push({
+        category: "activity",
+        description: `${log.title}${detail}`,
+        source: "activity",
+        report_id: reportId
+      });
+    });
+
     if (user.department === "ฝ่ายขาย") {
+      // ✨ FIX: Add .eq("created_by", user.id) to filter only this user's activities
       const { data: acts } = await supabase
         .from("sales_activities")
         .select("activity_type, customer_name, note")
+        .eq("created_by", user.id)
         .gte("created_at", `${today}T00:00:00`)
         .lte("created_at", `${today}T23:59:59`);
       (acts ?? []).forEach((a: Record<string, string | null>) => {
@@ -176,9 +197,11 @@ export default function ReportsPage() {
     }
 
     if (user.department === "ฝ่ายก่อสร้าง") {
+      // ✨ FIX: Add filter by user (created_by_name) to filter only this user's installments
       const { data: insts } = await supabase
         .from("contractor_installments")
         .select("installment_number, status")
+        .eq("created_by_name", user.full_name ?? "")
         .gte("updated_at", `${today}T00:00:00`)
         .lte("updated_at", `${today}T23:59:59`)
         .eq("project_id", PROJECT_ID);

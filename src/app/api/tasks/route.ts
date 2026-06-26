@@ -1,131 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { verifyAuth } from "@/lib/api-auth";
-export const dynamic = 'force-dynamic';
+import { TaskCreateInput, TaskUpdateInput } from "@/lib/task-types";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+);
 
 export async function GET(req: NextRequest) {
-  // Verify authentication before accessing tasks
-  const { user, error: authError } = await verifyAuth(req);
-  if (authError || !user) {
-    return NextResponse.json({ error: authError || "Unauthorized" }, { status: 401 });
-  }
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
-
   try {
     const { searchParams } = new URL(req.url);
-    const assignedTo = searchParams.get("assigned_to");
-    const assignedBy = searchParams.get("assigned_by");
     const status = searchParams.get("status");
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const priority = searchParams.get("priority");
+    const assigned_to = searchParams.get("assigned_to");
+    const created_by = searchParams.get("created_by");
+    const command_type = searchParams.get("command_type");
 
-    let query = supabase
-      .from("task_assignments")
-      .select("*", { count: "exact" })
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true })
-      .range(offset, offset + limit - 1);
+    let query = supabase.from("tasks_features").select("*");
 
-    if (assignedTo) {
-      query = query.eq("assigned_to", assignedTo);
-    }
+    if (status) query = query.eq("status", status);
+    if (priority) query = query.eq("priority", priority);
+    if (assigned_to) query = query.eq("assigned_to", assigned_to);
+    if (created_by) query = query.eq("created_by", created_by);
+    if (command_type) query = query.eq("command_type", command_type);
 
-    if (assignedBy) {
-      query = query.eq("assigned_by", assignedBy);
-    }
+    const { data, error } = await query.order("created_at", { ascending: false });
 
-    if (status) {
-      query = query.eq("status", status);
-    }
+    if (error) throw error;
 
-    const { data, error, count } = await query;
-
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data,
-      total: count,
-      limit,
-      offset,
-    });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error("[Tasks API] GET error:", error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
-  // Verify authentication before creating tasks
-  const { user, error: authError } = await verifyAuth(req);
-  if (authError || !user) {
-    return NextResponse.json({ error: authError || "Unauthorized" }, { status: 401 });
-  }
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
-
   try {
-    const body = await req.json();
-    const {
-      title,
-      description,
-      assigned_by,
-      assigned_by_name,
-      assigned_to,
-      assigned_to_name,
-      assigned_to_email,
-      task_priority = "medium",
-      due_date,
-      due_time,
-      related_record_id,
-      related_record_type,
-      attachments = [],
-    } = body;
-
-    if (!title || !assigned_by || !assigned_to) {
-      return NextResponse.json(
-        { success: false, error: "title, assigned_by, and assigned_to required" },
-        { status: 400 }
-      );
-    }
+    const body: TaskCreateInput = await req.json();
 
     const { data, error } = await supabase
-      .from("task_assignments")
+      .from("tasks_features")
       .insert([
         {
-          title,
-          description,
-          assigned_by,
-          assigned_by_name,
-          assigned_to,
-          assigned_to_name,
-          assigned_to_email,
-          task_priority,
-          due_date,
-          due_time,
-          related_record_id,
-          related_record_type,
-          attachments,
-          status: "assigned",
+          title: body.title,
+          description: body.description,
+          assigned_to: body.assigned_to,
+          priority: body.priority || "medium",
+          due_date: body.due_date,
+          estimated_hours: body.estimated_hours,
+          department: body.department,
+          category: body.category,
+          command_type: body.command_type || "feature",
+          status: "pending",
+          progress_pct: 0,
         },
       ])
-      .select()
-      .single();
+      .select();
 
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-    }
+    if (error) throw error;
 
-    return NextResponse.json({ success: true, data });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: true, data: data?.[0] });
+  } catch (error) {
+    console.error("[Tasks API] POST error:", error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }

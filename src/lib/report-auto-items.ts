@@ -33,79 +33,84 @@ export async function buildAutoItems(
   today: string,
   todayBkk: string,
 ): Promise<AutoItem[]> {
-  const out: AutoItem[] = [];
-  const add = (category: string, description: string, source: string) => {
-    const d = (description ?? "").trim();
-    if (d) out.push({ category, description: d, source });
-  };
-  const dayStart = `${today}T00:00:00`, dayEnd = `${today}T23:59:59`;
+  try {
+    const out: AutoItem[] = [];
+    const add = (category: string, description: string, source: string) => {
+      const d = (description ?? "").trim();
+      if (d) out.push({ category, description: d, source });
+    };
+    const dayStart = `${today}T00:00:00`, dayEnd = `${today}T23:59:59`;
 
-  // 1) approval_logs — เอกสาร/คำขออนุมัติของผู้ใช้ (exact ด้วย submitted_by_user_id; เลี่ยง ilike %% ที่ match ทุกแถว)
-  const { data: logs } = await supabase
-    .from("approval_logs")
-    .select("workflow_type, source_doc_index, amount")
-    .eq("submitted_by_user_id", user.id)
-    .gte("created_at", dayStart).lte("created_at", dayEnd);
-  (logs ?? []).forEach((log: Record<string, any>) => {
-    const label = WF_LABELS[log.workflow_type] ?? log.workflow_type;
-    const docNum = (log.source_doc_index as string)?.split(" | ")[0] ?? "";
-    const amount = log.amount ? ` (฿${Number(log.amount).toLocaleString()})` : "";
-    add("activity", `${label}: ${docNum}${amount}`, "auto");
-  });
-
-  // 2) activity_logs — งานที่พนักงานพิมพ์เองระหว่างวัน (เฉพาะ source=manual กันซ้ำกับสรุปอัตโนมัติ)
-  const { data: activityLogs } = await supabase
-    .from("activity_logs")
-    .select("title, detail")
-    .eq("user_id", user.id)
-    .eq("activity_date", todayBkk)
-    .eq("source", "manual")
-    .order("activity_time", { ascending: true });
-  (activityLogs ?? []).forEach((log: Record<string, any>) => {
-    const detail = log.detail ? ` — ${log.detail}` : "";
-    add("activity", `${log.title}${detail}`, "activity");
-  });
-
-  // 3) ฝ่ายขาย — กิจกรรมการขาย + การติดต่อลูกค้าของตัวเองวันนี้
-  if (user.department === "ฝ่ายขาย") {
-    const { data: acts } = await supabase
-      .from("sales_activities")
-      .select("activity_type, note, created_by, created_by_name")
+    // 1) approval_logs — เอกสาร/คำขออนุมัติของผู้ใช้ (exact ด้วย submitted_by_user_id; เลี่ยง ilike %% ที่ match ทุกแถว)
+    const { data: logs } = await supabase
+      .from("approval_logs")
+      .select("workflow_type, source_doc_index, amount")
+      .eq("submitted_by_user_id", user.id)
       .gte("created_at", dayStart).lte("created_at", dayEnd);
-    (acts ?? [])
-      .filter((a: Record<string, any>) => a.created_by === user.id || a.created_by_name === user.full_name)
-      .forEach((a: Record<string, any>) => {
+    (logs ?? []).forEach((log: Record<string, any>) => {
+      const label = WF_LABELS[log.workflow_type] ?? log.workflow_type;
+      const docNum = log.source_doc_index ? String(log.source_doc_index).split(" | ")[0] : "";
+      const amount = log.amount ? ` (฿${Number(log.amount).toLocaleString()})` : "";
+      add("activity", `${label}: ${docNum}${amount}`, "auto");
+    });
+
+    // 2) activity_logs — งานที่พนักงานพิมพ์เองระหว่างวัน (เฉพาะ source=manual กันซ้ำกับสรุปอัตโนมัติ)
+    const { data: activityLogs } = await supabase
+      .from("activity_logs")
+      .select("title, detail")
+      .eq("user_id", user.id)
+      .eq("activity_date", todayBkk)
+      .eq("source", "manual")
+      .order("activity_time", { ascending: true });
+    (activityLogs ?? []).forEach((log: Record<string, any>) => {
+      if (!log.title) return;
+      const detail = log.detail ? ` — ${log.detail}` : "";
+      add("activity", `${log.title}${detail}`, "activity");
+    });
+
+    // 3) ฝ่ายขาย — กิจกรรมการขาย + การติดต่อลูกค้าของตัวเองวันนี้
+    if (user.department === "ฝ่ายขาย") {
+      const { data: acts } = await supabase
+        .from("sales_activities")
+        .select("activity_type, note")
+        .eq("created_by", user.id)
+        .gte("created_at", dayStart).lte("created_at", dayEnd);
+      (acts ?? []).forEach((a: Record<string, any>) => {
         add("activity", `[ขาย] ${a.activity_type ?? ""}${a.note ? ` — ${a.note}` : ""}`, "auto");
       });
 
-    // crm_logs — โทร/ติดต่อลูกค้า (created_by_id มี default auth.uid() เชื่อถือได้)
-    const { data: calls } = await supabase
-      .from("crm_logs")
-      .select("contact_channel, call_status, call_note")
-      .eq("created_by_id", user.id)
-      .gte("created_at", dayStart).lte("created_at", dayEnd);
-    (calls ?? []).forEach((l: Record<string, any>) => {
-      const status = l.call_status ? ` (${l.call_status})` : "";
-      const note = l.call_note ? ` — ${l.call_note}` : "";
-      add("activity", `[ติดต่อลูกค้า] ${l.contact_channel ?? ""}${status}${note}`, "auto");
-    });
-  }
+      // crm_logs — โทร/ติดต่อลูกค้า (created_by_id มี default auth.uid() เชื่อถือได้)
+      const { data: calls } = await supabase
+        .from("crm_logs")
+        .select("contact_channel, call_status, call_note")
+        .eq("created_by_id", user.id)
+        .gte("created_at", dayStart).lte("created_at", dayEnd);
+      (calls ?? []).forEach((l: Record<string, any>) => {
+        const channel = l.contact_channel ?? "ติดต่อ";
+        const status = l.call_status ? ` (${l.call_status})` : "";
+        const note = l.call_note ? ` — ${l.call_note}` : "";
+        add("activity", `[ติดต่อลูกค้า] ${channel}${status}${note}`, "auto");
+      });
+    }
 
-  // 4) ฝ่ายก่อสร้าง — รายงานก่อสร้างของตัวเองวันนี้
-  if (user.department === "ฝ่ายก่อสร้าง") {
-    const { data: creports } = await supabase
-      .from("construction_reports")
-      .select("work_type, work_detail, progress, created_by, reported_by")
-      .gte("created_at", dayStart).lte("created_at", dayEnd);
-    (creports ?? [])
-      .filter((r: Record<string, any>) => r.created_by === user.id || r.reported_by === user.full_name)
-      .forEach((r: Record<string, any>) => {
+    // 4) ฝ่ายก่อสร้าง — รายงานก่อสร้างของตัวเองวันนี้
+    if (user.department === "ฝ่ายก่อสร้าง") {
+      const { data: creports } = await supabase
+        .from("construction_reports")
+        .select("work_type, work_detail, progress")
+        .eq("created_by", user.id)
+        .gte("created_at", dayStart).lte("created_at", dayEnd);
+      (creports ?? []).forEach((r: Record<string, any>) => {
         const pct = typeof r.progress === "number" ? ` (${r.progress}%)` : "";
         add("activity", `[ก่อสร้าง] ${r.work_type ?? "งาน"}: ${r.work_detail ?? ""}${pct}`, "auto");
       });
-  }
+    }
 
-  return out;
+    return out;
+  } catch (error) {
+    console.error("buildAutoItems error:", error);
+    return [];
+  }
 }
 
 // กรองรายการซ้ำ: เทียบ description ที่ normalize แล้ว กับชุดที่มีอยู่ + กันซ้ำภายในชุดเอง

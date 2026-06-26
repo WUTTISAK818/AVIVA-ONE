@@ -139,14 +139,23 @@ export default function ReportsPage() {
   // ดึงงานที่บันทึกไว้ "ระหว่างวัน" มาเติมรายงานอัตโนมัติ — idempotent (กดซ้ำได้ ไม่เพิ่มซ้ำ)
   // ใช้ buildAutoItems ร่วมกับหน้า CRM เพื่อให้ logic ตรงกัน คืนค่าจำนวนรายการใหม่ที่เพิ่มจริง
   async function pullAutoItems(reportId: string, existingItems: WItem[]): Promise<number> {
-    if (!user) return 0;
-    const candidates = await buildAutoItems(user, today, todayBkk);
-    const fresh = dedupeAutoItems(candidates, existingItems.map(i => i.description));
-    if (fresh.length === 0) return 0;
-    const toInsert = fresh.map(c => ({ category: c.category, description: c.description, source: c.source, report_id: reportId }));
-    const { data: ins } = await supabase.from("work_report_items").insert(toInsert).select();
-    if (ins) setItems(prev => [...prev, ...(ins as WItem[])]);
-    return toInsert.length;
+    try {
+      if (!user) return 0;
+      const candidates = await buildAutoItems(user, today, todayBkk);
+      const fresh = dedupeAutoItems(candidates, existingItems.map(i => i.description));
+      if (fresh.length === 0) return 0;
+      const toInsert = fresh.map(c => ({ category: c.category, description: c.description, source: c.source, report_id: reportId }));
+      const { data: ins, error } = await supabase.from("work_report_items").insert(toInsert).select();
+      if (error) {
+        console.error("Insert auto items error:", error);
+        return 0;
+      }
+      if (ins) setItems(prev => [...prev, ...(ins as WItem[])]);
+      return toInsert.length;
+    } catch (err) {
+      console.error("pullAutoItems error:", err);
+      return 0;
+    }
   }
 
   async function handleRefreshAuto() {

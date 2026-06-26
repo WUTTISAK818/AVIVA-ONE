@@ -1704,11 +1704,9 @@ export default function ConstructionPage() {
                           <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
-                          {(r.photo_urls?.length ?? 0) > 0 && (
-                            <div className="mt-3">
-                              <PhotoGallery photos={r.photo_urls} title="รูปตรวจงาน" />
-                            </div>
-                          )}
+                          <div className="mt-3">
+                            <PhotoGallery photos={r.photo_urls} title="รูปตรวจงาน" />
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button onClick={e => openEditReport(r, e)} aria-label="แก้ไข" className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"><Pencil size={12} className="text-aviva-secondary" /></button>

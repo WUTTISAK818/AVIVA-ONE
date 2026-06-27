@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" role="img" aria-label="WinVote">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E6C77A"/><stop offset="1" stop-color="#D4AF37"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(60,4) scale(1)">
+    <circle cx="60" cy="60" r="54" fill="none" stroke="url(#gold)" stroke-width="3.5"/>
+    <circle cx="60" cy="60" r="47" fill="none" stroke="url(#gold)" stroke-width="1.2" opacity="0.55"/>
+    <g fill="none" stroke="url(#gold)" stroke-width="2.4" stroke-linecap="round">
+      <path d="M40 93 C 34 77 36 63 45 51"/><path d="M40 81 q -8 -3 -12 -10"/><path d="M42 73 q -8 -2 -12 -9"/><path d="M44 65 q -7 -2 -11 -8"/>
+      <path d="M80 93 C 86 77 84 63 75 51"/><path d="M80 81 q 8 -3 12 -10"/><path d="M78 73 q 8 -2 12 -9"/><path d="M76 65 q 7 -2 11 -8"/>
+    </g>
+    <path d="M45 61 l11 13 l20 -28" fill="none" stroke="url(#gold)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="120" y="156" text-anchor="middle" font-family="'IBM Plex Sans Thai','Noto Sans Thai',sans-serif" font-size="30" font-weight="700" letter-spacing="3" fill="url(#gold)">WinVote</text>
+  <text x="120" y="180" text-anchor="middle" font-family="'IBM Plex Sans Thai','Noto Sans Thai',sans-serif" font-size="12" letter-spacing="1" fill="#D1D5DB">ระบบเครือข่ายฐานเสียง</text>
+</svg>

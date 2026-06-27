@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="WinVote">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E6C77A"/>
+      <stop offset="1" stop-color="#D4AF37"/>
+    </linearGradient>
+  </defs>
+  <!-- seal rings -->
+  <circle cx="60" cy="60" r="54" fill="none" stroke="url(#gold)" stroke-width="3.5"/>
+  <circle cx="60" cy="60" r="47" fill="none" stroke="url(#gold)" stroke-width="1.2" opacity="0.55"/>
+  <!-- wheat sprigs (ท้องถิ่น/ความเจริญ) -->
+  <g fill="none" stroke="url(#gold)" stroke-width="2.4" stroke-linecap="round">
+    <path d="M40 93 C 34 77 36 63 45 51"/>
+    <path d="M40 81 q -8 -3 -12 -10"/>
+    <path d="M42 73 q -8 -2 -12 -9"/>
+    <path d="M44 65 q -7 -2 -11 -8"/>
+    <path d="M80 93 C 86 77 84 63 75 51"/>
+    <path d="M80 81 q 8 -3 12 -10"/>
+    <path d="M78 73 q 8 -2 12 -9"/>
+    <path d="M76 65 q 7 -2 11 -8"/>
+  </g>
+  <!-- check (เลือก/ยืนยัน) -->
+  <path d="M45 61 l11 13 l20 -28" fill="none" stroke="url(#gold)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -292,6 +292,9 @@ export default function ReportsReviewPage() {
         acknowledged_by: user.full_name ?? user.email,
         acknowledged_at: new Date().toISOString(),
         manager_comment: commentText.trim() || null,
+        // รับทราบแล้ว = จบ → ล้างสถานะ "ตีกลับ" ที่อาจค้าง (กันป้ายขัดกัน)
+        returned_at: null,
+        return_reason: null,
       })
       .eq("id", selected.id)
       .select()

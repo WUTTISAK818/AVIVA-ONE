@@ -60,7 +60,8 @@ export default function BottomNav() {
     { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
     { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
-    { href: "/reports",      label: "งานรายวัน",     icon: Clock,         show: !isExec, badge: 0 },
+    { href: "/reports",        label: "งานรายวัน",   icon: Clock,         show: !isExec, badge: 0 },
+    { href: "/reports/review", label: "รายงานทีม",    icon: ClipboardList, show: isExec, badge: 0 },
     { href: "/settings",     label: "ตั้งค่า",      icon: Settings,     show: true, badge: 0 },
   ].filter(t => t.show);
 

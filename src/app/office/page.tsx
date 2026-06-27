@@ -4796,7 +4796,7 @@ const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; construction
 // ทางลัดสำหรับผู้บริหาร/ผจก.โครงการ — ย้ายมาจากแถบเมนูล่างเพื่อลดความแออัด
 // (ลิงก์ไปหน้าเต็ม ไม่ใช่ tab content)
 const MANAGER_LINKS: { label: string; href: string }[] = [
-  { label: "รายงาน", href: "/reports" },
+  { label: "รายงานทีม", href: "/reports/review" },
   { label: "ออกเอกสารขาย", href: "/documents/generate" },
 ];
 

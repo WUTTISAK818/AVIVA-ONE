@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import {
   Users, ClipboardList, CheckCircle, AlertTriangle, Clock, Eye, X,
   ChevronLeft, ChevronRight, MapPin, UserX, Printer, ChevronDown, ChevronUp,
-  MessageSquare,
+  MessageSquare, Sparkles, RefreshCw,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -120,8 +120,36 @@ export default function ReportsReviewPage() {
   const [commentText, setCommentText]   = useState("");
   const [showMissing, setShowMissing]   = useState(false);
   const [selectedDailySummaryPhoto, setSelectedDailySummaryPhoto] = useState<string | null>(null);
+  const [aiSummary, setAiSummary]       = useState<string | null>(null);
+  const [aiLoading, setAiLoading]       = useState(false);
+  const [aiError, setAiError]           = useState<string | null>(null);
 
   const canAccess = user?.isManager || user?.isAdmin;
+
+  // เรียก AI สรุปรายงาน (TL;DR) — ใช้ cache ฝั่ง API; force=true เพื่อสร้างใหม่
+  async function fetchAiSummary(reportId: string, force = false) {
+    setAiLoading(true);
+    setAiError(null);
+    if (force) setAiSummary(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/reports/summarize", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ reportId, force }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setAiError(json?.error ?? "สรุปไม่สำเร็จ"); setAiSummary(null); }
+      else if (json.empty) { setAiSummary(null); setAiError(null); }
+      else setAiSummary(json.summary ?? null);
+    } catch {
+      setAiError("เชื่อมต่อ AI ไม่สำเร็จ");
+    }
+    setAiLoading(false);
+  }
 
   useEffect(() => {
     if (!canAccess) return;
@@ -196,12 +224,17 @@ export default function ReportsReviewPage() {
     setCommentText("");
     setSelectedDailySummaryPhoto(null);
     setSelAttachments([]);
+    setAiSummary(null);
+    setAiError(null);
     const { data } = await supabase
       .from("work_report_items")
       .select("*")
       .eq("report_id", r.id)
       .order("created_at");
     setSelItems((data ?? []) as WItem[]);
+
+    // สรุปด้วย AI อัตโนมัติ (ใช้ cache ถ้ามี) — ช่วยผู้บริหารอ่านเร็ว
+    fetchAiSummary(r.id);
 
     // Fetch work report attachments with signed URLs
     const { data: attachments } = await supabase
@@ -765,6 +798,30 @@ export default function ReportsReviewPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-0.5">
+
+              {/* AI TL;DR — ช่วยผู้บริหารอ่านเร็ว (สรุปจากเนื้อหาจริงเท่านั้น) */}
+              {(aiLoading || aiSummary || aiError) && (
+                <div className="rounded-xl p-3 border border-aviva-gold/30 bg-gradient-to-br from-aviva-gold/10 to-aviva-gold/5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[10px] text-aviva-gold uppercase tracking-wider font-bold flex items-center gap-1">
+                      <Sparkles size={11} /> สรุปโดย AI
+                    </p>
+                    {!aiLoading && (
+                      <button onClick={() => selected && fetchAiSummary(selected.id, true)}
+                        className="text-[10px] text-aviva-secondary hover:text-aviva-gold flex items-center gap-1">
+                        <RefreshCw size={10} /> สรุปใหม่
+                      </button>
+                    )}
+                  </div>
+                  {aiLoading ? (
+                    <p className="text-xs text-aviva-secondary animate-pulse">กำลังสรุป...</p>
+                  ) : aiError ? (
+                    <p className="text-xs text-aviva-secondary/70">{aiError}</p>
+                  ) : (
+                    <p className="text-sm text-aviva-text leading-relaxed whitespace-pre-line">{aiSummary}</p>
+                  )}
+                </div>
+              )}
 
               {selected.work_location && (
                 <div className="flex items-center gap-2 bg-aviva-gold/5 rounded-xl px-3 py-2 border border-aviva-gold/15">

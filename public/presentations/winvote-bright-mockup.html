@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WinVote — Bright / Elderly-First Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --scale:1;
+    --bg:#F4F7F4;        /* พื้นนวลสบายตา ไม่ขาวจ้า */
+    --card:#FFFFFF;
+    --border:#D7E0D7;
+    --green:#15803D;     /* เขียวหลัก คอนทราสต์ชัดบนขาว */
+    --green-deep:#14342A;/* หัวข้อ/ตัวเข้ม */
+    --text:#1C2925;      /* เนื้อหา ดำอมเขียว — คอนทราสต์ >12:1 */
+    --sec:#4B5563;
+    --gold:#B07D1E;      /* ทองเข้มอ่านออกบนขาว (accent) */
+    --win:#15803D; --winbg:#DCFCE7;
+    --toss:#B45309; --tossbg:#FEF3C7;
+    --risk:#DC2626; --riskbg:#FEE2E2;
+  }
+  *{box-sizing:border-box;margin:0;}
+  body{background:#E8EEE8;color:var(--text);font-family:'IBM Plex Sans Thai','Noto Sans Thai',sans-serif;padding:18px 14px 60px;}
+  .wrap{max-width:980px;margin:0 auto;}
+  h2{font-size:14px;letter-spacing:1px;color:var(--green);margin:30px 0 12px;font-weight:700;}
+  .lead{text-align:center;margin-bottom:6px;}
+  .lead .nm{font-size:30px;font-weight:700;color:var(--green-deep);letter-spacing:1px;}
+  .lead .cc{color:var(--sec);font-size:14px;margin-top:4px;}
+  /* font-size control demo */
+  .ctrl{background:#fff;border:2px solid var(--green);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:10px;justify-content:center;margin:10px auto 4px;max-width:420px;}
+  .ctrl b{color:var(--green-deep);font-size:15px;}
+  .ctrl button{border:1px solid var(--border);background:#fff;border-radius:10px;font-weight:700;color:var(--green-deep);cursor:pointer;padding:8px 12px;font-family:inherit;}
+  .ctrl button.s{font-size:13px;} .ctrl button.m{font-size:16px;} .ctrl button.l{font-size:20px;}
+  .ctrl button:hover{background:var(--winbg);border-color:var(--green);}
+  .hint{text-align:center;color:var(--sec);font-size:12px;margin-bottom:8px;}
+  /* palette */
+  .pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;}
+  .sw{border-radius:12px;height:70px;display:flex;flex-direction:column;justify-content:flex-end;padding:8px;font-size:11px;border:1px solid rgba(0,0,0,.08);}
+  .sw b{font-size:12px;}
+  /* phones */
+  .phones{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;}
+  .phone{width:320px;background:var(--bg);border-radius:30px;border:8px solid #cfd8cf;box-shadow:0 16px 40px rgba(0,0,0,.18);overflow:hidden;}
+  .scr{padding:18px;min-height:580px;font-size:calc(17px * var(--scale));}  /* <-- ตัวอักษรปรับขนาดได้ */
+  .scr .h{font-size:1.25em;font-weight:700;color:var(--green-deep);}
+  .scr .sub{font-size:.82em;color:var(--sec);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+  .kpi{background:var(--card);border:2px solid var(--green);border-radius:18px;padding:18px;text-align:center;margin-top:14px;}
+  .kpi .lab{font-size:.85em;color:var(--sec);}
+  .kpi .big{font-size:2.6em;font-weight:700;color:var(--green);line-height:1.05;}
+  .kpi .big small{font-size:.4em;color:var(--sec);font-weight:600;}
+  .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-top:10px;}
+  .row b{font-size:1.05em;color:var(--green-deep);}
+  .pill{font-size:.8em;font-weight:700;padding:6px 12px;border-radius:24px;display:inline-flex;align-items:center;gap:5px;}
+  .tabs{display:flex;gap:4px;background:#E7EFE7;border-radius:14px;padding:5px;margin-top:14px;font-size:.78em;}
+  .tabs span{flex:1;text-align:center;padding:10px 0;border-radius:10px;color:var(--sec);font-weight:600;}
+  .tabs .on{background:var(--green);color:#fff;}
+  .inp{background:#fff;border:2px solid var(--border);border-radius:14px;padding:16px;color:var(--sec);font-size:1em;margin-top:12px;display:flex;align-items:center;gap:10px;}
+  .btn{background:var(--green);color:#fff;font-weight:700;text-align:center;border-radius:14px;padding:18px;margin-top:16px;font-size:1.1em;}
+  .logo{display:flex;align-items:center;gap:9px;}
+  .mark{width:34px;height:34px;}
+  .mark-lg{width:84px;height:84px;}
+  .compare{display:inline-block;background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px 10px;font-size:12px;color:var(--sec);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="lead">
+    <svg class="mark-lg" viewBox="0 0 120 120" style="margin:0 auto;display:block;">
+      <circle cx="60" cy="60" r="54" fill="none" stroke="#15803D" stroke-width="4"/><circle cx="60" cy="60" r="47" fill="none" stroke="#15803D" stroke-width="1.4" opacity=".4"/>
+      <g fill="none" stroke="#15803D" stroke-width="2.6" stroke-linecap="round"><path d="M40 93 C 34 77 36 63 45 51"/><path d="M40 81 q -8 -3 -12 -10"/><path d="M42 73 q -8 -2 -12 -9"/><path d="M44 65 q -7 -2 -11 -8"/><path d="M80 93 C 86 77 84 63 75 51"/><path d="M80 81 q 8 -3 12 -10"/><path d="M78 73 q 8 -2 12 -9"/><path d="M76 65 q 7 -2 11 -8"/></g>
+      <path d="M45 61 l11 13 l20 -28" fill="none" stroke="#B07D1E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="nm">WinVote</div>
+    <div class="cc">คอนเซปต์ใหม่: <b style="color:var(--green)">สว่าง · อ่านง่าย · สบายตา</b> — ออกแบบเพื่อผู้สูงอายุ</div>
+  </div>
+
+  <!-- ปุ่มปรับขนาดตัวอักษร (กดได้จริง) -->
+  <div class="ctrl">
+    <b>ขนาดตัวอักษร</b>
+    <button class="s" onclick="setScale(.9)">ก</button>
+    <button class="m" onclick="setScale(1)">ก</button>
+    <button class="l" onclick="setScale(1.18)">ก</button>
+    <button class="l" onclick="setScale(1.35)" style="font-size:24px">ก</button>
+  </div>
+  <div class="hint">👆 ลองกดปุ่มเปลี่ยนขนาด — ตัวหนังสือในหน้าจอตัวอย่างด้านล่างจะใหญ่/เล็กตาม</div>
+
+  <h2>ตัวอย่างหน้าจอ (สว่าง · คอนทราสต์สูง · ตัวใหญ่)</h2>
+  <div class="phones">
+
+    <!-- LOGIN -->
+    <div class="phone"><div class="scr" style="display:flex;flex-direction:column;justify-content:center;text-align:center;">
+      <svg class="mark-lg" viewBox="0 0 120 120" style="margin:0 auto 4px;">
+        <circle cx="60" cy="60" r="54" fill="none" stroke="#15803D" stroke-width="4"/><circle cx="60" cy="60" r="47" fill="none" stroke="#15803D" stroke-width="1.4" opacity=".4"/>
+        <g fill="none" stroke="#15803D" stroke-width="2.6" stroke-linecap="round"><path d="M40 93 C 34 77 36 63 45 51"/><path d="M40 81 q -8 -3 -12 -10"/><path d="M42 73 q -8 -2 -12 -9"/><path d="M44 65 q -7 -2 -11 -8"/><path d="M80 93 C 86 77 84 63 75 51"/><path d="M80 81 q 8 -3 12 -10"/><path d="M78 73 q 8 -2 12 -9"/><path d="M76 65 q 7 -2 11 -8"/></g>
+        <path d="M45 61 l11 13 l20 -28" fill="none" stroke="#B07D1E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="h" style="font-size:1.5em;">WinVote</div>
+      <div class="sub" style="margin-bottom:6px;">ระบบเครือข่ายฐานเสียง</div>
+      <div class="inp">✉️ อีเมล</div>
+      <div class="inp">🔒 รหัสผ่าน</div>
+      <div class="btn">เข้าสู่ระบบ</div>
+    </div></div>
+
+    <!-- DASHBOARD -->
+    <div class="phone"><div class="scr">
+      <div class="logo">
+        <svg class="mark" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#15803D" stroke-width="5"/><path d="M45 61 l11 13 l20 -28" fill="none" stroke="#B07D1E" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <b class="h" style="font-size:1.15em;">WinVote</b>
+      </div>
+      <div class="tabs"><span class="on">ภาพรวม</span><span>หน่วย</span><span>ผล</span><span>วิเคราะห์</span></div>
+      <div class="kpi"><div class="lab">คาดว่าชนะ</div><div class="big">3<small> / 4 เขต</small></div></div>
+      <div class="row"><b>เขต 1</b><span class="pill" style="background:var(--winbg);color:var(--win);">✓ น่าจะชนะ 72%</span></div>
+      <div class="row"><b>เขต 2</b><span class="pill" style="background:var(--winbg);color:var(--win);">✓ น่าจะชนะ 68%</span></div>
+      <div class="row"><b>เขต 3</b><span class="pill" style="background:var(--tossbg);color:var(--toss);">! ก้ำกึ่ง 54%</span></div>
+      <div class="row"><b>เขต 4</b><span class="pill" style="background:var(--riskbg);color:var(--risk);">✕ เสี่ยง 38%</span></div>
+    </div></div>
+
+  </div>
+
+  <h2>สีใหม่ (สว่าง · คอนทราสต์สูง อ่านง่าย)</h2>
+  <div class="pal">
+    <div class="sw" style="background:#F4F7F4;color:#1C2925"><b>พื้น</b>#F4F7F4</div>
+    <div class="sw" style="background:#FFFFFF;color:#1C2925"><b>การ์ด</b>#FFFFFF</div>
+    <div class="sw" style="background:#15803D;color:#fff"><b>เขียวหลัก</b>#15803D</div>
+    <div class="sw" style="background:#14342A;color:#fff"><b>หัวข้อ</b>#14342A</div>
+    <div class="sw" style="background:#B07D1E;color:#fff"><b>ทอง accent</b>#B07D1E</div>
+    <div class="sw" style="background:#DCFCE7;color:#15803D"><b>ชนะ</b>เขียว</div>
+    <div class="sw" style="background:#FEF3C7;color:#B45309"><b>ก้ำกึ่ง</b>อำพัน</div>
+    <div class="sw" style="background:#FEE2E2;color:#DC2626"><b>เสี่ยง</b>แดง</div>
+  </div>
+
+  <h2>เทียบของเดิม vs ใหม่</h2>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <span class="compare">เดิม: พื้นเขียวเข้ม + ตัวอักษรทอง (หรู แต่กลางแดด/ผู้สูงอายุอ่านยาก)</span>
+    <span class="compare">ใหม่: พื้นสว่าง + ตัวเข้มคอนทราสต์สูง + ปุ่มปรับขนาดตัวอักษร (อ่านง่ายทุกวัย)</span>
+  </div>
+
+  <p style="text-align:center;color:#6b7d76;font-size:12px;margin-top:30px;">WinVote — Bright / Elderly-First · เขียว #15803D + พื้นสว่าง + ตัวใหญ่ปรับได้ · คงเอกลักษณ์เขียว แต่เน้นอ่านง่าย</p>
+</div>
+<script>
+  function setScale(v){ document.documentElement.style.setProperty('--scale', v); }
+</script>
+</body>
+</html>

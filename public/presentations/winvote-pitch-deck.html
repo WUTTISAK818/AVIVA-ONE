@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WinVote — Investor Pitch Deck</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#F4F7F4;--card:#FFFFFF;--green:#15803D;--deep:#14342A;--text:#1C2925;--sec:#4B5563;--gold:#B07D1E;--bd:#D7E0D7;--win:#15803D;--toss:#B45309;--risk:#DC2626;}
+  *{box-sizing:border-box;margin:0;}
+  body{background:#E2E9E2;color:var(--text);font-family:'IBM Plex Sans Thai','Noto Sans Thai',sans-serif;padding:24px 14px 60px;line-height:1.5;}
+  .deck{max-width:860px;margin:0 auto;}
+  .slide{background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:34px 30px;margin-bottom:20px;box-shadow:0 6px 20px rgba(0,0,0,.06);}
+  .n{font-size:12px;color:var(--green);font-weight:700;letter-spacing:2px;}
+  h1{font-size:30px;color:var(--deep);margin:6px 0 10px;font-weight:700;}
+  h2{font-size:24px;color:var(--deep);margin:4px 0 14px;font-weight:700;}
+  p{font-size:17px;color:var(--text);margin:8px 0;} .sec{color:var(--sec);}
+  .big{font-size:40px;font-weight:700;color:var(--green);}
+  ul{margin:8px 0 8px 4px;padding:0;list-style:none;} li{font-size:17px;margin:9px 0;padding-left:28px;position:relative;}
+  li::before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:700;}
+  li.x::before{content:"✕";color:var(--risk);} li.dot::before{content:"●";color:var(--gold);font-size:11px;top:5px;}
+  .grid{display:grid;gap:12px;} .g2{grid-template-columns:1fr 1fr;} .g3{grid-template-columns:1fr 1fr 1fr;}
+  .box{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;}
+  .box h3{font-size:16px;color:var(--green);margin-bottom:6px;} .box p{font-size:15px;margin:4px 0;}
+  .cover{background:linear-gradient(135deg,#15803D,#14342A);color:#fff;text-align:center;padding:54px 30px;}
+  .cover h1{color:#fff;font-size:44px;letter-spacing:2px;} .cover p{color:#DCFCE7;font-size:18px;}
+  .mark{width:90px;height:90px;margin:0 auto 10px;}
+  .stat{text-align:center;} .stat .v{font-size:34px;font-weight:700;color:var(--green);} .stat .l{font-size:14px;color:var(--sec);}
+  .pill{display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;background:#DCFCE7;color:var(--green);}
+  /* org tree */
+  .tree{margin-top:10px;} .tier{background:var(--card);border:2px solid;border-radius:14px;padding:12px 16px;margin:0 auto;text-align:center;max-width:560px;}
+  .tier .role{font-size:17px;font-weight:700;} .tier .desc{font-size:13px;color:var(--sec);}
+  .conn{width:2px;height:18px;background:var(--bd);margin:0 auto;}
+  .t1{border-color:#14342A;} .t2{border-color:#15803D;} .t3{border-color:#B07D1E;} .t4{border-color:#4B5563;} .t5{border-color:#9CA3AF;background:#F9FAFB;}
+  .scale{font-size:13px;color:var(--gold);font-weight:700;}
+  .ask{background:var(--deep);color:#fff;border-radius:16px;padding:18px;margin-top:12px;}
+  .ask p{color:#DCFCE7;}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 1 COVER -->
+  <div class="slide cover">
+    <svg class="mark" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#fff" stroke-width="4"/><circle cx="60" cy="60" r="47" fill="none" stroke="#fff" stroke-width="1.4" opacity=".4"/><g fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M40 93 C 34 77 36 63 45 51"/><path d="M40 81 q -8 -3 -12 -10"/><path d="M42 73 q -8 -2 -12 -9"/><path d="M44 65 q -7 -2 -11 -8"/><path d="M80 93 C 86 77 84 63 75 51"/><path d="M80 81 q 8 -3 12 -10"/><path d="M78 73 q 8 -2 12 -9"/><path d="M76 65 q 7 -2 11 -8"/></g><path d="M45 61 l11 13 l20 -28" fill="none" stroke="#E6C77A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>WinVote</h1>
+    <p>เปลี่ยน "การหาเสียงด้วยความรู้สึก" → "ข้อมูลที่ตรวจสอบได้ + พยากรณ์โอกาสชนะ"</p>
+    <p style="margin-top:14px;font-size:15px;opacity:.85">Investor Pitch · 2569</p>
+  </div>
+
+  <!-- 2 PROBLEM -->
+  <div class="slide">
+    <div class="n">ปัญหา</div>
+    <h1>การเลือกตั้งท้องถิ่นวันนี้ = เดาล้วนๆ</h1>
+    <ul>
+      <li class="x">ผู้สมัครจ่ายเงินจ้างหัวคะแนน แต่ <b>ไม่รู้ว่าฐานเสียงจริงหรือปลอม</b></li>
+      <li class="x">ลูกทีมปั่นยอด / นับซ้ำ / เอาบัตรคนอื่นมาแอบอ้าง — ตรวจไม่ได้</li>
+      <li class="x">ไม่รู้ว่า "พอชนะไหม" จนถึงวันนับคะแนน</li>
+      <li class="x">ข้อมูลกระจัดกระจาย กระดาษ/Excel กระทบยอดไม่ตรง</li>
+    </ul>
+    <p class="sec">→ เสียเงินหลักล้านต่อการเลือกตั้ง โดยไม่มีเครื่องมือวัดผล</p>
+  </div>
+
+  <!-- 3 SOLUTION -->
+  <div class="slide">
+    <div class="n">ทางออก</div>
+    <h1>WinVote — ระบบจัดการ + พยากรณ์ฐานเสียง</h1>
+    <div class="grid g3">
+      <div class="box"><h3>1 · เก็บ+ยืนยัน</h3><p>ฐานเสียงทุกคนผ่านบัตร ปชช + เทียบบัญชีผู้มีสิทธิ์ + ยืนยันเจตนา</p></div>
+      <div class="box"><h3>2 · รวม+กระทบยอด</h3><p>ยอดหัวหน้าทีม/เขต ตรงกันเสมอ ตรวจย้อนได้</p></div>
+      <div class="box"><h3>3 · พยากรณ์ชนะ</h3><p>คำนวณโอกาสชนะรายเขต + บอกฐานเสียงพอ/ขาด</p></div>
+    </div>
+  </div>
+
+  <!-- 4 MOAT -->
+  <div class="slide">
+    <div class="n">จุดต่าง / คูเมือง</div>
+    <h2>ทำไมลอกยาก</h2>
+    <ul>
+      <li><b>แยก "ตัวตน" จาก "เจตนา"</b> — ยืนยันสองชั้น จับเคสเอาบัตรคนอื่นมาแอบอ้างได้</li>
+      <li><b>เทียบบัญชีผู้มีสิทธิ์ราชการ</b> — กรอกเลขปลอมไม่ได้ + ดึงชื่อทางการสะกดถูก 100%</li>
+      <li><b>โมเดลพยากรณ์เชิงสถิติ (Monte Carlo)</b> — คาลิเบรตจากผลเลือกตั้งจริง 185 หน่วย</li>
+      <li><b>ทำงานออฟไลน์ + โหมดง่ายผู้สูงอายุ</b> — ใช้ได้จริงในสนาม</li>
+    </ul>
+  </div>
+
+  <!-- 5 ORG TREE -->
+  <div class="slide">
+    <div class="n">โครงสร้างทีมภาคสนาม</div>
+    <h2>Organization — ระบบที่ WinVote ขับเคลื่อน</h2>
+    <div class="tree">
+      <div class="tier t1"><div class="role">ผู้สมัคร / ผู้บริหาร</div><div class="desc">ตั้งเป้า · ดูภาพรวมทุกเขต · ตัดสินใจกลยุทธ์</div></div>
+      <div class="conn"></div>
+      <div class="tier t2"><div class="role">สตาฟประจำเขต · 6+ คน/เขต</div><div class="desc">ดูแลเฉพาะเขตตัวเอง · ประสานหัวหน้าทีม · วิเคราะห์</div></div>
+      <div class="conn"></div>
+      <div class="tier t3"><div class="role">หัวหน้าทีม</div><div class="desc">คุมยอดรวมลูกทีมในทีม · ปิดยอด · เคลียร์ปัญหา</div></div>
+      <div class="conn"></div>
+      <div class="tier t4"><div class="role">ลูกทีม · รับผิดชอบ 50 คน <span class="scale">(1 : 50)</span></div><div class="desc">เก็บ + ยืนยันตัวตนฐานเสียง 50 คน</div></div>
+      <div class="conn"></div>
+      <div class="tier t5"><div class="role">ฐานเสียง (ผู้มีสิทธิ์เลือกตั้ง)</div><div class="desc">ยืนยันแล้ว = คะแนนคาดหวัง</div></div>
+    </div>
+    <p class="sec" style="text-align:center;margin-top:12px;">สเกล: 1 เขต → หลายสิบทีม → ลูกทีมหลายร้อย → ฐานเสียงหลักหมื่น · ทุกชั้นเห็นข้อมูลเฉพาะส่วนตัวเอง</p>
+  </div>
+
+  <!-- 6 MARKET -->
+  <div class="slide">
+    <div class="n">ตลาด</div>
+    <h2>โอกาสในไทย</h2>
+    <div class="grid g3" style="margin:10px 0;">
+      <div class="stat"><div class="v">7,000+</div><div class="l">อปท. ทั่วประเทศ (เทศบาล/อบต./อบจ.)</div></div>
+      <div class="stat"><div class="v">หลักล้าน</div><div class="l">งบหาเสียง/ผู้สมัคร/ครั้ง</div></div>
+      <div class="stat"><div class="v">~0</div><div class="l">เครื่องมือเฉพาะทางที่มีอยู่</div></div>
+    </div>
+    <p class="sec">ทุกตำแหน่งมีการเลือกตั้งเป็นรอบ · ผู้สมัครจำนวนมากแย่งกัน · ตลาดที่ยังว่างและจ่ายได้</p>
+  </div>
+
+  <!-- 7 BUSINESS MODEL -->
+  <div class="slide">
+    <div class="n">โมเดลรายได้</div>
+    <h2>SaaS ต่อการเลือกตั้ง</h2>
+    <div class="grid g3">
+      <div class="box"><h3>Starter</h3><p>1 เขต · ฟีเจอร์หลัก</p></div>
+      <div class="box"><h3>Campaign</h3><p>ทั้งเทศบาล · พยากรณ์ + dashboard เต็ม</p></div>
+      <div class="box"><h3>Enterprise</h3><p>พรรค/หลายพื้นที่ · วิเคราะห์ขั้นสูง + support</p></div>
+    </div>
+    <p class="sec" style="margin-top:8px;">คิดตามจำนวนเขต/ผู้ใช้ต่อรอบเลือกตั้ง · รายได้ซ้ำทุกฤดูเลือกตั้ง</p>
+  </div>
+
+  <!-- 8 TRACTION / STAGE -->
+  <div class="slide">
+    <div class="n">สถานะปัจจุบัน</div>
+    <h2>เราพัฒนาถึงไหนแล้ว</h2>
+    <ul>
+      <li><b>Prototype ใช้งานได้จริง</b> — เก็บข้อมูล/พยากรณ์/dashboard (build ผ่าน)</li>
+      <li><b>ข้อมูลจริง 185 หน่วย</b> เลือกตั้งครั้งก่อน — คาลิเบรตโมเดลแล้ว</li>
+      <li><b>ตรวจประเมินโดยคณะผู้เชี่ยวชาญ 2 รอบ</b> — มี roadmap ปิดช่องชัดเจน</li>
+      <li><b>ดีไซน์ + แบรนด์ + UX ผู้สูงอายุ</b> เสร็จ</li>
+    </ul>
+    <p><span class="pill">ขั้น: Working Prototype → พร้อม Pilot</span></p>
+  </div>
+
+  <!-- 9 ROADMAP / ASK -->
+  <div class="slide">
+    <div class="n">แผน + สิ่งที่ขอ</div>
+    <h2>เงินทุนปลดล็อกอะไร</h2>
+    <div class="grid g2">
+      <div class="box"><h3>0-3 เดือน</h3><p>ปิดช่องความปลอดภัย/PDPA · เปิดฐานข้อมูล production · เชื่อมเทียบบัญชีจริง</p></div>
+      <div class="box"><h3>3-6 เดือน</h3><p>Pilot กับการเลือกตั้งจริง 1 พื้นที่ · เก็บ feedback · วัดผลแม่นยำ</p></div>
+      <div class="box"><h3>6-12 เดือน</h3><p>ขยายหลายเขต · ทีมขาย · โมเดล subscription</p></div>
+      <div class="box"><h3>ทีม</h3><p>Dev + Data + Field ops + Compliance (PDPA)</p></div>
+    </div>
+    <div class="ask"><p><b style="color:#fff;">มองหา:</b> เงินทุน + พาร์ทเนอร์พื้นที่ Pilot เพื่อพิสูจน์ผลในการเลือกตั้งจริง แล้วขยายเชิงพาณิชย์</p></div>
+  </div>
+
+  <!-- 10 CLOSING -->
+  <div class="slide cover" style="background:linear-gradient(135deg,#14342A,#15803D);">
+    <h2 style="color:#fff;">"ชนะการเลือกตั้งด้วยข้อมูล ไม่ใช่ความรู้สึก"</h2>
+    <p>WinVote · ระบบเครือข่ายฐานเสียงที่ตรวจสอบได้ + พยากรณ์ได้</p>
+  </div>
+
+  <p style="text-align:center;color:#6b7d76;font-size:12px;margin-top:10px;">WinVote Pitch Deck (ร่าง) · ธีมสว่างเพื่อผู้สูงอายุ · ปรับตัวเลข/ราคา/ทีม ตามจริงก่อนนำเสนอ</p>
+</div>
+</body>
+</html>

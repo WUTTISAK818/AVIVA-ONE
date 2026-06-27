@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WinVote — วิเคราะห์โอกาสชนะ (Monte Carlo)</title>
+<style>
+  :root{--bg:#0d0f14;--card:#171a22;--gold:#d9b35c;--gold2:#f0d28a;--sec:#8a90a0;--text:#e8eaf0;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",sans-serif;padding:16px;max-width:560px;margin:0 auto;}
+  h1{font-size:18px;display:flex;align-items:center;gap:8px;margin:8px 0 2px;}
+  .sub{font-size:11px;color:var(--sec);margin-bottom:14px;}
+  .card{background:var(--card);border:1px solid rgba(217,179,92,.15);border-radius:16px;padding:14px;margin-bottom:12px;}
+  .big{font-size:30px;font-weight:800;color:var(--gold2);}
+  .big span{font-size:15px;color:var(--sec);font-weight:400;}
+  .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .name{font-weight:700;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:11px;}
+  .grid .l{color:var(--sec);}
+  .grid .v{font-weight:600;text-align:right;}
+  .win{color:#4ade80;}.toss{color:#facc15;}.lose{color:#f87171;}
+  label{font-size:11px;color:var(--sec);display:flex;justify-content:space-between;margin:10px 0 3px;}
+  label b{color:var(--gold2);}
+  input[type=range]{width:100%;accent-color:var(--gold);margin:0;}
+  .assume{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;}
+  .hint{font-size:10px;color:var(--sec);margin-top:8px;}
+  .reset{float:right;font-size:11px;color:var(--sec);background:none;border:none;}
+  .baseslider{margin-top:8px;}
+  .baseslider label{margin-top:0;}
+</style>
+</head>
+<body>
+<h1>📈 วิเคราะห์โอกาสชนะ <span style="font-size:11px;color:var(--sec);font-weight:400">(Monte Carlo)</span>
+  <button class="reset" onclick="reset()">↺ รีเซ็ต</button></h1>
+<div class="sub" id="subtitle"></div>
+
+<div class="card"><div style="font-size:12px;color:var(--sec)">คาดว่าชนะ</div>
+  <div class="big" id="won">– <span>/ 4 เขต</span></div></div>
+
+<div id="districts"></div>
+
+<div class="card">
+  <div style="font-size:12px;font-weight:700;margin-bottom:4px">⚙️ สมมติฐาน (ปรับได้)</div>
+  <div class="assume">
+    <div><label>ชั้น A % <b id="lpctA"></b></label><input id="pctA" type="range" min="0" max="100" step="5" value="40"></div>
+    <div><label>ชั้น B % <b id="lpctB"></b></label><input id="pctB" type="range" min="0" max="100" step="5" value="35"></div>
+    <div><label>P เลือกเรา·A <b id="lprobA"></b></label><input id="probA" type="range" min="0" max="100" step="5" value="90"></div>
+    <div><label>P เลือกเรา·B <b id="lprobB"></b></label><input id="probB" type="range" min="0" max="100" step="5" value="55"></div>
+    <div><label>P เลือกเรา·C <b id="lprobC"></b></label><input id="probC" type="range" min="0" max="100" step="5" value="35"></div>
+    <div><label>turnout ฝั่งเรา <b id="lourT"></b></label><input id="ourT" type="range" min="50" max="100" step="5" value="90"></div>
+    <div><label>คู่แข่งเทียบครั้งก่อน <b id="lrival"></b></label><input id="rival" type="range" min="50" max="150" step="5" value="100"></div>
+    <div><label>เผื่อ margin <b id="lsafe"></b></label><input id="safe" type="range" min="0" max="30" step="5" value="10"></div>
+  </div>
+  <div class="hint" id="chint"></div>
+</div>
+
+<script>
+// ===== ข้อมูลจริง 2568 รายเขต — our=v2, คู่แข่ง=max(v1,v3,v4) =====
+const HIST=[
+ {code:1,name:"เขต 1",eligible:21123,voted:10586,v1:2362,v2:4748,v3:941, v4:1619},
+ {code:2,name:"เขต 2",eligible:23017,voted:11940,v1:2215,v2:5307,v3:964, v4:2479},
+ {code:3,name:"เขต 3",eligible:23291,voted:11963,v1:2893,v2:4988,v3:1077,v4:1899},
+ {code:4,name:"เขต 4",eligible:24570,voted:12879,v1:2766,v2:6000,v3:1063,v4:1920},
+];
+const PSD=0.08, TSD=0.05, RSD=0.12, NSIM=2000;
+let base=HIST.map(h=>h.v2);
+const fmt=n=>Math.round(n).toLocaleString("th-TH");
+const clamp01=x=>Math.max(0,Math.min(1,x));
+const $=id=>document.getElementById(id);
+const ids=["pctA","pctB","probA","probB","probC","ourT","rival","safe"];
+function randn(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+function reset(){
+  $("pctA").value=40;$("pctB").value=35;$("probA").value=90;$("probB").value=55;$("probC").value=35;
+  $("ourT").value=90;$("rival").value=100;$("safe").value=10;base=HIST.map(h=>h.v2);render();
+}
+
+function render(){
+  const pctA=+$("pctA").value,pctB=+$("pctB").value,pctC=Math.max(0,100-pctA-pctB);
+  const probA=+$("probA").value,probB=+$("probB").value,probC=+$("probC").value;
+  const ourT=+$("ourT").value/100,rivalAdj=+$("rival").value/100,safe=+$("safe").value/100;
+  $("lpctA").textContent=pctA+"%";$("lpctB").textContent=pctB+"%";
+  $("lprobA").textContent=probA+"%";$("lprobB").textContent=probB+"%";$("lprobC").textContent=probC+"%";
+  $("lourT").textContent=(ourT*100)+"%";$("lrival").textContent=(rivalAdj*100)+"%";$("lsafe").textContent=(safe*100)+"%";
+  $("subtitle").textContent="Monte Carlo "+NSIM.toLocaleString()+" รอบ · ฐาน = ผลจริง 185 หน่วย · คู่แข่ง = max(เบอร์ 1/3/4) · ตัวเลขจำลองเพื่อทดสอบ";
+  $("chint").textContent="ชั้น C = "+pctC+"% (= 100 − A − B) · ชนะ = คะแนนสูงสุด (plurality) · โอกาสชนะจากการจำลองสุ่ม "+NSIM.toLocaleString()+" รอบ";
+  $("pctB").max=100-pctA;
+
+  const sA=pctA/100,sB=pctB/100,sC=pctC/100,pA=probA/100,pB=probB/100,pC=probC/100;
+  let won=0,html="";
+  HIST.forEach((h,i)=>{
+    const weight=sA*pA+sB*pB+sC*pC;
+    const rivalStrength=Math.max(h.v1,h.v3,h.v4)*rivalAdj;
+    // Monte Carlo
+    const samples=[];let wins=0;
+    for(let s=0;s<NSIM;s++){
+      const w=sA*clamp01(pA+randn()*PSD)+sB*clamp01(pB+randn()*PSD)+sC*clamp01(pC+randn()*PSD);
+      const otS=clamp01(ourT+randn()*TSD);
+      const ourVotes=base[i]*w*otS;
+      const rivalS=rivalStrength*Math.max(0.4,1+randn()*RSD);
+      samples.push(ourVotes); if(ourVotes>rivalS)wins++;
+    }
+    samples.sort((a,b)=>a-b);
+    const wp=wins/NSIM*100;
+    const ourMid=base[i]*weight*ourT;
+    const p5=samples[Math.floor(NSIM*0.05)],p95=samples[Math.floor(NSIM*0.95)];
+    const need=rivalStrength*(1+safe)/Math.max(0.0001,weight*ourT),gap=need-base[i];
+    if(wp>=50)won++;
+    const st=wp>=65?["win","✅ น่าจะชนะ"]:wp>=45?["toss","⚠️ ก้ำกึ่ง"]:["lose","🔴 เสี่ยงแพ้"];
+    html+=`<div class="card">
+      <div class="row"><span class="name">${h.name}</span>
+        <span class="${st[0]}" style="font-size:12px;font-weight:700">${st[1]} · ${Math.round(wp)}%</span></div>
+      <div class="grid">
+        <div class="l">คะแนนเราคาดหวัง</div><div class="v">${fmt(ourMid)}</div>
+        <div class="l">คู่แข่งแกร่งสุด</div><div class="v">${fmt(rivalStrength)}</div>
+        <div class="l">ช่วง 90% (p5–p95)</div><div class="v" style="color:var(--sec)">${fmt(p5)}–${fmt(p95)}</div>
+        <div class="l">ฐานเสียง</div><div class="v">${gap>0?`<span class="lose">ขาด ${fmt(gap)}</span>`:`<span class="win">พอ (+${fmt(-gap)})</span>`}</div>
+      </div>
+      <div class="baseslider">
+        <label>ฐานเสียงยืนยันแล้ว (ปรับได้) <b>${fmt(base[i])}</b></label>
+        <input type="range" min="0" max="${h.eligible}" step="50" value="${base[i]}"
+          oninput="base[${i}]=+this.value;render()">
+      </div></div>`;
+  });
+  $("districts").innerHTML=html;
+  $("won").innerHTML=won+' <span>/ 4 เขต</span>';
+}
+ids.forEach(id=>$(id).addEventListener("input",render));
+render();
+</script>
+</body>
+</html>

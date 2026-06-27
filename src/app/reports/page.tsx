@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin, Wifi, WifiOff, RefreshCw } from "lucide-react";
+import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin, Wifi, WifiOff, RefreshCw, Sparkles } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { toSignedUrl } from "@/lib/storage";
@@ -102,6 +102,13 @@ export default function ReportsPage() {
   const [syncing, setSyncing]         = useState(false);
   const [pulling, setPulling]         = useState(false);
   const [hasDraftChanges, setHasDraftChanges] = useState(false);
+  // AI ร่างรายงาน — โครงที่ AI เสนอ (เลือกเพิ่มลงรายงานได้)
+  const [aiDraftModal, setAiDraftModal] = useState(false);
+  const [aiDraftLoading, setAiDraftLoading] = useState(false);
+  const [aiDraftItems, setAiDraftItems] = useState<{ category: string; description: string; checked: boolean }[]>([]);
+  const [aiDraftNote, setAiDraftNote] = useState("");
+  const [aiDraftError, setAiDraftError] = useState<string | null>(null);
+  const [aiDraftAdding, setAiDraftAdding] = useState(false);
 
   useEffect(() => {
     if (user?.isManager || user?.isAdmin) {
@@ -166,6 +173,49 @@ export default function ReportsPage() {
     const n = await pullAutoItems(report.id, items);
     setPulling(false);
     showToast(n > 0 ? `ดึงงานระหว่างวันเพิ่ม ${n} รายการ ✓` : "ไม่มีงานใหม่ให้ดึง");
+  }
+
+  // ขอ AI ร่างโครงรายงานจากงานจริงที่บันทึกไว้ — เปิด modal ให้เลือกเพิ่ม
+  async function generateDraft() {
+    if (!report) return;
+    setAiDraftModal(true);
+    setAiDraftLoading(true);
+    setAiDraftError(null);
+    setAiDraftItems([]);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/reports/draft", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ reportId: report.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setAiDraftError(json?.error ?? "ร่างรายงานไม่สำเร็จ"); }
+      else {
+        setAiDraftNote(json.note ?? "");
+        setAiDraftItems(((json.items ?? []) as { category: string; description: string }[]).map(it => ({ ...it, checked: true })));
+      }
+    } catch {
+      setAiDraftError("เชื่อมต่อ AI ไม่สำเร็จ");
+    }
+    setAiDraftLoading(false);
+  }
+
+  // เพิ่มรายการที่เลือกจากร่าง AI ลงรายงานจริง (พนักงานแก้/เติมช่อง [____] ต่อได้)
+  async function addDraftSelected() {
+    if (!report) return;
+    const chosen = aiDraftItems.filter(it => it.checked);
+    if (chosen.length === 0) { setAiDraftModal(false); return; }
+    setAiDraftAdding(true);
+    const rows = chosen.map(it => ({ report_id: report.id, category: it.category, description: it.description, source: "ai_draft" }));
+    const { data } = await supabase.from("work_report_items").insert(rows).select();
+    if (data) setItems(prev => [...prev, ...(data as WItem[])]);
+    setAiDraftAdding(false);
+    setAiDraftModal(false);
+    showToast(`เพิ่มร่าง ${chosen.length} รายการ — แก้/เติมช่อง [____] ได้เลย ✓`);
   }
 
   useEffect(() => {
@@ -425,10 +475,16 @@ export default function ReportsPage() {
             <p className="text-xs font-semibold text-aviva-secondary">รายการกิจกรรมวันนี้</p>
             <div className="flex items-center gap-2">
               {!isSubmitted && (
-                <button onClick={handleRefreshAuto} disabled={pulling}
-                  className="flex items-center gap-1 text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg hover:bg-aviva-gold/10 transition-all disabled:opacity-50">
-                  <RefreshCw size={11} className={pulling ? "animate-spin" : ""} /> ดึงงานระหว่างวัน
-                </button>
+                <>
+                  <button onClick={generateDraft} disabled={aiDraftLoading}
+                    className="flex items-center gap-1 text-[10px] text-aviva-bg bg-aviva-gold font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition-all disabled:opacity-50">
+                    <Sparkles size={11} className={aiDraftLoading ? "animate-pulse" : ""} /> ร่างรายงานให้
+                  </button>
+                  <button onClick={handleRefreshAuto} disabled={pulling}
+                    className="flex items-center gap-1 text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg hover:bg-aviva-gold/10 transition-all disabled:opacity-50">
+                    <RefreshCw size={11} className={pulling ? "animate-spin" : ""} /> ดึงงานระหว่างวัน
+                  </button>
+                </>
               )}
               <span className="text-[10px] text-aviva-secondary/60">{items.length} รายการ</span>
             </div>
@@ -594,6 +650,58 @@ export default function ReportsPage() {
           )}
         </div>
       </div>
+
+      {/* AI draft modal — โครงที่ AI เสนอ เลือกเพิ่มลงรายงานได้ */}
+      {aiDraftModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl max-h-[85vh] flex flex-col">
+            <div className="sticky top-0 bg-aviva-card border-b border-aviva-gold/10 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-aviva-gold" />
+                <h2 className="text-base font-bold text-aviva-text">ร่างรายงานโดย AI</h2>
+              </div>
+              <button onClick={() => setAiDraftModal(false)} className="text-aviva-secondary hover:text-aviva-text"><X size={18} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+              {aiDraftLoading ? (
+                <p className="text-center text-sm text-aviva-secondary animate-pulse py-8">AI กำลังจัดโครงจากงานจริงของวันนี้...</p>
+              ) : aiDraftError ? (
+                <p className="text-center text-sm text-aviva-secondary/70 py-8">{aiDraftError}</p>
+              ) : aiDraftItems.length === 0 ? (
+                <p className="text-center text-sm text-aviva-secondary/70 py-8">ยังไม่มีข้อมูลพอให้ร่าง — ลองบันทึกงานหรือกด &lsquo;ดึงงานระหว่างวัน&rsquo; ก่อน</p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-aviva-secondary leading-relaxed bg-aviva-bg/50 rounded-xl px-3 py-2">
+                    💡 AI จัดโครงจากงานจริง + เว้นช่อง <span className="text-aviva-gold font-semibold">[____]</span> ให้คุณเติมเอง — เลือกหัวข้อที่ต้องการแล้วกดเพิ่ม จากนั้นแก้/เติมรายละเอียดได้ในรายงาน
+                    {aiDraftNote ? <><br />📌 {aiDraftNote}</> : null}
+                  </p>
+                  {aiDraftItems.map((it, idx) => {
+                    const cat = CATEGORY_LABELS[it.category] ?? CATEGORY_LABELS.activity;
+                    return (
+                      <button key={idx} onClick={() => setAiDraftItems(prev => prev.map((p, i) => i === idx ? { ...p, checked: !p.checked } : p))}
+                        className={`w-full flex items-start gap-2.5 rounded-xl px-3 py-2.5 border text-left transition-all ${it.checked ? "bg-aviva-gold/10 border-aviva-gold/40" : "bg-aviva-bg/50 border-aviva-gold/10"}`}>
+                        <div className={`w-4 h-4 mt-0.5 rounded flex-shrink-0 border flex items-center justify-center ${it.checked ? "bg-aviva-gold border-aviva-gold" : "border-aviva-secondary/40"}`}>
+                          {it.checked && <CheckCircle size={11} className="text-aviva-bg" />}
+                        </div>
+                        <span className={`text-[10px] font-bold mt-0.5 flex-shrink-0 ${cat.color}`}>[{cat.label}]</span>
+                        <p className="flex-1 text-xs text-aviva-text leading-relaxed">{it.description}</p>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+            {!aiDraftLoading && aiDraftItems.length > 0 && (
+              <div className="border-t border-aviva-gold/10 px-6 py-4">
+                <button onClick={addDraftSelected} disabled={aiDraftAdding}
+                  className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                  <Plus size={14} /> {aiDraftAdding ? "กำลังเพิ่ม..." : `เพิ่ม ${aiDraftItems.filter(i => i.checked).length} รายการที่เลือกลงรายงาน`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* No-photo warning modal — soft warning, can proceed */}
       {noPhotoModal && (

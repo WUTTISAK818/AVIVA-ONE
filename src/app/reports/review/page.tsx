@@ -123,6 +123,7 @@ export default function ReportsReviewPage() {
   const [aiSummary, setAiSummary]       = useState<string | null>(null);
   const [aiLoading, setAiLoading]       = useState(false);
   const [aiError, setAiError]           = useState<string | null>(null);
+  const [execOriginal, setExecOriginal] = useState(false); // false = ย่อ (default), true = ต้นฉบับ
 
   const canAccess = user?.isManager || user?.isAdmin;
 
@@ -226,6 +227,7 @@ export default function ReportsReviewPage() {
     setSelAttachments([]);
     setAiSummary(null);
     setAiError(null);
+    setExecOriginal(false);
     const { data } = await supabase
       .from("work_report_items")
       .select("*")
@@ -785,6 +787,10 @@ export default function ReportsReviewPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                <button onClick={() => setExecOriginal(v => !v)}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-aviva-secondary bg-aviva-bg/60 border border-aviva-gold/20 px-2 py-1 rounded-lg">
+                  {execOriginal ? <><Eye size={11} /> ดูแบบย่อ</> : <><ClipboardList size={11} /> ดูต้นฉบับ</>}
+                </button>
                 {(selected.status === "submitted" || selected.status === "late") && (
                   <button onClick={printSingleA4}
                     className="flex items-center gap-1 text-[10px] font-semibold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-2 py-1 rounded-lg">
@@ -830,14 +836,61 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {selected.summary && (
+              {/* โหมดย่อ (default): แถบรูปย่อ + ไฮไลต์ปัญหา/ค้าง ให้ผู้บริหารเห็นเร็ว */}
+              {!execOriginal && (() => {
+                const issues = selItems.filter(i => i.category === "issue");
+                const photoCount = selAttachments.length + (selectedDailySummaryPhoto ? 1 : 0);
+                const strip = [
+                  ...(selectedDailySummaryPhoto ? [{ url: selectedDailySummaryPhoto, caption: "สรุปประจำวัน" as string | null }] : []),
+                  ...selAttachments.map(a => ({ url: a.file_url, caption: a.caption ?? null })),
+                ];
+                return (
+                  <>
+                    {issues.length > 0 && (
+                      <div className="bg-red-500/10 rounded-xl p-3 border border-red-500/20">
+                        <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider mb-1.5">⚠️ ปัญหา/ต้องติดตาม ({issues.length})</p>
+                        <div className="space-y-1">
+                          {issues.map((it, i) => <p key={i} className="text-xs text-aviva-text leading-relaxed">• {it.description}</p>)}
+                        </div>
+                      </div>
+                    )}
+                    {strip.length > 0 && (
+                      <div className="bg-aviva-bg/50 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold">รูปประกอบ ({photoCount})</p>
+                          <button onClick={() => setExecOriginal(true)} className="text-[10px] text-aviva-gold">ดูทั้งหมด</button>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {strip.slice(0, 8).map((p, i) => (
+                            <div key={i} className="flex-shrink-0 w-16">
+                              <img src={p.url} alt={p.caption ?? `รูป ${i + 1}`} onClick={() => setExecOriginal(true)}
+                                className="w-16 h-16 object-cover rounded-lg border border-aviva-gold/20 cursor-pointer" />
+                              {p.caption && <p className="text-[9px] text-aviva-secondary leading-tight mt-0.5 line-clamp-2">{p.caption}</p>}
+                            </div>
+                          ))}
+                          {strip.length > 8 && (
+                            <button onClick={() => setExecOriginal(true)}
+                              className="flex-shrink-0 w-16 h-16 rounded-lg border border-aviva-gold/20 bg-aviva-bg flex items-center justify-center text-xs text-aviva-gold font-semibold">
+                              +{strip.length - 8}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-aviva-secondary/50 text-center">— แสดงแบบย่อ · กด &lsquo;ดูต้นฉบับ&rsquo; เพื่อดูรายงานเต็ม —</p>
+                  </>
+                );
+              })()}
+
+              {/* โหมดต้นฉบับ: รายงานเต็มทุกส่วน */}
+              {execOriginal && selected.summary && (
                 <div className="bg-aviva-bg/50 rounded-xl p-3">
                   <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-1.5">สรุปภาพรวม</p>
                   <p className="text-sm text-aviva-text leading-relaxed">{selected.summary}</p>
                 </div>
               )}
 
-              {selectedDailySummaryPhoto && (
+              {execOriginal && selectedDailySummaryPhoto && (
                 <div className="bg-aviva-bg/50 rounded-xl p-3">
                   <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">รูปภาพสรุปประจำวัน</p>
                   <img
@@ -850,10 +903,12 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              <div className="bg-aviva-bg/50 rounded-xl p-3">
-                <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
-                <PhotoGallery photos={selAttachments.map(a => a.file_url)} captions={selAttachments.map(a => a.caption)} title="ไฟล์แนบรายงาน" />
-              </div>
+              {execOriginal && (
+                <div className="bg-aviva-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
+                  <PhotoGallery photos={selAttachments.map(a => a.file_url)} captions={selAttachments.map(a => a.caption)} title="ไฟล์แนบรายงาน" />
+                </div>
+              )}
 
               {selected.late_reason && (
                 <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
@@ -862,7 +917,7 @@ export default function ReportsReviewPage() {
                 </div>
               )}
 
-              {(["activity", "achievement", "issue", "plan"] as const).map(cat => {
+              {execOriginal && (["activity", "achievement", "issue", "plan"] as const).map(cat => {
                 const catItems = selItems.filter(i => i.category === cat);
                 if (catItems.length === 0) return null;
                 const cfg = CATEGORY_LABELS[cat];
@@ -882,7 +937,7 @@ export default function ReportsReviewPage() {
                 );
               })}
 
-              {selItems.length === 0 && (
+              {execOriginal && selItems.length === 0 && (
                 <p className="text-xs text-aviva-secondary/50 text-center py-4">ยังไม่มีรายการกิจกรรม</p>
               )}
 

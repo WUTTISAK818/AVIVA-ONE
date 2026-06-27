@@ -1,12 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList, Inbox, FileText, Clock, DollarSign, Camera } from "lucide-react";
+import { LayoutGrid, Users, HardHat, Briefcase, Settings, ClipboardList, FileText, Clock } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
-import { supabase } from "@/lib/supabase";
-import { rolesForUser } from "@/lib/workflow-events";
 
 const OFFICE_DEPTS = ["ฝ่ายการเงิน", "ฝ่ายบัญชี", "ฝ่ายบุคคล", "ฝ่ายการตลาด", "ฝ่ายหลังการขาย"];
 
@@ -21,30 +18,6 @@ export default function BottomNav() {
   const pathname = usePathname();
   const user = useCurrentUser();
 
-  const roles = useMemo(() => (user ? rolesForUser(user) : []), [user]);
-  const [inboxCount, setInboxCount] = useState(0);
-
-  const loadCount = useCallback(async () => {
-    if (roles.length === 0) { setInboxCount(0); return; }
-    const { count } = await supabase
-      .from("work_queue")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "open")
-      .in("assigned_role", roles);
-    setInboxCount(count ?? 0);
-  }, [roles]);
-
-  useEffect(() => { loadCount(); }, [loadCount]);
-
-  useEffect(() => {
-    if (roles.length === 0) return;
-    const ch = supabase
-      .channel("work_queue_badge")
-      .on("postgres_changes", { event: "*", schema: "public", table: "work_queue" }, () => loadCount())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [roles, loadCount]);
-
   if (pathname === "/login") return null;
 
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
@@ -58,7 +31,6 @@ export default function BottomNav() {
     { href: "/crm",          label: "ขาย",          icon: Users,        show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายขาย", badge: 0 },
     { href: "/documents/generate", label: "เอกสารขาย",  icon: FileText,     show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
     { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
-    { href: "/inbox",        label: "กล่องงาน",     icon: Inbox,        show: roles.length > 0, badge: inboxCount },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
     { href: "/reports",        label: "งานรายวัน",   icon: Clock,         show: !isExec, badge: 0 },
     { href: "/reports/review", label: "รายงานทีม",    icon: ClipboardList, show: isExec, badge: 0 },

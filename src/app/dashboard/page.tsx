@@ -13,6 +13,7 @@ import GlassCard from "@/components/GlassCard";
 import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
 import CalendarWidget from "@/components/CalendarWidget";
 import { supabase } from "@/lib/supabase";
+import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -123,6 +124,7 @@ export default function DashboardPage() {
   const [constructionStats, setConstructionStats] = useState<ConstructionStats>({ total: 0, inReview: 0, approved: 0, paid: 0 });
   const [constructionProgressStats, setConstructionProgressStats] = useState<ConstructionProgressStats>({ completedUnits: 0, inProgressUnits: 0, notStartedUnits: 0 });
   const [delayedHouseStats, setDelayedHouseStats] = useState({ count: 0, maxDays: 0, worstHouse: "" });
+  const [inboxCount, setInboxCount] = useState(0); // งานที่ต้องทำ (work_queue) — รวมเข้าหน้าหลักแทนเมนูกล่องงาน
   const [kpiModal, setKpiModal] = useState<string | null>(null);
   const [kpiItems, setKpiItems] = useState<Record<string, unknown>[]>([]);
   const [kpiLoading, setKpiLoading] = useState(false);
@@ -353,6 +355,23 @@ export default function DashboardPage() {
     return () => { channel.unsubscribe(); supabase.removeChannel(channel); };
   }, []);
 
+  // นับงานที่ต้องทำ (work_queue ตามบทบาท) — แสดงในการ์ดหน้าหลักแทนเมนูกล่องงานเดิม
+  useEffect(() => {
+    if (!ctxUser) return;
+    const roles = rolesForUser(ctxUser);
+    if (roles.length === 0) { setInboxCount(0); return; }
+    const loadInbox = () => {
+      supabase.from("work_queue").select("id", { count: "exact", head: true })
+        .eq("status", "open").in("assigned_role", roles)
+        .then(({ count }) => setInboxCount(count ?? 0));
+    };
+    loadInbox();
+    const ch = supabase.channel("dash_inbox_count")
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_queue" }, loadInbox)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [ctxUser]);
+
   useEffect(() => {
     let mounted = true;
     const ORDER_MAP: Record<string, number> = {
@@ -574,6 +593,23 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        {/* งานที่ต้องทำ — รวมกล่องงานเข้าหน้าหลัก (แทนเมนูแถบล่าง) */}
+        {inboxCount > 0 && (
+          <Link href="/inbox" className="block">
+            <div className="bg-gradient-to-br from-aviva-gold/15 to-aviva-gold/5 rounded-2xl border border-aviva-gold/30 p-4 flex items-center gap-3 active:scale-[0.99] transition-transform">
+              <div className="relative w-11 h-11 rounded-xl bg-aviva-gold/15 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
+                <ClipboardList size={20} className="text-aviva-gold" />
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{inboxCount > 99 ? "99+" : inboxCount}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-aviva-text">งานที่ต้องทำ</p>
+                <p className="text-xs text-aviva-secondary mt-0.5">มีงานรออนุมัติ/ดำเนินการ {inboxCount} ชิ้น — แตะเพื่อจัดการ</p>
+              </div>
+              <span className="text-aviva-gold text-lg flex-shrink-0">→</span>
+            </div>
+          </Link>
+        )}
+
         <div className="bg-aviva-card rounded-2xl border border-aviva-gold/20 overflow-hidden">
           <button onClick={() => setShowAI(a => !a)}
             className="w-full flex items-center gap-3 p-3 hover:bg-aviva-gold/5 transition-all active:scale-[0.99]">

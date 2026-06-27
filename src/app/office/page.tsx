@@ -31,7 +31,7 @@ import { generateDocNumber } from "@/lib/doc-numbers";
 import { uploadPhotos } from "@/lib/upload-photos";
 import MultiPhotoInput from "@/components/MultiPhotoInput";
 import { createLeaveRequest } from "@/lib/work-actions";
-import { resolveApprovalQueue } from "@/lib/workflow-events";
+import { resolveApprovalQueue, closeWorkQueue } from "@/lib/workflow-events";
 import { finalizeSale } from "@/lib/sales-finalize";
 import { broadcastCelebration } from "@/lib/celebrate";
 import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from "@/lib/approval-matrix";
@@ -2117,6 +2117,11 @@ function HRContent() {
 
   useEffect(() => { fetchEmployees(); }, []);
 
+  // มาจากกล่องงาน (/office?tab=hr&focus=<leaveId>) → เปิดแท็บ "การลา" ให้เห็นใบลาที่ต้องอนุมัติ
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("focus")) setHrTab("การลา");
+  }, []);
+
   useEffect(() => { if (hrTab === "การลา") fetchLeave(); }, [hrTab]);
 
   const handleLeaveSubmit = async () => {
@@ -2176,6 +2181,44 @@ function HRContent() {
     setLeaveSaving(false);
     setLeaveForm({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
     fetchLeave();
+  };
+
+  // อนุมัติ/ปฏิเสธใบลา จากกล่องงาน (ผู้บริหาร) — ปิด loop ให้ทำงานต่อได้จริง ไม่ค้าง
+  const [leaveActing, setLeaveActing] = useState<string | null>(null);
+  const handleLeaveDecision = async (
+    l: { id: string; employee_name: string; leave_type: string; date_from: string; date_to: string },
+    approved: boolean,
+  ) => {
+    if (leaveActing) return;
+    setLeaveActing(l.id);
+    const byName = user?.full_name ?? "ผู้บริหาร";
+    const newStatus = approved ? "approved" : "rejected";
+    try {
+      // 1) อัปเดตสถานะใบลา
+      const { error } = await supabase.from("leave_requests").update({ status: newStatus }).eq("id", l.id);
+      if (error) throw error;
+      // 2) ซิงก์ approval_logs ถ้ามี (best-effort — test data เก่าอาจไม่มี)
+      await supabase.from("approval_logs")
+        .update({ action_taken: approved ? "Approved" : "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email ?? null })
+        .eq("source_record_id", l.id).eq("workflow_type", "Leave_Request");
+      // 3) ปิดงานในกล่องงานผู้บริหาร (best-effort)
+      await closeWorkQueue(l.id, "manager", byName);
+      // 4) แจ้งเตือนฝ่ายบุคคล
+      await createNotification({
+        type: "info",
+        title: approved ? "อนุมัติใบลาแล้ว" : "ปฏิเสธใบลา",
+        message: `${l.employee_name} · ${l.leave_type} (${l.date_from} – ${l.date_to}) — ${approved ? "อนุมัติ" : "ปฏิเสธ"}โดย ${byName}`,
+        from_dept: "ผู้บริหาร",
+        to_dept: "ฝ่ายบุคคล",
+      });
+      await logAction("hr", approved ? "approve_leave" : "reject_leave", `${approved ? "อนุมัติ" : "ปฏิเสธ"}ใบลา ${l.employee_name} (${l.date_from} – ${l.date_to})`, l.id);
+      setHrToast({ msg: approved ? "อนุมัติใบลาแล้ว" : "ปฏิเสธใบลาแล้ว", type: "success" });
+      fetchLeave();
+    } catch {
+      setHrToast({ msg: "ดำเนินการไม่สำเร็จ — ลองใหม่อีกครั้ง", type: "error" });
+    } finally {
+      setLeaveActing(null);
+    }
   };
 
   const active = employees.filter(e => e.status === "active");
@@ -2475,6 +2518,22 @@ function HRContent() {
                       l.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"
                     )}>{l.status === "approved" ? "อนุมัติ" : l.status === "rejected" ? "ปฏิเสธ" : "รออนุมัติ"}</span>
                   </div>
+                  {l.status === "pending" && (user?.isManager || user?.isAdmin) && (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => handleLeaveDecision(l, true)}
+                        disabled={leaveActing === l.id}
+                        className="flex-1 bg-green-500/15 text-green-400 border border-green-500/30 text-xs font-bold py-2 rounded-xl disabled:opacity-50 active:scale-[0.97] transition-transform">
+                        {leaveActing === l.id ? "กำลังทำ..." : "✓ อนุมัติ"}
+                      </button>
+                      <button
+                        onClick={() => handleLeaveDecision(l, false)}
+                        disabled={leaveActing === l.id}
+                        className="flex-1 bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold py-2 rounded-xl disabled:opacity-50 active:scale-[0.97] transition-transform">
+                        ✕ ปฏิเสธ
+                      </button>
+                    </div>
+                  )}
                   <div className="mt-1.5">
                     <AttachDocButton entityType="leave_request" entityId={l.id} attachedBy={user?.full_name ?? ""} templates={leaveTemplates(l)} />
                   </div>

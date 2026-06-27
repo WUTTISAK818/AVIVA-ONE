@@ -28,6 +28,14 @@ jobs:
       - name: Run TypeScript check
         run: npm run build
         continue-on-error: false
+        env:
+          # Build-time placeholders so module-level Supabase clients in API routes
+          # don't throw "supabaseUrl is required" during `next build` page-data
+          # collection. The real production build runs on Vercel with real env vars;
+          # this CI step only validates types/build, it never calls Supabase.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
 
       - name: Apply Supabase migrations
         run: |

@@ -27,15 +27,15 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
 }
 
-/* Day / light theme overrides */
+/* Day / light theme — สว่าง คอนทราสต์สูง อ่านง่าย (ค่าเริ่มต้น เหมาะผู้สูงอายุ) */
 .theme-light {
-  --color-aviva-bg:       #EFF3EF;
+  --color-aviva-bg:       #F4F7F4;  /* นวลสบายตา ไม่ขาวจ้า */
   --color-aviva-card:     #FFFFFF;
-  --color-aviva-nav:      #E4EBE4;
-  --color-aviva-text:     #1A2E28;
-  --color-aviva-secondary:#4A5568;
-  --color-aviva-gold:     #6B5512;
-  --color-aviva-gold-soft:#8A6D18;
+  --color-aviva-nav:      #E8EFE8;
+  --color-aviva-text:     #1C2925;  /* ดำอมเขียว คอนทราสต์ >12:1 */
+  --color-aviva-secondary:#46524C;
+  --color-aviva-gold:     #15803D;  /* เขียวหลัก อ่านชัดบนขาว (แทนทองในโหมดสว่าง) */
+  --color-aviva-gold-soft:#166534;  /* เขียวเข้มสำหรับตัวเลข/เน้น */
 }
 
 /* Light mode — card depth & border visibility */

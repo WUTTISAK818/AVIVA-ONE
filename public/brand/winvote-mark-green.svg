@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="WinVote">
+  <!-- สำหรับพื้นสว่าง: วงเขียว + เครื่องหมายถูกทองเข้ม (คอนทราสต์สูง อ่านง่าย) -->
+  <circle cx="60" cy="60" r="54" fill="none" stroke="#15803D" stroke-width="4"/>
+  <circle cx="60" cy="60" r="47" fill="none" stroke="#15803D" stroke-width="1.4" opacity="0.4"/>
+  <g fill="none" stroke="#15803D" stroke-width="2.6" stroke-linecap="round">
+    <path d="M40 93 C 34 77 36 63 45 51"/><path d="M40 81 q -8 -3 -12 -10"/><path d="M42 73 q -8 -2 -12 -9"/><path d="M44 65 q -7 -2 -11 -8"/>
+    <path d="M80 93 C 86 77 84 63 75 51"/><path d="M80 81 q 8 -3 12 -10"/><path d="M78 73 q 8 -2 12 -9"/><path d="M76 65 q 7 -2 11 -8"/>
+  </g>
+  <path d="M45 61 l11 13 l20 -28" fill="none" stroke="#B07D1E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

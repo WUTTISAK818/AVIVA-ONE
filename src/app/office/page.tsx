@@ -2194,8 +2194,13 @@ function HRContent() {
     const byName = user?.full_name ?? "ผู้บริหาร";
     const newStatus = approved ? "approved" : "rejected";
     try {
-      // 1) อัปเดตสถานะใบลา
-      const { error } = await supabase.from("leave_requests").update({ status: newStatus }).eq("id", l.id);
+      // 1) อัปเดตสถานะใบลา + บันทึกผู้อนุมัติ (trigger log_leave_request ใช้ approved_by)
+      const { error } = await supabase.from("leave_requests").update({
+        status: newStatus,
+        approved_by: byName,
+        approved_by_role: user?.role ?? null,
+        approved_at: new Date().toISOString(),
+      }).eq("id", l.id);
       if (error) throw error;
       // 2) ซิงก์ approval_logs ถ้ามี (best-effort — test data เก่าอาจไม่มี)
       await supabase.from("approval_logs")

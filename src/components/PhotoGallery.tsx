@@ -6,12 +6,13 @@ import Image from "next/image";
 
 interface PhotoGalleryProps {
   photos?: string[] | null;
+  captions?: (string | null | undefined)[] | null;
   title?: string;
   onDelete?: (index: number) => void;
   isEditable?: boolean;
 }
 
-export function PhotoGallery({ photos = [], title = "ภาพแนบ", onDelete, isEditable = false }: PhotoGalleryProps) {
+export function PhotoGallery({ photos = [], captions = [], title = "ภาพแนบ", onDelete, isEditable = false }: PhotoGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const photoArray = photos?.filter(Boolean) || [];
 
@@ -42,35 +43,39 @@ export function PhotoGallery({ photos = [], title = "ภาพแนบ", onDele
       {/* Photo Grid */}
       <div className="grid grid-cols-3 gap-2">
         {photoArray.map((photoUrl, idx) => (
-          <div
-            key={idx}
-            className="relative group cursor-pointer overflow-hidden rounded-lg bg-aviva-bg/50 border border-aviva-gold/10 aspect-square"
-            onClick={() => setLightboxIndex(idx)}
-          >
-            <img
-              src={photoUrl}
-              alt={`Photo ${idx + 1}`}
-              loading="lazy"
-              className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-            />
+          <div key={idx} className="space-y-1">
+            <div
+              className="relative group cursor-pointer overflow-hidden rounded-lg bg-aviva-bg/50 border border-aviva-gold/10 aspect-square"
+              onClick={() => setLightboxIndex(idx)}
+            >
+              <img
+                src={photoUrl}
+                alt={captions?.[idx] || `Photo ${idx + 1}`}
+                loading="lazy"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+              />
 
-            {/* Overlay on hover */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-              <span className="text-white text-xs font-semibold">{idx + 1}</span>
+              {/* Overlay on hover */}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <span className="text-white text-xs font-semibold">{idx + 1}</span>
+              </div>
+
+              {/* Delete button */}
+              {isEditable && onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(idx);
+                  }}
+                  className="absolute top-1 right-1 p-1 rounded-full bg-red-500/80 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Delete photo"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
-
-            {/* Delete button */}
-            {isEditable && onDelete && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(idx);
-                }}
-                className="absolute top-1 right-1 p-1 rounded-full bg-red-500/80 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Delete photo"
-              >
-                <X size={12} />
-              </button>
+            {captions?.[idx] && (
+              <p className="text-[10px] text-aviva-secondary leading-tight line-clamp-2">{captions[idx]}</p>
             )}
           </div>
         ))}
@@ -89,12 +94,15 @@ export function PhotoGallery({ photos = [], title = "ภาพแนบ", onDele
           </button>
 
           {/* Image container */}
-          <div className="flex-1 flex items-center justify-center max-w-4xl max-h-[85vh]">
+          <div className="flex-1 flex flex-col items-center justify-center max-w-4xl max-h-[85vh]">
             <img
               src={photoArray[lightboxIndex]}
-              alt={`Photo ${lightboxIndex + 1}`}
+              alt={captions?.[lightboxIndex] || `Photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-full object-contain"
             />
+            {captions?.[lightboxIndex] && (
+              <p className="text-white/90 text-sm text-center mt-3 px-4 max-w-2xl">{captions[lightboxIndex]}</p>
+            )}
           </div>
 
           {/* Navigation */}

@@ -54,6 +54,7 @@ interface WAttachment {
   id?: string;
   file_url: string;
   file_name: string;
+  caption?: string | null;
 }
 
 interface ConstructionReport {
@@ -794,7 +795,7 @@ export default function ReportsReviewPage() {
 
               <div className="bg-aviva-bg/50 rounded-xl p-3">
                 <p className="text-[10px] text-aviva-secondary uppercase tracking-wider font-semibold mb-2">ไฟล์แนบเพิ่มเติม</p>
-                <PhotoGallery photos={selAttachments.map(a => a.file_url)} title="ไฟล์แนบรายงาน" />
+                <PhotoGallery photos={selAttachments.map(a => a.file_url)} captions={selAttachments.map(a => a.caption)} title="ไฟล์แนบรายงาน" />
               </div>
 
               {selected.late_reason && (

@@ -54,6 +54,7 @@ interface WAttachment {
   id?: string;
   file_url: string;
   file_name: string;
+  caption?: string | null;
   signed?: string;
 }
 
@@ -90,6 +91,7 @@ export default function ReportsPage() {
   const [submitting, setSubmitting]   = useState(false);
   const [lateModal, setLateModal]     = useState(false);
   const [lateReason, setLateReason]   = useState("");
+  const [noPhotoModal, setNoPhotoModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<HistoryReport | null>(null);
   const [historyItems, setHistoryItems] = useState<WItem[]>([]);
@@ -261,6 +263,16 @@ export default function ReportsPage() {
     setUploading(false);
   }
 
+  // บันทึกคำบรรยายรูป (caption) — ให้ผู้บริหารเข้าใจว่ารูปคืออะไร/ที่ไหน
+  function setCaptionLocal(idx: number, text: string) {
+    setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, caption: text } : a));
+  }
+  async function saveCaption(idx: number) {
+    const att = attachments[idx];
+    if (!att?.id) return;
+    await supabase.from("work_report_attachments").update({ caption: (att.caption ?? "").trim() || null }).eq("id", att.id);
+  }
+
   async function saveSummary() {
     if (!report || isSubmitted) return;
     setHasDraftChanges(true);
@@ -321,6 +333,13 @@ export default function ReportsPage() {
   }
 
   function handleSubmit() {
+    // เตือนถ้าไม่มีรูปแนบ — รูปช่วยให้ผู้บริหารเข้าใจงานชัดขึ้น (กดยืนยันเพื่อส่งต่อได้)
+    if (attachments.length === 0) { setNoPhotoModal(true); return; }
+    proceedSubmit();
+  }
+
+  function proceedSubmit() {
+    setNoPhotoModal(false);
     if (isLate) { setLateModal(true); } else { doSubmit(); }
   }
 
@@ -460,12 +479,32 @@ export default function ReportsPage() {
 
         {/* Attachments */}
         <GlassCard className="p-4">
-          <p className="text-xs font-semibold text-aviva-secondary mb-3">รูปภาพ / เอกสารแนบ</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-aviva-secondary">รูปภาพ / เอกสารแนบ</p>
+            {attachments.length > 0 && <span className="text-[10px] text-aviva-secondary/60">{attachments.length} รูป</span>}
+          </div>
+          {!isSubmitted && (
+            <p className="text-[10px] text-aviva-secondary/50 mb-3 leading-relaxed">💡 ใส่คำบรรยายใต้แต่ละรูป (เช่น &ldquo;A07 งานฉาบผนัง 80%&rdquo;) เพื่อให้ผู้บริหารเข้าใจรูปได้ชัดเจน</p>
+          )}
           {attachments.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="space-y-2.5 mb-3">
               {attachments.map((att, idx) => (
-                <img key={idx} src={att.signed ?? att.file_url} alt={att.file_name}
-                  className="w-full aspect-square object-cover rounded-xl border border-aviva-gold/20" />
+                <div key={idx} className="flex gap-2.5 items-start">
+                  <img src={att.signed ?? att.file_url} alt={att.caption ?? att.file_name}
+                    className="w-16 h-16 flex-shrink-0 object-cover rounded-xl border border-aviva-gold/20" />
+                  {isSubmitted ? (
+                    <p className="flex-1 text-xs text-aviva-text leading-relaxed pt-1">
+                      {att.caption || <span className="text-aviva-secondary/40 italic">— ไม่มีคำบรรยาย —</span>}
+                    </p>
+                  ) : (
+                    <input
+                      value={att.caption ?? ""}
+                      onChange={e => setCaptionLocal(idx, e.target.value)}
+                      onBlur={() => saveCaption(idx)}
+                      placeholder="คำบรรยายรูปนี้ (รูปอะไร / ที่ไหน)"
+                      className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text focus:outline-none focus:border-aviva-gold/50 placeholder:text-aviva-secondary/30" />
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -556,6 +595,32 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* No-photo warning modal — soft warning, can proceed */}
+      {noPhotoModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10">
+            <div className="flex items-center gap-2 mb-3">
+              <Camera size={16} className="text-aviva-gold" />
+              <h2 className="text-base font-bold text-aviva-text">ยังไม่มีรูปภาพประกอบ</h2>
+            </div>
+            <p className="text-sm text-aviva-secondary leading-relaxed mb-5">
+              รายงานนี้ยังไม่ได้แนบรูป — การแนบรูปพร้อมคำบรรยายช่วยให้ผู้บริหารเข้าใจงานของคุณได้ชัดเจนขึ้นมาก
+              <br />ต้องการกลับไปแนบรูปก่อน หรือยืนยันส่งโดยไม่มีรูป?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setNoPhotoModal(false)}
+                className="py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm">
+                กลับไปแนบรูป
+              </button>
+              <button onClick={proceedSubmit}
+                className="py-3 rounded-xl border border-aviva-gold/20 text-sm text-aviva-secondary">
+                ส่งโดยไม่มีรูป
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Late reason modal */}
       {lateModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
@@ -642,8 +707,11 @@ export default function ReportsPage() {
                       <p className="text-xs text-aviva-secondary uppercase font-semibold">รูปภาพ ({historyAttachments.length})</p>
                       <div className="grid grid-cols-3 gap-2">
                         {historyAttachments.map((att, idx) => (
-                          <img key={idx} src={att.signed ?? att.file_url} alt={att.file_name}
-                            className="w-full aspect-square object-cover rounded-lg border border-aviva-gold/20" />
+                          <div key={idx} className="space-y-1">
+                            <img src={att.signed ?? att.file_url} alt={att.caption ?? att.file_name}
+                              className="w-full aspect-square object-cover rounded-lg border border-aviva-gold/20" />
+                            {att.caption && <p className="text-[10px] text-aviva-secondary leading-tight line-clamp-2">{att.caption}</p>}
+                          </div>
                         ))}
                       </div>
                     </div>

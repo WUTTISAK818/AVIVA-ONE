@@ -40,6 +40,10 @@ interface WReport {
   acknowledged_by?: string;
   acknowledged_at?: string;
   manager_comment?: string;
+  is_backdated?: boolean;
+  last_edited_at?: string | null;
+  returned_at?: string | null;
+  return_reason?: string | null;
 }
 
 interface WItem {
@@ -77,7 +81,12 @@ export default function ReportsPage() {
   const today = new Date().toISOString().split("T")[0];
   // วันที่แบบเวลาไทย (UTC+7) — ใช้เทียบ activity_logs.activity_date ที่ฝั่ง activity บันทึกเป็นวันที่ไทย
   const todayBkk = new Date(Date.now() + 7 * 3600_000).toISOString().split("T")[0];
-  const todayThai = new Date().toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  // วันที่ของรายงานที่กำลังทำ (ย้อนหลังได้ถึง 7 วัน — แก้ปัญหาลืมส่งเมื่อวาน)
+  const [reportDate, setReportDate] = useState(today);
+  const isBackdated = reportDate !== today;
+  const minDate = new Date(Date.now() - 7 * 86400_000).toISOString().split("T")[0];
+  const reportDateThai = new Date(reportDate + "T12:00:00").toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const [editMode, setEditMode] = useState(false); // แก้รายงานที่ส่งแล้ว (ก่อนผู้บริหารรับทราบ)
 
   const [report, setReport]           = useState<WReport | null>(null);
   const [items, setItems]             = useState<WItem[]>([]);
@@ -121,8 +130,13 @@ export default function ReportsPage() {
     useOnlineStatus(setOnline);
   }, []);
 
-  const isLate      = new Date().getHours() >= 18;
+  const isLate      = new Date().getHours() >= 18 && !isBackdated;
   const isSubmitted = report?.status === "submitted" || report?.status === "late";
+  const acknowledged = !!report?.acknowledged_by;           // รับทราบแล้ว → ล็อกถาวร
+  const isReturned   = !!report?.returned_at && !acknowledged; // ผู้นำตีกลับให้แก้
+  // ฟอร์มแก้ได้เมื่อ: ยังไม่รับทราบ และ (ยังเป็นร่าง / ถูกตีกลับ / กดเข้าโหมดแก้)
+  const canEdit = !acknowledged && (!isSubmitted || isReturned || editMode);
+  const formLocked = !canEdit;
 
   if (user?.isManager || user?.isAdmin) return null;
 
@@ -168,7 +182,7 @@ export default function ReportsPage() {
   }
 
   async function handleRefreshAuto() {
-    if (!report || isSubmitted) return;
+    if (!report || formLocked) return;
     setPulling(true);
     const n = await pullAutoItems(report.id, items);
     setPulling(false);
@@ -222,10 +236,14 @@ export default function ReportsPage() {
     if (!user) return;
     if (user.isManager || user.isAdmin) return;
 
+    // เปลี่ยนวันที่ → ล้างสถานะเดิมก่อนโหลดใหม่ (กันข้อมูลข้ามวันปน)
+    setReport(null); setItems([]); setAttachments([]); setEditMode(false);
+    setSummary(""); setWorkLocation("สำนักงาน");
+
     supabase.from("work_reports")
       .select("*")
       .eq("user_email", user.email)
-      .eq("report_date", today)
+      .eq("report_date", reportDate)
       .eq("report_type", "daily")
       .maybeSingle()
       .then(async ({ data }) => {
@@ -244,8 +262,8 @@ export default function ReportsPage() {
           const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", data.id).order("created_at");
           const loaded = (its ?? []) as WItem[];
           setItems(loaded);
-          // เปิด report เดิม: ดึงงานระหว่างวันที่บันทึกหลังสร้าง report มาเติม (กันซ้ำ) — เฉพาะยังไม่ส่ง
-          if (data.status !== "submitted" && data.status !== "late") {
+          // ดึงงานระหว่างวันมาเติม เฉพาะรายงาน "วันนี้" ที่ยังไม่ส่ง (auto-pull ดึงงานของวันนี้)
+          if (reportDate === today && data.status !== "submitted" && data.status !== "late") {
             await pullAutoItems(data.id, loaded);
           }
           const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", data.id);
@@ -255,15 +273,17 @@ export default function ReportsPage() {
             user_email: user.email,
             employee_name: user.full_name ?? user.email,
             department: user.department ?? "ไม่ระบุ",
-            report_date: today,
+            report_date: reportDate,
             report_type: "daily",
             summary: "",
             work_location: "สำนักงาน",
             status: "draft",
+            is_backdated: reportDate !== today,
           }).select().single();
           if (created) {
             setReport(created as WReport);
-            await pullAutoItems(created.id, []);
+            // ย้อนหลัง: ไม่ auto-pull (งานของวันนั้นไม่ได้อยู่ในกิจกรรมวันนี้) — กรอกเอง/ใช้ AI ร่าง
+            if (reportDate === today) await pullAutoItems(created.id, []);
           }
         }
       });
@@ -272,11 +292,11 @@ export default function ReportsPage() {
       .select("id, report_date, status, submitted_at")
       .eq("user_email", user.email)
       .eq("report_type", "daily")
-      .neq("report_date", today)
+      .neq("report_date", reportDate)
       .order("report_date", { ascending: false })
       .limit(14)
       .then(({ data }) => setHistory((data ?? []) as HistoryReport[]));
-  }, [user?.email]);
+  }, [user?.email, reportDate]);
 
   async function addItem() {
     if (!newText.trim() || !report) return;
@@ -324,7 +344,7 @@ export default function ReportsPage() {
   }
 
   async function saveSummary() {
-    if (!report || isSubmitted) return;
+    if (!report || formLocked) return;
     setHasDraftChanges(true);
     saveDraftLocally({
       id: report.id,
@@ -356,7 +376,37 @@ export default function ReportsPage() {
     if (!report) return;
     setSubmitting(true);
     const now = new Date();
-    const status: "submitted" | "late" = now.getHours() >= 18 ? "late" : "submitted";
+    const isResubmit = report.status === "submitted" || report.status === "late";
+
+    if (isResubmit) {
+      // แก้รายงานที่ส่งแล้ว (ก่อนรับทราบ) → บันทึกการแก้ไข + ล้างสถานะตีกลับ + แจ้งผู้บริหารใหม่
+      const { data } = await supabase.from("work_reports").update({
+        summary, work_location: workLocation,
+        last_edited_at: now.toISOString(),
+        returned_at: null, return_reason: null,
+        updated_at: now.toISOString(),
+      }).eq("id", report.id).select().single();
+      if (data) {
+        setReport(data as WReport);
+        await createNotification({
+          type: "activity",
+          title: "มีการแก้ไขรายงาน",
+          message: `${report.employee_name} แก้ไขรายงานประจำวัน (${reportDate})`,
+          from_dept: report.department,
+          to_dept: "ผู้บริหาร",
+          record_id: report.id,
+          link: "/reports/review",
+          line_to_depts: ["ผู้บริหาร"],
+        });
+      }
+      setEditMode(false);
+      setSubmitting(false);
+      showToast("บันทึกการแก้ไขแล้ว — แจ้งผู้บริหารใหม่ ✓");
+      return;
+    }
+
+    // ส่งครั้งแรก — ย้อนหลังถือเป็น submitted (ป้าย is_backdated บอกอยู่แล้ว) ไม่บังคับ late ตามเวลาปัจจุบัน
+    const status: "submitted" | "late" = (!isBackdated && now.getHours() >= 18) ? "late" : "submitted";
     const { data } = await supabase.from("work_reports").update({
       status, summary, work_location: workLocation,
       submitted_at: now.toISOString(),
@@ -365,11 +415,11 @@ export default function ReportsPage() {
     }).eq("id", report.id).select().single();
     if (data) {
       setReport(data as WReport);
-      // Send LINE notification to management for all submitted reports
+      const backTag = isBackdated ? " (ย้อนหลัง)" : "";
       await createNotification({
         type: "activity",
         title: status === "late" ? "มีรายงานส่งล่าช้า" : "มีรายงานการปฏิบัติงานใหม่",
-        message: `${report.employee_name} ส่งรายงานประจำวันแล้ว ${status === "late" ? "(ล่าช้า)" : ""}`,
+        message: `${report.employee_name} ส่งรายงานประจำวันแล้ว${backTag} ${status === "late" ? "(ล่าช้า)" : ""}`,
         from_dept: report.department,
         to_dept: "ผู้บริหาร",
         record_id: report.id,
@@ -379,18 +429,20 @@ export default function ReportsPage() {
     }
     setSubmitting(false);
     setLateModal(false);
-    showToast(status === "late" ? "ส่งรายงานล่าช้า — บันทึกแล้ว" : "ส่งรายงานเรียบร้อย ✓");
+    showToast(status === "late" ? "ส่งรายงานล่าช้า — บันทึกแล้ว" : `ส่งรายงาน${isBackdated ? "ย้อนหลัง" : ""}เรียบร้อย ✓`);
   }
 
   function handleSubmit() {
-    // เตือนถ้าไม่มีรูปแนบ — รูปช่วยให้ผู้บริหารเข้าใจงานชัดขึ้น (กดยืนยันเพื่อส่งต่อได้)
-    if (attachments.length === 0) { setNoPhotoModal(true); return; }
+    const firstSubmit = report?.status === "draft";
+    // เตือนถ้าไม่มีรูปแนบ — เฉพาะตอนส่งครั้งแรก (ไม่กวนตอนแก้)
+    if (firstSubmit && attachments.length === 0) { setNoPhotoModal(true); return; }
     proceedSubmit();
   }
 
   function proceedSubmit() {
     setNoPhotoModal(false);
-    if (isLate) { setLateModal(true); } else { doSubmit(); }
+    // late modal เฉพาะส่งครั้งแรกของวันนี้ (ไม่ใช่ตอนแก้/ย้อนหลัง)
+    if (isLate && report?.status === "draft") { setLateModal(true); } else { doSubmit(); }
   }
 
   const sc = STATUS_CFG[report?.status ?? "draft"];
@@ -428,17 +480,31 @@ export default function ReportsPage() {
         <GlassCard className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-aviva-secondary">รายงานประจำวัน</p>
-              <p className="text-sm font-bold text-aviva-text mt-0.5">{todayThai}</p>
+              <p className="text-xs text-aviva-secondary">{isBackdated ? "รายงานย้อนหลัง" : "รายงานประจำวัน"}</p>
+              <p className="text-sm font-bold text-aviva-text mt-0.5">{reportDateThai}</p>
             </div>
             <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold ${sc.bg} ${sc.border} ${sc.color}`}>
               {sc.label}
             </div>
           </div>
+          {/* ย้อนทำรายงานวันก่อน (ไม่เกิน 7 วัน) — แก้ปัญหาลืมส่งเมื่อวาน */}
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-[11px] text-aviva-secondary flex items-center gap-1 flex-shrink-0">
+              <Clock size={11} className="text-aviva-gold" /> เลือกวันที่:
+            </label>
+            <input type="date" value={reportDate} min={minDate} max={today}
+              onChange={e => { if (e.target.value) setReportDate(e.target.value); }}
+              className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2.5 py-1.5 text-xs text-aviva-text focus:outline-none focus:border-aviva-gold/50" />
+            {isBackdated && (
+              <button onClick={() => setReportDate(today)}
+                className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-lg flex-shrink-0">วันนี้</button>
+            )}
+          </div>
           {report?.submitted_at && (
             <p className="text-[11px] text-aviva-secondary/60 mt-2 flex items-center gap-1">
               <Clock size={10} />
               ส่งเมื่อ {new Date(report.submitted_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
+              {report.last_edited_at ? " · แก้ไขแล้ว" : ""}
               {report.late_reason && ` — เหตุผล: ${report.late_reason}`}
             </p>
           )}
@@ -452,8 +518,8 @@ export default function ReportsPage() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             {WORK_LOCATIONS.map(loc => (
-              <button key={loc} disabled={isSubmitted}
-                onClick={() => { setWorkLocation(loc); if (report && !isSubmitted) supabase.from("work_reports").update({ work_location: loc, updated_at: new Date().toISOString() }).eq("id", report.id); }}
+              <button key={loc} disabled={formLocked}
+                onClick={() => { setWorkLocation(loc); if (report && !formLocked) supabase.from("work_reports").update({ work_location: loc, updated_at: new Date().toISOString() }).eq("id", report.id); }}
                 className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all ${workLocation === loc ? "bg-aviva-gold/15 border-aviva-gold text-aviva-gold" : "bg-aviva-bg/50 border-aviva-gold/20 text-aviva-secondary"} disabled:opacity-60`}>
                 {loc}
               </button>
@@ -465,7 +531,7 @@ export default function ReportsPage() {
         <GlassCard className="p-4">
           <p className="text-xs font-semibold text-aviva-secondary mb-2">สรุปภาพรวมวันนี้</p>
           <textarea value={summary} onChange={e => setSummary(e.target.value)} onBlur={saveSummary}
-            disabled={isSubmitted} rows={2} placeholder="สรุปสิ่งที่ทำวันนี้โดยย่อ..."
+            disabled={formLocked} rows={2} placeholder="สรุปสิ่งที่ทำวันนี้โดยย่อ..."
             className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text resize-none focus:outline-none focus:border-aviva-gold/50 placeholder:text-aviva-secondary/30 disabled:opacity-50" />
         </GlassCard>
 
@@ -474,7 +540,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-aviva-secondary">รายการกิจกรรมวันนี้</p>
             <div className="flex items-center gap-2">
-              {!isSubmitted && (
+              {!formLocked && (
                 <>
                   <button onClick={generateDraft} disabled={aiDraftLoading}
                     className="flex items-center gap-1 text-[10px] text-aviva-bg bg-aviva-gold font-semibold px-2 py-1 rounded-lg hover:opacity-90 transition-all disabled:opacity-50">
@@ -501,7 +567,7 @@ export default function ReportsPage() {
                   <p className="flex-1 text-xs text-aviva-text leading-relaxed">{item.description}</p>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {(item.source === "auto" || item.source === "activity") && <span className="text-[9px] text-aviva-secondary/30">{item.source === "activity" ? "ระหว่างวัน" : "auto"}</span>}
-                    {!isSubmitted && (
+                    {!formLocked && (
                       <button onClick={() => removeItem(idx)}>
                         <X size={12} className="text-aviva-secondary/30 hover:text-red-400" />
                       </button>
@@ -511,7 +577,7 @@ export default function ReportsPage() {
               );
             })}
           </div>
-          {!isSubmitted && (
+          {!formLocked && (
             <div className="border-t border-aviva-gold/10 pt-3 space-y-2">
               <select value={newCat} onChange={e => setNewCat(e.target.value)}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text focus:outline-none">
@@ -539,7 +605,7 @@ export default function ReportsPage() {
             <p className="text-xs font-semibold text-aviva-secondary">รูปภาพ / เอกสารแนบ</p>
             {attachments.length > 0 && <span className="text-[10px] text-aviva-secondary/60">{attachments.length} รูป</span>}
           </div>
-          {!isSubmitted && (
+          {!formLocked && (
             <p className="text-[10px] text-aviva-secondary/50 mb-3 leading-relaxed">💡 ใส่คำบรรยายใต้แต่ละรูป (เช่น &ldquo;A07 งานฉาบผนัง 80%&rdquo;) เพื่อให้ผู้บริหารเข้าใจรูปได้ชัดเจน</p>
           )}
           {attachments.length > 0 && (
@@ -548,7 +614,7 @@ export default function ReportsPage() {
                 <div key={idx} className="flex gap-2.5 items-start">
                   <img src={att.signed ?? att.file_url} alt={att.caption ?? att.file_name}
                     className="w-16 h-16 flex-shrink-0 object-cover rounded-xl border border-aviva-gold/20" />
-                  {isSubmitted ? (
+                  {formLocked ? (
                     <p className="flex-1 text-xs text-aviva-text leading-relaxed pt-1">
                       {att.caption || <span className="text-aviva-secondary/40 italic">— ไม่มีคำบรรยาย —</span>}
                     </p>
@@ -564,10 +630,10 @@ export default function ReportsPage() {
               ))}
             </div>
           )}
-          {isSubmitted && attachments.length === 0 && (
+          {formLocked && attachments.length === 0 && (
             <p className="text-center text-aviva-secondary/50 italic text-xs py-3">❌ ไม่มีรูปภาพแนบในรายงานนี้</p>
           )}
-          {!isSubmitted && (
+          {!formLocked && (
             <label className="flex items-center gap-2.5 bg-aviva-bg border border-aviva-gold/20 border-dashed rounded-xl px-4 py-3 cursor-pointer hover:border-aviva-gold/50 transition-all">
               <Camera size={16} className="text-aviva-secondary/60 flex-shrink-0" />
               <span className="text-sm text-aviva-secondary/50">{uploading ? "กำลังอัปโหลด..." : "ถ่ายรูป / เลือกไฟล์ (ได้หลายรูป)"}</span>
@@ -586,13 +652,39 @@ export default function ReportsPage() {
                 <p className="text-xs text-orange-400">เลย 18:00 น. แล้ว — ต้องระบุเหตุผลที่ส่งล่าช้า</p>
               </div>
             )}
+            {isBackdated && (
+              <div className="flex items-center gap-2 p-3 bg-aviva-gold/10 rounded-xl border border-aviva-gold/20">
+                <Clock size={13} className="text-aviva-gold flex-shrink-0" />
+                <p className="text-xs text-aviva-gold">รายงานย้อนหลังของ {reportDateThai} — จะติดป้าย &lsquo;ย้อนหลัง&rsquo; ให้ผู้บริหารทราบ</p>
+              </div>
+            )}
             <button onClick={handleSubmit} disabled={submitting || (items.length === 0 && !summary.trim())}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
               <Send size={14} />
-              {submitting ? "กำลังส่ง..." : isLate ? "ส่งรายงาน (ล่าช้า)" : "ส่งรายงานประจำวัน"}
+              {submitting ? "กำลังส่ง..." : isBackdated ? "ส่งรายงานย้อนหลัง" : isLate ? "ส่งรายงาน (ล่าช้า)" : "ส่งรายงานประจำวัน"}
             </button>
             {items.length === 0 && !summary.trim() && (
               <p className="text-[11px] text-aviva-secondary/50 text-center">เพิ่มกิจกรรมอย่างน้อย 1 รายการ หรือกรอกสรุปภาพรวมก่อนส่ง</p>
+            )}
+          </div>
+        ) : canEdit ? (
+          <div className="space-y-2">
+            {isReturned && (
+              <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/30">
+                <p className="text-xs font-bold text-orange-400 mb-1">↩️ ผู้บริหารตีกลับให้แก้ไข</p>
+                {report?.return_reason && <p className="text-xs text-aviva-text leading-relaxed">{report.return_reason}</p>}
+              </div>
+            )}
+            <button onClick={handleSubmit} disabled={submitting || (items.length === 0 && !summary.trim())}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              <Send size={14} />
+              {submitting ? "กำลังบันทึก..." : "บันทึกการแก้ไข & แจ้งผู้บริหาร"}
+            </button>
+            {editMode && !isReturned && (
+              <button onClick={() => setEditMode(false)}
+                className="w-full border border-aviva-gold/20 text-aviva-secondary font-medium py-2.5 rounded-xl text-xs">
+                ยกเลิกการแก้ไข
+              </button>
             )}
           </div>
         ) : (
@@ -600,11 +692,14 @@ export default function ReportsPage() {
             <div className="flex items-center gap-3">
               <CheckCircle size={20} className="text-green-400 flex-shrink-0" />
               <div>
-                <p className="text-sm font-bold text-green-400">ส่งรายงานแล้ว</p>
-                <p className="text-xs text-aviva-secondary/70 mt-0.5">รายงานวันนี้ถูกบันทึกและส่งให้หัวหน้าเรียบร้อย</p>
+                <p className="text-sm font-bold text-green-400">ส่งรายงานแล้ว{report?.is_backdated ? " (ย้อนหลัง)" : ""}</p>
+                <p className="text-xs text-aviva-secondary/70 mt-0.5">
+                  รายงานถูกบันทึกและส่งให้หัวหน้าเรียบร้อย
+                  {report?.last_edited_at ? " · แก้ไขล่าสุดแล้ว" : ""}
+                </p>
               </div>
             </div>
-            {report?.acknowledged_by && (
+            {report?.acknowledged_by ? (
               <div className="mt-3 pt-3 border-t border-green-500/20">
                 <p className="text-xs text-green-400 font-semibold">
                   ✓ ผู้จัดการรับทราบแล้ว — {report.acknowledged_by}
@@ -616,9 +711,14 @@ export default function ReportsPage() {
                   </div>
                 )}
               </div>
-            )}
-            {!report?.acknowledged_by && (
-              <p className="text-[10px] text-aviva-secondary/50 mt-2 ml-8">รอผู้จัดการรับทราบ...</p>
+            ) : (
+              <div className="mt-3 pt-3 border-t border-green-500/20 flex items-center justify-between gap-2">
+                <p className="text-[10px] text-aviva-secondary/60">รอผู้จัดการรับทราบ — ยังแก้ไขได้</p>
+                <button onClick={() => setEditMode(true)}
+                  className="text-[11px] font-semibold text-aviva-gold border border-aviva-gold/30 px-3 py-1.5 rounded-lg hover:bg-aviva-gold/10 transition-all">
+                  ✏️ แก้ไขรายงาน
+                </button>
+              </div>
             )}
           </div>
         )}

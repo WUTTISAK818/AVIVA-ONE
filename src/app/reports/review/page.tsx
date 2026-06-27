@@ -33,6 +33,10 @@ interface WReport {
   acknowledged_by?: string;
   acknowledged_at?: string;
   manager_comment?: string;
+  is_backdated?: boolean;
+  last_edited_at?: string | null;
+  returned_at?: string | null;
+  return_reason?: string | null;
 }
 
 interface WeekStat {
@@ -124,6 +128,9 @@ export default function ReportsReviewPage() {
   const [aiLoading, setAiLoading]       = useState(false);
   const [aiError, setAiError]           = useState<string | null>(null);
   const [execOriginal, setExecOriginal] = useState(false); // false = ย่อ (default), true = ต้นฉบับ
+  const [returnMode, setReturnMode]     = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [returning, setReturning]       = useState(false);
 
   const canAccess = user?.isManager || user?.isAdmin;
 
@@ -228,6 +235,8 @@ export default function ReportsReviewPage() {
     setAiSummary(null);
     setAiError(null);
     setExecOriginal(false);
+    setReturnMode(false);
+    setReturnReason("");
     const { data } = await supabase
       .from("work_report_items")
       .select("*")
@@ -308,6 +317,34 @@ export default function ReportsReviewPage() {
       }).catch(err => console.error("[acknowledge] Notification failed:", err));
     }
     setAcknowledging(false);
+  }
+
+  // ผู้นำ "ตีกลับให้แก้" — ไม่แก้เนื้อหาเอง (รักษา audit) แต่ส่งคืนพนักงานพร้อมเหตุผล
+  async function sendBack() {
+    if (!selected || !user || !returnReason.trim()) return;
+    setReturning(true);
+    const { data } = await supabase
+      .from("work_reports")
+      .update({ returned_at: new Date().toISOString(), return_reason: returnReason.trim() })
+      .eq("id", selected.id)
+      .select()
+      .single();
+    if (data) {
+      setSelected(data as WReport);
+      setReports(prev => prev.map(r => r.id === selected.id ? data as WReport : r));
+      await createNotification({
+        type: "info",
+        title: "รายงานถูกตีกลับให้แก้ไข",
+        message: `${user.full_name ?? user.email}: ${returnReason.trim()}`,
+        from_dept: "ผู้บริหาร",
+        to_dept: selected.department,
+        record_id: selected.id,
+        link: "/reports",
+      }).catch(err => console.error("[sendBack] Notification failed:", err));
+    }
+    setReturnReason("");
+    setReturnMode(false);
+    setReturning(false);
   }
 
   const submittedEmails = new Set(
@@ -769,6 +806,15 @@ export default function ReportsReviewPage() {
                   }`}>
                     {STATUS_LABEL[selected.status] ?? selected.status}
                   </span>
+                  {selected.is_backdated && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 text-aviva-gold">ย้อนหลัง</span>
+                  )}
+                  {selected.last_edited_at && !selected.acknowledged_by && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">แก้ไขแล้ว</span>
+                  )}
+                  {selected.returned_at && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400">ตีกลับ</span>
+                  )}
                   {selected.acknowledged_by && (
                     <span className="text-[10px] text-green-400/80 font-semibold">✓ รับทราบแล้ว</span>
                   )}
@@ -984,6 +1030,34 @@ export default function ReportsReviewPage() {
                   <CheckCircle size={14} />
                   {acknowledging ? "กำลังบันทึก..." : "รับทราบรายงานนี้"}
                 </button>
+
+                {/* ตีกลับให้แก้ — ไม่แก้เนื้อหาเอง ส่งคืนพนักงานพร้อมเหตุผล */}
+                {selected.returned_at ? (
+                  <p className="text-[11px] text-orange-400 text-center">↩️ ตีกลับให้แก้แล้ว — รอพนักงานแก้ไขและส่งใหม่</p>
+                ) : returnMode ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={returnReason}
+                      onChange={e => setReturnReason(e.target.value)}
+                      rows={2}
+                      placeholder="ระบุสิ่งที่ต้องการให้พนักงานแก้/เพิ่มเติม เช่น ขอรูปงาน A07, ระบุ % ความคืบหน้า..."
+                      className="w-full bg-aviva-bg border border-orange-500/30 rounded-xl px-3 py-2 text-xs text-aviva-text resize-none focus:outline-none placeholder:text-aviva-secondary/30"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => { setReturnMode(false); setReturnReason(""); }}
+                        className="py-2.5 rounded-xl border border-aviva-gold/20 text-xs text-aviva-secondary">ยกเลิก</button>
+                      <button onClick={sendBack} disabled={returning || !returnReason.trim()}
+                        className="py-2.5 rounded-xl bg-orange-500/90 text-white font-bold text-xs disabled:opacity-50">
+                        {returning ? "กำลังส่ง..." : "ยืนยันตีกลับ"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setReturnMode(true)}
+                    className="w-full border border-orange-500/30 text-orange-400 font-semibold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+                    ↩️ ตีกลับให้แก้ไข
+                  </button>
+                )}
               </div>
             )}
           </div>

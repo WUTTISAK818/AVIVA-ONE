@@ -56,8 +56,9 @@ function linkFor(it: WorkQueueItem): string {
   switch (it.workflow_type) {
     case "Lead_Followup":
       return `/crm?lead=${rid}`;
-    case "Installment_Review":   // อนุมัติงวดงานก่อสร้าง — panel อยู่หน้า construction
-    case "Defect_Followup":
+    case "Installment_Review":   // อนุมัติงวดงาน → /approvals (ปุ่มอนุมัติ/ปฏิเสธชัด ไม่ต้องเลือกบ้านก่อน)
+      return `/approvals?focus=${rid}`;
+    case "Defect_Followup":      // งานแก้ไขหน้างาน → หน้าก่อสร้าง
       return `/construction?focus=${rid}`;
     case "Leave_Request":
       return `/office?tab=hr&focus=${rid}`;

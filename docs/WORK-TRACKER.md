@@ -16,14 +16,14 @@
 | 1 | ตั้ง VAPID x3 + LINE OA ID ใน Vercel → Redeploy | `SELECT count(*) FROM push_subscriptions` > 0 หลัง subscribe + ปุ่มเพิ่มเพื่อน/QR LINE แสดง | Vee | 🆕 | push_subs = **0** |
 | 2 | ทดสอบ production v6.81 (รายงานทีม/การ์ดงานที่ต้องทำ/ไม่มีเมนูกล่องงาน/AI ร่าง+สรุป/ย้อนหลัง+แก้+ตีกลับ) | เปิดแอปจริง: dashboard = v6.81 + เช็คลิสต์ `docs/VEE-TODO-MONDAY.md` ครบ (แนบสกรีนช็อต) | Pom+Vee | 🆕 | — |
 | 3 | ชวนทีมผูก LINE (ตั้งค่า → ผูกบัญชี LINE) | `SELECT count(*) FILTER (WHERE linked_at IS NOT NULL) FROM line_links` เพิ่มขึ้น | Vee | 🆕 | linked = **1** |
-| 4 | ทบทวน/ล้าง test data (Pom อนุมัติก่อนลบ) | รายการ test ที่ตกลง เหลือ 0 | ONE+Vee | 🔨 บางส่วน | ✅ ONE ลบ test events แล้ว (รายงาน/งวดงาน/work_queue = 0) · ⏳ เหลือ demo users 11 (Vee ลบผ่าน Dashboard) · 🔒 3 audit logs ลบไม่ได้ (immutable by design) |
+| 4 | ทบทวน/ล้าง test data + demo accounts | test/demo ทุกตาราง = 0 | ONE | ✔️ ตรวจผ่าน | ลบครบ: demo users 11(auth+public)=0 · reports/installments/work_queue=0 · 3 audit logs=0 (ปิด trigger ชั่วคราวแล้วเปิดคืน) · leads จริงไม่กระทบ |
 | 5 | iPhone: เพิ่มลงหน้าจอโฮม (PWA) + ทดสอบ push | ส่ง push ทดสอบแล้วเด้งบนมือถือ Pom จริง | Pom | 🆕 | — |
 
 | 6 | **[ด่วน-ความปลอดภัย] Rotate secret ที่เคยหลุดใน repo** (Supabase service_role key, Vercel token, CRON_SECRET) | สร้าง key/token ใหม่ + อัปเดต Vercel env + ของเก่าใช้ไม่ได้แล้ว | Pom+Vee | 🚫 รอ Pom/Vee | ONE ลบไฟล์+เพิ่ม .gitignore แล้ว แต่ rotate ต้องทำใน dashboard |
 | 7 | เก็บกวาดไฟล์ scratch/secret 18 ไฟล์ออกจาก repo | `git ls-files | grep -E 'set-vercel-env|DEMO_|create-demo'` ต้องว่าง | ONE | ✔️ ตรวจผ่าน | ลบ+push 3 branch แล้ว |
 | 8 | Pom ส่ง **LINE OA ID** จริง (`@xxxxxxx`) ให้ Vee ใส่ env | ปุ่มเพิ่มเพื่อน/QR LINE ขึ้นจริง | Pom | 🆕 | รอ Pom |
 
-**สรุปกระทบยอด #1:** 8 รายการ — 🆕 ×5 · ✔️ ×1 · 🚫 ×1(รอ rotate) · ✅ ×0 → **ยังไม่ปิดชุด** (รอ Pom/Vee วันจันทร์)
+**สรุปกระทบยอด #1:** 8 รายการ — 🆕 ×4 · ✔️ ×2(เก็บกวาดไฟล์ + ล้าง test data) · 🚫 ×1(รอ rotate secret) · 🆕 รอ Pom/Vee ×4 → **ยังไม่ปิดชุด** (รอ Pom/Vee วันจันทร์)
 
 > ⚠️ **หมายเหตุรายการ "✅ build แต่ยังไม่ทดสอบ UI จริง"** (จะเป็น ✔️ เมื่อ Pom/Vee ทดสอบบนมือถือ — รวมในข้อ 2):
 > AI สรุป (v6.75) · AI ร่างรายงาน (v6.76) · caption รูป (v6.74) · ย้อนหลัง/แก้/ตีกลับ (v6.77) · การ์ดงานที่ต้องทำ+ลบเมนู (v6.81)

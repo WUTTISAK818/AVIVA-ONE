@@ -50,6 +50,57 @@
 
 ---
 
+## 🔵 ชุดงาน #3 — ปรับ UI ฝ่ายขาย (v6.85–v6.86)
+
+| # | รายการ | วิธีตรวจ (objective) | เจ้าของ | สถานะ | ผลตรวจ |
+|---|--------|----------------------|---------|-------|--------|
+| 1 | แก้ GoTrue NULL scanning bug (หน้าจัดการผู้ใช้พัง) | เปิดเมนูผู้ใช้ → ไม่ error "Database error finding users" | Pom | ✔️ ตรวจผ่าน | edge function ใช้ direct Postgres แทน GoTrue + SQL fix NULL columns · Pom ยืนยัน "ดูข้อมูลผู้ใช้ ได้แล้ว" |
+| 2 | ปรับ UI performance page (4.5→9.5) | ภาษาไทย 100% + KPI gradient cards + chart tooltips ไทย + empty states | ONE | ✅ build ผ่าน | TS fix formatter + redesign ครบ |
+| 3 | ปรับ UI daily-log page (4.3→9.5) | vertical counter layout + Thai date + premium empty state | ONE | ✅ build ผ่าน | redesign ครบ |
+| 4 | ปรับ UI leads page (5.0→9.5) | vertical pipeline mobile + source breakdown bar + stage-specific colors | ONE | ✅ build ผ่าน | redesign ครบ |
+| 5 | ปรับ UI customers page (6.0→9.5) | card layout แทน table + KPI row + gradient avatars + empty state | ONE | ✅ build ผ่าน | redesign ครบ |
+| 6 | ปรับ UI CRM header+KPI (6.5→9.0) | premium header icon box + compact buttons + colored KPI cards | ONE | ✅ build ผ่าน | header+KPI ปรับ (ไม่แก้ทั้งหน้าเพราะ 2,500 บรรทัด) |
+| 7 | ปรับ UI after-sales page (7.3→9.5) | premium header + styled KPI filter + upgraded summary | ONE | ✅ build ผ่าน | redesign ครบ |
+| 8 | ปรับ UI doc-generate page (6.3→9.0) | premium header + upgraded form sections + styled payment summary | ONE | ✅ build ผ่าน | redesign ครบ |
+| 9 | Deploy edge function admin-user-management (GoTrue bypass) | `supabase functions deploy admin-user-management` ผ่าน | Pom/Vee | 🚫 รอ deploy | โค้ด commit แล้ว (2264ae7) ต้อง deploy ด้วยมือ (MCP ไม่มีสิทธิ์) |
+
+**สรุปกระทบยอด #3:** 9 รายการ — ✔️ ×1(GoTrue fix) · ✅ ×7(UI redesign build ผ่าน, รอ UI ยืนยัน) · 🚫 ×1(edge fn deploy) → **ปิดส่วน code ได้**, รอ deploy + UI ยืนยัน
+
+---
+
+## 🟡 แผนรอดำเนินการ (Phase 4) — ลดงานซ้ำซ้อนรายงานประจำวัน
+
+> แผนเต็มอยู่ใน plan file `moonlit-singing-papert.md` — สรุปย่อ:
+
+**ปัญหา:** พนักงานบันทึกงาน "ระหว่างวัน" (activity_logs/sales_activities/construction_reports) แต่ตอนเย็นต้องมาพิมพ์ "รายงานประจำวัน" (work_reports) ใหม่อีกรอบ = ทำงานซ้ำซ้อน
+
+**สิ่งที่ตรวจพบจาก live DB:**
+1. `sales_activities.created_by` default = null → `.eq("created_by", user.id)` match 0 แถวเสมอ
+2. `contractor_installments` ไม่มีคอลัมน์ `installment_number`, `updated_at`, `project_id` → auto-pull ก่อสร้างพัง
+3. `construction_reports.created_by = null` ทุกแถว (มีแค่ `reported_by` text)
+4. `loadAutoItems` ทำงานเฉพาะตอนสร้าง report ใหม่ → งานบ่าย/เย็นไม่ถูกดึง
+
+**แผนแก้ (ต้องทำ 3 ไฟล์):**
+1. **DB Migration** — `ALTER TABLE sales_activities/construction_reports ALTER COLUMN created_by SET DEFAULT auth.uid()`
+2. **reports/page.tsx** — refactor `loadAutoItems` → `pullAutoItems` (dedup + ปุ่มรีเฟรช + 5 แหล่งข้อมูล)
+3. **activity/page.tsx** — แก้ count query ที่ใช้คอลัมน์ผิด (`updated_at` → `created_at`)
+
+---
+
+## 🟡 งานค้างจากชุดเดิม (ต้องดำเนินการ)
+
+| รายการ | สถานะ | ใครต้องทำ |
+|--------|-------|-----------|
+| Rotate secret (Supabase service_role key, Vercel token, CRON_SECRET) | 🚫 รอ Pom/Vee | Pom+Vee ทำใน dashboard |
+| ตั้ง VAPID x3 + LINE OA ID ใน Vercel → Redeploy | 🆕 | Vee |
+| ทดสอบ production (รายงานทีม/การ์ดงาน/AI ร่าง+สรุป) | 🆕 | Pom+Vee |
+| ชวนทีมผูก LINE | 🆕 | Vee |
+| iPhone PWA + push notification | 🆕 | Pom |
+| ส่ง LINE OA ID จริง | 🆕 | Pom |
+| ตาราง defects vs qc_defects (refactor ใหญ่) | 🚫 รอ Pom ตัดสิน | Pom → ONE |
+
+---
+
 ## ✅ บันทึกงานที่เสร็จแล้ว (Completed log)
 
 | เวอร์ชัน | งาน | ตรวจผ่านโดย |
@@ -66,5 +117,9 @@
 | v6.81 | รวมกล่องงานเข้าหน้าหลัก + ลบเมนู + LINE link UX | ✅ build + CI (รอ UI ยืนยัน) |
 | v6.82 | Expert Audit: แก้งานวงเงินสูงตกหล่นกล่องงาน + PR maker-checker + threshold งบตลาด/สัญญา + audit WHT/retention | ✔️ ONE (DB sim/build) |
 | v6.83 | ระบบหักยอดวันลาอัตโนมัติ: trigger approve→หัก/reject→คืน + ลากิจ/ลาคลอด/ขาดงาน + ใบรับรองแพทย์ลาป่วย>3วัน + แก้ mapping ลากิจ | ✔️ ONE (DB sim+build) |
+| v6.84 | ปรับปฏิทินกิจกรรม: รวมปุ่มวันนี้/วัน, ไฮไลต์วันปัจจุบัน, แสดงรายงานตามแผนกจริง | ✔️ ONE (build) |
+| v6.85 | จัดกลุ่ม Dashboard ลดข้อมูลซ้ำซ้อน: รวม sections โครงการ+ขาย, รวมก่อสร้าง, ลบ Insights ซ้ำ | ✔️ ONE (build) |
+| v6.85 | แก้ GoTrue NULL scanning bug — edge function admin-user-management bypass GoTrue ใช้ direct Postgres | ✔️ Pom ยืนยัน |
+| v6.86 | ปรับ UI ฝ่ายขายทั้ง 7 หน้า (performance/daily-log/leads/customers/CRM/after-sales/doc-generate) ให้ได้มาตรฐาน enterprise | ✅ build ผ่าน (รอ UI ยืนยัน) |
 
 > หมายเหตุ: รายการ ✅ "รอ UI ยืนยัน" จะเป็น ✔️ เมื่อ Pom/Vee ทดสอบบนมือถือจริง (งานชุด #1 ข้อ 2)

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentUser } from '@/lib/user-context'
+import { normalizeLeadStatus } from '@/lib/types'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -72,12 +73,14 @@ export default function SalesPerformancePage() {
 
     try {
       const daysBack = period === 'today' ? 0 : period === 'week' ? 7 : period === 'month' ? 30 : 90
+      const sinceDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+      // ── กิจกรรมรายวัน (โทร/เยี่ยม/ประชุม) ──
       const { data: logs, error: logsErr } = await supabase
         .from('sales_daily_logs')
         .select('log_date, activities_calls, activities_visits, activities_meetings')
         .eq('staff_id', user.id)
-        .gte('log_date', new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .gte('log_date', sinceDate)
         .order('log_date')
 
       if (logsErr) throw logsErr
@@ -94,17 +97,35 @@ export default function SalesPerformancePage() {
       })
       setChartData(Array.from(chartMap.values()))
 
+      // ── ลีดของพนักงานคนนี้ (assigned_to อาจเป็น user.id, ชื่อ, หรืออีเมล) ──
+      const ownerKeys = [user.id, user.full_name, user.email].filter(Boolean) as string[]
+      const orFilter = ownerKeys.map(k => `assigned_to.eq.${k}`).join(',')
+      const { data: leadRows } = await supabase
+        .from('leads')
+        .select('status, created_at')
+        .or(orFilter)
+        .gte('created_at', sinceDate)
+
+      const BOOKED = ['Booking', 'Contract', 'Loan Approved']
+      const CLOSED = ['Closed Deal', 'Transfer']
+      const leadsArr = leadRows ?? []
+      const newLeads = leadsArr.filter(l => normalizeLeadStatus(l.status) === 'new').length
+      const bookedLeads = leadsArr.filter(l => BOOKED.includes(l.status)).length
+      const closedLeads = leadsArr.filter(l => CLOSED.includes(l.status) || normalizeLeadStatus(l.status) === 'converted').length
+      const totalLeads = leadsArr.length
+      const bookingRate = totalLeads > 0 ? ((bookedLeads + closedLeads) / totalLeads) * 100 : 0
+
       const totals = {
         staff_id: user.id,
         staff_name: user.full_name || 'Staff',
         total_calls: logs?.reduce((sum, l) => sum + (l.activities_calls || 0), 0) || 0,
         total_visits: logs?.reduce((sum, l) => sum + (l.activities_visits || 0), 0) || 0,
         total_meetings: logs?.reduce((sum, l) => sum + (l.activities_meetings || 0), 0) || 0,
-        total_leads: 0,
-        new_leads: 0,
-        booked_leads: 0,
-        closed_leads: 0,
-        booking_rate: 0,
+        total_leads: totalLeads,
+        new_leads: newLeads,
+        booked_leads: bookedLeads,
+        closed_leads: closedLeads,
+        booking_rate: bookingRate,
       }
 
       setData(totals)

@@ -50,7 +50,7 @@ type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" |
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 // สิทธิวันลาต่อปี (ตาม พ.ร.บ.คุ้มครองแรงงาน) สำหรับติดตามโควต้า
-const LEAVE_QUOTA: Record<string, number> = { "ลาป่วย": 30, "ลากิจ": 3, "ลาพักร้อน": 6 };
+const LEAVE_QUOTA: Record<string, number> = { "ลาป่วย": 30, "ลากิจ": 3, "ลาพักร้อน": 6, "ลาคลอด": 98 };
 function leaveDays(from: string, to: string) {
   const d = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
   return d > 0 ? d : 1;
@@ -2064,13 +2064,13 @@ function HRContent() {
   const [hrTab, setHrTab] = useState<"บุคคล" | "ลงเวลา" | "เงินเดือน" | "การลา" | "กล้องวงจรปิด">("บุคคล");
   const [leaveForm, setLeaveForm] = useState({ employee_name: "", leave_type: "ลาพักร้อน", date_from: "", date_to: "", reason: "" });
   const [leaveSaving, setLeaveSaving] = useState(false);
-  const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string}[]>([]);
+  const [leaveList, setLeaveList] = useState<{id:string;employee_name:string;leave_type:string;date_from:string;date_to:string;reason:string;status:string;created_at:string;days_count:number|null;doctor_cert_required:boolean}[]>([]);
   const [hrToast, setHrToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [showPRModal, setShowPRModal] = useState(false);
   const [prForm, setPrForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
   const [prSaving, setPrSaving] = useState(false);
-  const [leaveBalance, setLeaveBalance] = useState<{annual:number;sick:number;study:number;annual_status:"Normal"|"Low"|"Critical"}|null>(null);
+  const [leaveBalance, setLeaveBalance] = useState<{annual:number;sick:number;study:number;personal:number;maternity:number;absent:number;annual_status:"Normal"|"Low"|"Critical"}|null>(null);
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -2085,7 +2085,7 @@ function HRContent() {
     setLeaveLoading(true);
     // C4: sync สถานะล่าสุดจาก approval_logs ให้ตรงกับหน้า /approvals
     Promise.all([
-      supabase.from("leave_requests").select("id,employee_name,leave_type,date_from,date_to,reason,status,created_at").order("created_at", { ascending: false }).limit(30),
+      supabase.from("leave_requests").select("id,employee_name,leave_type,date_from,date_to,reason,status,created_at,days_count,doctor_cert_required").order("created_at", { ascending: false }).limit(30),
       supabase.from("approval_logs").select("source_record_id,action_taken").eq("workflow_type", "Leave_Request"),
     ]).then(([lvRes, apRes]) => {
       const apMap: Record<string, string> = {};
@@ -2104,12 +2104,15 @@ function HRContent() {
     if (!employeeName) { setLeaveBalance(null); return; }
     const emp = employees.find(e => e.full_name === employeeName);
     if (!emp) return;
-    const { data } = await supabase.from("employee_payroll_config").select("annual_leave_balance,sick_leave_balance,study_leave_balance,annual_leave_status").eq("employee_id", emp.id).single();
+    const { data } = await supabase.from("employee_payroll_config").select("annual_leave_balance,sick_leave_balance,study_leave_balance,personal_leave_balance,maternity_leave_balance,absent_days,annual_leave_status").eq("employee_id", emp.id).single();
     if (data) {
       setLeaveBalance({
         annual: data.annual_leave_balance ?? 15,
         sick: data.sick_leave_balance ?? 10,
         study: data.study_leave_balance ?? 5,
+        personal: data.personal_leave_balance ?? 3,
+        maternity: data.maternity_leave_balance ?? 98,
+        absent: data.absent_days ?? 0,
         annual_status: data.annual_leave_status ?? "Normal"
       });
     }
@@ -2143,7 +2146,7 @@ function HRContent() {
 
     // Check against new leave balance system (Phase 2.1)
     if (leaveBalance) {
-      const balanceMap = { "ลาพักร้อน": leaveBalance.annual, "ลาป่วย": leaveBalance.sick, "ลากิจ": leaveBalance.study };
+      const balanceMap: Record<string, number | undefined> = { "ลาพักร้อน": leaveBalance.annual, "ลาป่วย": leaveBalance.sick, "ลากิจ": leaveBalance.personal, "ลาคลอด": leaveBalance.maternity };
       const balance = balanceMap[leaveForm.leave_type as keyof typeof balanceMap];
       if (balance != null && days > balance) {
         setHrToast({ msg: `ลาครบ — เหลือ ${balance} วัน (ขอ ${days} วัน)\nกรุณาตรวจสอบยอดวันลาของคุณ`, type: "error" });
@@ -2164,6 +2167,7 @@ function HRContent() {
         return;
       }
     }
+    const emp = employees.find(e => e.full_name === leaveForm.employee_name);
     try {
       await createLeaveRequest({
         employeeName: leaveForm.employee_name,
@@ -2172,6 +2176,7 @@ function HRContent() {
         dateTo: leaveForm.date_to,
         reason: leaveForm.reason,
         userId: user?.id ?? null,
+        employeeId: emp?.id ?? null,
       });
     } catch (e) {
       setHrToast({ msg: e instanceof Error ? e.message : "ยื่นใบลาไม่สำเร็จ", type: "error" });
@@ -2430,9 +2435,9 @@ function HRContent() {
             {leaveBalance && leaveForm.employee_name && (
               <div className="p-3 bg-aviva-bg border border-aviva-gold/20 rounded-lg space-y-2">
                 <p className="text-xs font-semibold text-aviva-secondary">ยอดวันลาคงเหลือ</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <div className="text-center">
-                    <p className="text-[10px] text-aviva-secondary">ลาพักร้อน</p>
+                    <p className="text-[10px] text-aviva-secondary">พักร้อน</p>
                     <p className={clsx("text-base font-bold", leaveBalance.annual_status === "Critical" ? "text-red-400" : leaveBalance.annual_status === "Low" ? "text-yellow-400" : "text-green-400")}>
                       {leaveBalance.annual} วัน
                     </p>
@@ -2443,7 +2448,11 @@ function HRContent() {
                   </div>
                   <div className="text-center">
                     <p className="text-[10px] text-aviva-secondary">ลากิจ</p>
-                    <p className="text-base font-bold text-aviva-text">{leaveBalance.study} วัน</p>
+                    <p className="text-base font-bold text-aviva-text">{leaveBalance.personal} วัน</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-aviva-secondary">ขาดงาน</p>
+                    <p className={clsx("text-base font-bold", leaveBalance.absent > 0 ? "text-red-400" : "text-aviva-text")}>{leaveBalance.absent} วัน</p>
                   </div>
                 </div>
                 {leaveBalance.annual_status !== "Normal" && (
@@ -2457,7 +2466,7 @@ function HRContent() {
               <label htmlFor="leaveform-leave_type" className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา</label>
               <select id="leaveform-leave_type" value={leaveForm.leave_type} onChange={e => setLeaveForm({...leaveForm, leave_type: e.target.value})}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                {["ลาพักร้อน","ลาป่วย","ลากิจ","ลาครอบครัว","ลาอื่นๆ"].map(t => <option key={t} value={t}>{t}</option>)}
+                {["ลาพักร้อน","ลาป่วย","ลากิจ","ลาคลอด","ขาดงาน","ลาครอบครัว","ลาอื่นๆ"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2478,6 +2487,16 @@ function HRContent() {
                 placeholder="ระบุเหตุผล (ถ้ามี)"
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>
+            {leaveForm.leave_type === "ลาป่วย" && leaveForm.date_from && leaveForm.date_to && leaveDays(leaveForm.date_from, leaveForm.date_to) > 3 && (
+              <p className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-3 py-2">
+                ⚠️ ลาป่วยเกิน 3 วัน — ต้องมีใบรับรองแพทย์ (พ.ร.บ.คุ้มครองแรงงาน) ถ้าไม่มีจะถูกเปลี่ยนเป็นลากิจ
+              </p>
+            )}
+            {leaveForm.leave_type === "ขาดงาน" && (
+              <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                ขาดงานจะถูกบันทึกเป็นวันขาด — ไม่หักจากวันลา แต่อาจมีผลทางวินัย
+              </p>
+            )}
             <button onClick={handleLeaveSubmit} disabled={leaveSaving || !leaveForm.employee_name || !leaveForm.date_from || !leaveForm.date_to}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
               {leaveSaving ? "กำลังส่ง..." : "ส่งคำขอลา"}
@@ -2511,7 +2530,7 @@ function HRContent() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-aviva-text truncate">{l.employee_name}</p>
-                      <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}</p>
+                      <p className="text-[10px] text-aviva-secondary">{l.leave_type} · {l.date_from} – {l.date_to}{l.doctor_cert_required ? " · ⚠️ ต้องมีใบรับรองแพทย์" : ""}</p>
                       {quota != null && (
                         <p className={clsx("text-[10px] mt-0.5", over ? "text-red-400 font-semibold" : "text-aviva-secondary/70")}>
                           {l.leave_type}สะสม {u}/{quota} วัน{over ? " ⚠ เกินสิทธิ์" : ""}

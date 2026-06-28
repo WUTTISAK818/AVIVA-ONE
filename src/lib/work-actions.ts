@@ -89,7 +89,7 @@ export async function createWarrantyClaim(input: CreateClaimInput): Promise<Crea
 
 /* ───────────────────────── ขอลา / Leave Request ───────────────────────── */
 
-export const LEAVE_TYPES = ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "ลาครอบครัว", "ลาอื่นๆ"];
+export const LEAVE_TYPES = ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "ลาคลอด", "ขาดงาน", "ลาครอบครัว", "ลาอื่นๆ"];
 
 export function normalizeLeaveType(raw: string | null | undefined): string {
   const c = (raw ?? "").trim();
@@ -99,6 +99,8 @@ export function normalizeLeaveType(raw: string | null | undefined): string {
   if (low.includes("พักร้อน") || low.includes("vacation") || low.includes("annual") || low.includes("พักผ่อน")) return "ลาพักร้อน";
   if (low.includes("ครอบครัว") || low.includes("family")) return "ลาครอบครัว";
   if (low.includes("กิจ") || low.includes("personal") || low.includes("ธุระ")) return "ลากิจ";
+  if (low.includes("คลอด") || low.includes("maternity")) return "ลาคลอด";
+  if (low.includes("ขาด") || low.includes("absent")) return "ขาดงาน";
   return "ลาอื่นๆ";
 }
 
@@ -109,6 +111,7 @@ export interface CreateLeaveInput {
   dateTo: string;   // YYYY-MM-DD
   reason?: string | null;
   userId?: string | null;
+  employeeId?: string | null;
 }
 
 export interface CreateLeaveResult { id: string; docNumber: string; days: number; }
@@ -134,16 +137,20 @@ export async function createLeaveRequest(input: CreateLeaveInput): Promise<Creat
   const days = Math.max(1, Math.ceil((new Date(input.dateTo).getTime() - new Date(input.dateFrom).getTime()) / 86400000) + 1);
   const docNum = await generateDocNumber("LEAVE");
 
+  const doctorCertRequired = leaveType === "ลาป่วย" && days > 3;
+
   const { data, error } = await supabase
     .from("leave_requests")
     .insert({
       employee_name: name,
+      employee_id: input.employeeId ?? null,
       leave_type: leaveType,
       date_from: input.dateFrom,
       date_to: input.dateTo,
       days_count: days,
       reason: (input.reason ?? "").trim() || null,
       status: "pending",
+      doctor_cert_required: doctorCertRequired,
     })
     .select("id")
     .single();

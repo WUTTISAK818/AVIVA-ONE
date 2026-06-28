@@ -42,11 +42,11 @@
 | 3 | 🟡 Marketing_Budget/Contract_Approval ไม่มี threshold → ส่งผู้จัดการเสมอ | getApproverRole คืน admin เมื่อ > ฿50k | ONE | ✔️ ตรวจผ่าน | เพิ่ม threshold ฿50k (ตรงกับคู่มือเดิม line 423/579) · build ผ่าน |
 | 7 | 🟢 แก้ WHT/retention หลังอนุมัติไม่มี audit | ตรวจ `save()` มี logAction | ONE | ✔️ ตรวจผ่าน | เพิ่ม `logAction("installment_payout_edit")` · build ผ่าน |
 | 4 | 🟡 ตาราง `defects` (0 แถว) vs `qc_defects` (8 แถว) แยกกัน — /construction กับ /qc คนละตาราง | เลือกตารางหลัก + map schema + ย้ายข้อมูล + รวม UI | Pom ตัดสิน | 🚫 รอ Pom | เป็น refactor ใหญ่ (2 schema/2 UI/ย้ายข้อมูล) — เสี่ยงเกินกว่าจะแก้ลอย ๆ ต้องตัดสินใจ design ก่อน |
-| 5 | 🟡 อนุมัติใบลาไม่หักยอดวันลา (balance_before/after ไม่ถูกเขียน, payroll_config ไม่ลด) | leave_type→balance column mapping + กฎหัก/คืน | Pom+HR ตัดสิน | 🚫 รอ Pom | กระทบยอด HR/payroll — ต้องยืนยัน mapping ประเภทลา + กฎ (ลาป่วยหัก? ลาเกินโควต้า?) ก่อนแตะ |
+| 5 | 🟡 อนุมัติใบลาไม่หักยอดวันลา (balance_before/after ไม่ถูกเขียน, payroll_config ไม่ลด) | leave_type→balance column mapping + กฎหัก/คืน | ONE | ✔️ ตรวจผ่าน | v6.83: trigger `trg_leave_balance_update` หักยอดอัตโนมัติเมื่ออนุมัติ + คืนเมื่อปฏิเสธ · balance เป็น GENERATED column · เพิ่มลากิจ/ลาคลอด/ขาดงาน + ใบรับรองแพทย์ลาป่วย>3วัน · ทดสอบ approve+reject กับ live DB ผ่าน |
 
 **ที่ตรวจแล้ว "ไม่ใช่บั๊ก" (false positive — พิสูจน์กับ DB):** calcTax สมดุล · finalizeSale idempotent (ไม่รับรู้รายได้ซ้ำ) · กล่องงานปิดได้ปกติระดับผู้จัดการ (close 1 แถว) · maker-checker approval_logs ทำงาน (pending ที่ submitted_by_user_id null = 0)
 
-**สรุปกระทบยอด #2:** 7 รายการ — ✔️ ×5 (ข้อ 1,2/6,3,7) · 🚫 ×2 (ข้อ 4 defects, ข้อ 5 leave balance — รอ Pom ตัดสิน design) → ปิดส่วน code ได้, เหลือ 2 ข้อรอ design decision
+**สรุปกระทบยอด #2:** 7 รายการ — ✔️ ×6 (ข้อ 1,2/6,3,5,7) · 🚫 ×1 (ข้อ 4 defects — รอ Pom ตัดสิน design) → ปิดส่วน code ได้, เหลือ 1 ข้อรอ design decision
 
 ---
 
@@ -65,5 +65,6 @@
 | v6.80 | source_doc_index varchar(50)→text (งานกำพร้า) | ✔️ ONE (DB) |
 | v6.81 | รวมกล่องงานเข้าหน้าหลัก + ลบเมนู + LINE link UX | ✅ build + CI (รอ UI ยืนยัน) |
 | v6.82 | Expert Audit: แก้งานวงเงินสูงตกหล่นกล่องงาน + PR maker-checker + threshold งบตลาด/สัญญา + audit WHT/retention | ✔️ ONE (DB sim/build) |
+| v6.83 | ระบบหักยอดวันลาอัตโนมัติ: trigger approve→หัก/reject→คืน + ลากิจ/ลาคลอด/ขาดงาน + ใบรับรองแพทย์ลาป่วย>3วัน + แก้ mapping ลากิจ | ✔️ ONE (DB sim+build) |
 
 > หมายเหตุ: รายการ ✅ "รอ UI ยืนยัน" จะเป็น ✔️ เมื่อ Pom/Vee ทดสอบบนมือถือจริง (งานชุด #1 ข้อ 2)

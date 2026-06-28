@@ -161,18 +161,23 @@ export default function AfterSalesPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={18} className="text-aviva-gold" />
-              <h1 className="text-lg font-bold text-aviva-text">บริการหลังการขาย</h1>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-aviva-gold/15 border border-aviva-gold/25 flex items-center justify-center">
+                <ShieldCheck size={20} className="text-aviva-gold" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-aviva-text">บริการหลังการขาย</h1>
+                <p className="text-xs text-aviva-secondary mt-0.5">จัดการแจ้งซ่อมและรับประกัน</p>
+              </div>
             </div>
             <button onClick={() => { setForm({ ...emptyForm, report_date: todayTh() }); setShowModal(true); }}
-              className="flex items-center gap-1 text-xs font-bold text-aviva-bg bg-aviva-gold px-3 py-2 rounded-xl">
-              <Plus size={13} /> แจ้งซ่อม
+              className="flex items-center gap-1.5 text-xs font-bold text-aviva-bg bg-aviva-gold px-3.5 py-2.5 rounded-xl shadow-lg shadow-aviva-gold/20 active:scale-[0.97] transition-all">
+              <Plus size={14} /> แจ้งซ่อม
             </button>
           </div>
           {overdueCount > 0 && (
-            <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20">
-              <AlertTriangle size={12} className="text-red-400" />
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20">
+              <AlertTriangle size={13} className="text-red-400" />
               <p className="text-[11px] text-red-400 font-bold">เกิน SLA 7 วัน: {overdueCount} รายการ — ดำเนินการด่วน</p>
             </div>
           )}
@@ -184,34 +189,48 @@ export default function AfterSalesPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-2">
           {([
-            { key: "all",        label: "ทั้งหมด",       color: "text-aviva-gold" },
-            { key: "pending",    label: "รอดำเนิน",      color: "text-yellow-400" },
-            { key: "in_progress",label: "กำลังแก้",      color: "text-blue-400" },
-            { key: "resolved",   label: "แก้แล้ว",       color: "text-green-400" },
-          ] as const).map(({ key, label, color }) => (
+            { key: "all",        label: "ทั้งหมด",       color: "text-aviva-gold",  icon: ShieldCheck, accent: "bg-aviva-gold/10 border-aviva-gold/20" },
+            { key: "pending",    label: "รอดำเนินการ",   color: "text-yellow-400",  icon: Clock,       accent: "bg-yellow-500/10 border-yellow-500/20" },
+            { key: "in_progress",label: "กำลังดำเนินการ",color: "text-blue-400",    icon: Wrench,      accent: "bg-blue-500/10 border-blue-500/20" },
+            { key: "resolved",   label: "แก้ไขแล้ว",     color: "text-green-400",   icon: CheckCircle, accent: "bg-green-500/10 border-green-500/20" },
+          ] as const).map(({ key, label, color, icon: Icon, accent }) => (
             <button key={key} onClick={() => setFilter(key)}
-              className={`bg-aviva-card rounded-xl p-2.5 text-center transition-all ${filter === key ? "ring-1 ring-aviva-gold/40" : ""}`}>
-              <p className={`text-lg font-bold ${color}`}>{counts[key]}</p>
-              <p className="text-[9px] text-aviva-secondary leading-tight">{label}</p>
+              className={`rounded-2xl border p-3 text-center transition-all ${accent} ${filter === key ? "ring-1 ring-aviva-gold/40 scale-[1.02]" : "active:scale-[0.97]"}`}>
+              <Icon size={16} className={`${color} mx-auto mb-1.5`} />
+              <p className={`text-xl font-bold ${color}`}>{counts[key]}</p>
+              <p className="text-[10px] text-aviva-secondary leading-tight mt-0.5">{label}</p>
             </button>
           ))}
         </div>
 
         {/* Summary */}
         <div className="grid grid-cols-2 gap-2">
-          <GlassCard className="p-3">
-            <p className="text-[10px] text-aviva-secondary">คะแนนความพึงพอใจเฉลี่ย</p>
-            <div className="flex items-center gap-1 mt-1">
-              <Star size={14} className="text-yellow-400 fill-yellow-400" />
-              <p className="text-lg font-bold text-aviva-text">{avgScore ?? "—"}</p>
-              <span className="text-[10px] text-aviva-secondary">/ 5</span>
+          <GlassCard className="p-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+                <Star size={16} className="text-yellow-400 fill-yellow-400" />
+              </div>
+              <div>
+                <p className="text-xs text-aviva-secondary">ความพึงพอใจเฉลี่ย</p>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <p className="text-lg font-bold text-aviva-text">{avgScore ?? "—"}</p>
+                  <span className="text-[11px] text-aviva-secondary">/ 5</span>
+                </div>
+              </div>
             </div>
           </GlassCard>
-          <GlassCard className="p-3">
-            <p className="text-[10px] text-aviva-secondary">อัตราแก้ไขสำเร็จ</p>
-            <p className="text-lg font-bold text-green-400 mt-1">
-              {claims.length > 0 ? Math.round((counts.resolved / claims.length) * 100) : 0}%
-            </p>
+          <GlassCard className="p-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+                <CheckCircle size={16} className="text-green-400" />
+              </div>
+              <div>
+                <p className="text-xs text-aviva-secondary">อัตราแก้ไขสำเร็จ</p>
+                <p className="text-lg font-bold text-green-400 mt-0.5">
+                  {claims.length > 0 ? Math.round((counts.resolved / claims.length) * 100) : 0}%
+                </p>
+              </div>
+            </div>
           </GlassCard>
         </div>
 
@@ -229,9 +248,16 @@ export default function AfterSalesPage() {
           {loading ? (
             [1,2,3].map(i => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse mb-2" />)
           ) : filtered.length === 0 ? (
-            <GlassCard className="p-8 text-center">
-              <ShieldCheck size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
-              <p className="text-aviva-secondary text-sm">ไม่มีรายการแจ้งซ่อม</p>
+            <GlassCard className="py-12 px-6">
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 rounded-2xl bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center mb-3">
+                  <ShieldCheck size={24} className="text-aviva-gold/50" />
+                </div>
+                <p className="text-sm font-semibold text-aviva-text mb-1">ไม่มีรายการแจ้งซ่อม</p>
+                <p className="text-xs text-aviva-secondary max-w-[220px] leading-relaxed">
+                  {filter !== "all" ? "ไม่พบรายการในสถานะที่เลือก" : "เริ่มบันทึกรายการแจ้งซ่อมได้เลย"}
+                </p>
+              </div>
             </GlassCard>
           ) : (
             <div className="space-y-2">
@@ -303,7 +329,7 @@ export default function AfterSalesPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-aviva-text">แจ้งซ่อม / Warranty Claim</h2>
+              <h2 className="text-lg font-bold text-aviva-text">แจ้งซ่อม</h2>
               <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">

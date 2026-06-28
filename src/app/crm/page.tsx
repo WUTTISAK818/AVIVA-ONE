@@ -1245,24 +1245,27 @@ export default function CRMPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-36">
-      <div className="sticky top-0 z-40 bg-aviva-bg/95 border-b border-aviva-gold/10 px-4 pt-12 pb-4">
+      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-xl font-bold text-aviva-text">CRM · ฝ่ายขาย</h1>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-aviva-gold/15 border border-aviva-gold/25 flex items-center justify-center shrink-0">
+              <TrendingUp size={20} className="text-aviva-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-aviva-text">CRM ฝ่ายขาย</h1>
               <p className="text-xs text-aviva-secondary mt-0.5">
                 {loading ? "กำลังโหลด..." : `${leads.length} ราย · ปิดการขาย ${closeRate}%`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowAI(a => !a)} className={clsx("flex items-center gap-1.5 border text-xs font-bold px-3 py-2 rounded-xl transition-all", showAI ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card border-aviva-gold/20 text-aviva-secondary")}>
-                <Bot size={13} /> AI
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => setShowAI(a => !a)} className={clsx("flex items-center gap-1 border text-[11px] font-bold px-2.5 py-2 rounded-xl transition-all", showAI ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card border-aviva-gold/20 text-aviva-secondary")}>
+                <Bot size={12} /> AI
               </button>
-              <button onClick={exportCSV} className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
-                <Download size={13} /> ส่งออกข้อมูล
+              <button onClick={exportCSV} className="p-2 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary rounded-xl active:scale-[0.95] transition-all" title="ส่งออกข้อมูล">
+                <Download size={14} />
               </button>
-              <button onClick={openAdd} className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-                <Plus size={14} /> เพิ่มลูกค้า
+              <button onClick={openAdd} className="flex items-center gap-1 bg-aviva-gold text-aviva-bg text-[11px] font-bold px-2.5 py-2 rounded-xl shadow-lg shadow-aviva-gold/20 active:scale-[0.97] transition-all">
+                <Plus size={13} /> เพิ่ม
               </button>
             </div>
           </div>
@@ -1305,16 +1308,16 @@ export default function CRMPage() {
         {/* KPI row */}
         <div className="grid grid-cols-4 gap-2">
           {[
-            { label: "ทั้งหมด", value: leads.length, color: "text-aviva-text", filter: "all" },
-            { label: "จอง", value: stageCounts["Booking"] ?? 0, color: "text-aviva-gold", filter: "Booking" },
-            { label: "ทำสัญญา", value: stageCounts["Contract"] ?? 0, color: "text-blue-400", filter: "Contract" },
-            { label: "โอนแล้ว", value: closedCount, color: "text-green-400", filter: "Closed Deal" },
-          ].map(({ label, value, color, filter }) => (
+            { label: "ทั้งหมด", value: leads.length, color: "text-aviva-gold", accent: "bg-aviva-gold/10 border-aviva-gold/20", filter: "all" },
+            { label: "จอง", value: stageCounts["Booking"] ?? 0, color: "text-amber-400", accent: "bg-amber-500/10 border-amber-500/20", filter: "Booking" },
+            { label: "ทำสัญญา", value: stageCounts["Contract"] ?? 0, color: "text-blue-400", accent: "bg-blue-500/10 border-blue-500/20", filter: "Contract" },
+            { label: "โอนแล้ว", value: closedCount, color: "text-emerald-400", accent: "bg-emerald-500/10 border-emerald-500/20", filter: "Closed Deal" },
+          ].map(({ label, value, color, accent, filter }) => (
             <button key={label} onClick={() => setKpiModal(filter)} className="active:scale-[0.96] transition-transform w-full">
-              <GlassCard className="p-3 text-center">
+              <div className={`rounded-2xl border p-3 text-center ${accent}`}>
                 <p className={clsx("text-xl font-bold", color)}>{value}</p>
-                <p className="text-[10px] text-aviva-secondary mt-0.5">{label}</p>
-              </GlassCard>
+                <p className="text-[10px] text-aviva-secondary leading-tight mt-0.5">{label}</p>
+              </div>
             </button>
           ))}
         </div>

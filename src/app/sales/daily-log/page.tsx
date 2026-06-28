@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useCurrentUser } from '@/lib/user-context'
-import { Save, Send, ArrowLeft } from 'lucide-react'
+import { Save, Send, Phone, Building2, Handshake, MessageSquare, StickyNote, CalendarDays, Clock, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import GlassCard from '@/components/GlassCard'
 import Toast from '@/components/Toast'
 import SectionHeader from '@/components/SectionHeader'
@@ -30,6 +30,60 @@ const emptyLog: Omit<DailyLog, 'id'> = {
   status: 'draft',
 }
 
+/* ---------- Activity counter config ---------- */
+const activityTypes = [
+  {
+    key: 'activities_calls' as const,
+    label: 'โทรศัพท์',
+    icon: Phone,
+    gradient: 'from-blue-500/20 to-blue-600/10',
+    iconBg: 'bg-blue-500/20',
+    iconColor: 'text-blue-400',
+    accent: 'border-blue-500/20',
+  },
+  {
+    key: 'activities_visits' as const,
+    label: 'เยี่ยมชมโครงการ',
+    icon: Building2,
+    gradient: 'from-emerald-500/20 to-emerald-600/10',
+    iconBg: 'bg-emerald-500/20',
+    iconColor: 'text-emerald-400',
+    accent: 'border-emerald-500/20',
+  },
+  {
+    key: 'activities_meetings' as const,
+    label: 'นัดประชุม',
+    icon: Handshake,
+    gradient: 'from-amber-500/20 to-amber-600/10',
+    iconBg: 'bg-amber-500/20',
+    iconColor: 'text-amber-400',
+    accent: 'border-amber-500/20',
+  },
+] as const
+
+/* ---------- Thai date helpers ---------- */
+const thaiMonths = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+]
+
+const thaiDays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์']
+
+function formatThaiDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  const day = d.getDate()
+  const month = thaiMonths[d.getMonth()]
+  const year = d.getFullYear() + 543
+  const weekday = thaiDays[d.getDay()]
+  return `วัน${weekday}ที่ ${day} ${month} ${year}`
+}
+
+function formatThaiDateShort(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`
+}
+
+/* ========== Main Component ========== */
 export default function SalesDailyLogPage() {
   const user = useCurrentUser()
   const [form, setForm] = useState<Omit<DailyLog, 'id'>>(emptyLog)
@@ -37,6 +91,7 @@ export default function SalesDailyLogPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [showHistory, setShowHistory] = useState(true)
 
   useEffect(() => {
     loadLogs()
@@ -74,7 +129,7 @@ export default function SalesDailyLogPage() {
         setForm(emptyLog)
       }
     } catch (err) {
-      setToast({ message: `Error loading logs: ${err}`, type: 'error' })
+      setToast({ message: `เกิดข้อผิดพลาด: ${err}`, type: 'error' })
     }
     setLoading(false)
   }
@@ -83,7 +138,7 @@ export default function SalesDailyLogPage() {
     if (!user?.id) return
 
     if (form.activities_calls === 0 && form.activities_visits === 0 && form.activities_meetings === 0) {
-      setToast({ message: 'Please log at least one activity', type: 'error' })
+      setToast({ message: 'กรุณาบันทึกกิจกรรมอย่างน้อย 1 รายการ', type: 'error' })
       return
     }
 
@@ -114,7 +169,7 @@ export default function SalesDailyLogPage() {
       if (error) throw error
 
       setToast({
-        message: action === 'submit' ? 'Activity log submitted ✓' : 'Draft saved ✓',
+        message: action === 'submit' ? 'ส่งบันทึกกิจกรรมแล้ว' : 'บันทึกฉบับร่างแล้ว',
         type: 'success',
       })
 
@@ -124,209 +179,287 @@ export default function SalesDailyLogPage() {
 
       await loadLogs()
     } catch (err) {
-      setToast({ message: `Error saving: ${err}`, type: 'error' })
+      setToast({ message: `เกิดข้อผิดพลาด: ${err}`, type: 'error' })
     }
     setSaving(false)
   }
 
+  const totalActivities = form.activities_calls + form.activities_visits + form.activities_meetings
+  const isSubmitted = form.status === 'submitted'
+
+  /* ---------- Loading state ---------- */
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400 animate-pulse">กำลังโหลด...</p>
+      <div className="min-h-screen bg-aviva-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-aviva-gold/30 border-t-aviva-gold rounded-full animate-spin" />
+          <p className="text-aviva-secondary text-sm">กำลังโหลดข้อมูล...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 px-4 py-8 max-w-4xl mx-auto">
-      <SectionHeader
-        title="📋 บันทึกกิจกรรมขายรายวัน"
-        subtitle="Log your daily activities: calls, visits, meetings, and customer feedback"
-      />
+    <div className="min-h-screen bg-aviva-bg pb-28 px-4 pt-12">
+      <div className="max-w-lg mx-auto">
 
-      {/* Main Form Card */}
-      <GlassCard className="mb-6">
-        <div className="space-y-6">
-          {/* Date Picker */}
-          <div>
-            <label className="text-sm font-semibold text-gray-300">วันที่ (Date)</label>
-            <input
-              type="date"
-              value={form.log_date}
-              onChange={e => setForm({ ...form, log_date: e.target.value })}
-              disabled={form.status === 'submitted'}
-              className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white disabled:opacity-50"
-            />
+        {/* ── Page Header ── */}
+        <SectionHeader
+          title="บันทึกกิจกรรมขายรายวัน"
+          subtitle="บันทึกกิจกรรมประจำวัน: โทร, เยี่ยมชม, ประชุม"
+        />
+
+        {/* ── Date Selector ── */}
+        <GlassCard className="p-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-aviva-gold/15 flex items-center justify-center flex-shrink-0">
+              <CalendarDays size={20} className="text-aviva-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-aviva-secondary mb-1">วันที่</p>
+              <input
+                type="date"
+                value={form.log_date}
+                onChange={e => setForm({ ...form, log_date: e.target.value })}
+                disabled={isSubmitted}
+                className="w-full bg-transparent text-aviva-text text-sm font-medium disabled:opacity-50 focus:outline-none"
+              />
+              <p className="text-xs text-aviva-secondary mt-0.5">
+                {formatThaiDate(form.log_date)}
+              </p>
+            </div>
+            {isSubmitted && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-1 rounded-full flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                ส่งแล้ว
+              </span>
+            )}
+          </div>
+        </GlassCard>
+
+        {/* ── Activity Counters ── */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-aviva-text">กิจกรรมวันนี้</h3>
+            {totalActivities > 0 && (
+              <span className="text-xs text-aviva-gold font-medium bg-aviva-gold/10 px-2.5 py-0.5 rounded-full">
+                รวม {totalActivities} รายการ
+              </span>
+            )}
           </div>
 
-          {/* Activity Counters */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-semibold text-gray-300">📞 โทรศัพท์</label>
-              <div className="flex items-center gap-3 mt-2">
-                <button
-                  onClick={() => setForm({ ...form, activities_calls: Math.max(0, form.activities_calls - 1) })}
-                  disabled={form.status === 'submitted'}
-                  className="bg-red-900/30 hover:bg-red-900/50 disabled:opacity-50 px-3 py-2 rounded text-red-400"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  value={form.activities_calls}
-                  onChange={e => setForm({ ...form, activities_calls: Math.max(0, parseInt(e.target.value) || 0) })}
-                  disabled={form.status === 'submitted'}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-center disabled:opacity-50"
-                />
-                <button
-                  onClick={() => setForm({ ...form, activities_calls: form.activities_calls + 1 })}
-                  disabled={form.status === 'submitted'}
-                  className="bg-green-900/30 hover:bg-green-900/50 disabled:opacity-50 px-3 py-2 rounded text-green-400"
-                >
-                  +
-                </button>
+          <div className="space-y-3">
+            {activityTypes.map(({ key, label, icon: Icon, gradient, iconBg, iconColor, accent }) => (
+              <GlassCard key={key} className={`p-4 border ${accent}`}>
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${gradient} pointer-events-none`} />
+                <div className="relative flex items-center gap-3">
+                  {/* Icon + Label */}
+                  <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                    <Icon size={20} className={iconColor} />
+                  </div>
+                  <span className="text-sm font-medium text-aviva-text flex-1 min-w-0">{label}</span>
+
+                  {/* Counter controls */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => setForm({ ...form, [key]: Math.max(0, form[key] - 1) })}
+                      disabled={isSubmitted || form[key] === 0}
+                      className="w-9 h-9 rounded-xl bg-aviva-card border border-aviva-gold/10 flex items-center justify-center text-aviva-secondary hover:text-aviva-text hover:border-aviva-gold/30 disabled:opacity-30 transition-all active:scale-95"
+                      aria-label={`ลด${label}`}
+                    >
+                      <span className="text-lg leading-none font-medium">-</span>
+                    </button>
+
+                    <div className="w-12 text-center">
+                      <span className="text-xl font-bold text-aviva-text tabular-nums">
+                        {form[key]}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => setForm({ ...form, [key]: form[key] + 1 })}
+                      disabled={isSubmitted}
+                      className="w-9 h-9 rounded-xl bg-aviva-gold/15 border border-aviva-gold/25 flex items-center justify-center text-aviva-gold hover:bg-aviva-gold/25 hover:border-aviva-gold/40 disabled:opacity-30 transition-all active:scale-95"
+                      aria-label={`เพิ่ม${label}`}
+                    >
+                      <span className="text-lg leading-none font-medium">+</span>
+                    </button>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Customer Feedback ── */}
+        <GlassCard className="p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+              <MessageSquare size={16} className="text-purple-400" />
+            </div>
+            <label className="text-sm font-semibold text-aviva-text">ข้อคิดเห็นลูกค้า</label>
+          </div>
+          <textarea
+            value={form.customer_feedback}
+            onChange={e => setForm({ ...form, customer_feedback: e.target.value })}
+            disabled={isSubmitted}
+            placeholder="สรุปข้อเสนอแนะจากลูกค้า..."
+            rows={3}
+            className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/50 disabled:opacity-50 resize-none focus:outline-none focus:border-aviva-gold/30 transition-colors"
+          />
+        </GlassCard>
+
+        {/* ── Internal Notes ── */}
+        <GlassCard className="p-4 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/15 flex items-center justify-center flex-shrink-0">
+              <StickyNote size={16} className="text-sky-400" />
+            </div>
+            <label className="text-sm font-semibold text-aviva-text">บันทึกภายใน</label>
+          </div>
+          <textarea
+            value={form.notes}
+            onChange={e => setForm({ ...form, notes: e.target.value })}
+            disabled={isSubmitted}
+            placeholder="บันทึกภายใน, สิ่งที่ต้องติดตาม..."
+            rows={3}
+            className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/50 disabled:opacity-50 resize-none focus:outline-none focus:border-aviva-gold/30 transition-colors"
+          />
+        </GlassCard>
+
+        {/* ── Submitted Banner ── */}
+        {isSubmitted && (
+          <GlassCard className="p-4 mb-6 border border-emerald-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                <Clock size={20} className="text-emerald-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-emerald-400">ส่งรายงานแล้ว</p>
+                <p className="text-xs text-aviva-secondary mt-0.5">
+                  {form.submitted_at
+                    ? new Date(form.submitted_at).toLocaleString('th-TH', {
+                        dateStyle: 'long',
+                        timeStyle: 'short',
+                      })
+                    : '-'}
+                </p>
               </div>
             </div>
+          </GlassCard>
+        )}
 
-            <div>
-              <label className="text-sm font-semibold text-gray-300">🏢 เยี่ยมชม</label>
-              <div className="flex items-center gap-3 mt-2">
-                <button
-                  onClick={() => setForm({ ...form, activities_visits: Math.max(0, form.activities_visits - 1) })}
-                  disabled={form.status === 'submitted'}
-                  className="bg-red-900/30 hover:bg-red-900/50 disabled:opacity-50 px-3 py-2 rounded text-red-400"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  value={form.activities_visits}
-                  onChange={e => setForm({ ...form, activities_visits: Math.max(0, parseInt(e.target.value) || 0) })}
-                  disabled={form.status === 'submitted'}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-center disabled:opacity-50"
-                />
-                <button
-                  onClick={() => setForm({ ...form, activities_visits: form.activities_visits + 1 })}
-                  disabled={form.status === 'submitted'}
-                  className="bg-green-900/30 hover:bg-green-900/50 disabled:opacity-50 px-3 py-2 rounded text-green-400"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-gray-300">🤝 ประชุม</label>
-              <div className="flex items-center gap-3 mt-2">
-                <button
-                  onClick={() => setForm({ ...form, activities_meetings: Math.max(0, form.activities_meetings - 1) })}
-                  disabled={form.status === 'submitted'}
-                  className="bg-red-900/30 hover:bg-red-900/50 disabled:opacity-50 px-3 py-2 rounded text-red-400"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  value={form.activities_meetings}
-                  onChange={e => setForm({ ...form, activities_meetings: Math.max(0, parseInt(e.target.value) || 0) })}
-                  disabled={form.status === 'submitted'}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-center disabled:opacity-50"
-                />
-                <button
-                  onClick={() => setForm({ ...form, activities_meetings: form.activities_meetings + 1 })}
-                  disabled={form.status === 'submitted'}
-                  className="bg-green-900/30 hover:bg-green-900/50 disabled:opacity-50 px-3 py-2 rounded text-green-400"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Feedback */}
-          <div>
-            <label className="text-sm font-semibold text-gray-300">💬 ข้อคิดเห็นลูกค้า</label>
-            <textarea
-              value={form.customer_feedback}
-              onChange={e => setForm({ ...form, customer_feedback: e.target.value })}
-              disabled={form.status === 'submitted'}
-              placeholder="Key feedback from calls/visits..."
-              rows={3}
-              className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder:text-gray-600 disabled:opacity-50 resize-none"
-            />
-          </div>
-
-          {/* Internal Notes */}
-          <div>
-            <label className="text-sm font-semibold text-gray-300">📝 หมายเหตุ (Internal)</label>
-            <textarea
-              value={form.notes}
-              onChange={e => setForm({ ...form, notes: e.target.value })}
-              disabled={form.status === 'submitted'}
-              placeholder="Internal observations, follow-up actions..."
-              rows={3}
-              className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder:text-gray-600 disabled:opacity-50 resize-none"
-            />
-          </div>
-
-          {/* Status Badge */}
-          {form.status === 'submitted' && (
-            <div className="bg-green-900/20 border border-green-700 rounded-lg p-3 text-green-300 text-sm">
-              ✓ Log submitted on {form.submitted_at ? new Date(form.submitted_at).toLocaleString('th-TH') : '—'}
-            </div>
-          )}
-
-          {/* Buttons */}
-          <div className="flex gap-3">
+        {/* ── Action Buttons ── */}
+        {!isSubmitted && (
+          <div className="flex gap-3 mb-8">
             <button
               onClick={() => handleSave('draft')}
-              disabled={saving || form.status === 'submitted'}
-              className="flex-1 bg-blue-900/30 hover:bg-blue-900/50 disabled:opacity-50 text-blue-400 py-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 bg-aviva-card border border-aviva-gold/15 text-aviva-text py-3.5 rounded-2xl font-medium text-sm hover:border-aviva-gold/30 disabled:opacity-50 transition-all active:scale-[0.98]"
             >
-              <Save size={18} /> Save as Draft
+              <Save size={16} className="text-aviva-secondary" />
+              บันทึกฉบับร่าง
             </button>
             <button
               onClick={() => handleSave('submit')}
-              disabled={saving || form.status === 'submitted'}
-              className="flex-1 bg-green-900/30 hover:bg-green-900/50 disabled:opacity-50 text-green-400 py-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg py-3.5 rounded-2xl font-bold text-sm hover:brightness-110 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-aviva-gold/20"
             >
-              <Send size={18} /> Submit
+              <Send size={16} />
+              ส่งรายงาน
             </button>
           </div>
-        </div>
-      </GlassCard>
+        )}
 
-      {/* History */}
-      <div>
-        <h2 className="text-lg font-bold text-white mb-4">📋 Recent Logs (Last 7 Days)</h2>
-        <div className="space-y-3">
-          {history.slice(0, 7).map(log => (
-            <GlassCard key={log.id} className="p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold text-white">{log.log_date}</p>
-                  <p className="text-sm text-gray-400 mt-1">
-                    📞 {log.activities_calls} · 🏢 {log.activities_visits} · 🤝 {log.activities_meetings}
-                  </p>
-                  {log.customer_feedback && (
-                    <p className="text-sm text-gray-300 mt-2">💬 {log.customer_feedback}</p>
-                  )}
-                </div>
-                <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    log.status === 'submitted'
-                      ? 'bg-green-900/30 text-green-400'
-                      : 'bg-blue-900/30 text-blue-400'
-                  }`}
-                >
-                  {log.status === 'submitted' ? '✓ Submitted' : 'Draft'}
-                </span>
-              </div>
-            </GlassCard>
-          ))}
+        {/* ── History Section ── */}
+        <div className="mb-4">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center justify-between w-full mb-3"
+          >
+            <h3 className="text-sm font-semibold text-aviva-text flex items-center gap-2">
+              <FileText size={16} className="text-aviva-gold" />
+              บันทึกย้อนหลัง (7 วัน)
+            </h3>
+            {showHistory
+              ? <ChevronUp size={16} className="text-aviva-secondary" />
+              : <ChevronDown size={16} className="text-aviva-secondary" />
+            }
+          </button>
+
+          {showHistory && (
+            <div className="space-y-2.5">
+              {history.length === 0 ? (
+                /* ── Empty state ── */
+                <GlassCard className="p-8">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-aviva-gold/10 flex items-center justify-center mb-3">
+                      <FileText size={24} className="text-aviva-gold/50" />
+                    </div>
+                    <p className="text-sm text-aviva-secondary">ยังไม่มีบันทึกย้อนหลัง</p>
+                    <p className="text-xs text-aviva-secondary/60 mt-1">เริ่มบันทึกกิจกรรมวันนี้เลย</p>
+                  </div>
+                </GlassCard>
+              ) : (
+                history.slice(0, 7).map(log => {
+                  const logTotal = log.activities_calls + log.activities_visits + log.activities_meetings
+                  return (
+                    <GlassCard key={log.id} className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          {/* Date */}
+                          <p className="text-sm font-semibold text-aviva-text">
+                            {formatThaiDateShort(log.log_date)}
+                          </p>
+
+                          {/* Activity summary row */}
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="flex items-center gap-1 text-xs text-aviva-secondary">
+                              <Phone size={12} className="text-blue-400" />
+                              {log.activities_calls}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs text-aviva-secondary">
+                              <Building2 size={12} className="text-emerald-400" />
+                              {log.activities_visits}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs text-aviva-secondary">
+                              <Handshake size={12} className="text-amber-400" />
+                              {log.activities_meetings}
+                            </span>
+                            <span className="text-xs text-aviva-secondary/60 ml-auto">
+                              รวม {logTotal}
+                            </span>
+                          </div>
+
+                          {/* Feedback preview */}
+                          {log.customer_feedback && (
+                            <p className="text-xs text-aviva-secondary mt-2 line-clamp-2 leading-relaxed">
+                              {log.customer_feedback}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Status badge */}
+                        <span
+                          className={`flex-shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                            log.status === 'submitted'
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                              : 'bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20'
+                          }`}
+                        >
+                          {log.status === 'submitted' ? 'ส่งแล้ว' : 'ฉบับร่าง'}
+                        </span>
+                      </div>
+                    </GlassCard>
+                  )
+                })
+              )}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* ── Toast ── */}
       {toast && (
         <Toast
           message={toast.message}

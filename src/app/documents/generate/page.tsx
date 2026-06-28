@@ -144,37 +144,44 @@ function GenerateInner() {
   };
 
   return (
-    <div className="min-h-screen bg-aviva-bg pb-24">
+    <div className="min-h-screen bg-aviva-bg pb-28">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-aviva-nav border-b border-aviva-gold/20 no-print">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-aviva-secondary active:scale-90"><ArrowLeft size={20} /></button>
-          <FileText size={18} className="text-aviva-gold" />
-          <h1 className="text-base font-bold text-aviva-text">ออกเอกสารขาย</h1>
-          {leadId && (
-            <button onClick={saveToHistory} disabled={saving}
-              className="ml-auto flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold font-bold text-sm px-3 py-1.5 rounded-lg active:scale-95 disabled:opacity-50">
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} บันทึกเข้าประวัติ
+      <div className="sticky top-0 z-30 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 no-print">
+        <div className="max-w-5xl mx-auto px-4 pt-12 pb-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.back()} className="text-aviva-secondary active:scale-90 transition-transform"><ArrowLeft size={20} /></button>
+            <div className="w-10 h-10 rounded-xl bg-aviva-gold/15 border border-aviva-gold/25 flex items-center justify-center">
+              <FileText size={20} className="text-aviva-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-aviva-text">ออกเอกสารขาย</h1>
+              <p className="text-xs text-aviva-secondary mt-0.5">สร้างใบเสนอราคา, หนังสือจอง, สัญญา</p>
+            </div>
+            {leadId && (
+              <button onClick={saveToHistory} disabled={saving}
+                className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/25 text-aviva-gold font-bold text-xs px-3 py-2 rounded-xl active:scale-[0.97] disabled:opacity-50 transition-all shrink-0">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} บันทึก
+              </button>
+            )}
+            <button onClick={() => window.print()}
+              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold text-xs px-3 py-2 rounded-xl active:scale-[0.97] transition-all shadow-lg shadow-aviva-gold/20 shrink-0">
+              <Printer size={14} /> พิมพ์
             </button>
-          )}
-          <button onClick={() => window.print()}
-            className={clsx("flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold text-sm px-3 py-1.5 rounded-lg active:scale-95", !leadId && "ml-auto")}>
-            <Printer size={15} /> พิมพ์ / PDF
-          </button>
-        </div>
-        {savedMsg && (
-          <div className="max-w-5xl mx-auto px-4 pb-2 flex items-center gap-1.5 text-xs text-emerald-400">
-            <Check size={13} /> {savedMsg}
           </div>
-        )}
-        <div className="max-w-5xl mx-auto px-4 pb-2 flex gap-2">
-          {DOC_TABS.map((t) => (
-            <button key={t.key} onClick={() => setDocType(t.key)}
-              className={clsx("px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                docType === t.key ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
-              {t.label}
-            </button>
-          ))}
+          {savedMsg && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
+              <Check size={13} /> {savedMsg}
+            </div>
+          )}
+          <div className="flex gap-2 mt-3">
+            {DOC_TABS.map((t) => (
+              <button key={t.key} onClick={() => setDocType(t.key)}
+                className={clsx("px-4 py-2 rounded-xl text-xs font-semibold border transition-all",
+                  docType === t.key ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/40 shadow-sm shadow-aviva-gold/10" : "bg-aviva-card/80 text-aviva-secondary border-aviva-gold/10 active:scale-[0.97]")}>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -183,16 +190,16 @@ function GenerateInner() {
         <div className="space-y-4 no-print">
           <Section title="ลูกค้า (ดึงจาก CRM)">
             <div className="relative">
-              <div className="flex items-center gap-2 bg-aviva-card rounded-lg px-3 py-2 border border-aviva-gold/10">
+              <div className="flex items-center gap-2 bg-aviva-bg/50 rounded-xl px-3.5 py-2.5 border border-aviva-gold/10">
                 <Search size={15} className="text-aviva-secondary" />
                 <input value={leadSearch} onChange={(e) => { setLeadSearch(e.target.value); setShowLeadList(true); }}
-                  placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." className="bg-transparent flex-1 text-sm text-aviva-text outline-none" />
+                  placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." className="bg-transparent flex-1 text-sm text-aviva-text outline-none placeholder:text-aviva-secondary/50" />
               </div>
               {showLeadList && leadResults.length > 0 && (
-                <div className="absolute z-20 mt-1 w-full bg-aviva-card border border-aviva-gold/20 rounded-lg shadow-xl overflow-hidden">
+                <div className="absolute z-20 mt-1 w-full bg-aviva-card border border-aviva-gold/20 rounded-xl shadow-xl overflow-hidden">
                   {leadResults.map((l) => (
                     <button key={l.id} onClick={() => applyLead(l)}
-                      className="w-full text-left px-3 py-2 text-sm text-aviva-text hover:bg-aviva-gold/10 border-b border-aviva-gold/5">
+                      className="w-full text-left px-3.5 py-2.5 text-sm text-aviva-text hover:bg-aviva-gold/10 border-b border-aviva-gold/5 transition-colors">
                       {l.customer_name} {l.plot_number ? <span className="text-aviva-secondary text-xs">· แปลง {l.plot_number}</span> : null}
                     </button>
                   ))}
@@ -211,7 +218,7 @@ function GenerateInner() {
           <Section title="แปลง / สิ่งปลูกสร้าง">
             <label className="block text-xs text-aviva-secondary mb-1">เลือกแปลง</label>
             <select value={d.plot} onChange={(e) => applyPlot(e.target.value)}
-              className="w-full bg-aviva-card border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none">
+              className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-3.5 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/30 transition-colors">
               <option value="">— เลือกแปลง —</option>
               {PLOTS.map((p) => <option key={p.plot} value={p.plot}>{p.plot} · {p.model} · {p.landSize} ตร.วา · {p.price.toLocaleString()}</option>)}
             </select>
@@ -239,14 +246,21 @@ function GenerateInner() {
               <NumField label="ผ่อนดาวน์ (งวด)" value={d.downInstallments} onChange={(v) => set({ downInstallments: num(v), downTotal: 0 })} />
               <NumField label="งวดละ (บาท)" value={d.downPerInstallment} onChange={(v) => set({ downPerInstallment: num(v), downTotal: 0 })} />
             </div>
-            <div className="text-xs text-aviva-secondary">
-              รวมดาวน์ <b className="text-aviva-gold">{computed.downTotal.toLocaleString()}</b> · คงเหลือวันโอน <b className="text-aviva-gold">{computed.remaining.toLocaleString()}</b>
+            <div className="bg-aviva-bg/50 rounded-xl p-3 border border-aviva-gold/10">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-aviva-secondary">รวมดาวน์</span>
+                <span className="font-bold text-aviva-gold">{computed.downTotal.toLocaleString()} บาท</span>
+              </div>
+              <div className="flex items-center justify-between text-xs mt-1.5">
+                <span className="text-aviva-secondary">คงเหลือวันโอน</span>
+                <span className="font-bold text-aviva-gold">{computed.remaining.toLocaleString()} บาท</span>
+              </div>
             </div>
             <label className="block text-xs text-aviva-secondary mb-1">วิธีชำระเงินจอง</label>
             <div className="flex gap-2">
               {([["cash", "เงินสด"], ["transfer", "โอนธนาคาร"], ["credit", "บัตรเครดิต"]] as const).map(([k, lbl]) => (
                 <button key={k} onClick={() => set({ paymentMethod: d.paymentMethod === k ? "" : k })}
-                  className={clsx("px-3 py-1.5 rounded-lg text-xs border", d.paymentMethod === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+                  className={clsx("px-4 py-2 rounded-xl text-xs font-semibold border transition-all active:scale-[0.97]", d.paymentMethod === k ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/40" : "bg-aviva-bg/50 text-aviva-secondary border-aviva-gold/10")}>
                   {lbl}
                 </button>
               ))}
@@ -285,8 +299,11 @@ function GenerateInner() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-aviva-card/40 rounded-xl p-3 border border-aviva-gold/10 space-y-2">
-      <div className="text-sm font-bold text-aviva-gold">{title}</div>
+    <div className="bg-aviva-card/80 rounded-2xl p-4 border border-aviva-gold/10 backdrop-blur-sm space-y-3">
+      <div className="flex items-center gap-2 pb-2 border-b border-aviva-gold/10">
+        <div className="w-1.5 h-4 rounded-full bg-aviva-gold/60" />
+        <span className="text-sm font-bold text-aviva-text">{title}</span>
+      </div>
       {children}
     </div>
   );
@@ -296,7 +313,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     <div>
       <label className="block text-xs text-aviva-secondary mb-1">{label}</label>
       <input value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-aviva-card border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/40" />
+        className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-3.5 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/30 transition-colors" />
     </div>
   );
 }
@@ -305,7 +322,7 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
     <div>
       <label className="block text-xs text-aviva-secondary mb-1">{label}</label>
       <input inputMode="numeric" value={value === 0 ? "" : value} onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-aviva-card border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/40" />
+        className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-3.5 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/30 transition-colors" />
     </div>
   );
 }
@@ -314,7 +331,7 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
     <div>
       <label className="block text-xs text-aviva-secondary mb-1">{label}</label>
       <input type="date" value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-aviva-card border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/40" />
+        className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-3.5 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/30 transition-colors" />
     </div>
   );
 }

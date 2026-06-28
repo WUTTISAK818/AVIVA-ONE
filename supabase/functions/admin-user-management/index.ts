@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 
 // CEO และ COO = สิทธิ์สูงสุด ทำได้ทุกอย่าง (รวมถึงจัดการผู้ใช้)
 const MANAGER_ROLES = ["admin", "ceo", "coo", "manager", "director", "project_manager"];
@@ -49,20 +50,43 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (req.method === "GET") {
-      // ดึงผู้ใช้ทั้งหมด — perPage:1000 ป้องกัน cutoff เมื่อมีผู้ใช้มาก
-      const { data, error } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (error) throw error;
-      const users = (data.users ?? []).map((u) => ({
-        id: u.id,
-        email: u.email ?? "",
-        full_name: u.user_metadata?.full_name ?? "",
-        // แสดง role/department จาก app_metadata เป็นหลัก (แหล่งที่เชื่อถือได้)
-        role: u.app_metadata?.role ?? u.user_metadata?.role ?? "user",
-        department: u.app_metadata?.department ?? u.user_metadata?.department ?? "",
-        created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at ?? null,
-      }));
-      return new Response(JSON.stringify({ users }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // Direct Postgres query — bypass GoTrue ที่ crash เมื่อ auth.users มี NULL ในคอลัมน์ string
+      const dbUrl = Deno.env.get("SUPABASE_DB_URL")!;
+      const sql = postgres(dbUrl, { max: 1 });
+      try {
+        const rows = await sql`
+          SELECT
+            id,
+            COALESCE(email, '') AS email,
+            COALESCE(raw_user_meta_data->>'full_name', '') AS full_name,
+            COALESCE(
+              raw_app_meta_data->>'role',
+              raw_user_meta_data->>'role',
+              'user'
+            ) AS role,
+            COALESCE(
+              raw_app_meta_data->>'department',
+              raw_user_meta_data->>'department',
+              ''
+            ) AS department,
+            created_at,
+            last_sign_in_at
+          FROM auth.users
+          ORDER BY created_at
+        `;
+        const users = rows.map((r: Record<string, unknown>) => ({
+          id: r.id,
+          email: r.email,
+          full_name: r.full_name,
+          role: r.role,
+          department: r.department,
+          created_at: r.created_at,
+          last_sign_in_at: r.last_sign_in_at ?? null,
+        }));
+        return new Response(JSON.stringify({ users }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } finally {
+        await sql.end();
+      }
     }
 
     if (req.method === "POST") {

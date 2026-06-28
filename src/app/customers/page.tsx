@@ -120,12 +120,12 @@ export default async function CustomersPage() {
           </span>
         </div>
 
-        {/* ── KPI Summary Row ── */}
-        <div className="grid grid-cols-5 gap-2">
+        {/* ── KPI Summary Row (เลื่อนแนวนอนบนจอแคบ) ── */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-5">
           {statusCounts.map(s => {
             const Icon = s.Icon
             return (
-              <div key={s.key} className={`rounded-2xl border p-3 text-center ${s.stage.bg} ${s.stage.border}`}>
+              <div key={s.key} className={`shrink-0 w-[76px] sm:w-auto rounded-2xl border p-3 text-center ${s.stage.bg} ${s.stage.border}`}>
                 <Icon size={16} className={`${s.stage.accent} mx-auto mb-1.5`} />
                 <p className={`text-xl font-bold ${s.stage.accent}`}>{s.count}</p>
                 <p className="text-[10px] text-aviva-secondary leading-tight mt-0.5">{s.label}</p>

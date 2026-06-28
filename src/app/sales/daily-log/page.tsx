@@ -6,7 +6,6 @@ import { useCurrentUser } from '@/lib/user-context'
 import { Save, Send, Phone, Building2, Handshake, MessageSquare, StickyNote, CalendarDays, Clock, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import GlassCard from '@/components/GlassCard'
 import Toast from '@/components/Toast'
-import SectionHeader from '@/components/SectionHeader'
 
 interface DailyLog {
   id: string
@@ -204,10 +203,15 @@ export default function SalesDailyLogPage() {
       <div className="max-w-lg mx-auto">
 
         {/* ── Page Header ── */}
-        <SectionHeader
-          title="บันทึกกิจกรรมขายรายวัน"
-          subtitle="บันทึกกิจกรรมประจำวัน: โทร, เยี่ยมชม, ประชุม"
-        />
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-aviva-gold/15 border border-aviva-gold/25 flex items-center justify-center shrink-0">
+            <FileText size={20} className="text-aviva-gold" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-aviva-text">บันทึกกิจกรรมขายรายวัน</h1>
+            <p className="text-xs text-aviva-secondary mt-0.5">โทร, เยี่ยมชม, ประชุม</p>
+          </div>
+        </div>
 
         {/* ── Date Selector ── */}
         <GlassCard className="p-4 mb-4">

@@ -2,7 +2,7 @@
 
 import { APP_VERSION } from "@/lib/version";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, Target, Zap, AlertTriangle, Clock, ClipboardList } from "lucide-react";
+import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, AlertTriangle, Clock, ClipboardList } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
@@ -11,7 +11,6 @@ import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
-import CalendarWidget from "@/components/CalendarWidget";
 import { supabase } from "@/lib/supabase";
 import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
@@ -466,59 +465,6 @@ export default function DashboardPage() {
 
   const insights: InsightItem[] = [];
 
-  if (canSeeFinance && revenuePct !== null) {
-    const gap = (project?.revenue_target ?? 0) - stats.totalReceipts;
-    insights.push({
-      type: revenuePct >= 80 ? "success" : revenuePct >= 50 ? "warning" : "alert",
-      priority: revenuePct >= 80 ? "low" : revenuePct >= 50 ? "medium" : "high",
-      title: `รายรับสะสม ${revenuePct}% ของเป้าหมายปีนี้`,
-      message: revenuePct >= 80
-        ? `รายรับ ฿${formatMillions(stats.totalReceipts)} — ใกล้ถึงเป้า ฿${formatMillions(project!.revenue_target)} แล้ว`
-        : `ยังต้องรับเพิ่มอีก ฿${formatMillions(gap)} เพื่อให้ถึงเป้า ฿${formatMillions(project!.revenue_target)}`,
-      href: undefined,
-      icon: Target,
-      iconColor: revenuePct >= 80 ? "text-green-400" : revenuePct >= 50 ? "text-yellow-400" : "text-red-400",
-      bg: revenuePct >= 80 ? "bg-green-500/10" : revenuePct >= 50 ? "bg-yellow-500/10" : "bg-red-500/10",
-      border: revenuePct >= 80 ? "border-green-500/20" : revenuePct >= 50 ? "border-yellow-500/20" : "border-red-500/20",
-      titleColor: revenuePct >= 80 ? "text-green-400" : revenuePct >= 50 ? "text-yellow-300" : "text-red-400",
-    });
-  }
-
-  if (canSeeCRM && project && totalUnits > 0) {
-    insights.push({
-      type: selloutPct >= 80 ? "success" : selloutPct >= 50 ? "info" : "warning",
-      priority: "medium",
-      title: `ความเร็วขาย ${salesVelocity.toFixed(1)} ยูนิต/เดือน — ปิดแล้ว ${soldUnits}/${totalUnits}`,
-      message: monthsToSellout
-        ? `คาดขายหมดใน ~${monthsToSellout} เดือน (เหลือว่าง ${available} ยูนิต)`
-        : available === 0 ? "ขายหมดทุกยูนิตแล้ว !" : `เหลือยูนิตว่าง ${available} ยูนิต`,
-      href: "/crm",
-      icon: Activity,
-      iconColor: selloutPct >= 80 ? "text-green-400" : "text-blue-400",
-      bg: selloutPct >= 80 ? "bg-green-500/10" : "bg-blue-500/10",
-      border: selloutPct >= 80 ? "border-green-500/20" : "border-blue-500/20",
-      titleColor: selloutPct >= 80 ? "text-green-400" : "text-blue-300",
-    });
-  }
-
-  if (canSeeFinance && (stats.totalReceipts > 0 || stats.expenseTotal > 0)) {
-    const isProfit = netPL >= 0;
-    insights.push({
-      type: isProfit ? "success" : "alert",
-      priority: isProfit ? "low" : "high",
-      title: `กำไร-ขาดทุนสุทธิ: ${isProfit ? "+" : "-"}฿${formatMillions(Math.abs(netPL))}`,
-      message: `รายรับ ฿${formatMillions(stats.totalReceipts)} — รายจ่าย ฿${formatMillions(stats.expenseTotal)}`,
-      icon: isProfit ? TrendingUp : TrendingDown,
-      iconColor: isProfit ? "text-green-400" : "text-red-400",
-      bg: isProfit ? "bg-green-500/10" : "bg-red-500/10",
-      border: isProfit ? "border-green-500/20" : "border-red-500/20",
-      titleColor: isProfit ? "text-green-400" : "text-red-400",
-    });
-  }
-
-  // Approvals ย้ายไปแสดงใน Activity Calendar แล้ว
-  // if (canSeeAll && stats.pendingApprovals > 0) { ... } - REMOVED
-
   if (canSeeAll && stats.pendingClaims > 0) {
     insights.push({
       type: "alert",
@@ -772,10 +718,15 @@ export default function DashboardPage() {
           </GlassCard>
         ) : (
           <>
-            <div>
-              <SectionHeader title="ภาพรวมโครงการ"
-                subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
-              <div className="grid grid-cols-3 gap-2">
+            {canSeeCRM && <GlassCard className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <SectionHeader title="ภาพรวมโครงการ"
+                    subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
+                </div>
+                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-3">
                 <button onClick={() => openKpi("units")}
                   className="bg-aviva-card rounded-2xl border border-aviva-gold/15 p-3 text-center active:scale-95 transition-all">
                   <Home size={15} className="text-aviva-gold mx-auto mb-1.5" />
@@ -794,54 +745,6 @@ export default function DashboardPage() {
                   <p className="text-xl font-bold text-green-400">{available}</p>
                   <p className="text-[10px] text-aviva-secondary leading-tight">ว่างอยู่</p>
                 </button>
-              </div>
-            </div>
-
-            <div>
-              <SectionHeader title="ความคืบหน้าก่อสร้าง" subtitle="สถานะโครงการก่อสร้าง" />
-              <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => openKpi("completed")}
-                  className="bg-green-500/10 rounded-2xl border border-green-500/30 p-3 text-center active:scale-95 transition-all">
-                  <Package size={15} className="text-green-400 mx-auto mb-1.5" />
-                  <p className="text-xl font-bold text-green-400">{constructionProgressStats.completedUnits}</p>
-                  <p className="text-[10px] text-aviva-secondary leading-tight">สร้างเสร็จแล้ว</p>
-                  {totalUnits > 0 && (
-                    <p className="text-[9px] text-green-400/70 mt-1 font-medium">
-                      {Math.round((constructionProgressStats.completedUnits / totalUnits) * 100)}%
-                    </p>
-                  )}
-                </button>
-                <button onClick={() => openKpi("in_progress")}
-                  className="bg-orange-500/10 rounded-2xl border border-orange-500/30 p-3 text-center active:scale-95 transition-all">
-                  <HardHat size={15} className="text-orange-400 mx-auto mb-1.5" />
-                  <p className="text-xl font-bold text-orange-400">{constructionProgressStats.inProgressUnits}</p>
-                  <p className="text-[10px] text-aviva-secondary leading-tight">กำลังสร้าง</p>
-                  {totalUnits > 0 && (
-                    <p className="text-[9px] text-orange-400/70 mt-1 font-medium">
-                      {Math.round((constructionProgressStats.inProgressUnits / totalUnits) * 100)}%
-                    </p>
-                  )}
-                </button>
-                <div className="bg-aviva-card rounded-2xl border border-aviva-gold/15 p-3 text-center">
-                  <div className="w-4 h-4 rounded-full bg-gray-400 mx-auto mb-1.5" />
-                  <p className="text-xl font-bold text-aviva-text">{constructionProgressStats.notStartedUnits}</p>
-                  <p className="text-[10px] text-aviva-secondary leading-tight">ยังไม่เริ่ม</p>
-                  {totalUnits > 0 && (
-                    <p className="text-[9px] text-aviva-secondary/70 mt-1 font-medium">
-                      {Math.round((constructionProgressStats.notStartedUnits / totalUnits) * 100)}%
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {canSeeCRM && <GlassCard className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <SectionHeader title="ฝ่ายขาย — ภาพรวม"
-                    subtitle="ข้อมูล Leads ทั้งหมดตั้งแต่เริ่มโครงการ" />
-                </div>
-                <Link href="/crm" className="text-[11px] text-aviva-gold font-medium flex-shrink-0">ดูเพิ่มเติม →</Link>
               </div>
               <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต (คาดขายหมด: ${selloutForecast})`} value={selloutPct} />
               {salesFunnel ? (
@@ -888,32 +791,20 @@ export default function DashboardPage() {
               )}
               <div className="grid grid-cols-3 gap-2 mt-3">
                 <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-aviva-gold">{selloutPct}%</p>
-                  <p className="text-[10px] text-aviva-secondary">ปิดการขาย</p>
+                  <p className="text-lg font-bold text-aviva-gold">{salesVelocity > 0 ? salesVelocity.toFixed(1) : "—"}</p>
+                  <p className="text-[10px] text-aviva-secondary">ความเร็วขาย (ยูนิต/เดือน)</p>
                 </div>
                 <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-aviva-text">{stats.totalLeads}</p>
+                  <p className="text-lg font-bold text-blue-400">
+                    {available === 0 ? "หมดแล้ว" : monthsToSellout ? `~${monthsToSellout} เดือน` : "—"}
+                  </p>
+                  <p className="text-[10px] text-aviva-secondary">คาดขายหมด</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-aviva-text">{stats.totalLeads}</p>
                   <p className="text-[10px] text-aviva-secondary">Leads ทั้งหมด</p>
                 </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-aviva-text">{available}</p>
-                  <p className="text-[10px] text-aviva-secondary">ยูนิตว่าง</p>
-                </div>
               </div>
-              {salesVelocity > 0 && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                    <p className="text-lg font-bold text-aviva-gold">{salesVelocity.toFixed(1)}</p>
-                    <p className="text-[10px] text-aviva-secondary">ยูนิต/เดือน (ความเร็วขาย)</p>
-                  </div>
-                  <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                    <p className="text-lg font-bold text-blue-400">
-                      {available === 0 ? "ขายหมดแล้ว !" : monthsToSellout ? `~${monthsToSellout} เดือน` : "—"}
-                    </p>
-                    <p className="text-[10px] text-aviva-secondary">คาดขายหมด</p>
-                  </div>
-                </div>
-              )}
             </GlassCard>}
 
             {canSeeFinance && <GlassCard className="p-4">
@@ -1029,10 +920,44 @@ export default function DashboardPage() {
 
             {canSeeConstruction && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <SectionHeader title="ก่อสร้าง" subtitle="ประเด็นสำคัญสำหรับผู้บริหาร" />
+                <SectionHeader title="ภาพรวมก่อสร้าง" subtitle="สถานะโครงการก่อสร้าง" />
                 <Link href="/construction" className="text-[11px] text-aviva-gold font-medium">รายละเอียด →</Link>
               </div>
               <ProgressBar label={`ความคืบหน้าก่อสร้างโดยรวม ${constructionProgress}%`} value={constructionProgress} />
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <button onClick={() => openKpi("completed")}
+                  className="bg-green-500/10 rounded-2xl border border-green-500/30 p-3 text-center active:scale-95 transition-all">
+                  <Package size={15} className="text-green-400 mx-auto mb-1.5" />
+                  <p className="text-xl font-bold text-green-400">{constructionProgressStats.completedUnits}</p>
+                  <p className="text-[10px] text-aviva-secondary leading-tight">สร้างเสร็จแล้ว</p>
+                  {totalUnits > 0 && (
+                    <p className="text-[9px] text-green-400/70 mt-1 font-medium">
+                      {Math.round((constructionProgressStats.completedUnits / totalUnits) * 100)}%
+                    </p>
+                  )}
+                </button>
+                <button onClick={() => openKpi("in_progress")}
+                  className="bg-orange-500/10 rounded-2xl border border-orange-500/30 p-3 text-center active:scale-95 transition-all">
+                  <HardHat size={15} className="text-orange-400 mx-auto mb-1.5" />
+                  <p className="text-xl font-bold text-orange-400">{constructionProgressStats.inProgressUnits}</p>
+                  <p className="text-[10px] text-aviva-secondary leading-tight">กำลังสร้าง</p>
+                  {totalUnits > 0 && (
+                    <p className="text-[9px] text-orange-400/70 mt-1 font-medium">
+                      {Math.round((constructionProgressStats.inProgressUnits / totalUnits) * 100)}%
+                    </p>
+                  )}
+                </button>
+                <div className="bg-aviva-card rounded-2xl border border-aviva-gold/15 p-3 text-center">
+                  <div className="w-4 h-4 rounded-full bg-gray-400 mx-auto mb-1.5" />
+                  <p className="text-xl font-bold text-aviva-text">{constructionProgressStats.notStartedUnits}</p>
+                  <p className="text-[10px] text-aviva-secondary leading-tight">ยังไม่เริ่ม</p>
+                  {totalUnits > 0 && (
+                    <p className="text-[9px] text-aviva-secondary/70 mt-1 font-medium">
+                      {Math.round((constructionProgressStats.notStartedUnits / totalUnits) * 100)}%
+                    </p>
+                  )}
+                </div>
+              </div>
               <div className="mt-3 space-y-2">
                 {delayedHouseStats.count > 0 ? (
                   <Link href="/construction" className="flex items-start gap-2.5 p-3 bg-red-500/10 rounded-xl border border-red-500/20 active:scale-[0.98] transition-transform">
@@ -1053,7 +978,7 @@ export default function DashboardPage() {
                 {constructionStats.inReview > 0 && (
                   <Link href="/approvals" className="flex items-start gap-2.5 p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 active:scale-[0.98] transition-transform">
                     <Clock size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-<div>
+                    <div>
                       <p className="text-xs font-bold text-yellow-400">งวดงานรออนุมัติ {constructionStats.inReview} งวด — กระทบกระแสเงินสดผู้รับเหมา</p>
                       <p className="text-[10px] text-aviva-secondary/80 mt-0.5">กดเพื่อไปอนุมัติ</p>
                     </div>
@@ -1106,10 +1031,6 @@ export default function DashboardPage() {
             </GlassCard>}
           </>
         )}
-
-        <div>
-          {/* CalendarWidget ย้ายขึ้นบนแล้ว - REMOVED */}
-        </div>
       </div>
 
       {kpiModal && (

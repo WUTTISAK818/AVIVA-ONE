@@ -41,3 +41,12 @@ yarn-error.log*
 next-env.d.ts
 .claude/
 .supabase/
+
+# scratch / secrets / test-data tooling (ห้าม commit — กฎ CLAUDE.md)
+set-vercel-env*.sh
+*CREDENTIALS*.txt
+DEMO_USERS_*.txt
+SQL_CREATE_*.sql
+SQL_CLEANUP_*.sql
+SQL_DEMO_*.sql
+create-demo-users*.js

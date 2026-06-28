@@ -19,7 +19,15 @@
 | 4 | ทบทวน/ล้าง test data (Pom อนุมัติก่อนลบ) | รายการ test ที่ตกลง เหลือ 0 (WHERE ชัดเจน review 2 ครั้ง) | Vee+Pom | 🆕 | demo_users=**11** · ใบลา test=**0** |
 | 5 | iPhone: เพิ่มลงหน้าจอโฮม (PWA) + ทดสอบ push | ส่ง push ทดสอบแล้วเด้งบนมือถือ Pom จริง | Pom | 🆕 | — |
 
-**สรุปกระทบยอด #1:** 5 รายการ — 🆕 ×5 · ✔️ ×0 · 🚫 ×0 → **ยังไม่ปิดชุด** (รอวันจันทร์)
+| 6 | **[ด่วน-ความปลอดภัย] Rotate secret ที่เคยหลุดใน repo** (Supabase service_role key, Vercel token, CRON_SECRET) | สร้าง key/token ใหม่ + อัปเดต Vercel env + ของเก่าใช้ไม่ได้แล้ว | Pom+Vee | 🚫 รอ Pom/Vee | ONE ลบไฟล์+เพิ่ม .gitignore แล้ว แต่ rotate ต้องทำใน dashboard |
+| 7 | เก็บกวาดไฟล์ scratch/secret 18 ไฟล์ออกจาก repo | `git ls-files | grep -E 'set-vercel-env|DEMO_|create-demo'` ต้องว่าง | ONE | ✔️ ตรวจผ่าน | ลบ+push 3 branch แล้ว |
+| 8 | Pom ส่ง **LINE OA ID** จริง (`@xxxxxxx`) ให้ Vee ใส่ env | ปุ่มเพิ่มเพื่อน/QR LINE ขึ้นจริง | Pom | 🆕 | รอ Pom |
+
+**สรุปกระทบยอด #1:** 8 รายการ — 🆕 ×5 · ✔️ ×1 · 🚫 ×1(รอ rotate) · ✅ ×0 → **ยังไม่ปิดชุด** (รอ Pom/Vee วันจันทร์)
+
+> ⚠️ **หมายเหตุรายการ "✅ build แต่ยังไม่ทดสอบ UI จริง"** (จะเป็น ✔️ เมื่อ Pom/Vee ทดสอบบนมือถือ — รวมในข้อ 2):
+> AI สรุป (v6.75) · AI ร่างรายงาน (v6.76) · caption รูป (v6.74) · ย้อนหลัง/แก้/ตีกลับ (v6.77) · การ์ดงานที่ต้องทำ+ลบเมนู (v6.81)
+> — ONE ตรวจ route+prompt+DB แล้ว แต่เรียก Claude ผ่าน UI จริงไม่ได้ (ติด login) จึงต้องให้คนยืนยัน
 
 ---
 

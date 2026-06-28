@@ -26,6 +26,7 @@ interface PR {
   status: "pending" | "approved" | "rejected" | "purchased";
   requester: string | null;
   requester_dept: string | null;
+  requester_user_id: string | null;
   approver: string | null;
   reject_reason: string | null;
   paid_amount: number | null;
@@ -120,6 +121,7 @@ export default function PurchaseRequestPanel() {
       await createPurchaseRequest({
         category, item, reason, amount: amt, quoteUrl,
         requester: who, requesterDept: dept || null, requesterRole: user?.role ?? null,
+        requesterUserId: user?.id ?? null,
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ"); setSaving(false); return;
@@ -127,7 +129,11 @@ export default function PurchaseRequestPanel() {
     setSaving(false); setShowForm(false); load();
   };
 
+  // Maker-Checker: ผู้ยื่นคำขอเองอนุมัติ/ปฏิเสธไม่ได้ (DB trigger บังคับซ้ำอีกชั้น)
+  const isOwnRequest = (pr: PR) => !!(pr.requester_user_id && user?.id && pr.requester_user_id === user.id);
+
   const approve = async (pr: PR) => {
+    if (isOwnRequest(pr)) { setErr(`${pr.pr_number} — อนุมัติคำขอที่ท่านยื่นเองไม่ได้ (Maker-Checker)`); return; }
     setSaving(true); setErr("");
     const { error } = await supabase
       .from("purchase_requests")
@@ -136,7 +142,7 @@ export default function PurchaseRequestPanel() {
     if (error) { setErr("อนุมัติไม่สำเร็จ"); setSaving(false); return; }
     await resolveApprovalQueue({
       workflowType: "Purchase_Request", sourceRecordId: pr.id, docIndex: pr.pr_number,
-      approved: true, actorName: who, actorRole: user?.role ?? null,
+      approved: true, amount: pr.estimated_amount, actorName: who, actorRole: user?.role ?? null,
     });
     await createNotification({
       type: "success", title: "อนุมัติคำขอซื้อแล้ว",
@@ -150,6 +156,7 @@ export default function PurchaseRequestPanel() {
 
   const doReject = async () => {
     if (!rejecting) return;
+    if (isOwnRequest(rejecting)) { setErr(`${rejecting.pr_number} — ปฏิเสธคำขอที่ท่านยื่นเองไม่ได้ (Maker-Checker)`); return; }
     setSaving(true); setErr("");
     const pr = rejecting;
     const { error } = await supabase
@@ -159,7 +166,7 @@ export default function PurchaseRequestPanel() {
     if (error) { setErr("บันทึกไม่สำเร็จ"); setSaving(false); return; }
     await resolveApprovalQueue({
       workflowType: "Purchase_Request", sourceRecordId: pr.id, docIndex: pr.pr_number,
-      approved: false, actorName: who, actorRole: user?.role ?? null,
+      approved: false, amount: pr.estimated_amount, actorName: who, actorRole: user?.role ?? null,
       conditionNote: rejectReason.trim() || undefined,
     });
     // Send LINE notification for PR rejection
@@ -259,7 +266,12 @@ export default function PurchaseRequestPanel() {
                   </div>
                 </div>
                 {/* ปุ่มดำเนินการตามบทบาท */}
-                {pr.status === "pending" && canApprove && (
+                {pr.status === "pending" && canApprove && isOwnRequest(pr) && (
+                  <div className="flex items-center gap-1 text-[10px] text-yellow-400/80 mt-1.5">
+                    <Clock size={10} /> คำขอของท่านเอง — รออนุมัติจากผู้บริหารท่านอื่น (Maker-Checker)
+                  </div>
+                )}
+                {pr.status === "pending" && canApprove && !isOwnRequest(pr) && (
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => approve(pr)} disabled={saving}
                       className="flex-1 flex items-center justify-center gap-1 bg-green-500/15 text-green-400 border border-green-500/25 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-50">

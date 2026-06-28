@@ -26,6 +26,7 @@ import { toSignedUrl } from "@/lib/storage";
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
+import { logAction } from "@/lib/audit";
 import { uploadPhotos } from "@/lib/upload-photos";
 import MultiPhotoInput from "@/components/MultiPhotoInput";
 
@@ -1553,6 +1554,10 @@ export default function ConstructionPage() {
                                   const net = calcNetPayout(merged).net;
                                   await supabase.from("contractor_installments").update({ ...patch, net_payout: net }).eq("id", inst.id);
                                   setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, ...patch, net_payout: net } : i));
+                                  // Audit: บันทึกการแก้ค่าหัก ณ ที่จ่าย/เงินประกัน/ค่าปรับ หลังอนุมัติ (กันแก้เงียบ)
+                                  const fld = Object.entries(patch).map(([k, v]) => `${k}=${v}`).join(", ");
+                                  await logAction("construction", "installment_payout_edit",
+                                    `แก้ยอดจ่ายงวด ${inst.name} (${inst.status}) — ${fld} → สุทธิ ${baht0(net)}`, inst.id);
                                 };
                                 const num = (s: string) => { const v = Number(s); return isNaN(v) ? 0 : v; };
                                 const fld = "w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none disabled:opacity-50";

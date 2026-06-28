@@ -44,6 +44,7 @@ export interface CreatePRInput {
   requester: string;
   requesterDept?: string | null;
   requesterRole?: string | null;
+  requesterUserId?: string | null;
 }
 
 export interface CreatePRResult {
@@ -79,6 +80,7 @@ export async function createPurchaseRequest(input: CreatePRInput): Promise<Creat
       quote_url: (input.quoteUrl ?? "").trim() || null,
       requester: who,
       requester_dept: dept,
+      requester_user_id: input.requesterUserId ?? null,
       needs_approval: needsApproval,
       status: needsApproval ? "pending" : "approved",
       approver: needsApproval ? null : "ระบบ (ต่ำกว่าเกณฑ์)",

@@ -182,6 +182,7 @@ export default function HelpAssistant() {
         const r = await createPurchaseRequest({
           category: card.data.category, item: card.data.item, reason: card.data.reason, amount: card.data.amount,
           requester: user?.full_name ?? user?.email ?? "ผู้ใช้", requesterDept: user?.department ?? null, requesterRole: user?.role ?? null,
+          requesterUserId: user?.id ?? null,
         });
         line = r.needsApproval
           ? `✅ สร้างคำขอ ${r.prNumber} แล้วค่ะ — ${card.data.item} ${baht(card.data.amount)}\nส่งผู้บริหารอนุมัติแล้ว · ติดตามที่ ออฟฟิศ → การเงิน`

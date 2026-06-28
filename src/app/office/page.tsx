@@ -3488,7 +3488,7 @@ function ApprovalsContent() {
       await createNotification({ type: "success", title: `อนุมัติแล้ว — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`, from_dept: dept, to_dept: dept });
     }
     if (log?.source_record_id) {
-      await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: true, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager" });
+      await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: true, amount: log.amount ?? null, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager" });
     }
     setSaving(false);
     fetchLogs();
@@ -3528,7 +3528,7 @@ function ApprovalsContent() {
       await createNotification({ type: "info", title: `ปฏิเสธ — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`, from_dept: dept, to_dept: dept });
     }
     if (log?.source_record_id) {
-      await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: false, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager", conditionNote: (commentArg ?? rejectComment) || undefined });
+      await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: false, amount: log.amount ?? null, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager", conditionNote: (commentArg ?? rejectComment) || undefined });
     }
     setSaving(false);
     setRejectingId(null);

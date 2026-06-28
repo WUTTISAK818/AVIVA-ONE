@@ -796,6 +796,7 @@ function ApprovalsContent() {
         sourceRecordId: log.source_record_id ?? log.id,
         docIndex: log.source_doc_index,
         approved,
+        amount: log.amount ?? null,
         actorName: user.full_name ?? user.email,
         actorRole: user.isAdmin ? "admin" : "manager",
         conditionNote: approved ? undefined : (note ?? undefined),

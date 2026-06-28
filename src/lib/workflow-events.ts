@@ -141,11 +141,15 @@ export async function resolveApprovalQueue(opts: {
   sourceRecordId: string;
   docIndex?: string | null;
   approved: boolean;
+  amount?: number | null;
   actorName?: string | null;
   actorRole?: string | null;
   conditionNote?: string | null;
 }): Promise<void> {
-  await closeWorkQueue(opts.sourceRecordId, "manager", opts.actorName ?? null);
+  // ปิด "แถวผู้อนุมัติ" ตาม role ที่ submitApprovalQueue สร้างไว้จริง (manager/admin ตามวงเงิน)
+  // ห้ามลบ role filter ทิ้ง — งานก้อนเดียวอาจมีแถว "finance" (รอจ่าย) ค้างไว้ ต้องไม่ปิดพร้อมกัน
+  const approverRole = getApproverRole(opts.workflowType, opts.amount ?? null);
+  await closeWorkQueue(opts.sourceRecordId, approverRole, opts.actorName ?? null);
   await logWorkflowEvent({
     workflowType: opts.workflowType,
     sourceRecordId: opts.sourceRecordId,
@@ -182,6 +186,10 @@ export function rolesForUser(user: {
   if (user.isManager || user.isAdmin || inDept("บริหาร", "ผู้จัดการ", "admin", "management")) {
     roles.add("manager");
   }
+
+  // ผู้บริหาร (admin) ต้องเห็นงานวงเงินสูงที่ submitApprovalQueue ส่งเข้า assigned_role="admin"
+  // (Purchase/Material ≥ ฿50,001 · Finance ≥ ฿500,000) — ไม่งั้นงานก้อนใหญ่หายจากกล่องงาน
+  if (user.isAdmin) roles.add("admin");
 
   // ฝ่ายการเงิน/บัญชี — งานรอจ่ายเงิน
   if (inDept("การเงิน", "finance", "บัญชี") || isRole("finance", "account")) roles.add("finance");

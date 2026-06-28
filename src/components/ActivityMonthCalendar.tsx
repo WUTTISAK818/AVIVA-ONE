@@ -26,6 +26,8 @@ export default function ActivityMonthCalendar({
 }: ActivityMonthCalendarProps) {
   const days = getDaysInMonth(year, month);
   const firstDay = new Date(year, month - 1, 1).getDay();
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const activityTypeColors: Record<string, string> = {
     construction: "bg-red-500",
@@ -75,6 +77,7 @@ export default function ActivityMonthCalendar({
           {/* Date cells */}
           {days.map((day) => {
             const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const isToday = dateStr === todayStr;
             const dayActivities = activities[dateStr] || [];
             const typeCount: Record<string, number> = {};
 
@@ -87,9 +90,11 @@ export default function ActivityMonthCalendar({
               <GlassCard
                 key={day}
                 onClick={() => onDateClick(dateStr)}
-                className="aspect-square cursor-pointer hover:border-aviva-gold/60 transition p-2 flex flex-col justify-between"
+                className={`aspect-square cursor-pointer hover:border-aviva-gold/60 transition p-2 flex flex-col justify-between ${
+                  isToday ? "ring-2 ring-aviva-gold border-aviva-gold/50 bg-aviva-gold/10" : ""
+                }`}
               >
-                <div className="text-sm font-bold text-aviva-text">{day}</div>
+                <div className={`text-sm font-bold ${isToday ? "text-aviva-gold" : "text-aviva-text"}`}>{day}</div>
 
                 <div className="space-y-1">
                   {dayActivities.length > 0 ? (

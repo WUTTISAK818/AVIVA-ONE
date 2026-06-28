@@ -1,6 +1,17 @@
 import { Activity, DepartmentType } from './types/activities';
 import { getSupabase } from '@/lib/supabase';
 
+const DEPT_MAP: Record<string, DepartmentType> = {
+  "ฝ่ายขาย": "sales",
+  "ฝ่ายก่อสร้าง": "construction",
+  "ฝ่ายบัญชี": "accounting",
+  "ฝ่ายการเงิน": "finance",
+  "ฝ่ายการตลาด": "marketing",
+  "ฝ่ายบุคคล": "hr",
+  "ฝ่ายบริหาร": "office",
+  "สำนักเลขานุการ": "office",
+};
+
 export async function getActivitiesByDepartment(department: DepartmentType): Promise<Activity[]> {
   const supabase = getSupabase();
   const today = new Date().toISOString().split('T')[0];
@@ -83,6 +94,9 @@ async function getSalesActivities(supabase: any, today: string): Promise<Activit
     console.warn('crm_leads table not found');
   }
 
+  const reports = await getWorkReportActivities(supabase, today, 'sales');
+  activities.push(...reports);
+
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
@@ -139,6 +153,9 @@ async function getConstructionActivities(supabase: any, today: string): Promise<
     console.warn('construction_defects table not found');
   }
 
+  const reports = await getWorkReportActivities(supabase, today, 'construction');
+  activities.push(...reports);
+
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
@@ -169,6 +186,9 @@ async function getAccountingActivities(supabase: any, today: string): Promise<Ac
   } catch (e) {
     console.warn('purchase_orders table not found');
   }
+
+  const reports = await getWorkReportActivities(supabase, today, 'accounting');
+  activities.push(...reports);
 
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
@@ -201,6 +221,9 @@ async function getFinanceActivities(supabase: any, today: string): Promise<Activ
     console.warn('payroll_records table not found');
   }
 
+  const reports = await getWorkReportActivities(supabase, today, 'finance');
+  activities.push(...reports);
+
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
@@ -231,6 +254,9 @@ async function getMarketingActivities(supabase: any, today: string): Promise<Act
   } catch (e) {
     console.warn('marketing_campaigns table not found');
   }
+
+  const reports = await getWorkReportActivities(supabase, today, 'marketing');
+  activities.push(...reports);
 
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
@@ -288,6 +314,9 @@ async function getHRActivities(supabase: any, today: string): Promise<Activity[]
     console.warn('attendance_records table not found');
   }
 
+  const reports = await getWorkReportActivities(supabase, today, 'hr');
+  activities.push(...reports);
+
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
@@ -318,6 +347,9 @@ async function getOfficeActivities(supabase: any, today: string): Promise<Activi
   } catch (e) {
     console.warn('office_documents table not found');
   }
+
+  const reports = await getWorkReportActivities(supabase, today, 'office');
+  activities.push(...reports);
 
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
@@ -380,6 +412,39 @@ async function getApprovalsActivities(supabase: any, today: string): Promise<Act
   }
 
   return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+async function getWorkReportActivities(supabase: any, today: string, department: DepartmentType): Promise<Activity[]> {
+  try {
+    const thaiDepts = Object.entries(DEPT_MAP)
+      .filter(([, v]) => v === department)
+      .map(([k]) => k);
+    if (thaiDepts.length === 0) return [];
+
+    const { data: reports } = await supabase
+      .from('work_reports')
+      .select('id, employee_name, department, report_date, summary, status, submitted_at')
+      .in('department', thaiDepts)
+      .eq('report_date', today)
+      .order('submitted_at', { ascending: false })
+      .limit(20);
+
+    if (!reports) return [];
+    return reports.map((r: any) => ({
+      id: `report-${r.id}`,
+      department,
+      type: 'report',
+      title: `รายงาน: ${r.employee_name}`,
+      description: r.summary || `${r.department} — ${r.status === 'submitted' ? 'ส่งแล้ว' : r.status === 'late' ? 'ส่งล่าช้า' : 'ฉบับร่าง'}`,
+      date: r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('th-TH') : r.report_date,
+      timestamp: r.submitted_at || r.report_date,
+      icon: '📋',
+      color: r.status === 'late' ? 'text-red-400' : 'text-aviva-gold',
+      status: r.status === 'submitted' ? 'completed' : r.status === 'late' ? 'pending' : undefined,
+    }));
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function getAllActivitiesToday(): Promise<Activity[]> {

@@ -351,20 +351,19 @@ export function DailyActivityCalendar() {
         <div className="flex gap-1 flex-nowrap">
           <button
             onClick={() => {
-              const today = new Date();
-              setCurrentDate(today);
+              setCurrentDate(new Date());
               setViewType("day");
             }}
             className={clsx(
               "px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all whitespace-nowrap",
-              viewType === "day" && Math.abs(currentDate.getTime() - new Date().getTime()) < 86400000
+              viewType === "day"
                 ? "bg-aviva-gold text-aviva-bg"
                 : "bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary hover:border-aviva-gold/50"
             )}
           >
             วันนี้
           </button>
-          {(["day", "week", "month"] as ViewType[]).map((view) => (
+          {(["week", "month"] as ViewType[]).map((view) => (
             <button
               key={view}
               onClick={() => setViewType(view)}
@@ -375,7 +374,7 @@ export function DailyActivityCalendar() {
                   : "bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary hover:border-aviva-gold/50"
               )}
             >
-              {view === "day" ? "วัน" : view === "week" ? "สัป" : "เดือน"}
+              {view === "week" ? "สัปดาห์" : "เดือน"}
             </button>
           ))}
         </div>

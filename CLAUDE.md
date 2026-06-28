@@ -3,9 +3,10 @@
 # Work Tracker — กฎตรวจงานครบ 3 ฝ่าย (PERMANENT — กันงานตกหล่น)
 
 **ปัญหาที่ต้องกัน:** สั่ง 10 รายการ ทำ 7 อีก 3 หายเงียบ → แอปไม่สมบูรณ์
-**แหล่งความจริงเดียว:** Google Sheet "AVIVA ONE — Work Tracker"
-`https://docs.google.com/spreadsheets/d/1pWoN6vNI-zhtXWzZ_gzyBKGoSR71nhYp8q7-UObElIE/edit`
+**แหล่งความจริงของ ONE (ต้องอัปเดต+commit ทุก session):** `docs/WORK-TRACKER.md`
+**กระจกสำหรับ Pom (มือถือ):** Google Sheet `https://docs.google.com/spreadsheets/d/1pWoN6vNI-zhtXWzZ_gzyBKGoSR71nhYp8q7-UObElIE/edit`
 (เจ้าของ: Pom · ใช้ร่วม Pom + Vee + ONE)
+> ⚙️ วิธีทำงาน: ONE แก้ `docs/WORK-TRACKER.md` แล้ว commit (git = ประวัติตรวจย้อนได้) · Pom/Vee ดู/กรอกสถานะใน Google Sheet · ONE รายงานผลตรวจ (SQL) ในแชตให้ซิงก์
 
 ## กฎเหล็ก 3 ข้อ (ONE ต้องทำทุกครั้ง)
 1. **แตกงานตั้งแต่ต้น:** เมื่อ Pom สั่งชุดงาน → ONE แตกเป็นรายการย่อยในชีต พร้อม "เกณฑ์เสร็จ + วิธีตรวจสอบ" (SQL / เปิดหน้าจอ / CI) + เจ้าของ + ยืนยันความเข้าใจกลับ ก่อนเริ่มโค้ด

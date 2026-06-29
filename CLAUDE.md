@@ -47,6 +47,23 @@
 
 # Recent Completion Log (บันทึกงานเสร็จล่าสุด)
 
+## ✅ v6.93 — เพิ่มสนับสนุน ฝ่ายสวน (Gardening Department) (2026-06-29)
+**สถานะ:** ✔️ เสร็จแล้ว · pushed ไป branch `main`
+
+**สิ่งที่ทำ:**
+1. เพิ่ม "ฝ่ายสวน" ลง DEPARTMENTS array ใน `src/app/settings/users/page.tsx`
+2. ปรับ `src/app/reports/page.tsx` — พนักงานสวนเห็น 🌿 message แทนฟอร์มส่งรายงาน
+3. ปรับ `src/components/BottomNav.tsx` — ซ่อนเมนู "งานรายวัน" สำหรับพนักงานสวน
+4. อัพเวอร์ชัน 6.92 → 6.93
+
+**Commit:** `152bc31` — "Add ฝ่ายสวน (Gardening Department) with report exemption"
+
+**วิธีตรวจสอบ:**
+- ✅ Build passed: `npm run build` → ✓ Compiled successfully in 12.2s
+- ✅ Code changes: 4 files, 23 insertions(+), 3 deletions(-)
+- ✅ Pushed: origin/main
+- 📋 ยังต้องตรวจจริง: สร้าง user ฝ่ายสวน → ดูเมนู/หน้า reports (Vee ทดสอบ)
+
 ## ✅ v6.90 — ยุบรวมเมนู "รายงานทีม" ไปหน้าหลัก (2026-06-29)
 **สถานะ:** ✔️ เสร็จแล้ว · pushed ไป branch `claude/aviva-one-continuation-h3v402`
 

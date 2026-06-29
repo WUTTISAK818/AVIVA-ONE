@@ -11,9 +11,6 @@ import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
-import DailyActivityWidget from "@/components/DailyActivityWidget";
-import SalesDailyWidget from "@/components/SalesDailyWidget";
-import EmployeeReportWidget from "@/components/EmployeeReportWidget";
 import { supabase } from "@/lib/supabase";
 import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
@@ -558,15 +555,6 @@ export default function DashboardPage() {
             </div>
           </Link>
         )}
-
-        {/* Daily Activity Summary Widget */}
-        <DailyActivityWidget />
-
-        {/* Sales Daily Summary Widget */}
-        {ctxUser?.department === "sales" && <SalesDailyWidget />}
-
-        {/* Employee Report Schedule Widget */}
-        <EmployeeReportWidget />
 
         <div className="bg-aviva-card rounded-2xl border border-aviva-gold/20 overflow-hidden">
           <button onClick={() => setShowAI(a => !a)}

@@ -3,6 +3,10 @@
 > ไฟล์นี้ = จุดเริ่มของ session ใหม่ อ่านไฟล์นี้ไฟล์เดียวก็ทำงานต่อได้ทันที
 > อัปเดตล่าสุด: หลัง v6.88 · branch `claude/inspiring-shannon-bnzeux`
 
+> 📌 **นิยาม "Phase" (Pom กำหนด):** Phase = หมายเลขแชต/session ไม่ใช่หมวดงาน
+> Phase 1 = แชตที่ 1 · Phase 2 = แชตที่ 2 · Phase 3 = แชตที่ 3 · **Phase 4 = แชตที่ 4 (session ที่ใช้ handoff นี้)**
+> "เตรียมข้อมูลไปทำต่อใน Phase 4" = เตรียม handoff ให้แชตถัดไป (= ไฟล์นี้)
+
 ---
 
 ## ⚡ คำสั่งสำหรับวางในแชตใหม่ (คัดลอกทั้งบล็อกนี้)
@@ -13,10 +17,11 @@
 อ่าน docs/SESSION-HANDOFF.md + docs/WORK-TRACKER.md ก่อนเริ่ม
 แล้วทำตามลำดับนี้:
 1. ยืนยันเวอร์ชันปัจจุบันจาก src/lib/version.ts
-2. รายงานสิ่งที่ค้าง (ชุดงาน #3 + Phase 4) ให้ผมเลือกว่าจะทำอันไหนก่อน
+2. รายงานงานที่ค้าง (UI ที่เหลือ + แผน auto-pull) ให้ผมเลือกว่าจะทำอันไหนก่อน
 3. รอผมสั่งก่อนเริ่มแก้โค้ด
 
 หมายเหตุ: ผมคือ Pom (เจ้าของ) · คุยภาษาไทย · build ต้องผ่านก่อน push เสมอ
+ห้าม merge เข้า main จนกว่า Vee ทดสอบมือถือผ่าน
 ```
 
 ---
@@ -58,13 +63,15 @@
 ### 2. doc-generate 9.0 → 9.5
 ฟอร์มยาว → ทำ accordion/step ทีละ section (`src/app/documents/generate/page.tsx`)
 
-### 3. Phase 4 — ลดงานซ้ำซ้อนรายงานประจำวัน
-แผนเต็มอยู่ใน `docs/WORK-TRACKER.md` หัวข้อ "แผนรอดำเนินการ (Phase 4)"
+### 3. แผน auto-pull — ลดงานซ้ำซ้อนรายงานประจำวัน
+แผนเต็มอยู่ใน `docs/WORK-TRACKER.md` หัวข้อ "แผนรอดำเนินการ (auto-pull รายงาน)"
 สรุป: พนักงานบันทึกงานระหว่างวันแล้ว แต่ตอนเย็นต้องพิมพ์รายงานใหม่ = ซ้ำซ้อน
 ต้องแก้ 3 ไฟล์: DB migration (auth.uid() default) + `reports/page.tsx` (dedup + ปุ่มดึงงาน) + `activity/page.tsx` (count query)
 
-### 4. รอ Vee/Pom ทดสอบ UI บนมือถือจริง
-คะแนน 9.x ทั้งหมดยังเป็น "✅ build ผ่าน" จะเป็น "✔️ ตรวจผ่าน" เมื่อเปิดบนมือถือจริง
+### 4. ⛔ ยังไม่ merge เข้า main — รอ Vee ทดสอบมือถือก่อน (Pom สั่ง)
+งาน UI v6.86-6.88 อยู่บน feature branch `claude/inspiring-shannon-bnzeux` เท่านั้น **ยังไม่ขึ้น production**
+คะแนน 9.x ทั้งหมดยังเป็น "✅ build ผ่าน" จะเป็น "✔️ ตรวจผ่าน" เมื่อ Vee เปิดบนมือถือจริง
+**ห้าม merge เข้า main จนกว่า Vee ทดสอบผ่าน + Pom อนุมัติ**
 
 ### 5. Deploy edge function (รอ Pom/Vee)
 `supabase/functions/admin-user-management` (GoTrue bypass) commit แล้ว ต้อง deploy ด้วยมือ — MCP ไม่มีสิทธิ์

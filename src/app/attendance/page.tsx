@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, Users, Clock, TrendingUp } from 'lucide-react';
+import { Calendar, Users, Clock, TrendingUp, AlertTriangle } from 'lucide-react';
 import SectionHeader from '@/components/SectionHeader';
 import GlassCard from '@/components/GlassCard';
-import type { AttendanceRecord } from '@/lib/types/attendance';
+import type { AttendanceRecord, LateAlert } from '@/lib/types/attendance';
 
 interface AttendanceStat {
   label: string;
@@ -16,6 +16,7 @@ interface AttendanceStat {
 export default function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [dailyRecords, setDailyRecords] = useState<AttendanceRecord[]>([]);
+  const [lateAlerts, setLateAlerts] = useState<LateAlert[]>([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<AttendanceStat[]>([
     { label: 'Total Present', value: 0, icon: <Users className="w-6 h-6" />, color: 'text-green-500' },
@@ -26,6 +27,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchDailyAttendance();
+    fetchLateAlerts();
   }, [selectedDate]);
 
   const fetchDailyAttendance = async () => {
@@ -42,6 +44,19 @@ export default function AttendancePage() {
       console.error('Failed to fetch attendance:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLateAlerts = async () => {
+    try {
+      const response = await fetch('/api/shifts/late-alerts');
+      const data = await response.json();
+
+      if (data.success) {
+        setLateAlerts(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch late alerts:', err);
     }
   };
 
@@ -78,6 +93,38 @@ export default function AttendancePage() {
           </GlassCard>
         ))}
       </div>
+
+      {/* Late Alerts */}
+      {lateAlerts.length > 0 && (
+        <GlassCard className="border border-yellow-500/20 bg-yellow-500/5">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+              <h3 className="font-semibold text-yellow-300">Late Arrivals Today</h3>
+              <span className="ml-auto bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-xs font-medium">
+                {lateAlerts.length} late
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {lateAlerts.map((alert) => (
+                <div key={alert.id} className="flex items-center justify-between p-3 bg-aviva-card/50 rounded border border-yellow-500/10">
+                  <div>
+                    <p className="font-medium text-yellow-300">{alert.employee_name}</p>
+                    <p className="text-xs text-aviva-secondary/60">
+                      Checked in at {new Date(alert.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-yellow-400">{alert.late_minutes} min late</p>
+                    <p className="text-xs text-aviva-secondary/60">Expected: {alert.expected_start_time.substring(0, 5)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       {/* Date Selector & Daily Report */}
       <GlassCard>

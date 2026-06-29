@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { checkIsLate } from './shift-service';
 import type { AttendanceRecord } from './types/attendance';
 
 interface HikvisionConfig {
@@ -167,6 +168,9 @@ class HikvisionService {
 
       if (eventTypeStr === 'check_in') {
         // บันทึก check-in ใหม่
+        // ตรวจสอบการมาสายตามเวลา shift ที่ตั้งไว้
+        const isLateFlag = await checkIsLate(employee.id, eventTime);
+
         const { data, error } = await supabase
           .from('attendance_records')
           .insert([
@@ -177,7 +181,7 @@ class HikvisionService {
               status: 'present',
               device_id: 'hikvision-ds-k1t320',
               is_present: true,
-              is_late: this.isLate(eventTime),
+              is_late: isLateFlag,
             },
           ])
           .select()

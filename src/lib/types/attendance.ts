@@ -105,3 +105,31 @@ export interface PayrollSummary {
   net_salary: number;
   status: PayrollRecord['status'];
 }
+
+// Employee Shift Configuration
+export interface EmployeeShift {
+  id: string;
+  employee_id: string;
+  shift_name: string;
+  start_time: string; // HH:MM:SS format (e.g., "09:00:00")
+  end_time: string;   // HH:MM:SS format (e.g., "17:00:00")
+  grace_period_minutes: number; // Allow N minutes late before flagging
+  break_duration_minutes: number;
+  working_days: string; // CSV (Mon,Tue,Wed,Thu,Fri)
+  effective_date: string; // YYYY-MM-DD
+  notes?: string;
+  set_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LateAlert {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  check_in_time: string;
+  expected_start_time: string;
+  late_minutes: number;
+  work_date: string;
+  created_at: string;
+}

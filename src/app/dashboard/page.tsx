@@ -11,9 +11,7 @@ import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
-import DailyActivityWidget from "@/components/DailyActivityWidget";
-import SalesDailyWidget from "@/components/SalesDailyWidget";
-import EmployeeReportWidget from "@/components/EmployeeReportWidget";
+import TeamReportsSummaryWidget from "@/components/TeamReportsSummaryWidget";
 import { supabase } from "@/lib/supabase";
 import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
@@ -626,6 +624,10 @@ export default function DashboardPage() {
               </div>
             </GlassCard>
           </Link>
+        )}
+
+        {ctxUser?.isManager && (
+          <TeamReportsSummaryWidget />
         )}
 
         {ctxUser?.isManager && (

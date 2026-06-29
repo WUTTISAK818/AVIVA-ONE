@@ -78,6 +78,24 @@ const STATUS_CFG = {
 export default function ReportsPage() {
   const user = useCurrentUser();
   const router = useRouter();
+
+  // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน
+  const isGardener = user?.department === "ฝ่ายสวน";
+  if (isGardener) {
+    return (
+      <div className="min-h-screen bg-aviva-bg flex items-center justify-center px-4 pb-24">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🌿</div>
+          <h1 className="text-2xl font-bold text-aviva-text mb-2">ฝ่ายสวน</h1>
+          <p className="text-aviva-secondary mb-6">คนสวนไม่ต้องส่งรายงานประจำวัน</p>
+          <a href="/dashboard" className="inline-block px-6 py-3 bg-aviva-gold text-aviva-bg rounded-lg font-semibold">
+            ← กลับไปหน้าหลัก
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const today = new Date().toISOString().split("T")[0];
   // วันที่แบบเวลาไทย (UTC+7) — ใช้เทียบ activity_logs.activity_date ที่ฝั่ง activity บันทึกเป็นวันที่ไทย
   const todayBkk = new Date(Date.now() + 7 * 3600_000).toISOString().split("T")[0];

@@ -23,6 +23,8 @@ export default function BottomNav() {
   const isOfficeUser = user ? OFFICE_DEPTS.includes(user.department) : false;
   // ผู้บริหาร/ผจก.โครงการ: เอกสาร+รายงาน ย้ายไปอยู่ในออฟฟิศแล้ว จึงซ่อนจากแถบล่างเพื่อลดความแออัด
   const isExec = !!user && (user.isManager || user.isAdmin);
+  // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน
+  const isGardener = user?.department === "ฝ่ายสวน";
 
   const isHRUser = user && (user.isAdmin || user.isManager || user.department === "ฝ่ายบุคคล");
 
@@ -32,7 +34,7 @@ export default function BottomNav() {
     { href: "/documents/generate", label: "เอกสารขาย",  icon: FileText,     show: !isExec && user?.department === "ฝ่ายขาย", badge: 0 },
     { href: "/construction", label: "ก่อสร้าง",     icon: HardHat,      show: !user || user.isAdmin || user.isManager || user.department === "ฝ่ายก่อสร้าง", badge: 0 },
     { href: "/office",       label: "ออฟฟิศ",       icon: Briefcase,    show: !user || user.isAdmin || user.isManager || isOfficeUser, badge: 0 },
-    { href: "/reports",        label: "งานรายวัน",   icon: Clock,         show: !isExec, badge: 0 },
+    { href: "/reports",        label: "งานรายวัน",   icon: Clock,         show: !isExec && !isGardener, badge: 0 },
     { href: "/settings",     label: "ตั้งค่า",      icon: Settings,     show: true, badge: 0 },
   ].filter(t => t.show);
 

@@ -45,6 +45,26 @@
 - ✅ **วิธีแก้:** เขียนข้อมูลสำคัญลง CLAUDE.md, AGENTS.md หรือ .claude/settings.json เท่านั้น
 - **ถ้าไม่เขียนลงไฟล์ → session ใหม่ ฉันจะลืม**
 
+# Recent Completion Log (บันทึกงานเสร็จล่าสุด)
+
+## ✅ v6.90 — ยุบรวมเมนู "รายงานทีม" ไปหน้าหลัก (2026-06-29)
+**สถานะ:** ✔️ เสร็จแล้ว · pushed ไป branch `claude/aviva-one-continuation-h3v402`
+
+**สิ่งที่ทำ:**
+1. ลบ "รายงานทีม" ออกจาก `BottomNav.tsx` (line 36 เดิม)
+2. สร้าง `TeamReportsSummaryWidget.tsx` — widget แสดง stats (รวม/ส่งแล้ว/ล่าช้า)
+3. สร้าง API endpoint `/api/reports/summary` — คืน report statistics
+4. เพิ่ม widget ลง dashboard.tsx (line 630) — สำหรับ managers/admins เท่านั้น
+
+**Commit:** `f20ca7f` — "Consolidate Team Reports menu to dashboard"
+
+**วิธีตรวจสอบ:**
+- ✅ Build passed: `npm run build` → Compiled successfully
+- ✅ API responds: curl http://localhost:3000/api/reports/summary → `{"error":"Unauthorized"}` (expected)
+- ✅ Menu removed: `grep รายงานทีม src/components/BottomNav.tsx` → no output
+- ✅ Widget added: `grep TeamReportsSummaryWidget src/app/dashboard/page.tsx` → found at import + line 630
+- ✅ Pushed: origin/claude/aviva-one-continuation-h3v402
+
 # Team Roles & Naming Convention (PERMANENT — บทบาทตัวแต่ละคน)
 
 **ทีมงาน AVIVA ONE มี 3 ตัว ชื่อดังนี้:**

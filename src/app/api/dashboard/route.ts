@@ -116,20 +116,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch employee activities (attendance, leave)
-    const { data: attendance } = await supabase
-      .from("attendance")
-      .select("id,user_id,check_in_time,check_out_time,created_at")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate);
+    try {
+      const { data: attendance } = await supabase
+        .from("attendance")
+        .select("id,user_id,check_in_time,check_out_time,date")
+        .gte("date", startDate)
+        .lte("date", endDate);
 
-    if (attendance) {
-      attendance.forEach((att: any) => {
-        const dateKey = att.created_at.split("T")[0];
-        if (activityData[dateKey]) {
-          activityData[dateKey].hr.count++;
-          activityData[dateKey].hr.items.push(att);
-        }
-      });
+      if (attendance) {
+        attendance.forEach((att: any) => {
+          const dateKey = att.date || att.check_in_time?.split("T")[0];
+          if (dateKey && activityData[dateKey]) {
+            activityData[dateKey].hr.count++;
+            activityData[dateKey].hr.items.push(att);
+          }
+        });
+      }
+    } catch (err) {
+      console.log("[Dashboard] attendance query skipped:", err);
     }
 
     // Fetch documents
@@ -148,6 +152,17 @@ export async function GET(request: NextRequest) {
         }
       });
     }
+
+    console.log("[Dashboard API] Summary:", {
+      range: { startDate, endDate },
+      dateCounts: Object.keys(activityData).length,
+      totalActivities: Object.values(activityData).reduce(
+        (sum: number, day: any) =>
+          sum +
+          Object.values(day).reduce((daySum: number, activity: any) => daySum + (activity.count || 0), 0),
+        0
+      ),
+    });
 
     return NextResponse.json({
       success: true,

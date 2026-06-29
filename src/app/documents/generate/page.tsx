@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Printer, FileText, Search, Save, Loader2, Check } from "lucide-react";
+import { ArrowLeft, Printer, FileText, Search, Save, Loader2, Check, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
 import { PLOTS, findPlot, PAYMENT_DEFAULTS, PROJECT, todayISO, makeContractNo } from "@/lib/aviva-doc-data";
@@ -52,6 +52,7 @@ function GenerateInner() {
   const [leadId, setLeadId] = useState<string | null>(params.get("lead"));
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [openSections, setOpenSections] = useState({ customer: true, plot: false, payment: false, dates: false });
   const user = useCurrentUser();
 
   const set = useCallback((patch: Partial<DocData>) => setD((p) => ({ ...p, ...patch })), []);
@@ -181,7 +182,7 @@ function GenerateInner() {
       <div className="max-w-5xl mx-auto px-4 py-4 grid lg:grid-cols-2 gap-5">
         {/* ── ฟอร์ม ── */}
         <div className="space-y-4 no-print">
-          <Section title="ลูกค้า (ดึงจาก CRM)">
+          <Section title="ลูกค้า (ดึงจาก CRM)" isOpen={openSections.customer} onToggle={() => setOpenSections(p => ({ ...p, customer: !p.customer }))}>
             <div className="relative">
               <div className="flex items-center gap-2 bg-aviva-card rounded-lg px-3 py-2 border border-aviva-gold/10">
                 <Search size={15} className="text-aviva-secondary" />
@@ -208,7 +209,7 @@ function GenerateInner() {
             <Field label="ที่อยู่" value={d.customerAddress} onChange={(v) => set({ customerAddress: v })} />
           </Section>
 
-          <Section title="แปลง / สิ่งปลูกสร้าง">
+          <Section title="แปลง / สิ่งปลูกสร้าง" isOpen={openSections.plot} onToggle={() => setOpenSections(p => ({ ...p, plot: !p.plot }))}>
             <label className="block text-xs text-aviva-secondary mb-1">เลือกแปลง</label>
             <select value={d.plot} onChange={(e) => applyPlot(e.target.value)}
               className="w-full bg-aviva-card border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-text outline-none">
@@ -226,7 +227,7 @@ function GenerateInner() {
             </div>
           </Section>
 
-          <Section title="ราคา / การชำระเงิน">
+          <Section title="ราคา / การชำระเงิน" isOpen={openSections.payment} onToggle={() => setOpenSections(p => ({ ...p, payment: !p.payment }))}>
             <div className="grid grid-cols-2 gap-2">
               <NumField label="ราคารวม (บาท)" value={d.price} onChange={(v) => set({ price: num(v) })} />
               <NumField label="ส่วนลดพิเศษ" value={d.specialDiscount} onChange={(v) => set({ specialDiscount: num(v) })} />
@@ -259,7 +260,7 @@ function GenerateInner() {
             )}
           </Section>
 
-          <Section title="วันที่ / เลขที่เอกสาร">
+          <Section title="วันที่ / เลขที่เอกสาร" isOpen={openSections.dates} onToggle={() => setOpenSections(p => ({ ...p, dates: !p.dates }))}>
             <div className="grid grid-cols-2 gap-2">
               <DateField label="วันที่จอง/เอกสาร" value={d.docDate} onChange={(v) => set({ docDate: v })} />
               <DateField label="วันทำสัญญา" value={d.contractDate} onChange={(v) => set({ contractDate: v })} />
@@ -283,11 +284,14 @@ function GenerateInner() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, isOpen, onToggle }: { title: string; children: React.ReactNode; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div className="bg-aviva-card/40 rounded-xl p-3 border border-aviva-gold/10 space-y-2">
-      <div className="text-sm font-bold text-aviva-gold">{title}</div>
-      {children}
+    <div className="bg-aviva-card/40 rounded-xl border border-aviva-gold/10 overflow-hidden">
+      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-bold text-aviva-gold hover:bg-aviva-gold/5 transition-colors">
+        <span>{title}</span>
+        <ChevronDown size={14} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      {isOpen && <div className="px-3 py-2 space-y-2 border-t border-aviva-gold/10">{children}</div>}
     </div>
   );
 }

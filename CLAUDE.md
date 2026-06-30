@@ -130,6 +130,37 @@
 - ONE (Claude Code): ทำงานใน session นี้ (code.claude.com)
 - Vee (Claude Cowork): ทำงานใน Cowork system (ระบบ collaboration แยก)
 
+# ONE's Responsibilities & Vee Handoff (PERMANENT — ข้อตกลงการทำงาน)
+
+**หลักการ: ONE ทำงานได้เองทั้งหมด — ให้ Vee ช่วยแค่เมื่อจำเป็น**
+
+## ❌ ห้ามขอ Vee ช่วย — ONE ต้องทำเอง
+- ✅ เขียนโค้ด (Frontend/Backend)
+- ✅ Design & architecture
+- ✅ Build + local testing
+- ✅ Commit + Push
+- ✅ Deploy (Vercel auto-trigger หรือ CLI)
+- ✅ Create SQL queries (แม้แต่ใช้ Supabase tools)
+- ✅ Database schema queries (ตรวจสอบ column names)
+- ✅ Update documentation (CLAUDE.md, guide pages)
+- ✅ Create Google Drive reports
+
+## ✅ ให้ Vee ช่วย — เฉพาะเมื่อจำเป็น
+1. **Execute SQL บน production** — Vee รัน scripts ที่ ONE เขียน
+2. **Test จริงบนแอป** — Vee ลองใช้ feature ด้วยตนเอง ยืนยันพฤติกรรม UI
+3. **Collect production data** — ดึงข้อมูลจริงจาก live database เพื่อ verify
+4. **Report ผลลัพธ์** — ถ่ายภาพ + สรุปให้ Pom ทราบ
+5. **Manual deployment** — ถ้า CLI ไม่ใช้ได้ ให้ Vee deploy ผ่าน Vercel dashboard
+
+## ⚠️ ข้อตกลง Handoff ไปให้ Vee
+- ONE ต้องให้ **SQL text** (copy/paste ได้ทันที) ไม่ใช่ links
+- ONE ต้องบอก **expected output** ที่ Vee ตรวจสอบได้
+- ONE ต้องบอก **เป้าหมายชัด** ("ผลที่ต้องได้") ไม่ใช่ขั้นตอน
+- ONE **ต้องตรวจ schema live** ก่อนเขียน SQL ทุกครั้ง
+- ONE **ต้องเขียนชัด**: commit hash, version, branch target
+
+---
+
 # SQL & Database Handoff Requirements (PERMANENT — Vee's Requirements from ONE)
 
 **Vee ส่งข้อเรียกร้องมา ให้ ONE ปฏิบัติเสมอ เพื่อไม่พัง + เร็ว:**

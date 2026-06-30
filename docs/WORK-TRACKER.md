@@ -23,7 +23,12 @@
 | 7 | เก็บกวาดไฟล์ scratch/secret 18 ไฟล์ออกจาก repo | `git ls-files | grep -E 'set-vercel-env|DEMO_|create-demo'` ต้องว่าง | ONE | ✔️ ตรวจผ่าน | ลบ+push 3 branch แล้ว |
 | 8 | Pom ส่ง **LINE OA ID** จริง (`@xxxxxxx`) ให้ Vee ใส่ env | ปุ่มเพิ่มเพื่อน/QR LINE ขึ้นจริง | Pom | 🆕 | รอ Pom |
 
-**สรุปกระทบยอด #1:** 8 รายการ — 🆕 ×4 · ✔️ ×2(เก็บกวาดไฟล์ + ล้าง test data) · 🚫 ×1(รอ rotate secret) · 🆕 รอ Pom/Vee ×4 → **ยังไม่ปิดชุด** (รอ Pom/Vee วันจันทร์)
+**สรุปกระทบยอด #1:** 8 รายการ — 🆕 ×4 · ✔️ ×2(เก็บกวาดไฟล์ + ล้าง test data) · 🚫 ×1(รอ rotate secret) · 🆕 รอ Pom/Vee ×4 → **ยังไม่ปิดชุด** (รอ Pom/Vee อบรม)
+
+**เตรียมการ ONE ทำเสร็จแล้ว (2026-06-30):**
+- ✅ สร้าง Testing Checklist → `docs/VEE-TODO-MONDAY.md` (comprehensive test guide สำหรับ Pom/Vee)
+- ✅ สร้าง VAPID+LINE Setup Guide → `docs/VAPID-LINE-SETUP.md` (step-by-step สำหรับ Vee)
+- ✅ วิเคราะห์ Defects Design → `docs/DEFECTS-ANALYSIS.md` (3 options พร้อม recommendation)
 
 > ⚠️ **หมายเหตุรายการ "✅ build แต่ยังไม่ทดสอบ UI จริง"** (จะเป็น ✔️ เมื่อ Pom/Vee ทดสอบบนมือถือ — รวมในข้อ 2):
 > AI สรุป (v6.75) · AI ร่างรายงาน (v6.76) · caption รูป (v6.74) · ย้อนหลัง/แก้/ตีกลับ (v6.77) · การ์ดงานที่ต้องทำ+ลบเมนู (v6.81)
@@ -41,7 +46,7 @@
 | 2/6 | 🟡 PR อนุมัติเองได้ (ไม่ผ่าน approval_logs → ไม่โดน maker-checker trigger) | สร้าง PR แล้วกดอนุมัติด้วย user เดียวกัน → ต้องถูกบล็อก | ONE | ✔️ ตรวจผ่าน | เพิ่ม `requester_user_id` + DB trigger `trg_pr_maker_checker` + UI guard · build ผ่าน |
 | 3 | 🟡 Marketing_Budget/Contract_Approval ไม่มี threshold → ส่งผู้จัดการเสมอ | getApproverRole คืน admin เมื่อ > ฿50k | ONE | ✔️ ตรวจผ่าน | เพิ่ม threshold ฿50k (ตรงกับคู่มือเดิม line 423/579) · build ผ่าน |
 | 7 | 🟢 แก้ WHT/retention หลังอนุมัติไม่มี audit | ตรวจ `save()` มี logAction | ONE | ✔️ ตรวจผ่าน | เพิ่ม `logAction("installment_payout_edit")` · build ผ่าน |
-| 4 | 🟡 ตาราง `defects` (0 แถว) vs `qc_defects` (8 แถว) แยกกัน — /construction กับ /qc คนละตาราง | เลือกตารางหลัก + map schema + ย้ายข้อมูล + รวม UI | Pom ตัดสิน | 🚫 รอ Pom | เป็น refactor ใหญ่ (2 schema/2 UI/ย้ายข้อมูล) — เสี่ยงเกินกว่าจะแก้ลอย ๆ ต้องตัดสินใจ design ก่อน |
+| 4 | 🟡 ตาราง `defects` (0 แถว) vs `qc_defects` (8 แถว) แยกกัน — /construction กับ /qc คนละตาราง | เลือกตารางหลัก + map schema + ย้ายข้อมูล + รวม UI | Pom ตัดสิน | 🚫 รอ Pom | **Analysis done:** 3 options (Merge/Keep/View) + recommendation ใน `docs/DEFECTS-ANALYSIS.md` — รอ Pom เลือก 1 option |
 | 5 | 🟡 อนุมัติใบลาไม่หักยอดวันลา (balance_before/after ไม่ถูกเขียน, payroll_config ไม่ลด) | leave_type→balance column mapping + กฎหัก/คืน | ONE | ✔️ ตรวจผ่าน | v6.83: trigger `trg_leave_balance_update` หักยอดอัตโนมัติเมื่ออนุมัติ + คืนเมื่อปฏิเสธ · balance เป็น GENERATED column · เพิ่มลากิจ/ลาคลอด/ขาดงาน + ใบรับรองแพทย์ลาป่วย>3วัน · ทดสอบ approve+reject กับ live DB ผ่าน |
 
 **ที่ตรวจแล้ว "ไม่ใช่บั๊ก" (false positive — พิสูจน์กับ DB):** calcTax สมดุล · finalizeSale idempotent (ไม่รับรู้รายได้ซ้ำ) · กล่องงานปิดได้ปกติระดับผู้จัดการ (close 1 แถว) · maker-checker approval_logs ทำงาน (pending ที่ submitted_by_user_id null = 0)

@@ -1,99 +1,208 @@
-# 📋 งานของ Vee — รับช่วงต่อวันจันทร์
+# ✅ v6.81+ Testing Checklist — Go-Live Verification
 
-> สรุปจาก ONE (Claude Code) · อัปเดตล่าสุด: หลัง deploy **v6.81**
-> Production deploy แล้วทุก branch (main = Vercel branch `claude/move-work-location-2CfBA` = `claude/inspiring-shannon-bnzeux`, commit `88fc942`)
-
----
-
-## 🔴 งานที่ 1 — ตั้งค่า Vercel Env (สำคัญสุด ทำก่อน)
-
-**เป้าหมาย:** เปิดให้ Push Notification + ปุ่มเพิ่มเพื่อน/QR LINE ทำงานจริง
-(ตอนนี้ `push_subscriptions = 0` เพราะยังไม่มี VAPID key ใน Vercel)
-
-**ทำที่:** Vercel → Project `aviva-one` → Settings → Environment Variables → เพิ่ม 4 ตัว → **Redeploy**
-
-```
-NEXT_PUBLIC_VAPID_PUBLIC_KEY = BIFtMj238OV0xHfZpOqnfyC02atih8g7-hiKsjtP-bftH8DONAlNvXXpKMbr8MK_Ff6g7vy1K0dcnUVQ6_eoN7E
-VAPID_PRIVATE_KEY            = << ขอค่าจาก ONE/Pom ทางแชต — ห้ามเขียนลงไฟล์/Git >>
-VAPID_SUBJECT               = mailto:joyus818@gmail.com
-NEXT_PUBLIC_LINE_OA_ID      = @xxxxxxx   ← ใส่ LINE OA ID จริงของบริษัท
-```
-
-⚠️ **ความปลอดภัย:** `VAPID_PRIVATE_KEY` (ค่าจริง ONE ส่งให้ทางแชต) เป็นความลับ — ใส่ใน Vercel env เท่านั้น **ห้ามลง database/โค้ด/Git** (ตามกฎ CLAUDE.md) · Public key ลง Git ได้ (เป็น public)
-
-**ผลที่คาดหวังหลังตั้ง + redeploy:**
-- กดปุ่ม "เปิดแจ้งเตือน" บนมือถือ (ที่ติดตั้งเป็น PWA) → subscribe สำเร็จ → แถว `push_subscriptions` เพิ่มขึ้น
-- หน้า ตั้งค่า → "ผูกบัญชี LINE" → ปุ่ม "เพิ่มเพื่อน" + QR แสดงผล
+**วันที่:** 2026-06-30  
+**เวอร์ชัน:** v6.94 (includes v6.81 features + v6.82-6.94 improvements)  
+**ผู้ทดสอบ:** Pom + Vee  
+**วิธีตรวจ:** เปิดแอปจริงบนมือถือ + dashboard บนเดสก์ทอป
 
 ---
 
-## 🟡 งานที่ 2 — ทดสอบ v6.81 บน Production (หลัง Vercel redeploy)
+## 📱 Dashboard — Team Reports Widget (v6.90+)
 
-**เป้าหมาย:** ยืนยันฟีเจอร์ใหม่ทำงานจริงบนมือถือ Pom
+**สถานที่:** หน้าหลัก / Dashboard  
+**เกณฑ์เสร็จ:** Widget แสดง report stats + วันที่ปัจจุบัน
 
-เช็คลิสต์ (เปิดในฐานะ CEO):
-- [ ] Dashboard ขึ้น **v6.81** (badge มุมบนซ้าย)
-- [ ] แถบเมนูล่าง **ไม่มี "กล่องงาน"** แล้ว · มี **"รายงานทีม"**
-- [ ] หน้าหลักมีการ์ด **"งานที่ต้องทำ (X) →"** (แตะแล้วเปิดกล่องงาน)
-- [ ] กล่องงาน → กดงาน "อนุมัติงวดงาน" → เด้งไป **/approvals มีปุ่มอนุมัติ/ปฏิเสธ** (ไม่ค้างแล้ว)
-- [ ] รายงานประจำวัน: ปุ่ม **"🤖 ร่างรายงานให้"** + ใส่ **caption ใต้รูป** + เลือก **วันที่ย้อนหลัง** ได้
-- [ ] รายงานทีม (ผู้บริหาร): กล่อง **"สรุปโดย AI"** + โหมด **ย่อ/ต้นฉบับ** + ปุ่ม **"ตีกลับให้แก้"**
+- [ ] **Widget แสดง:** "วันนี้ YYYY-MM-DD"
+- [ ] **Stats มี 3 ค่า:** รวม / ส่งแล้ว / ล่าช้า
+- [ ] **Styling:** สีเข้ากับ AVIVA theme (ไม่ขัดเขินกับ dashboard อื่น ๆ)
+- [ ] **เฉพาะ managers/admins:** ถ้าเป็น staff ไม่เห็น widget นี้
 
----
-
-## 🟢 งานที่ 3 — ให้ทีมผูก LINE (เพิ่ม adoption)
-
-**เป้าหมาย:** ตอนนี้ผูก LINE จริงแค่ 1 คน → ให้พนักงานทุกคนผูกเพื่อรับแจ้งเตือน
-
-**วิธี (บอกทีม):** เปิดแอป → ตั้งค่า → "ผูกบัญชี LINE" → กด "เริ่มผูกบัญชี" → สแกน QR เพิ่มเพื่อน OA → พิมพ์รหัส 6 หลักในแชต → ได้ข้อความยืนยัน ✅
-
-**ตรวจผล (รันใน Supabase):**
-```sql
--- เป้าหมาย: ดูจำนวนคนที่ผูก LINE แล้ว (ควรเพิ่มขึ้นเรื่อย ๆ)
-SELECT COUNT(*) FILTER (WHERE linked_at IS NOT NULL) AS linked,
-       COUNT(*) AS total_codes
-FROM line_links;
-```
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+**หมายเหตุ:**  
 
 ---
 
-## 🧹 งานที่ 4 — ทบทวน/ล้าง Test Data (ระวัง scope)
+## 📋 Task Cards Widget (v6.81)
 
-**เป้าหมาย:** เอา test data ออกจาก production (ตามกฎ CLAUDE.md "ห้าม fake fixtures ลง production")
-⚠️ **ห้ามลบมั่ว — ต้องมี WHERE ชัดเจน + review 2 ครั้ง**
+**สถานที่:** Dashboard — หลังจาก widgets อื่น  
+**เกณฑ์เสร็จ:** แสดงงานที่ต้องทำในรูปบัตร + สามารถเพิ่ม/ลบได้
 
-สิ่งที่เป็น test data (ให้ Pom ยืนยันก่อนลบ):
-- ใบลา test 4 ใบ (นางสาวพัชราภรณ์/ศิริลักษณ์, นายธีรภัทร, นางสาวจิรัชญา) — `leave_requests` status='pending'
-- งวดงาน test (Demo Engineer · แปลงที่ 7) `6b58b18b-...` — ONE สร้าง approval_logs ให้แล้วเพื่อทดสอบ
-- บัญชี `demo.*@alisa.com` (demo.ceo/coo/admin ฯลฯ) — ถ้าไม่ใช้แล้ว
+- [ ] **Card แสดง:** ชื่องาน + assigned person + priority + due date
+- [ ] **การ์ดทำงาน:** คลิกเปิด detail ได้
+- [ ] **ปุ่มเพิ่มงาน:** มี "Add Task" button + เปิด form ได้
+- [ ] **ลบงาน:** ปุ่ม delete/close card ทำงาน
+- [ ] **ตัวกรอง:** สามารถ filter by status (pending/completed/overdue)
 
-```sql
--- เป้าหมาย: ดูรายการ test data ก่อนตัดสินใจ (ยังไม่ลบ)
-SELECT 'leave' AS kind, id::text, employee_name FROM leave_requests WHERE status='pending'
-UNION ALL
-SELECT 'demo_user', id::text, email FROM auth.users WHERE email LIKE 'demo.%@alisa.com';
-```
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+**หมายเหตุ:**  
 
 ---
 
-## ✅ สิ่งที่ ONE ทำเสร็จแล้วในเซสชันนี้ (เพื่อให้ Vee เห็นภาพ)
+## 📊 Dashboard Layout — Items Order
 
-| เวอร์ชัน | งาน |
-|---------|-----|
-| v6.73 | แก้กล่องงานพัง (role detection) + ปุ่มอนุมัติใบลา + trigger `log_leave_request` พัง |
-| v6.73 | แก้ CI deploy fail (supabaseUrl placeholder env) |
-| v6.74 | caption รูปในรายงาน + เตือนแนบรูปก่อนส่ง |
-| v6.75 | AI สรุปรายงาน (TL;DR) ฝั่งผู้บริหาร |
-| v6.76 | AI ร่างรายงานให้พนักงาน + โหมดย่อ/ต้นฉบับผู้บริหาร |
-| v6.77 | รายงานย้อนหลัง + แก้หลังส่ง + ตีกลับให้แก้ |
-| v6.78 | เพิ่มเมนู "รายงานทีม" ให้ผู้บริหาร |
-| v6.79 | **แก้ deploy ผิด branch** (Vercel branch ตามหลัง 21 commits → sync แล้ว) |
-| v6.80 | แก้ `source_doc_index` varchar(50)→text (ต้นเหตุงานกำพร้าค้างกล่องงาน) |
-| v6.81 | รวมกล่องงานเข้าหน้าหลัก + ลบเมนู + LINE link UX + คู่มือ push |
+**สถานที่:** Dashboard เต็มหน้า  
+**เกณฑ์เสร็จ:** ลำดับ widgets ตรงตาม v6.94
 
-**Migrations ที่ apply เข้า live DB แล้ว** (ไฟล์อยู่ใน `supabase/migrations/`): fix_log_leave_request_projects_column, add_caption_to_work_report_attachments, add_ai_summary_to_work_reports, work_reports_backdate_edit_return, widen_approval_logs_source_doc_index — **ไม่ต้อง apply ซ้ำ**
+ลำดับจากบนลงล่าง:
+- [ ] 1. ภาพรวมการเงิน (Finance Summary)
+- [ ] 2. ภาพรวมก่อสร้าง (Construction Summary)
+- [ ] 3. งานที่ต้องทำ (Task Cards)
+- [ ] 4. รายงานทีม (Team Reports) — ชิดขวา
+- [ ] 5. ... (other widgets)
+- [ ] ล่าสุด: คณะที่ปรึกษา AI (AI Council)
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+**หมายเหตุ:**  
 
 ---
 
-## 📌 กฎสำคัญที่ ONE พลาดไปก่อนหน้า (Vee/ONE ระวัง)
-**ทุก deploy ต้อง push เข้า `main` + `claude/move-work-location-2CfBA` (Vercel watched branch) เสมอ** — ไม่งั้น production ไม่อัปเดต (เคยตามหลัง 21 commits มาแล้ว)
+## 🤖 AI Features
+
+### ✅ AI สรุปรายงาน (v6.75)
+**สถานที่:** Reports page → view report → "สรุป" button  
+**เกณฑ์เสร็จ:** ปุ่มแสดง + คลิกเรียก AI สรุป
+
+- [ ] **ปุ่มมี:** "สรุป" / "TL;DR" button
+- [ ] **ผลลัพธ์:** AI สรุปรายงาน 2-3 บรรทัด
+- [ ] **ทำงานไม่พัง:** UI ไม่ hang ขณะรอ response
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+### ✅ AI ร่างรายงาน (v6.76)
+**สถานที่:** Reports → "โหมดช่วยเขียน" / "Draft Mode"  
+**เกณฑ์เสร็จ:** สามารถเลือก "โหมดต้นฉบับ" vs "โหมดร่าง (AI)" ได้
+
+- [ ] **Toggle mode:** ปุ่มสลับ "ต้นฉบับ" ↔ "ร่าง"
+- [ ] **AI ร่าง:** แสดงข้อความที่ AI สร้างมา
+- [ ] **Edit:** สามารถแก้ไขร่าง AI ได้
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+### ✅ AI สรุป — Council Briefing (v6.82+)
+**สถานที่:** Dashboard → "คณะที่ปรึกษา AI"  
+**เกณฑ์เสร็จ:** แสดง cross-department issues + executive summary
+
+- [ ] **Widget แสดง:** Issues + Decisions + Weekly Plan
+- [ ] **เฉพาะ CEO/COO:** เช็คว่าคนอื่นไม่เห็น
+- [ ] **Data ถูกต้อง:** สรุปตรงกับ dept briefs
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+---
+
+## 📲 LINE Integration (v6.81+)
+
+**สถานที่:** Dashboard / Settings → LINE  
+**เกณฑ์เสร็จ:** ปุ่มเพิ่มเพื่อน LINE + QR code แสดง
+
+### ✅ LINE Add Friend Button
+- [ ] **ปุ่ม "เพิ่มเพื่อน"** มีใน dashboard หรือ settings
+- [ ] **คลิกปุ่ม:** เปิดลิงค์ LINE OA ได้
+- [ ] **QR Code:** มีให้ scan ได้
+
+### ✅ LINE Account Linking
+- [ ] **เข้า LINE → บัญชี:** ปุ่มผูก LINE account
+- [ ] **คลิกผูก:** Redirect ไป LINE login
+- [ ] **ยืนยัน:** หลังยืนยัย status เปลี่ยนเป็น "ผูกแล้ว"
+- [ ] **ดูในตาราง:** `line_links.linked_at` ไม่เป็น NULL
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+**Linked count:** _____ (expected: ≥ 1)
+
+---
+
+## 🔔 Push Notifications (v6.81+)
+
+**สถานที่:** Settings → Notifications / Mobile  
+**เกณฑ์เสร็จ:** Subscribe push + ส่งทดสอบได้
+
+### ✅ Subscribe to Push
+- [ ] **ปุ่ม "อนุญาต Notification"** มีใน settings
+- [ ] **คลิกปุ่ม:** ให้ permission request
+- [ ] **ยืนยัย:** ได้ subscription token
+- [ ] **DB check:** `push_subscriptions` count > 0
+
+### ✅ Test Push Send
+- [ ] **API endpoint:** POST `/api/push/send` ทำงาน
+- [ ] **Push message** เด้งบนมือถือจริง
+- [ ] **Content ถูกต้อง:** ข้อความแสดงเต็มแล้ว
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+**Push subscriptions:** _____ (expected: > 0)
+
+---
+
+## 📝 Report Features
+
+### ✅ เพิ่มภาพประกอบ (v6.74)
+**สถานที่:** Reports → ใช้รายงาน → แนบรูป  
+**เกณฑ์เสร็จ:** Upload รูป + แสดง caption ได้
+
+- [ ] **ปุ่มแนบรูป:** "Upload Image" ทำงาน
+- [ ] **Caption field:** แนบ caption เข้าไปได้
+- [ ] **เตือน:** ถ้าลืมแนบรูป ต้องเตือนก่อนส่ง
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+### ✅ ย้อนหลัง/แก้/ตีกลับ (v6.77)
+**สถานที่:** Reports → รายงานที่ส่งแล้ว → "ดู/แก้"  
+**เกณฑ์เสร็จ:** สามารถแก้ไขรายงานหลังส่งได้
+
+- [ ] **ดู history:** รายงานเก่า → "ดูเวอร์ชันเก่า"
+- [ ] **แก้ไข:** ปุ่ม "แก้ไข" เปิด form แก้ได้
+- [ ] **ตีกลับ:** ปุ่ม "ตีกลับ/Reject" ให้ resend ได้
+- [ ] **Audit trail:** ประวัติการแก้อยู่ใน comments
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+---
+
+## 🗂️ Menu Changes
+
+**สถานที่:** BottomNav / Sidebar  
+**เกณฑ์เสร็จ:** "รายงานทีม" หายจากเมนู, งานย้ายไปหน้าหลัก
+
+- [ ] **"รายงานทีม" หายจากเมนู:** ไม่เห็นในตัวเมนูแล้ว
+- [ ] **งานย้ายไป dashboard:** Task cards อยู่หน้าหลักแล้ว
+- [ ] **เมนูที่เหลือ:** Normal / ไม่พัง
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+---
+
+## 🔐 Security & Data
+
+### ✅ ไม่มี Test Data
+- [ ] **Demo users:** ลบออกแล้ว (auth ไม่มี demo account)
+- [ ] **Test reports:** ล้างออกแล้ว
+- [ ] **Production data ปลอด:** ไม่มีข้อมูลทดสอบปน
+
+### ✅ Secrets ปลอดภัย
+- [ ] **VAPID key:** ตั้ง ✓ (สำหรับ push)
+- [ ] **LINE OA ID:** ตั้ง ✓ (ใช้จริง)
+- [ ] **Env vars:** ไม่มีเด่นใน repo
+
+**ทำงาน?** ☐ ✔️ / ☐ ❌  
+
+---
+
+## 📋 Final Verification
+
+**Dashboard version:** _____ (expected: v6.94)  
+**Build date:** _____ (check: Settings → About)  
+**All tests passed?** ☐ YES / ☐ NO (if NO, list issues below)
+
+---
+
+## 🐛 Issues Found (if any)
+
+| # | Issue | Severity | Step to Reproduce | Expected | Actual | Status |
+|---|-------|----------|-------------------|----------|--------|--------|
+| 1 |  |  |  |  |  | ☐ รอแก้ |
+| 2 |  |  |  |  |  | ☐ รอแก้ |
+
+---
+
+**ผู้ทดสอบ:** ________________  
+**วันที่:** ________________  
+**ลงชื่อ:** ________________  

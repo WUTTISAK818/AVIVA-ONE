@@ -47,6 +47,23 @@
 
 # Recent Completion Log (บันทึกงานเสร็จล่าสุด)
 
+## ✅ v6.94 — ปรับปรุง Dashboard Layout และ Team Reports Widget (2026-06-29)
+**สถานะ:** ✔️ เสร็จแล้ว · pushed ไป branch `main`
+
+**สิ่งที่ทำ:**
+1. TeamReportsSummaryWidget — เพิ่มแสดงวันที่ (วันนี้ YYYY-MM-DD)
+2. Dashboard — ย้าย "คณะที่ปรึกษา AI" ไปด้านล่างสุด
+3. Dashboard — สลับตำแหน่ง ภาพรวมก่อสร้าง ↔ ภาพรวมการเงิน
+4. อัพเวอร์ชัน 6.93 → 6.94
+
+**Commit:** `3aaceee` — "Improve dashboard layout and Team Reports widget"
+
+**วิธีตรวจสอบ:**
+- ✅ Build passed: `npm run build` → ✓ Compiled successfully in 13.9s
+- ✅ Code changes: 2 files, 135 insertions(+), 128 deletions(-)
+- ✅ Pushed: origin/main
+- 📋 ยังต้องตรวจจริง: ดูแต่ละส่วนบน dashboard (Vee ทดสอบ)
+
 ## ✅ v6.93 — เพิ่มสนับสนุน ฝ่ายสวน (Gardening Department) (2026-06-29)
 **สถานะ:** ✔️ เสร็จแล้ว · pushed ไป branch `main`
 

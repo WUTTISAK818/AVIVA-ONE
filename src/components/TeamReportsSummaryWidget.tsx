@@ -39,17 +39,25 @@ export default function TeamReportsSummaryWidget() {
     );
   }
 
+  const todayDate = new Date().toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+
   return (
     <Link href="/reports/review">
       <div className="bg-aviva-card border border-aviva-gold/20 rounded-lg p-3 hover:border-aviva-gold/40 transition-all active:scale-[0.98] cursor-pointer mb-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
               <ClipboardList size={15} className="text-aviva-gold" />
             </div>
             <span className="text-sm font-semibold text-aviva-text">รายงานทีม</span>
           </div>
-          <div className="flex items-center gap-3">
+          <span className="text-[10px] text-aviva-secondary/60">วันนี้ {todayDate}</span>
+        </div>
+        <div className="flex items-center justify-end gap-3">
             <div className="text-center">
               <div className="text-[11px] text-aviva-secondary/70 font-medium">รวม</div>
               <div className="text-base font-bold text-aviva-gold">{stats.total}</div>
@@ -64,7 +72,6 @@ export default function TeamReportsSummaryWidget() {
               <div className="text-[11px] text-aviva-secondary/70 font-medium">ล่าช้า</div>
               <div className="text-base font-bold text-red-400">{stats.late}</div>
             </div>
-          </div>
         </div>
       </div>
     </Link>

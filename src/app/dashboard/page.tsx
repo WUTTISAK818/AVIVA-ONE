@@ -601,23 +601,6 @@ export default function DashboardPage() {
         </div>
 
         {ctxUser?.isManager && (
-          <Link href="/ai-council" className="block">
-            <GlassCard gold className="p-4 active:scale-[0.99] transition-transform">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-aviva-gold/15 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
-                  <Users size={16} className="text-aviva-gold" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-aviva-text flex items-center gap-1.5">คณะที่ปรึกษา AI — สรุปเสนอผู้บริหาร <Sparkles size={12} className="text-aviva-gold" /></p>
-                  <p className="text-[11px] text-aviva-secondary">ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน + ประเด็นที่ต้องตัดสินใจ</p>
-                </div>
-                <span className="text-aviva-gold/60 text-lg">→</span>
-              </div>
-            </GlassCard>
-          </Link>
-        )}
-
-        {ctxUser?.isManager && (
           <TeamReportsSummaryWidget />
         )}
 
@@ -812,117 +795,6 @@ export default function DashboardPage() {
               </div>
             </GlassCard>}
 
-            {canSeeFinance && <GlassCard className="p-4">
-              <SectionHeader title="ภาพรวมการเงิน" subtitle={`รายรับ-รายจ่าย ปี ${new Date().getFullYear() + 543}`} />
-              {project && project.revenue_target > 0 && (
-                <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-aviva-secondary">รายรับจริง vs เป้าหมาย</span>
-                    <span className="text-[10px] font-bold text-aviva-gold">
-                      {Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-aviva-bg rounded-full overflow-hidden">
-                    <div className="h-full bg-aviva-gold rounded-full transition-all"
-                      style={{ width: `${Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%` }} />
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-[10px] text-aviva-secondary">฿{formatMillions(stats.totalReceipts)}</span>
-                    <span className="text-[10px] text-aviva-secondary">เป้า ฿{formatMillions(project.revenue_target)}</span>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <button onClick={() => openKpi("revenue")}
-                  className="bg-aviva-bg/50 rounded-xl p-3 text-center active:scale-95 transition-all">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <TrendingUp size={11} className="text-green-400" />
-                    <span className="text-[10px] text-aviva-secondary">รายรับ</span>
-                  </div>
-                  <p className="text-sm font-bold text-green-400">฿{formatMillions(stats.totalReceipts)}</p>
-                </button>
-                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <TrendingDown size={11} className="text-red-400" />
-                    <span className="text-[10px] text-aviva-secondary">รายจ่าย</span>
-                  </div>
-                  <p className="text-sm font-bold text-red-400">฿{formatMillions(stats.expenseTotal)}</p>
-                </div>
-                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Activity size={11} className={netPL >= 0 ? "text-aviva-gold" : "text-red-400"} />
-                    <span className="text-[10px] text-aviva-secondary">กำไรสุทธิ</span>
-                  </div>
-                  <p className={`text-sm font-bold ${netPL >= 0 ? "text-aviva-gold" : "text-red-400"}`}>
-                    {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-0.5 bg-green-400 rounded inline-block" />
-                  <span className="text-[9px] text-aviva-secondary">รายรับ</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-0.5 bg-red-400 rounded inline-block" />
-                  <span className="text-[9px] text-aviva-secondary">รายจ่าย</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
-                  <span className="text-[9px] text-aviva-secondary">กำไรสุทธิ</span>
-                </div>
-                <span className="text-[9px] text-aviva-secondary/50 ml-auto">ล้านบาท / เดือน</span>
-              </div>
-              <div className="h-36">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#4ADE80" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#F87171" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#F87171" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="month" tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "11px" }}
-                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : name === "expense" ? "รายจ่าย" : "กำไรสุทธิ"]}
-                    />
-                    <Area type="monotone" dataKey="revenue" stroke="#4ADE80" strokeWidth={2} fill="url(#greenGrad)" dot={false} />
-                    <Area type="monotone" dataKey="expense" stroke="#F87171" strokeWidth={1.5} fill="url(#redGrad)" dot={false} />
-                    <Area type="monotone" dataKey="profit" stroke="#D4AF37" strokeWidth={1.5} fill="none" dot={false} strokeDasharray="4 2" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-3 bg-aviva-bg/50 rounded-xl p-3">
-                <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wide mb-2">กระแสเงินสด &amp; ภาระผูกพัน</p>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <Link href="/office" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
-                    <p className="text-[10px] text-aviva-secondary">คงเหลือสุทธิ <span className="text-aviva-gold/50">→</span></p>
-                    <p className={`text-sm font-bold mt-0.5 ${netPL >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
-                    </p>
-                  </Link>
-                  <Link href="/approvals" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
-                    <p className="text-[10px] text-aviva-secondary">งวดงานค้างจ่าย <span className="text-aviva-gold/50">→</span></p>
-                    <p className="text-sm font-bold text-orange-400 mt-0.5">฿{formatMillions(pendingPayouts)}</p>
-                  </Link>
-                </div>
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold ${netPL >= pendingPayouts ? "bg-green-500/10 border border-green-500/20 text-green-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
-                  {netPL >= pendingPayouts ? "✓ กระแสเงินสดเพียงพอสำหรับงวดค้าง" : "⚠ กระแสเงินสดอาจไม่เพียงพอสำหรับงวดค้าง"}
-                  <span className="ml-auto text-aviva-secondary/60 font-normal">
-                    {netPL >= pendingPayouts
-                      ? `เหลือ ฿${formatMillions(netPL - pendingPayouts)}`
-                      : `ขาด ฿${formatMillions(pendingPayouts - netPL)}`}
-                  </span>
-                </div>
-              </div>
-            </GlassCard>}
-
             {canSeeConstruction && <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="ภาพรวมก่อสร้าง" subtitle="สถานะโครงการก่อสร้าง" />
@@ -1034,6 +906,134 @@ export default function DashboardPage() {
                 )}
               </div>
             </GlassCard>}
+
+            {canSeeFinance && <GlassCard className="p-4">
+              <SectionHeader title="ภาพรวมการเงิน" subtitle={`รายรับ-รายจ่าย ปี ${new Date().getFullYear() + 543}`} />
+              {project && project.revenue_target > 0 && (
+                <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-aviva-secondary">รายรับจริง vs เป้าหมาย</span>
+                    <span className="text-[10px] font-bold text-aviva-gold">
+                      {Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-aviva-bg rounded-full overflow-hidden">
+                    <div className="h-full bg-aviva-gold rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%` }} />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-aviva-secondary">฿{formatMillions(stats.totalReceipts)}</span>
+                    <span className="text-[10px] text-aviva-secondary">เป้า ฿{formatMillions(project.revenue_target)}</span>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <button onClick={() => openKpi("revenue")}
+                  className="bg-aviva-bg/50 rounded-xl p-3 text-center active:scale-95 transition-all">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <TrendingUp size={11} className="text-green-400" />
+                    <span className="text-[10px] text-aviva-secondary">รายรับ</span>
+                  </div>
+                  <p className="text-sm font-bold text-green-400">฿{formatMillions(stats.totalReceipts)}</p>
+                </button>
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <TrendingDown size={11} className="text-red-400" />
+                    <span className="text-[10px] text-aviva-secondary">รายจ่าย</span>
+                  </div>
+                  <p className="text-sm font-bold text-red-400">฿{formatMillions(stats.expenseTotal)}</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-xl p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Activity size={11} className={netPL >= 0 ? "text-aviva-gold" : "text-red-400"} />
+                    <span className="text-[10px] text-aviva-secondary">กำไรสุทธิ</span>
+                  </div>
+                  <p className={`text-sm font-bold ${netPL >= 0 ? "text-aviva-gold" : "text-red-400"}`}>
+                    {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-green-400 rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">รายรับ</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-red-400 rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">รายจ่าย</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 bg-aviva-gold rounded inline-block" />
+                  <span className="text-[9px] text-aviva-secondary">กำไรสุทธิ</span>
+                </div>
+                <span className="text-[9px] text-aviva-secondary/50 ml-auto">ล้านบาท / เดือน</span>
+              </div>
+              <div className="h-36">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#4ADE80" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F87171" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#F87171" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "11px" }}
+                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : name === "expense" ? "รายจ่าย" : "กำไรสุทธิ"]}
+                    />
+                    <Area type="monotone" dataKey="revenue" stroke="#4ADE80" strokeWidth={2} fill="url(#greenGrad)" dot={false} />
+                    <Area type="monotone" dataKey="expense" stroke="#F87171" strokeWidth={1.5} fill="url(#redGrad)" dot={false} />
+                    <Area type="monotone" dataKey="profit" stroke="#D4AF37" strokeWidth={1.5} fill="none" dot={false} strokeDasharray="4 2" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-3 bg-aviva-bg/50 rounded-xl p-3">
+                <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wide mb-2">กระแสเงินสด &amp; ภาระผูกพัน</p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <Link href="/office" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
+                    <p className="text-[10px] text-aviva-secondary">คงเหลือสุทธิ <span className="text-aviva-gold/50">→</span></p>
+                    <p className={`text-sm font-bold mt-0.5 ${netPL >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {netPL >= 0 ? "+" : ""}฿{formatMillions(Math.abs(netPL))}
+                    </p>
+                  </Link>
+                  <Link href="/approvals" className="bg-aviva-bg rounded-xl p-2.5 active:scale-95 transition-all block">
+                    <p className="text-[10px] text-aviva-secondary">งวดงานค้างจ่าย <span className="text-aviva-gold/50">→</span></p>
+                    <p className="text-sm font-bold text-orange-400 mt-0.5">฿{formatMillions(pendingPayouts)}</p>
+                  </Link>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold ${netPL >= pendingPayouts ? "bg-green-500/10 border border-green-500/20 text-green-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}>
+                  {netPL >= pendingPayouts ? "✓ กระแสเงินสดเพียงพอสำหรับงวดค้าง" : "⚠ กระแสเงินสดอาจไม่เพียงพอสำหรับงวดค้าง"}
+                  <span className="ml-auto text-aviva-secondary/60 font-normal">
+                    {netPL >= pendingPayouts
+                      ? `เหลือ ฿${formatMillions(netPL - pendingPayouts)}`
+                      : `ขาด ฿${formatMillions(pendingPayouts - netPL)}`}
+                  </span>
+                </div>
+              </div>
+            </GlassCard>}
+
+            {ctxUser?.isManager && (
+              <Link href="/ai-council" className="block">
+                <GlassCard gold className="p-4 active:scale-[0.99] transition-transform">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-aviva-gold/15 border border-aviva-gold/30 flex items-center justify-center flex-shrink-0">
+                      <Users size={16} className="text-aviva-gold" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-aviva-text flex items-center gap-1.5">คณะที่ปรึกษา AI — สรุปเสนอผู้บริหาร <Sparkles size={12} className="text-aviva-gold" /></p>
+                      <p className="text-[11px] text-aviva-secondary">ผู้เชี่ยวชาญแต่ละฝ่ายปรึกษากัน + ประเด็นที่ต้องตัดสินใจ</p>
+                    </div>
+                    <span className="text-aviva-gold/60 text-lg">→</span>
+                  </div>
+                </GlassCard>
+              </Link>
+            )}
           </>
         )}
       </div>

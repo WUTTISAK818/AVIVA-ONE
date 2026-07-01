@@ -45,9 +45,10 @@ export async function PATCH(
 
   const sb = getSupabaseAdmin()
   const { data, error } = await sb
-    .from('qc_defects')
+    .from('defects')
     .update(patch)
     .eq('id', id)
+    .eq('defect_type', 'qc_inspection')
     .select('*')
     .single()
 

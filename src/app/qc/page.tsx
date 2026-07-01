@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic'
 export default async function QCPage() {
   const sb = getSupabase()
 
-  // Fetch separately and join in code (FK cache may lag after migration)
+  // Fetch QC defects from unified defects table (after migration)
   const [{ data: defectsRaw }, { data: houses }, { data: projects }] = await Promise.all([
-    sb.from('qc_defects').select('*').order('created_at', { ascending: false }),
+    sb.from('defects').select('*').eq('defect_type', 'qc_inspection').order('created_at', { ascending: false }),
     sb.from('houses').select('id, house_number, project_id'),
     sb.from('projects').select('id, project_name'),
   ])

@@ -41,12 +41,31 @@
 | 2/6 | 🟡 PR อนุมัติเองได้ (ไม่ผ่าน approval_logs → ไม่โดน maker-checker trigger) | สร้าง PR แล้วกดอนุมัติด้วย user เดียวกัน → ต้องถูกบล็อก | ONE | ✔️ ตรวจผ่าน | เพิ่ม `requester_user_id` + DB trigger `trg_pr_maker_checker` + UI guard · build ผ่าน |
 | 3 | 🟡 Marketing_Budget/Contract_Approval ไม่มี threshold → ส่งผู้จัดการเสมอ | getApproverRole คืน admin เมื่อ > ฿50k | ONE | ✔️ ตรวจผ่าน | เพิ่ม threshold ฿50k (ตรงกับคู่มือเดิม line 423/579) · build ผ่าน |
 | 7 | 🟢 แก้ WHT/retention หลังอนุมัติไม่มี audit | ตรวจ `save()` มี logAction | ONE | ✔️ ตรวจผ่าน | เพิ่ม `logAction("installment_payout_edit")` · build ผ่าน |
-| 4 | 🟡 ตาราง `defects` (0 แถว) vs `qc_defects` (8 แถว) แยกกัน — /construction กับ /qc คนละตาราง | เลือกตารางหลัก + map schema + ย้ายข้อมูล + รวม UI | Pom ตัดสิน | 🚫 รอ Pom | เป็น refactor ใหญ่ (2 schema/2 UI/ย้ายข้อมูล) — เสี่ยงเกินกว่าจะแก้ลอย ๆ ต้องตัดสินใจ design ก่อน |
+| 4 | 🟡 ตาราง `defects` (0 แถว) vs `qc_defects` (8 แถว) แยกกัน — /construction กับ /qc คนละตาราง | เลือกตารางหลัก + map schema + ย้ายข้อมูล + รวม UI | ONE | ✔️ ตรวจผ่าน | Pom เลือก Option 1 (Merge) · ONE รัน SQL บน production เอง (2026-07-01): backup 8 แถว → เพิ่ม defect_type/updated_at + index → migrate 8 แถว → drop qc_defects · verify: defects รวม 8 แถว (qc_inspection ×8) · โค้ด /qc + API แก้แล้ว (commit e20c67b, อยู่บน main) |
 | 5 | 🟡 อนุมัติใบลาไม่หักยอดวันลา (balance_before/after ไม่ถูกเขียน, payroll_config ไม่ลด) | leave_type→balance column mapping + กฎหัก/คืน | ONE | ✔️ ตรวจผ่าน | v6.83: trigger `trg_leave_balance_update` หักยอดอัตโนมัติเมื่ออนุมัติ + คืนเมื่อปฏิเสธ · balance เป็น GENERATED column · เพิ่มลากิจ/ลาคลอด/ขาดงาน + ใบรับรองแพทย์ลาป่วย>3วัน · ทดสอบ approve+reject กับ live DB ผ่าน |
 
 **ที่ตรวจแล้ว "ไม่ใช่บั๊ก" (false positive — พิสูจน์กับ DB):** calcTax สมดุล · finalizeSale idempotent (ไม่รับรู้รายได้ซ้ำ) · กล่องงานปิดได้ปกติระดับผู้จัดการ (close 1 แถว) · maker-checker approval_logs ทำงาน (pending ที่ submitted_by_user_id null = 0)
 
-**สรุปกระทบยอด #2:** 7 รายการ — ✔️ ×6 (ข้อ 1,2/6,3,5,7) · 🚫 ×1 (ข้อ 4 defects — รอ Pom ตัดสิน design) → ปิดส่วน code ได้, เหลือ 1 ข้อรอ design decision
+**สรุปกระทบยอด #2:** 7 รายการ — ✔️ ×7 ครบทุกข้อ → **ปิดชุดงาน #2 ได้** (ข้อ 4 ปิดเมื่อ 2026-07-01 หลัง ONE รัน migration บน production + verify แล้ว)
+
+---
+
+## 🔵 ชุดงานที่ #3 — ผลตรวจประเมินระบบรายงาน โดยคณะกรรมการจำลอง (2026-07-01)
+
+> ที่มา: Pom สั่งจำลองประชุมกรรมการผู้เชี่ยวชาญ ประเมิน 4 ด้าน (ส่งรายงาน/รับทราบ/จัดเก็บย้อนหลัง/ปฏิทิน dashboard) — ผลตรวจพิสูจน์กับโค้ด + live DB แล้ว · **รอ Pom อนุมัติก่อนเริ่มโค้ด**
+
+| # | รายการ | เกณฑ์เสร็จ + วิธีตรวจ (objective) | เจ้าของ | สถานะ | หลักฐาน/ผลตรวจ |
+|---|--------|-----------------------------------|---------|-------|----------------|
+| 1 | 🔴 Widget "รายงานทีม" บน dashboard แสดง 0 ตลอด — API อ้างตาราง `daily_reports` (ไม่มีจริง) + `users.is_manager` + auth ฝั่ง server ไม่มี session | แก้ API ให้อ่าน `work_reports` + ตรวจ role ผ่าน Bearer token → widget แสดงเลขตรงกับ SQL: `SELECT count(*) FROM work_reports WHERE report_date=CURRENT_DATE` | ONE | 🆕 รอ Pom อนุมัติ | พิสูจน์: information_schema ไม่มี `daily_reports` · route ใช้ anon client + auth.getUser() → 401 เสมอ |
+| 2 | 🔴 ปฏิทินกิจกรรม dashboard ว่างเปล่าใน production — `/api/dashboard` ใช้ anon client แต่ทั้ง 7 ตาราง (leads/houses/finance ฯลฯ) RLS ไม่เปิด anon SELECT | แก้เป็น service client + ตรวจ auth → เปิดปฏิทินเดือน มิ.ย. เห็นจุดกิจกรรม > 0 วัน | ONE | 🆕 รอ Pom อนุมัติ | พิสูจน์: pg_policies ทุกตาราง has_anon_select=false → API คืน 0 ทุกวัน |
+| 3 | 🟡 ปฏิทินไม่ดึง "รายงานประจำวัน" (work_reports) เลย — กิจกรรมจากรายงานแต่ละฝ่ายไม่ขึ้นปฏิทินตามที่ Pom ต้องการ | เพิ่ม work_reports เป็นแหล่งข้อมูล แยกสีตามแผนก → วันที่มีรายงานส่ง เห็น badge บนปฏิทิน | ONE | 🆕 รอ Pom อนุมัติ | โค้ด route.ts ดึงแค่ leads/houses/finance/approvals/attendance/documents |
+| 4 | 🟡 ตัวกรองแผนก + หมวด marketing ของปฏิทินไม่ทำงาน (param `department` อ่านแล้วไม่ใช้ · marketing = 0 ตลอด) | ส่ง `?department=X` แล้วข้อมูลถูกกรองจริง · marketing มีแหล่งข้อมูล | ONE | 🆕 รอ Pom อนุมัติ | route.ts:22 อ่าน param แต่ไม่มีการใช้ในทุก query |
+| 5 | 🟡 กดดูรายละเอียดในปฏิทินแล้วข้อความว่าง — UI อ่าน field `title/detail/createdBy/performer_name` แต่ API ส่ง raw rows (`customer_name/house_number/...`) + คลาสสี Tailwind แบบ dynamic ไม่ compile | กดวันในปฏิทิน → เห็นชื่อรายการ+คนทำจริง · เส้นขอบสีขึ้นตามแผนก | ONE | 🆕 รอ Pom อนุมัติ | DailyActivityCalendar.tsx:141-176, 422-428 vs dashboard route response shape |
+| 6 | 🟡 เขตเวลา: ปฏิทิน/สรุปใช้ UTC (`toISOString`) แต่รายงานใช้วันที่ไทย — ช่วง 00:00-07:00 น. ข้อมูลตกวันผิด | กิจกรรมหลังเที่ยงคืนไทยแสดงในวันไทยที่ถูกต้อง | ONE | 🆕 รอ Pom อนุมัติ | reports/page.tsx:101 ใช้ UTC+7 แล้ว แต่ dashboard route + calendar ยังใช้ UTC |
+| 7 | 🟢 เตือนก่อนเส้นตาย 18:00 — อัตราส่งล่าช้าจริง 65% (20/31) | push/LINE เตือน 17:00 เฉพาะคนที่ยังไม่ส่ง → อัตราล่าช้าลดลง (วัดรายสัปดาห์จาก SQL) | ONE | 🆕 รอ Pom อนุมัติ | SQL จริง: submitted 11 · late 20 · ผู้ส่ง 6/8 คน |
+| 8 | 🟢 หน้า "ผู้บริหารอ่านเช้าเดียวจบ" — Daily Digest รวม: ใครส่ง/ใครขาด + AI สรุปรวมทุกฝ่าย 1 หน้า | เปิด 1 หน้า เห็นครบ: สถานะรายคน + สรุปรวม + ลิงก์ไปรายงานเต็ม | ONE | 🆕 รอ Pom อนุมัติ | ปัจจุบันผู้บริหารต้องกดเข้าอ่านทีละฉบับ (AI TL;DR มีแล้วแต่รายฉบับ) |
+
+**สรุปกระทบยอด #3:** 8 รายการ — 🆕 ×8 (ทั้งหมดรอ Pom อนุมัติ scope ก่อน ONE เริ่มโค้ด) · คะแนนประเมินรวม 5.2/10 — รายละเอียดในรายงานประชุมที่ ONE ส่งในแชต
 
 ---
 

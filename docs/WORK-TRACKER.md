@@ -68,7 +68,7 @@
 
 | 9 | คำสั่งเพิ่มจาก Pom: ขยายเส้นตายส่งรายงานประจำวัน 18:00 → **19:00 น.** | ส่งรายงานเวลา 18:xx ต้องได้สถานะ "ส่งแล้ว" ไม่ใช่ "ล่าช้า" + คู่มือใน settings อัปเดตตรงกัน | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | แก้ reports/page.tsx (isLate + status ที่ submit) + manual 2 จุด + ข้อความเตือน |
 
-**สรุปกระทบยอด #3:** 9 รายการ — ✅ โค้ดเสร็จ ×9 (v6.91 บน branch claude/aviva-one-continuation-h3v402) → รอ deploy production + Pom/Vee ทดสอบ UI จริง จึงจะเป็น ✔️
+**สรุปกระทบยอด #3:** 9 รายการ — ✅ โค้ดเสร็จ ×9 · **merge เข้า main + deploy production แล้ว** (merge f1f0591, CI เขียว, 2026-07-02 · Pom อนุมัติ) → เหลือ: Pom/Vee ทดสอบ UI จริง + ตั้ง VAPID/CRON_SECRET ใน Vercel (ONE สร้าง key ส่งให้ในแชตแล้ว) จึงจะเป็น ✔️
 
 ---
 

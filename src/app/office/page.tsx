@@ -5150,26 +5150,31 @@ export default function OfficePage() {
               .filter(t => t && canSeeTab(t));
             const withLinks = section.title === "ผู้บริหารและระบบ" && showManagerLinks;
             if (items.length === 0 && !withLinks) return null;
+            const cellCount = items.length + (withLinks ? MANAGER_LINKS.length : 0);
             return (
               <div key={section.title}>
                 <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-1.5">{section.title}</p>
-                <div className="flex flex-wrap gap-1.5">
+                {/* กลุ่มละ 1 บรรทัดพอดีจอ — ช่องเท่ากันทุกเมนู (ไอคอนบน ชื่อล่าง) */}
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(cellCount, 4)}, minmax(0, 1fr))` }}
+                >
                   {items.map(({ key, label, icon: Icon, iconColor, iconBg }) => (
                     <button
                       key={key}
                       onClick={() => setActiveTab(key)}
                       className={clsx(
-                        "flex items-center gap-1.5 rounded-xl pl-1.5 pr-3 py-1.5 border transition-all active:scale-95",
+                        "flex flex-col items-center gap-1 rounded-xl border px-0.5 py-2 transition-all active:scale-95",
                         activeTab === key
                           ? "bg-aviva-gold/15 border-aviva-gold"
                           : "bg-aviva-card border-aviva-gold/10 hover:border-aviva-gold/40"
                       )}
                     >
-                      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center ${iconBg}`}>
                         <Icon size={14} className={iconColor} />
                       </span>
                       <span className={clsx(
-                        "text-[11px] font-semibold whitespace-nowrap",
+                        "text-[9.5px] font-semibold text-center leading-tight",
                         activeTab === key ? "text-aviva-gold" : "text-aviva-text"
                       )}>{label}</span>
                     </button>
@@ -5178,12 +5183,13 @@ export default function OfficePage() {
                     <Link
                       key={href}
                       href={href}
-                      className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/10 rounded-xl pl-1.5 pr-3 py-1.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
+                      className="relative flex flex-col items-center gap-1 bg-aviva-card border border-aviva-gold/10 rounded-xl px-0.5 py-2 hover:border-aviva-gold/40 active:scale-95 transition-all"
                     >
-                      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                      <span className="absolute top-1 right-1.5 text-[8px] text-aviva-gold/60">↗</span>
+                      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center ${iconBg}`}>
                         <Icon size={14} className={iconColor} />
                       </span>
-                      <span className="text-[11px] font-semibold text-aviva-text whitespace-nowrap">{label} <span className="text-[9px] text-aviva-gold/60">↗</span></span>
+                      <span className="text-[9.5px] font-semibold text-aviva-text text-center leading-tight">{label}</span>
                     </Link>
                   ))}
                 </div>

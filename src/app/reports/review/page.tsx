@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import {
   Users, ClipboardList, CheckCircle, AlertTriangle, Clock, Eye, X,
   ChevronLeft, ChevronRight, MapPin, UserX, Printer, ChevronDown, ChevronUp,
-  MessageSquare, Sparkles, RefreshCw,
+  MessageSquare, Sparkles, RefreshCw, Search,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -131,6 +131,27 @@ export default function ReportsReviewPage() {
   const [returnMode, setReturnMode]     = useState(false);
   const [returnReason, setReturnReason] = useState("");
   const [returning, setReturning]       = useState(false);
+  // ค้นหาข้อความในรายงานย้อนหลัง (ทุกวัน ทุกคน)
+  const [searchQ, setSearchQ]           = useState("");
+  const [searching, setSearching]       = useState(false);
+  const [searchResults, setSearchResults] = useState<{ id: string; reportDate: string; employeeName: string; department: string; status: string; snippet: string }[] | null>(null);
+
+  async function runSearch() {
+    const q = searchQ.trim();
+    if (q.length < 2) return;
+    setSearching(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/reports/search?q=${encodeURIComponent(q)}`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const json = await res.json();
+      setSearchResults(res.ok ? json.results : []);
+    } catch {
+      setSearchResults([]);
+    }
+    setSearching(false);
+  }
 
   const canAccess = user?.isManager || user?.isAdmin;
 
@@ -632,6 +653,52 @@ export default function ReportsReviewPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
+
+        {/* ค้นหารายงานย้อนหลัง */}
+        <GlassCard className="p-3 space-y-2">
+          <div className="flex gap-2">
+            <input
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && runSearch()}
+              placeholder="🔍 ค้นหาในรายงานย้อนหลัง (ชื่อคน/งาน/ปัญหา)..."
+              className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40 focus:border-aviva-gold/50 outline-none"
+            />
+            <button
+              onClick={runSearch}
+              disabled={searching || searchQ.trim().length < 2}
+              className="px-3 py-2 rounded-xl bg-aviva-gold/10 border border-aviva-gold/30 text-aviva-gold disabled:opacity-40"
+            >
+              {searching ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+            </button>
+          </div>
+          {searchResults !== null && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-aviva-secondary/70">พบ {searchResults.length} รายงาน</p>
+                <button onClick={() => { setSearchResults(null); setSearchQ(""); }} className="text-[10px] text-aviva-secondary underline">ปิดผลค้นหา</button>
+              </div>
+              {searchResults.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => { setSelectedDate(r.reportDate); setSearchResults(null); }}
+                  className="w-full text-left bg-aviva-bg/60 border border-aviva-gold/10 rounded-xl p-2.5 hover:border-aviva-gold/40 transition-all"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-aviva-text truncate">{r.employeeName} · {r.department}</p>
+                    <p className="text-[10px] text-aviva-gold flex-shrink-0">
+                      {new Date(r.reportDate + "T12:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-aviva-secondary/80 line-clamp-2 mt-0.5">{r.snippet}</p>
+                </button>
+              ))}
+              {searchResults.length === 0 && (
+                <p className="text-center text-xs text-aviva-secondary/60 py-2">ไม่พบรายงานที่มีคำว่า "{searchQ}"</p>
+              )}
+            </div>
+          )}
+        </GlassCard>
 
         {weekStats.length > 0 && (
           <GlassCard className="p-3">

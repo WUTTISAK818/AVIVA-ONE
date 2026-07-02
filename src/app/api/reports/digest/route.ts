@@ -28,9 +28,68 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const todayThai = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
     const date = searchParams.get("date") || todayThai;
+    const month = searchParams.get("month"); // "YYYY-MM" → โหมดสรุปรายเดือน/รายคน
     const force = searchParams.get("force") === "true";
 
     const db = getSupabaseAdmin();
+
+    // ── โหมดรายเดือน: สถิติการส่งต่อคน (ส่งกี่วัน/ตรงเวลา/ล่าช้า/อัตราตรงเวลา) ──
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const monthStart = `${month}-01`;
+      const monthEnd = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
+        .toISOString().slice(0, 10);
+
+      const [{ data: employees }, { data: reports }, { data: roleRows }] = await Promise.all([
+        db.from("employees")
+          .select("full_name, email, department")
+          .eq("status", "active")
+          .neq("department", "ฝ่ายสวน"),
+        db.from("work_reports")
+          .select("user_email, status, report_date, acknowledged_by")
+          .eq("report_type", "daily")
+          .gte("report_date", monthStart)
+          .lte("report_date", monthEnd)
+          .in("status", ["submitted", "late"]),
+        db.from("users").select("email, role"),
+      ]);
+
+      const roleByEmail = new Map(
+        (roleRows ?? []).map(u => [(u.email ?? "").toLowerCase(), u.role as string | null])
+      );
+      const expected = (employees ?? []).filter(
+        e => e.email && !isManagerRole(roleByEmail.get((e.email ?? "").toLowerCase()))
+      );
+
+      const people = expected.map(e => {
+        const mine = (reports ?? []).filter(
+          r => (r.user_email ?? "").toLowerCase() === (e.email ?? "").toLowerCase()
+        );
+        const submitted = mine.length;
+        const late = mine.filter(r => r.status === "late").length;
+        const onTime = submitted - late;
+        return {
+          name: e.full_name,
+          department: e.department ?? "-",
+          submitted,
+          onTime,
+          late,
+          acknowledged: mine.filter(r => r.acknowledged_by).length,
+          onTimeRate: submitted > 0 ? Math.round((onTime / submitted) * 100) : null,
+        };
+      }).sort((a, b) => b.submitted - a.submitted);
+
+      const teamSubmitted = people.reduce((s, p) => s + p.submitted, 0);
+      const teamLate = people.reduce((s, p) => s + p.late, 0);
+      return NextResponse.json({
+        month,
+        people,
+        team: {
+          submitted: teamSubmitted,
+          late: teamLate,
+          onTimeRate: teamSubmitted > 0 ? Math.round(((teamSubmitted - teamLate) / teamSubmitted) * 100) : null,
+        },
+      });
+    }
 
     const [{ data: employees }, { data: reports }, { data: roleRows }] = await Promise.all([
       db.from("employees")

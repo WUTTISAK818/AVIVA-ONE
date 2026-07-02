@@ -26,6 +26,22 @@ interface DigestData {
   aiCached: boolean;
 }
 
+interface MonthPersonRow {
+  name: string;
+  department: string;
+  submitted: number;
+  onTime: number;
+  late: number;
+  acknowledged: number;
+  onTimeRate: number | null;
+}
+
+interface MonthData {
+  month: string;
+  people: MonthPersonRow[];
+  team: { submitted: number; late: number; onTimeRate: number | null };
+}
+
 const STATUS_CHIP: Record<PersonRow["status"], { label: string; cls: string }> = {
   submitted: { label: "ส่งแล้ว", cls: "bg-green-500/10 text-green-400 border-green-500/30" },
   late:      { label: "ส่งล่าช้า", cls: "bg-orange-500/10 text-orange-400 border-orange-500/30" },
@@ -47,8 +63,30 @@ export default function ReportsDigestPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"day" | "month">("day");
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [monthData, setMonthData] = useState<MonthData | null>(null);
+  const [monthLoading, setMonthLoading] = useState(false);
 
   const canAccess = user?.isManager || user?.isAdmin;
+
+  const fetchMonth = useCallback(async (m: string) => {
+    setMonthLoading(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/reports/digest?month=${m}`, {
+        cache: "no-store",
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const json = await res.json();
+      if (!res.ok) setError(json?.error ?? "โหลดข้อมูลไม่สำเร็จ");
+      else setMonthData(json);
+    } catch {
+      setError("เชื่อมต่อไม่สำเร็จ");
+    }
+    setMonthLoading(false);
+  }, []);
 
   const fetchDigest = useCallback(async (d: string, force = false) => {
     force ? setRefreshing(true) : setLoading(true);
@@ -70,8 +108,10 @@ export default function ReportsDigestPage() {
   }, []);
 
   useEffect(() => {
-    if (canAccess) fetchDigest(date);
-  }, [canAccess, date, fetchDigest]);
+    if (!canAccess) return;
+    if (mode === "day") fetchDigest(date);
+    else fetchMonth(month);
+  }, [canAccess, mode, date, month, fetchDigest, fetchMonth]);
 
   if (user && !canAccess) {
     return (
@@ -104,6 +144,97 @@ export default function ReportsDigestPage() {
         </Link>
       </div>
 
+      {/* สลับมุมมอง วัน/เดือน */}
+      <div className="flex gap-1.5">
+        {(["day", "month"] as const).map(m => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              mode === m
+                ? "bg-aviva-gold text-aviva-bg"
+                : "bg-aviva-card border border-aviva-gold/20 text-aviva-secondary"
+            }`}
+          >
+            {m === "day" ? "รายวัน" : "รายเดือน"}
+          </button>
+        ))}
+      </div>
+
+      {mode === "month" ? (
+        <>
+          {/* Month nav */}
+          <div className="flex items-center justify-between bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2">
+            <button
+              onClick={() => setMonth(addDays(month + "-15", -30).slice(0, 7))}
+              className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <p className="text-sm font-semibold text-aviva-text">
+              {new Date(month + "-15T12:00:00").toLocaleDateString("th-TH", { year: "numeric", month: "long" })}
+            </p>
+            <button
+              onClick={() => setMonth(addDays(month + "-15", 30).slice(0, 7))}
+              disabled={month >= today.slice(0, 7)}
+              className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary disabled:opacity-30"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {monthLoading ? (
+            <div className="py-16 flex justify-center">
+              <div className="w-8 h-8 border-2 border-aviva-gold/30 border-t-aviva-gold rounded-full animate-spin" />
+            </div>
+          ) : error ? (
+            <GlassCard className="p-4 text-center text-red-400 text-sm">{error}</GlassCard>
+          ) : monthData && (
+            <>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: "ส่งทั้งเดือน", value: monthData.team.submitted, cls: "text-aviva-gold" },
+                  { label: "ล่าช้า", value: monthData.team.late, cls: monthData.team.late > 0 ? "text-orange-400" : "text-aviva-secondary/40" },
+                  { label: "ตรงเวลา", value: monthData.team.onTimeRate != null ? `${monthData.team.onTimeRate}%` : "—", cls: "text-green-400" },
+                ].map(s => (
+                  <GlassCard key={s.label} className="p-2 text-center">
+                    <p className={`text-lg font-bold ${s.cls}`}>{s.value}</p>
+                    <p className="text-[9px] text-aviva-secondary/70">{s.label}</p>
+                  </GlassCard>
+                ))}
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold text-aviva-secondary/70 uppercase tracking-wider">สถิติรายคน (เดือนนี้)</p>
+                {monthData.people.map(p => (
+                  <GlassCard key={p.name} className="p-3">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-aviva-text truncate">{p.name}</p>
+                        <p className="text-[10px] text-aviva-secondary/70">{p.department}</p>
+                      </div>
+                      <span className={`text-sm font-bold flex-shrink-0 ${
+                        p.onTimeRate == null ? "text-aviva-secondary/40"
+                          : p.onTimeRate >= 80 ? "text-green-400"
+                          : p.onTimeRate >= 50 ? "text-orange-400" : "text-red-400"
+                      }`}>
+                        {p.onTimeRate != null ? `ตรงเวลา ${p.onTimeRate}%` : "ยังไม่มีรายงาน"}
+                      </span>
+                    </div>
+                    <div className="flex gap-3 text-[10px] text-aviva-secondary">
+                      <span>ส่ง <b className="text-aviva-text">{p.submitted}</b> วัน</span>
+                      <span>ตรงเวลา <b className="text-green-400">{p.onTime}</b></span>
+                      <span>ล่าช้า <b className={p.late > 0 ? "text-orange-400" : "text-aviva-secondary"}>{p.late}</b></span>
+                      <span>รับทราบแล้ว <b className="text-aviva-text">{p.acknowledged}</b></span>
+                    </div>
+                  </GlassCard>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+      <>
       {/* Date nav */}
       <div className="flex items-center justify-between bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2">
         <button onClick={() => setDate(addDays(date, -1))} className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary">
@@ -215,6 +346,8 @@ export default function ReportsDigestPage() {
             </GlassCard>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   );

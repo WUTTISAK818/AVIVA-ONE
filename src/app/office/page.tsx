@@ -7,7 +7,7 @@ import {
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
   FolderOpen, Upload, Search, Home, BookOpen, Pencil, ShoppingCart, Paperclip,
-  Terminal, LayoutGrid,
+  Terminal,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -5110,7 +5110,9 @@ function AuditLogContent() {
 export default function OfficePage() {
   const user = useCurrentUser();
   // "menu" = หน้า grid เมนูหลัก (จัดหมวด+ไอคอน) — ผู้บริหารเริ่มที่นี่ · พนักงานเด้งเข้าแท็บแผนกตัวเอง
-  const [activeTab, setActiveTab] = useState<OfficeTab | "menu">("menu");
+  // แบบ A+ (Pom เลือก 2026-07-03): เมนูชุดเดียวอยู่บนสุด + เนื้อหาแท็บแสดงต่อด้านล่างทันที
+  // ไม่มีหน้าเมนูแยก/แถบสลับซ้ำ · เมนูไม่ sticky — เลื่อนลงอ่านเนื้อหาแล้วเมนูพ้นจอไปเอง
+  const [activeTab, setActiveTab] = useState<OfficeTab>("finance");
   useFocusHighlight();
 
   const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
@@ -5122,68 +5124,26 @@ export default function OfficePage() {
     if (!user?.isManager && !user?.isAdmin && t.dept && t.dept !== user?.department) return false;
     return true;
   };
-  const visibleTabs = TABS.filter(canSeeTab);
   const showManagerLinks = user?.isManager || user?.isAdmin;
-  const activeTabInfo = TABS.find(t => t.key === activeTab);
 
   useEffect(() => {
     // Deep-link: /office?tab=documents (ใช้ redirect จากหน้า /documents เดิม) — มาก่อน default ตามแผนก
     const tabParam = new URLSearchParams(window.location.search).get("tab");
     if (tabParam && TABS.some(t => t.key === tabParam)) { setActiveTab(tabParam as OfficeTab); return; }
-    if (!user || user.isManager || user.isAdmin) return; // ผู้บริหารเริ่มที่หน้าเมนู grid
-    if (user.department === "ฝ่ายบัญชี") setActiveTab("accounting");
-    else if (user.department === "ฝ่ายการเงิน") setActiveTab("finance");
-    else if (user.department === "ฝ่ายบุคคล") setActiveTab("hr");
-    else if (user.department === "ฝ่ายการตลาด") setActiveTab("marketing");
-    else if (user.department === "ฝ่ายหลังการขาย") setActiveTab("after-sales");
-    else if (user.department === "ฝ่ายก่อสร้าง") setActiveTab("materials");
+    if (user?.department === "ฝ่ายบัญชี") setActiveTab("accounting");
+    else if (user?.department === "ฝ่ายการเงิน") setActiveTab("finance");
+    else if (user?.department === "ฝ่ายบุคคล") setActiveTab("hr");
+    else if (user?.department === "ฝ่ายการตลาด") setActiveTab("marketing");
+    else if (user?.department === "ฝ่ายหลังการขาย") setActiveTab("after-sales");
+    else if (user?.department === "ฝ่ายก่อสร้าง") setActiveTab("materials");
   }, [user]);
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
-        <div className="max-w-lg mx-auto">
-          {activeTab === "menu" ? (
-            <h1 className="text-lg font-bold text-aviva-text">ออฟฟิศ</h1>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 mb-2.5">
-                <button
-                  onClick={() => setActiveTab("menu")}
-                  aria-label="กลับหน้าเมนูออฟฟิศ"
-                  className="p-1.5 rounded-lg bg-aviva-card border border-aviva-gold/20 text-aviva-gold hover:border-aviva-gold/50 active:scale-95 transition-all"
-                >
-                  <LayoutGrid size={15} />
-                </button>
-                <h1 className="text-lg font-bold text-aviva-text">{activeTabInfo?.label ?? "ออฟฟิศ"}</h1>
-              </div>
-              {/* แถบสลับเมนูเร็ว — เลื่อนซ้ายขวาได้ ไม่ดันเนื้อหาลง */}
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {visibleTabs.map(({ key, label, icon: Icon, iconColor }) => (
-                  <button
-                    key={key}
-                    onClick={() => setActiveTab(key)}
-                    className={clsx(
-                      "flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-semibold border transition-all whitespace-nowrap flex-shrink-0",
-                      activeTab === key
-                        ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
-                        : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-                    )}
-                  >
-                    <Icon size={12} className={activeTab === key ? "text-aviva-bg" : iconColor} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* หน้าเมนูหลัก — ชิปกะทัดรัดจัดหมวด (ไอคอน+ชื่อในแถวเดียว ประหยัดพื้นที่) */}
-      {activeTab === "menu" && (
-        <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+      {/* เมนูจัดหมวดอยู่บนสุด (ไม่ sticky) — ชิปที่เลือกไฮไลต์ทอง เนื้อหาแสดงต่อด้านล่าง */}
+      <div className="px-4 pt-12 pb-3 border-b border-aviva-gold/10">
+        <div className="max-w-lg mx-auto space-y-3">
+          <h1 className="text-lg font-bold text-aviva-text">ออฟฟิศ</h1>
           {MENU_SECTIONS.map(section => {
             const items = section.keys
               .map(k => TABS.find(t => t.key === k)!)
@@ -5198,12 +5158,20 @@ export default function OfficePage() {
                     <button
                       key={key}
                       onClick={() => setActiveTab(key)}
-                      className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/10 rounded-xl pl-1.5 pr-3 py-1.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
+                      className={clsx(
+                        "flex items-center gap-1.5 rounded-xl pl-1.5 pr-3 py-1.5 border transition-all active:scale-95",
+                        activeTab === key
+                          ? "bg-aviva-gold/15 border-aviva-gold"
+                          : "bg-aviva-card border-aviva-gold/10 hover:border-aviva-gold/40"
+                      )}
                     >
                       <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${iconBg}`}>
                         <Icon size={14} className={iconColor} />
                       </span>
-                      <span className="text-[11px] font-semibold text-aviva-text whitespace-nowrap">{label}</span>
+                      <span className={clsx(
+                        "text-[11px] font-semibold whitespace-nowrap",
+                        activeTab === key ? "text-aviva-gold" : "text-aviva-text"
+                      )}>{label}</span>
                     </button>
                   ))}
                   {withLinks && MANAGER_LINKS.map(({ label, href, icon: Icon, iconColor, iconBg }) => (
@@ -5223,7 +5191,7 @@ export default function OfficePage() {
             );
           })}
         </div>
-      )}
+      </div>
 
       {/* Conditional content */}
       {activeTab === "finance"     && <FinanceContent />}

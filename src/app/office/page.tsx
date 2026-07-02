@@ -5145,10 +5145,7 @@ export default function OfficePage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
           {activeTab === "menu" ? (
-            <div>
-              <h1 className="text-lg font-bold text-aviva-text">ออฟฟิศ</h1>
-              <p className="text-[11px] text-aviva-secondary/70 mt-0.5">เลือกเมนูงานที่ต้องการ</p>
-            </div>
+            <h1 className="text-lg font-bold text-aviva-text">ออฟฟิศ</h1>
           ) : (
             <>
               <div className="flex items-center gap-2 mb-2.5">
@@ -5184,9 +5181,9 @@ export default function OfficePage() {
         </div>
       </div>
 
-      {/* หน้าเมนูหลัก — grid จัดหมวด */}
+      {/* หน้าเมนูหลัก — ชิปกะทัดรัดจัดหมวด (ไอคอน+ชื่อในแถวเดียว ประหยัดพื้นที่) */}
       {activeTab === "menu" && (
-        <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
           {MENU_SECTIONS.map(section => {
             const items = section.keys
               .map(k => TABS.find(t => t.key === k)!)
@@ -5195,31 +5192,30 @@ export default function OfficePage() {
             if (items.length === 0 && !withLinks) return null;
             return (
               <div key={section.title}>
-                <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">{section.title}</p>
-                <div className="grid grid-cols-3 gap-2">
+                <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-1.5">{section.title}</p>
+                <div className="flex flex-wrap gap-1.5">
                   {items.map(({ key, label, icon: Icon, iconColor, iconBg }) => (
                     <button
                       key={key}
                       onClick={() => setActiveTab(key)}
-                      className="flex flex-col items-center gap-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl px-2 py-3.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
+                      className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/10 rounded-xl pl-1.5 pr-3 py-1.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
                     >
-                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${iconBg}`}>
-                        <Icon size={18} className={iconColor} />
-                      </div>
-                      <span className="text-[11px] font-semibold text-aviva-text text-center leading-tight">{label}</span>
+                      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                        <Icon size={14} className={iconColor} />
+                      </span>
+                      <span className="text-[11px] font-semibold text-aviva-text whitespace-nowrap">{label}</span>
                     </button>
                   ))}
                   {withLinks && MANAGER_LINKS.map(({ label, href, icon: Icon, iconColor, iconBg }) => (
                     <Link
                       key={href}
                       href={href}
-                      className="relative flex flex-col items-center gap-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl px-2 py-3.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
+                      className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/10 rounded-xl pl-1.5 pr-3 py-1.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
                     >
-                      <span className="absolute top-1.5 right-2 text-[9px] text-aviva-gold/60">↗</span>
-                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${iconBg}`}>
-                        <Icon size={18} className={iconColor} />
-                      </div>
-                      <span className="text-[11px] font-semibold text-aviva-text text-center leading-tight">{label}</span>
+                      <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                        <Icon size={14} className={iconColor} />
+                      </span>
+                      <span className="text-[11px] font-semibold text-aviva-text whitespace-nowrap">{label} <span className="text-[9px] text-aviva-gold/60">↗</span></span>
                     </Link>
                   ))}
                 </div>

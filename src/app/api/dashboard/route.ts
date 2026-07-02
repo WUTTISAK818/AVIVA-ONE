@@ -1,207 +1,301 @@
-import { supabase } from "@/lib/supabase";
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifyAuth } from "@/lib/api-auth";
 
-interface ActivityData {
-  [date: string]: {
-    sales: { count: number; items: any[] };
-    construction: { count: number; items: any[] };
-    accounting: { count: number; items: any[] };
-    finance: { count: number; items: any[] };
-    marketing: { count: number; items: any[] };
-    hr: { count: number; items: any[] };
-    approvals: { count: number; items: any[] };
-    office: { count: number; items: any[] };
-  };
+export const dynamic = "force-dynamic";
+
+const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+// ปฏิทินกิจกรรมหน้าหลัก — รวมกิจกรรมจริงของทุกฝ่ายต่อวัน (เวลาไทย UTC+7)
+// แหล่งข้อมูล: sales_activities/crm_logs(ขาย) · construction_reports/contractor_installments(ก่อสร้าง)
+//             jv_entries(บัญชี) · purchase_orders(อนุมัติ) · daily_activity_log(ออฟฟิศ)
+//             work_reports(รายงานประจำวัน — แยกหมวดตามแผนกผู้ส่ง ทำให้ทุกฝ่ายรวมถึงการตลาด/บุคคล/การเงินขึ้นปฏิทิน)
+
+const CATEGORIES = [
+  "sales", "construction", "accounting", "finance",
+  "marketing", "hr", "approvals", "office",
+] as const;
+type Category = (typeof CATEGORIES)[number];
+
+// item ที่ปฏิทินฝั่ง UI อ่าน — normalize ทุกแหล่งข้อมูลให้เป็นรูปนี้เท่านั้น
+interface ActivityItem {
+  title: string;
+  detail?: string | null;
+  status?: string | null;
+  createdBy?: string | null;
+  amount?: number | null;
+  link?: string;
 }
 
-export async function GET(request: NextRequest) {
+type DayData = Record<Category, { count: number; items: ActivityItem[] }>;
+
+// map แผนก (ไทย) → หมวดปฏิทิน — แผนกอื่น/ธุรการ ตกที่ office
+const DEPT_TO_CATEGORY: Record<string, Category> = {
+  "ฝ่ายขาย": "sales",
+  "ฝ่ายก่อสร้าง": "construction",
+  "ฝ่ายบัญชี": "accounting",
+  "ฝ่ายการเงิน": "finance",
+  "ฝ่ายการตลาด": "marketing",
+  "ฝ่ายบุคคล": "hr",
+};
+const deptCategory = (dept?: string | null): Category =>
+  DEPT_TO_CATEGORY[(dept ?? "").trim()] ?? "office";
+
+// วันที่แบบไทยจาก timestamp (กันข้อมูลช่วง 00:00-07:00 น. ตกวันผิด)
+const thaiDate = (ts: string) =>
+  new Date(new Date(ts).getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+
+export async function GET(req: NextRequest) {
+  // ข้อมูลรวมทุกฝ่าย อ่านผ่าน service client (ข้าม RLS) — จึงต้องบังคับล็อกอินเสมอ
+  const { user, error: authError } = await verifyAuth(req);
+  if (authError || !user) {
+    return NextResponse.json({ success: false, error: authError ?? "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
-    const range = searchParams.get("range") || "month";
-    const department = searchParams.get("department");
+    const supabase = getSupabaseAdmin();
+    const { searchParams } = new URL(req.url);
+    const dateStr = searchParams.get("date") || thaiDate(new Date().toISOString());
+    const rangeType = searchParams.get("range") || "day"; // day, week, month
+    const department = searchParams.get("department"); // ชื่อแผนกภาษาไทย เช่น "ฝ่ายขาย"
 
-    const startDate = getStartDate(date, range);
-    const endDate = getEndDate(date, range);
+    let startDate = dateStr;
+    let endDate = dateStr;
 
-    const activityData: ActivityData = {};
-
-    // Initialize all dates in range
-    for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
-      const dateKey = d.toISOString().split("T")[0];
-      activityData[dateKey] = {
-        sales: { count: 0, items: [] },
-        construction: { count: 0, items: [] },
-        accounting: { count: 0, items: [] },
-        finance: { count: 0, items: [] },
-        marketing: { count: 0, items: [] },
-        hr: { count: 0, items: [] },
-        approvals: { count: 0, items: [] },
-        office: { count: 0, items: [] },
-      };
+    if (rangeType === "week") {
+      const date = new Date(dateStr);
+      const dayOfWeek = date.getDay();
+      const sunday = new Date(date);
+      sunday.setDate(date.getDate() - dayOfWeek);
+      startDate = sunday.toISOString().split("T")[0];
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+      endDate = saturday.toISOString().split("T")[0];
+    } else if (rangeType === "month") {
+      const date = new Date(dateStr);
+      startDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
+      endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split("T")[0];
     }
 
-    // Fetch sales activities (leads, quotes)
-    const { data: leads } = await supabase
-      .from("leads")
-      .select("id,customer_name,created_at,status")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate);
+    // ขอบเขต timestamp ของช่วงวัน "ตามเวลาไทย" สำหรับคอลัมน์ TIMESTAMP
+    const dStart = `${startDate}T00:00:00+07:00`;
+    const dEnd = `${endDate}T23:59:59.999+07:00`;
 
-    if (leads) {
-      leads.forEach((lead: any) => {
-        const dateKey = lead.created_at.split("T")[0];
-        if (activityData[dateKey]) {
-          activityData[dateKey].sales.count++;
-          activityData[dateKey].sales.items.push(lead);
-        }
-      });
-    }
+    const [
+      { data: salesActivities },
+      { data: crmLogs },
+      { data: jvEntries },
+      { data: constructionReports },
+      { data: installments },
+      { data: purchaseOrders },
+      { data: dailyActivity },
+      { data: workReports },
+    ] = await Promise.all([
+      supabase
+        .from("sales_activities")
+        .select("id, activity_date, activity_type, note, created_by_name")
+        .gte("activity_date", startDate)
+        .lte("activity_date", endDate),
+      supabase
+        .from("crm_logs")
+        .select("id, created_at")
+        .gte("created_at", dStart)
+        .lte("created_at", dEnd),
+      supabase
+        .from("jv_entries")
+        .select("id, jv_date")
+        .gte("jv_date", startDate)
+        .lte("jv_date", endDate),
+      supabase
+        .from("construction_reports")
+        .select("id, created_at, work_type, reported_by")
+        .gte("created_at", dStart)
+        .lte("created_at", dEnd),
+      supabase
+        .from("contractor_installments")
+        .select("id, updated_at")
+        .gte("updated_at", dStart)
+        .lte("updated_at", dEnd),
+      supabase
+        .from("purchase_orders")
+        .select("id, created_at")
+        .gte("created_at", dStart)
+        .lte("created_at", dEnd),
+      supabase
+        .from("daily_activity_log")
+        .select("id, activity_date, activity_type, performer_name, description")
+        .gte("activity_date", startDate)
+        .lte("activity_date", endDate),
+      supabase
+        .from("work_reports")
+        .select("id, report_date, employee_name, department, status, summary")
+        .gte("report_date", startDate)
+        .lte("report_date", endDate)
+        .eq("report_type", "daily")
+        .in("status", ["submitted", "late"]),
+    ]);
 
-    // Fetch construction activities (houses, progress)
-    const { data: houses } = await supabase
-      .from("houses")
-      .select("id,house_number,status,created_at,progress")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate);
+    // Group by date and activity type
+    const grouped: Record<string, DayData> = {};
 
-    if (houses) {
-      houses.forEach((house: any) => {
-        const dateKey = house.created_at.split("T")[0];
-        if (activityData[dateKey]) {
-          activityData[dateKey].construction.count++;
-          activityData[dateKey].construction.items.push(house);
-        }
-      });
-    }
-
-    // Fetch finance transactions
-    const { data: transactions } = await supabase
-      .from("finance_transactions")
-      .select("id,amount,transaction_type,created_at,description")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate);
-
-    if (transactions) {
-      transactions.forEach((txn: any) => {
-        const dateKey = txn.created_at.split("T")[0];
-        if (activityData[dateKey]) {
-          if (txn.transaction_type === "income") {
-            activityData[dateKey].finance.count++;
-            activityData[dateKey].finance.items.push(txn);
-          } else if (txn.transaction_type === "expense") {
-            activityData[dateKey].accounting.count++;
-            activityData[dateKey].accounting.items.push(txn);
-          }
-        }
-      });
-    }
-
-    // Fetch approvals
-    const { data: approvals } = await supabase
-      .from("approvals")
-      .select("id,workflow_type,status,created_at")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate)
-      .eq("status", "approved");
-
-    if (approvals) {
-      approvals.forEach((approval: any) => {
-        const dateKey = approval.created_at.split("T")[0];
-        if (activityData[dateKey]) {
-          activityData[dateKey].approvals.count++;
-          activityData[dateKey].approvals.items.push(approval);
-        }
-      });
-    }
-
-    // Fetch employee activities (attendance, leave)
-    try {
-      const { data: attendance } = await supabase
-        .from("attendance")
-        .select("id,user_id,check_in_time,check_out_time,date")
-        .gte("date", startDate)
-        .lte("date", endDate);
-
-      if (attendance) {
-        attendance.forEach((att: any) => {
-          const dateKey = att.date || att.check_in_time?.split("T")[0];
-          if (dateKey && activityData[dateKey]) {
-            activityData[dateKey].hr.count++;
-            activityData[dateKey].hr.items.push(att);
-          }
-        });
+    const addToGroup = (dateKey: string, type: Category, item: ActivityItem) => {
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = Object.fromEntries(
+          CATEGORIES.map(c => [c, { count: 0, items: [] as ActivityItem[] }])
+        ) as DayData;
       }
-    } catch (err) {
-      console.log("[Dashboard] attendance query skipped:", err);
-    }
+      grouped[dateKey][type].count += 1;
+      if (grouped[dateKey][type].items.length < 30) grouped[dateKey][type].items.push(item); // กัน payload บวม
+    };
 
-    // Fetch documents
-    const { data: documents } = await supabase
-      .from("documents")
-      .select("id,doc_type,status,created_at")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate);
+    const getDateKey = (raw: string | null, isTimestamp: boolean) => {
+      if (!raw) return startDate;
+      return isTimestamp ? thaiDate(raw) : raw.split("T")[0];
+    };
 
-    if (documents) {
-      documents.forEach((doc: any) => {
-        const dateKey = doc.created_at.split("T")[0];
-        if (activityData[dateKey]) {
-          activityData[dateKey].office.count++;
-          activityData[dateKey].office.items.push(doc);
-        }
+    (salesActivities || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.activity_date, false), "sales", {
+        title: item.activity_type || "กิจกรรมขาย",
+        detail: item.note || null,
+        createdBy: item.created_by_name || null,
+        link: "/crm",
       });
-    }
-
-    console.log("[Dashboard API] Summary:", {
-      range: { startDate, endDate },
-      dateCounts: Object.keys(activityData).length,
-      totalActivities: Object.values(activityData).reduce(
-        (sum: number, day: any) =>
-          sum +
-          Object.values(day).reduce((daySum: number, activity: any) => daySum + (activity.count || 0), 0),
-        0
-      ),
     });
+
+    (crmLogs || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.created_at, true), "sales", {
+        title: "สอบถามลูกค้า",
+        link: "/crm",
+      });
+    });
+
+    (jvEntries || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.jv_date, false), "accounting", {
+        title: "บันทึกบัญชี (JV)",
+        link: "/office?tab=accounting",
+      });
+    });
+
+    (constructionReports || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.created_at, true), "construction", {
+        title: item.work_type || "รายงานก่อสร้าง",
+        createdBy: item.reported_by || null,
+        link: "/construction",
+      });
+    });
+
+    (installments || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.updated_at, true), "construction", {
+        title: "อัปเดตการจ่ายเงินก่อสร้าง",
+        link: "/construction",
+      });
+    });
+
+    (purchaseOrders || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.created_at, true), "approvals", {
+        title: "ใบสั่งซื้อ (PO)",
+        link: "/office?tab=purchase-orders",
+      });
+    });
+
+    // รายงานประจำวัน — หัวใจของปฏิทิน: กิจกรรมแต่ละฝ่ายที่ส่งเข้ามาจริง แยกหมวดตามแผนกผู้ส่ง
+    (workReports || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.report_date, false), deptCategory(item.department), {
+        title: `รายงานประจำวัน: ${item.employee_name || "ไม่ระบุ"}`,
+        detail: item.summary || null,
+        status: item.status === "late" ? "ส่งล่าช้า" : "ส่งแล้ว",
+        createdBy: item.employee_name || null,
+        link: "/reports/review",
+      });
+    });
+
+    (dailyActivity || []).forEach((item: any) => {
+      addToGroup(getDateKey(item.activity_date, false), "office", {
+        title: item.activity_type || "บันทึกกิจกรรม",
+        detail: item.description || null,
+        createdBy: item.performer_name || null,
+      });
+    });
+
+    // พนักงานทั่วไปเห็นเฉพาะหมวดของแผนกตัวเอง (รับชื่อแผนกภาษาไทยจาก user-context)
+    // ผู้บริหารไม่ส่ง param นี้ → เห็นทุกหมวด
+    if (department) {
+      const keep = deptCategory(department);
+      for (const day of Object.values(grouped)) {
+        for (const cat of CATEGORIES) {
+          if (cat !== keep) day[cat] = { count: 0, items: [] };
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      data: activityData,
-      range: { startDate, endDate },
+      data: grouped,
+      range: { start: startDate, end: endDate, type: rangeType },
     });
   } catch (error) {
-    console.error("Error fetching dashboard activities:", error);
+    console.error("Error fetching daily activities:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch activities" },
+      { success: false, error: String(error) },
       { status: 500 }
     );
   }
 }
 
-function getStartDate(date: string, range: string): string {
-  const d = new Date(date);
-
-  if (range === "day") {
-    return date;
-  } else if (range === "week") {
-    const first = d.getDate() - d.getDay();
-    return new Date(d.setDate(first)).toISOString().split("T")[0];
-  } else {
-    // month
-    return `${date.substring(0, 7)}-01`;
+export async function POST(req: NextRequest) {
+  // บันทึกกิจกรรม manual — ต้องล็อกอิน (เขียนผ่าน service client เพื่อให้ผ่าน RLS ได้จริง)
+  const { user, error: authError } = await verifyAuth(req);
+  if (authError || !user) {
+    return NextResponse.json({ success: false, error: authError ?? "Unauthorized" }, { status: 401 });
   }
-}
 
-function getEndDate(date: string, range: string): string {
-  const d = new Date(date);
+  try {
+    const supabase = getSupabaseAdmin();
+    const body = await req.json();
 
-  if (range === "day") {
-    return date;
-  } else if (range === "week") {
-    const last = d.getDate() - d.getDay() + 6;
-    return new Date(d.setDate(last)).toISOString().split("T")[0];
-  } else {
-    // month
-    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split("T")[0];
+    const {
+      activity_date,
+      activity_type,
+      category,
+      performer_id,
+      performer_name,
+      performer_department,
+      description,
+      quantity = 1,
+      amount,
+      reference_id,
+      reference_type,
+    } = body;
+
+    const { data, error } = await supabase
+      .from("daily_activity_log")
+      .insert([
+        {
+          activity_date,
+          activity_type,
+          category,
+          performer_id,
+          performer_name,
+          performer_department,
+          description,
+          quantity,
+          amount,
+          reference_id,
+          reference_type,
+          project_id: PROJECT_ID,
+          created_by: performer_id,
+        },
+      ])
+      .select();
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error("Error creating activity log:", error);
+    return NextResponse.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    );
   }
 }

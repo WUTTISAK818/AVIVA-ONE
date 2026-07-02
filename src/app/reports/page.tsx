@@ -148,7 +148,7 @@ export default function ReportsPage() {
     useOnlineStatus(setOnline);
   }, []);
 
-  const isLate      = new Date().getHours() >= 18 && !isBackdated;
+  const isLate      = new Date().getHours() >= 19 && !isBackdated;
   const isSubmitted = report?.status === "submitted" || report?.status === "late";
   const acknowledged = !!report?.acknowledged_by;           // รับทราบแล้ว → ล็อกถาวร
   const isReturned   = !!report?.returned_at && !acknowledged; // ผู้นำตีกลับให้แก้
@@ -424,7 +424,7 @@ export default function ReportsPage() {
     }
 
     // ส่งครั้งแรก — ย้อนหลังถือเป็น submitted (ป้าย is_backdated บอกอยู่แล้ว) ไม่บังคับ late ตามเวลาปัจจุบัน
-    const status: "submitted" | "late" = (!isBackdated && now.getHours() >= 18) ? "late" : "submitted";
+    const status: "submitted" | "late" = (!isBackdated && now.getHours() >= 19) ? "late" : "submitted";
     const { data } = await supabase.from("work_reports").update({
       status, summary, work_location: workLocation,
       submitted_at: now.toISOString(),
@@ -667,7 +667,7 @@ export default function ReportsPage() {
             {isLate && (
               <div className="flex items-center gap-2 p-3 bg-orange-500/10 rounded-xl border border-orange-500/20">
                 <AlertTriangle size={13} className="text-orange-400 flex-shrink-0" />
-                <p className="text-xs text-orange-400">เลย 18:00 น. แล้ว — ต้องระบุเหตุผลที่ส่งล่าช้า</p>
+                <p className="text-xs text-orange-400">เลย 19:00 น. แล้ว — ต้องระบุเหตุผลที่ส่งล่าช้า</p>
               </div>
             )}
             {isBackdated && (

@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, TrendingUp, HardHat, BookOpen, DollarSign, Megaphone, Users, FileText, CheckCircle } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
+import { supabase } from "@/lib/supabase";
+
+// วันที่แบบ local (เวลาไทยของเครื่องผู้ใช้) — ห้ามใช้ toISOString เพราะเป็น UTC ทำให้ก่อน 7 โมงเช้าตกวันผิด
+const toLocalDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 interface ActivityData {
   [date: string]: {
@@ -30,18 +35,19 @@ export function DailyActivityCalendar() {
   const [loading, setLoading] = useState(true);
   const user = useCurrentUser();
 
-  const activityConfig: Record<ActivityType, { icon: any; color: string; label: string; bgColor: string }> = {
-    sales: { icon: TrendingUp, color: "text-green-400", label: "Sales", bgColor: "bg-green-500/10" },
-    construction: { icon: HardHat, color: "text-orange-400", label: "Const", bgColor: "bg-orange-500/10" },
-    accounting: { icon: BookOpen, color: "text-blue-400", label: "Acct", bgColor: "bg-blue-500/10" },
-    finance: { icon: DollarSign, color: "text-yellow-400", label: "Fin", bgColor: "bg-yellow-500/10" },
-    marketing: { icon: Megaphone, color: "text-pink-400", label: "Mkt", bgColor: "bg-pink-500/10" },
-    hr: { icon: Users, color: "text-cyan-400", label: "HR", bgColor: "bg-cyan-500/10" },
-    approvals: { icon: CheckCircle, color: "text-emerald-400", label: "Appr", bgColor: "bg-emerald-500/10" },
-    office: { icon: FileText, color: "text-purple-400", label: "Office", bgColor: "bg-purple-500/10" },
+  // border ต้องเป็นคลาส static เต็มตัว — คลาสประกอบสด (`border-${...}`) Tailwind ไม่ compile ให้
+  const activityConfig: Record<ActivityType, { icon: any; color: string; label: string; bgColor: string; border: string }> = {
+    sales: { icon: TrendingUp, color: "text-green-400", label: "ขาย", bgColor: "bg-green-500/10", border: "border-green-500/30" },
+    construction: { icon: HardHat, color: "text-orange-400", label: "ก่อสร้าง", bgColor: "bg-orange-500/10", border: "border-orange-500/30" },
+    accounting: { icon: BookOpen, color: "text-blue-400", label: "บัญชี", bgColor: "bg-blue-500/10", border: "border-blue-500/30" },
+    finance: { icon: DollarSign, color: "text-yellow-400", label: "การเงิน", bgColor: "bg-yellow-500/10", border: "border-yellow-500/30" },
+    marketing: { icon: Megaphone, color: "text-pink-400", label: "การตลาด", bgColor: "bg-pink-500/10", border: "border-pink-500/30" },
+    hr: { icon: Users, color: "text-cyan-400", label: "บุคคล", bgColor: "bg-cyan-500/10", border: "border-cyan-500/30" },
+    approvals: { icon: CheckCircle, color: "text-emerald-400", label: "อนุมัติ", bgColor: "bg-emerald-500/10", border: "border-emerald-500/30" },
+    office: { icon: FileText, color: "text-purple-400", label: "ออฟฟิศ", bgColor: "bg-purple-500/10", border: "border-purple-500/30" },
   };
 
-  const isManager = user?.role && ["admin", "ceo", "coo", "director", "manager", "project_manager"].includes(user.role);
+  const isManager = user?.isManager || user?.isAdmin;
 
   useEffect(() => {
     fetchActivities();
@@ -50,7 +56,7 @@ export function DailyActivityCalendar() {
   const fetchActivities = async () => {
     try {
       setLoading(true);
-      const dateStr = currentDate.toISOString().split("T")[0];
+      const dateStr = toLocalDateStr(currentDate);
       const params = new URLSearchParams({
         date: dateStr,
         range: viewType,
@@ -58,7 +64,10 @@ export function DailyActivityCalendar() {
       if (!isManager && user?.department) {
         params.append("department", user.department);
       }
-      const response = await fetch(`/api/dashboard?${params}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`/api/dashboard?${params}`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
       if (!response.ok) {
         console.error(`[DailyActivityCalendar] API error: ${response.status}`);
         setActivities({});
@@ -100,7 +109,7 @@ export function DailyActivityCalendar() {
   };
 
   const renderDayView = () => {
-    const dateStr = currentDate.toISOString().split("T")[0];
+    const dateStr = toLocalDateStr(currentDate);
     const dayData = activities[dateStr];
 
     return (
@@ -122,7 +131,7 @@ export function DailyActivityCalendar() {
                   <button
                     key={type}
                     onClick={() => setExpandedActivity(isExpanded ? null : type)}
-                    className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20 hover:border-${config.color}/50 transition-all ${isExpanded ? `border-${config.color}/50 bg-${config.bgColor}` : ""}`}
+                    className={`flex items-center justify-between p-2 rounded-lg border text-xs ${config.bgColor} ${config.border} transition-all ${isExpanded ? "ring-1 ring-aviva-gold/50" : ""}`}
                   >
                     <div className="flex items-center gap-1.5 min-w-0">
                       <IconComp size={14} className={config.color} />
@@ -191,7 +200,7 @@ export function DailyActivityCalendar() {
     date.setDate(date.getDate() - dayOfWeek); // Start from Sunday
 
     for (let i = 0; i < 7; i++) {
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = toLocalDateStr(date);
       const dayData = activities[dateStr];
       const hasActivity = dayData && Object.values(dayData).some((d: any) => d.count > 0);
 
@@ -226,7 +235,7 @@ export function DailyActivityCalendar() {
                   <button
                     key={type}
                     onClick={() => setExpandedActivity(expandedActivity === type ? null : type)}
-                    className={`flex items-center justify-between p-1.5 rounded-lg border text-xs ${config.bgColor} border-${config.color}/20`}
+                    className={`flex items-center justify-between p-1.5 rounded-lg border text-xs ${config.bgColor} ${config.border}`}
                   >
                     <div className="flex items-center gap-1 min-w-0">
                       <IconComp size={12} className={config.color} />
@@ -256,7 +265,7 @@ export function DailyActivityCalendar() {
     // Days of month
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = toLocalDateStr(date);
       const dayData = activities[dateStr];
 
       let activityCount = 0;
@@ -421,8 +430,14 @@ export function DailyActivityCalendar() {
           </div>
           {activities[selectedDate]?.[expandedActivity]?.items?.map((item, idx) => (
             <div key={idx} className="text-[10px] p-2 bg-aviva-card rounded-lg">
-              <p className="font-semibold text-aviva-text">{item.description}</p>
-              <p className="text-aviva-secondary mt-0.5">👤 {item.performer_name}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold text-aviva-text">{item.title}</p>
+                {item.status && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-aviva-gold/20 text-aviva-gold flex-shrink-0 whitespace-nowrap">{item.status}</span>
+                )}
+              </div>
+              {item.detail && <p className="text-aviva-secondary/80 mt-0.5 line-clamp-2">{item.detail}</p>}
+              {item.createdBy && <p className="text-aviva-secondary mt-0.5">👤 {item.createdBy}</p>}
               {item.amount && <p className="text-aviva-gold mt-0.5">฿{Number(item.amount).toLocaleString()}</p>}
             </div>
           ))}

@@ -3,5 +3,11 @@
   "outputDirectory": ".next",
   "env": {
     "NEXT_PUBLIC_TARGET": "one"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/report-reminder",
+      "schedule": "0 11 * * *"
+    }
+  ]
 }

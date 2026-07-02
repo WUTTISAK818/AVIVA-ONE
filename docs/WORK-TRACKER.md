@@ -52,20 +52,23 @@
 
 ## 🔵 ชุดงานที่ #3 — ผลตรวจประเมินระบบรายงาน โดยคณะกรรมการจำลอง (2026-07-01)
 
-> ที่มา: Pom สั่งจำลองประชุมกรรมการผู้เชี่ยวชาญ ประเมิน 4 ด้าน (ส่งรายงาน/รับทราบ/จัดเก็บย้อนหลัง/ปฏิทิน dashboard) — ผลตรวจพิสูจน์กับโค้ด + live DB แล้ว · **รอ Pom อนุมัติก่อนเริ่มโค้ด**
+> ที่มา: Pom สั่งจำลองประชุมกรรมการผู้เชี่ยวชาญ ประเมิน 4 ด้าน (ส่งรายงาน/รับทราบ/จัดเก็บย้อนหลัง/ปฏิทิน dashboard) — ผลตรวจพิสูจน์กับโค้ด + live DB แล้ว
+> **Pom อนุมัติทั้ง 8 ข้อ + สั่งขยายเส้นตายส่งรายงานเป็น 19:00 น. (2026-07-02)** → ONE โค้ดเสร็จ v6.91
 
 | # | รายการ | เกณฑ์เสร็จ + วิธีตรวจ (objective) | เจ้าของ | สถานะ | หลักฐาน/ผลตรวจ |
 |---|--------|-----------------------------------|---------|-------|----------------|
-| 1 | 🔴 Widget "รายงานทีม" บน dashboard แสดง 0 ตลอด — API อ้างตาราง `daily_reports` (ไม่มีจริง) + `users.is_manager` + auth ฝั่ง server ไม่มี session | แก้ API ให้อ่าน `work_reports` + ตรวจ role ผ่าน Bearer token → widget แสดงเลขตรงกับ SQL: `SELECT count(*) FROM work_reports WHERE report_date=CURRENT_DATE` | ONE | 🆕 รอ Pom อนุมัติ | พิสูจน์: information_schema ไม่มี `daily_reports` · route ใช้ anon client + auth.getUser() → 401 เสมอ |
-| 2 | 🔴 ปฏิทินกิจกรรม dashboard ว่างเปล่าใน production — `/api/dashboard` ใช้ anon client แต่ทั้ง 7 ตาราง (leads/houses/finance ฯลฯ) RLS ไม่เปิด anon SELECT | แก้เป็น service client + ตรวจ auth → เปิดปฏิทินเดือน มิ.ย. เห็นจุดกิจกรรม > 0 วัน | ONE | 🆕 รอ Pom อนุมัติ | พิสูจน์: pg_policies ทุกตาราง has_anon_select=false → API คืน 0 ทุกวัน |
-| 3 | 🟡 ปฏิทินไม่ดึง "รายงานประจำวัน" (work_reports) เลย — กิจกรรมจากรายงานแต่ละฝ่ายไม่ขึ้นปฏิทินตามที่ Pom ต้องการ | เพิ่ม work_reports เป็นแหล่งข้อมูล แยกสีตามแผนก → วันที่มีรายงานส่ง เห็น badge บนปฏิทิน | ONE | 🆕 รอ Pom อนุมัติ | โค้ด route.ts ดึงแค่ leads/houses/finance/approvals/attendance/documents |
-| 4 | 🟡 ตัวกรองแผนก + หมวด marketing ของปฏิทินไม่ทำงาน (param `department` อ่านแล้วไม่ใช้ · marketing = 0 ตลอด) | ส่ง `?department=X` แล้วข้อมูลถูกกรองจริง · marketing มีแหล่งข้อมูล | ONE | 🆕 รอ Pom อนุมัติ | route.ts:22 อ่าน param แต่ไม่มีการใช้ในทุก query |
-| 5 | 🟡 กดดูรายละเอียดในปฏิทินแล้วข้อความว่าง — UI อ่าน field `title/detail/createdBy/performer_name` แต่ API ส่ง raw rows (`customer_name/house_number/...`) + คลาสสี Tailwind แบบ dynamic ไม่ compile | กดวันในปฏิทิน → เห็นชื่อรายการ+คนทำจริง · เส้นขอบสีขึ้นตามแผนก | ONE | 🆕 รอ Pom อนุมัติ | DailyActivityCalendar.tsx:141-176, 422-428 vs dashboard route response shape |
-| 6 | 🟡 เขตเวลา: ปฏิทิน/สรุปใช้ UTC (`toISOString`) แต่รายงานใช้วันที่ไทย — ช่วง 00:00-07:00 น. ข้อมูลตกวันผิด | กิจกรรมหลังเที่ยงคืนไทยแสดงในวันไทยที่ถูกต้อง | ONE | 🆕 รอ Pom อนุมัติ | reports/page.tsx:101 ใช้ UTC+7 แล้ว แต่ dashboard route + calendar ยังใช้ UTC |
-| 7 | 🟢 เตือนก่อนเส้นตาย 18:00 — อัตราส่งล่าช้าจริง 65% (20/31) | push/LINE เตือน 17:00 เฉพาะคนที่ยังไม่ส่ง → อัตราล่าช้าลดลง (วัดรายสัปดาห์จาก SQL) | ONE | 🆕 รอ Pom อนุมัติ | SQL จริง: submitted 11 · late 20 · ผู้ส่ง 6/8 คน |
-| 8 | 🟢 หน้า "ผู้บริหารอ่านเช้าเดียวจบ" — Daily Digest รวม: ใครส่ง/ใครขาด + AI สรุปรวมทุกฝ่าย 1 หน้า | เปิด 1 หน้า เห็นครบ: สถานะรายคน + สรุปรวม + ลิงก์ไปรายงานเต็ม | ONE | 🆕 รอ Pom อนุมัติ | ปัจจุบันผู้บริหารต้องกดเข้าอ่านทีละฉบับ (AI TL;DR มีแล้วแต่รายฉบับ) |
+| 1 | 🔴 Widget "รายงานทีม" บน dashboard แสดง 0 ตลอด — API อ้างตาราง `daily_reports` (ไม่มีจริง) + `users.is_manager` + auth ฝั่ง server ไม่มี session | แก้ API ให้อ่าน `work_reports` + ตรวจ role ผ่าน Bearer token → widget แสดงเลขตรงกับ SQL: `SELECT count(*) FROM work_reports WHERE report_date=CURRENT_DATE` | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | พิสูจน์: information_schema ไม่มี `daily_reports` · route ใช้ anon client + auth.getUser() → 401 เสมอ |
+| 2 | 🔴 ปฏิทินกิจกรรม dashboard ว่างเปล่าใน production — `/api/dashboard` ใช้ anon client แต่ทั้ง 7 ตาราง (leads/houses/finance ฯลฯ) RLS ไม่เปิด anon SELECT | แก้เป็น service client + ตรวจ auth → เปิดปฏิทินเดือน มิ.ย. เห็นจุดกิจกรรม > 0 วัน | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | พิสูจน์: pg_policies ทุกตาราง has_anon_select=false → API คืน 0 ทุกวัน |
+| 3 | 🟡 ปฏิทินไม่ดึง "รายงานประจำวัน" (work_reports) เลย — กิจกรรมจากรายงานแต่ละฝ่ายไม่ขึ้นปฏิทินตามที่ Pom ต้องการ | เพิ่ม work_reports เป็นแหล่งข้อมูล แยกสีตามแผนก → วันที่มีรายงานส่ง เห็น badge บนปฏิทิน | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | โค้ด route.ts ดึงแค่ leads/houses/finance/approvals/attendance/documents |
+| 4 | 🟡 ตัวกรองแผนก + หมวด marketing ของปฏิทินไม่ทำงาน (param `department` อ่านแล้วไม่ใช้ · marketing = 0 ตลอด) | ส่ง `?department=X` แล้วข้อมูลถูกกรองจริง · marketing มีแหล่งข้อมูล | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | route.ts:22 อ่าน param แต่ไม่มีการใช้ในทุก query |
+| 5 | 🟡 กดดูรายละเอียดในปฏิทินแล้วข้อความว่าง — UI อ่าน field `title/detail/createdBy/performer_name` แต่ API ส่ง raw rows (`customer_name/house_number/...`) + คลาสสี Tailwind แบบ dynamic ไม่ compile | กดวันในปฏิทิน → เห็นชื่อรายการ+คนทำจริง · เส้นขอบสีขึ้นตามแผนก | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | DailyActivityCalendar.tsx:141-176, 422-428 vs dashboard route response shape |
+| 6 | 🟡 เขตเวลา: ปฏิทิน/สรุปใช้ UTC (`toISOString`) แต่รายงานใช้วันที่ไทย — ช่วง 00:00-07:00 น. ข้อมูลตกวันผิด | กิจกรรมหลังเที่ยงคืนไทยแสดงในวันไทยที่ถูกต้อง | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | reports/page.tsx:101 ใช้ UTC+7 แล้ว แต่ dashboard route + calendar ยังใช้ UTC |
+| 7 | 🟢 เตือนก่อนเส้นตาย 18:00 — อัตราส่งล่าช้าจริง 65% (20/31) | push/LINE เตือน 17:00 เฉพาะคนที่ยังไม่ส่ง → อัตราล่าช้าลดลง (วัดรายสัปดาห์จาก SQL) | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | SQL จริง: submitted 11 · late 20 · ผู้ส่ง 6/8 คน |
+| 8 | 🟢 หน้า "ผู้บริหารอ่านเช้าเดียวจบ" — Daily Digest รวม: ใครส่ง/ใครขาด + AI สรุปรวมทุกฝ่าย 1 หน้า | เปิด 1 หน้า เห็นครบ: สถานะรายคน + สรุปรวม + ลิงก์ไปรายงานเต็ม | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | ปัจจุบันผู้บริหารต้องกดเข้าอ่านทีละฉบับ (AI TL;DR มีแล้วแต่รายฉบับ) |
 
-**สรุปกระทบยอด #3:** 8 รายการ — 🆕 ×8 (ทั้งหมดรอ Pom อนุมัติ scope ก่อน ONE เริ่มโค้ด) · คะแนนประเมินรวม 5.2/10 — รายละเอียดในรายงานประชุมที่ ONE ส่งในแชต
+| 9 | คำสั่งเพิ่มจาก Pom: ขยายเส้นตายส่งรายงานประจำวัน 18:00 → **19:00 น.** | ส่งรายงานเวลา 18:xx ต้องได้สถานะ "ส่งแล้ว" ไม่ใช่ "ล่าช้า" + คู่มือใน settings อัปเดตตรงกัน | ONE | ✅ โค้ดเสร็จ (v6.91, build ผ่าน) | แก้ reports/page.tsx (isLate + status ที่ submit) + manual 2 จุด + ข้อความเตือน |
+
+**สรุปกระทบยอด #3:** 9 รายการ — ✅ โค้ดเสร็จ ×9 (v6.91 บน branch claude/aviva-one-continuation-h3v402) → รอ deploy production + Pom/Vee ทดสอบ UI จริง จึงจะเป็น ✔️
 
 ---
 

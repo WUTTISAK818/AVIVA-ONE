@@ -7,6 +7,7 @@ import {
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
   XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
   FolderOpen, Upload, Search, Home, BookOpen, Pencil, ShoppingCart, Paperclip,
+  Terminal, LayoutGrid,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -4797,26 +4798,37 @@ function DocumentsContent() {
 }
 
 // ─── Tab Config ───────────────────────────────────────────────────────────────
+// ทุกเมนูมีไอคอน + สีประจำ (โทนเดียวกับปฏิทินหน้าหลัก) — ใช้ทั้ง grid เมนูหลักและแถบสลับเมนู
+// หมายเหตุ: คลาสสีต้องเป็น static เต็มตัว (Tailwind ไม่ compile คลาสประกอบสด)
 
-const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; constructionOnly?: boolean; adminOnly?: boolean; dept?: string }[] = [
-  { key: "finance",     label: "การเงิน",      dept: "ฝ่ายการเงิน" },
-  { key: "accounting",  label: "บัญชี",         dept: "ฝ่ายบัญชี" },
-  { key: "marketing",   label: "การตลาด",       dept: "ฝ่ายการตลาด" },
-  { key: "hr",          label: "บุคคล",          dept: "ฝ่ายบุคคล" },
-  { key: "after-sales", label: "หลังการขาย",    dept: "ฝ่ายหลังการขาย" },
-  { key: "approvals",   label: "อนุมัติ",        managerOnly: true },
-  { key: "materials",   label: "คลังวัสดุ",      constructionOnly: true },
-  { key: "documents",   label: "คลังเอกสาร" },
-  { key: "commands",    label: "คำสั่ง",         managerOnly: true },
-  { key: "community",   label: "ค่าส่วนกลาง",    adminOnly: true },
-  { key: "audit",       label: "Audit Log",       adminOnly: true },
+const TABS: {
+  key: OfficeTab; label: string; icon: any; iconColor: string; iconBg: string;
+  managerOnly?: boolean; constructionOnly?: boolean; adminOnly?: boolean; dept?: string;
+}[] = [
+  { key: "finance",     label: "การเงิน",    icon: DollarSign,  iconColor: "text-yellow-400",  iconBg: "bg-yellow-500/10 border-yellow-500/30",   dept: "ฝ่ายการเงิน" },
+  { key: "accounting",  label: "บัญชี",       icon: BookOpen,    iconColor: "text-blue-400",    iconBg: "bg-blue-500/10 border-blue-500/30",       dept: "ฝ่ายบัญชี" },
+  { key: "marketing",   label: "การตลาด",     icon: Megaphone,   iconColor: "text-pink-400",    iconBg: "bg-pink-500/10 border-pink-500/30",       dept: "ฝ่ายการตลาด" },
+  { key: "hr",          label: "บุคคล",        icon: Users,       iconColor: "text-cyan-400",    iconBg: "bg-cyan-500/10 border-cyan-500/30",       dept: "ฝ่ายบุคคล" },
+  { key: "after-sales", label: "หลังการขาย",  icon: Wrench,      iconColor: "text-orange-400",  iconBg: "bg-orange-500/10 border-orange-500/30",   dept: "ฝ่ายหลังการขาย" },
+  { key: "approvals",   label: "อนุมัติ",      icon: CheckCircle, iconColor: "text-emerald-400", iconBg: "bg-emerald-500/10 border-emerald-500/30", managerOnly: true },
+  { key: "materials",   label: "คลังวัสดุ",    icon: Package,     iconColor: "text-amber-400",   iconBg: "bg-amber-500/10 border-amber-500/30",     constructionOnly: true },
+  { key: "documents",   label: "คลังเอกสาร",  icon: FolderOpen,  iconColor: "text-purple-400",  iconBg: "bg-purple-500/10 border-purple-500/30" },
+  { key: "community",   label: "ค่าส่วนกลาง",  icon: Home,        iconColor: "text-green-400",   iconBg: "bg-green-500/10 border-green-500/30",     adminOnly: true },
+  { key: "commands",    label: "คำสั่ง",       icon: Terminal,    iconColor: "text-aviva-gold",  iconBg: "bg-aviva-gold/10 border-aviva-gold/30",   managerOnly: true },
+  { key: "audit",       label: "Audit Log",    icon: ShieldAlert, iconColor: "text-red-400",     iconBg: "bg-red-500/10 border-red-500/30",         adminOnly: true },
 ];
 
-// ทางลัดสำหรับผู้บริหาร/ผจก.โครงการ — ย้ายมาจากแถบเมนูล่างเพื่อลดความแออัด
-// (ลิงก์ไปหน้าเต็ม ไม่ใช่ tab content)
-const MANAGER_LINKS: { label: string; href: string }[] = [
-  { label: "รายงานทีม", href: "/reports/review" },
-  { label: "ออกเอกสารขาย", href: "/documents/generate" },
+// จัดหมวดเมนูบนหน้า grid — เรียงตามลักษณะงาน อ่านง่ายกว่าปุ่มเรียงยาวแบบเดิม
+const MENU_SECTIONS: { title: string; keys: OfficeTab[] }[] = [
+  { title: "แผนกงาน",          keys: ["finance", "accounting", "marketing", "hr", "after-sales"] },
+  { title: "งานส่วนกลาง",       keys: ["approvals", "materials", "documents", "community"] },
+  { title: "ผู้บริหารและระบบ",  keys: ["commands", "audit"] },
+];
+
+// ทางลัดสำหรับผู้บริหาร/ผจก.โครงการ — ลิงก์ไปหน้าเต็ม (แสดงในหมวด "ผู้บริหารและระบบ")
+const MANAGER_LINKS: { label: string; href: string; icon: any; iconColor: string; iconBg: string }[] = [
+  { label: "รายงานทีม",    href: "/reports/review",     icon: ClipboardCheck, iconColor: "text-aviva-gold", iconBg: "bg-aviva-gold/10 border-aviva-gold/30" },
+  { label: "ออกเอกสารขาย", href: "/documents/generate", icon: FileText,       iconColor: "text-aviva-gold", iconBg: "bg-aviva-gold/10 border-aviva-gold/30" },
 ];
 
 // ─── Commands Viewer ──────────────────────────────────────────────────────────
@@ -5097,64 +5109,125 @@ function AuditLogContent() {
 
 export default function OfficePage() {
   const user = useCurrentUser();
-  const [activeTab, setActiveTab] = useState<OfficeTab>("finance");
+  // "menu" = หน้า grid เมนูหลัก (จัดหมวด+ไอคอน) — ผู้บริหารเริ่มที่นี่ · พนักงานเด้งเข้าแท็บแผนกตัวเอง
+  const [activeTab, setActiveTab] = useState<OfficeTab | "menu">("menu");
   useFocusHighlight();
 
   const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
-  const visibleTabs = TABS.filter(t => {
+  const canSeeTab = (t: (typeof TABS)[number]) => {
     if (t.adminOnly && !user?.isAdmin) return false;
     if (t.managerOnly && !user?.isManager && !user?.isAdmin) return false;
     if (t.constructionOnly && !isConstruction && !user?.isManager && !user?.isAdmin) return false;
     // Regular staff only see their own department's tab (managers/admins see all)
     if (!user?.isManager && !user?.isAdmin && t.dept && t.dept !== user?.department) return false;
     return true;
-  });
+  };
+  const visibleTabs = TABS.filter(canSeeTab);
+  const showManagerLinks = user?.isManager || user?.isAdmin;
+  const activeTabInfo = TABS.find(t => t.key === activeTab);
 
   useEffect(() => {
     // Deep-link: /office?tab=documents (ใช้ redirect จากหน้า /documents เดิม) — มาก่อน default ตามแผนก
     const tabParam = new URLSearchParams(window.location.search).get("tab");
     if (tabParam && TABS.some(t => t.key === tabParam)) { setActiveTab(tabParam as OfficeTab); return; }
-    if (user?.department === "ฝ่ายบัญชี") setActiveTab("accounting");
-    else if (user?.department === "ฝ่ายการเงิน") setActiveTab("finance");
-    else if (user?.department === "ฝ่ายบุคคล") setActiveTab("hr");
-    else if (user?.department === "ฝ่ายการตลาด") setActiveTab("marketing");
-    else if (user?.department === "ฝ่ายหลังการขาย") setActiveTab("after-sales");
-    else if (user?.department === "ฝ่ายก่อสร้าง") setActiveTab("materials");
+    if (!user || user.isManager || user.isAdmin) return; // ผู้บริหารเริ่มที่หน้าเมนู grid
+    if (user.department === "ฝ่ายบัญชี") setActiveTab("accounting");
+    else if (user.department === "ฝ่ายการเงิน") setActiveTab("finance");
+    else if (user.department === "ฝ่ายบุคคล") setActiveTab("hr");
+    else if (user.department === "ฝ่ายการตลาด") setActiveTab("marketing");
+    else if (user.department === "ฝ่ายหลังการขาย") setActiveTab("after-sales");
+    else if (user.department === "ฝ่ายก่อสร้าง") setActiveTab("materials");
   }, [user]);
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      {/* Sticky tab header */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-lg font-bold text-aviva-text mb-3">ออฟฟิศ</h1>
-          <div className="flex flex-wrap gap-1.5">
-            {visibleTabs.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={clsx(
-                  "py-1.5 px-3 rounded-xl text-[11px] font-semibold border transition-all whitespace-nowrap",
-                  activeTab === key
-                    ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
-                    : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-            {(user?.isManager || user?.isAdmin) && MANAGER_LINKS.map(({ label, href }) => (
-              <Link
-                key={href}
-                href={href}
-                className="py-1.5 px-3 rounded-xl text-[11px] font-semibold border border-aviva-gold/30 bg-aviva-gold/10 text-aviva-gold transition-all whitespace-nowrap inline-flex items-center gap-1"
-              >
-                {label} <span className="text-[9px]">↗</span>
-              </Link>
-            ))}
-          </div>
+          {activeTab === "menu" ? (
+            <div>
+              <h1 className="text-lg font-bold text-aviva-text">ออฟฟิศ</h1>
+              <p className="text-[11px] text-aviva-secondary/70 mt-0.5">เลือกเมนูงานที่ต้องการ</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-2.5">
+                <button
+                  onClick={() => setActiveTab("menu")}
+                  aria-label="กลับหน้าเมนูออฟฟิศ"
+                  className="p-1.5 rounded-lg bg-aviva-card border border-aviva-gold/20 text-aviva-gold hover:border-aviva-gold/50 active:scale-95 transition-all"
+                >
+                  <LayoutGrid size={15} />
+                </button>
+                <h1 className="text-lg font-bold text-aviva-text">{activeTabInfo?.label ?? "ออฟฟิศ"}</h1>
+              </div>
+              {/* แถบสลับเมนูเร็ว — เลื่อนซ้ายขวาได้ ไม่ดันเนื้อหาลง */}
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {visibleTabs.map(({ key, label, icon: Icon, iconColor }) => (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={clsx(
+                      "flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-semibold border transition-all whitespace-nowrap flex-shrink-0",
+                      activeTab === key
+                        ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                        : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+                    )}
+                  >
+                    <Icon size={12} className={activeTab === key ? "text-aviva-bg" : iconColor} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      {/* หน้าเมนูหลัก — grid จัดหมวด */}
+      {activeTab === "menu" && (
+        <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+          {MENU_SECTIONS.map(section => {
+            const items = section.keys
+              .map(k => TABS.find(t => t.key === k)!)
+              .filter(t => t && canSeeTab(t));
+            const withLinks = section.title === "ผู้บริหารและระบบ" && showManagerLinks;
+            if (items.length === 0 && !withLinks) return null;
+            return (
+              <div key={section.title}>
+                <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-2">{section.title}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {items.map(({ key, label, icon: Icon, iconColor, iconBg }) => (
+                    <button
+                      key={key}
+                      onClick={() => setActiveTab(key)}
+                      className="flex flex-col items-center gap-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl px-2 py-3.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
+                    >
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${iconBg}`}>
+                        <Icon size={18} className={iconColor} />
+                      </div>
+                      <span className="text-[11px] font-semibold text-aviva-text text-center leading-tight">{label}</span>
+                    </button>
+                  ))}
+                  {withLinks && MANAGER_LINKS.map(({ label, href, icon: Icon, iconColor, iconBg }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="relative flex flex-col items-center gap-2 bg-aviva-card border border-aviva-gold/10 rounded-2xl px-2 py-3.5 hover:border-aviva-gold/40 active:scale-95 transition-all"
+                    >
+                      <span className="absolute top-1.5 right-2 text-[9px] text-aviva-gold/60">↗</span>
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${iconBg}`}>
+                        <Icon size={18} className={iconColor} />
+                      </div>
+                      <span className="text-[11px] font-semibold text-aviva-text text-center leading-tight">{label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Conditional content */}
       {activeTab === "finance"     && <FinanceContent />}

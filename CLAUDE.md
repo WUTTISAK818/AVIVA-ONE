@@ -1,5 +1,13 @@
 @AGENTS.md
 
+# QA Standard — มาตรฐานการตรวจสอบของทีม (PERMANENT)
+
+**เมื่อ Pom พูดว่า "ตรวจสอบมาตรฐาน" (+ ระบุเมนู/ฟีเจอร์)** → ONE ตรวจตาม `docs/QA-STANDARD.md` ทั้งชุดทันที โดยไม่ต้องถามเกณฑ์ใหม่:
+- เกณฑ์หลัก 11 หมวดของ Pom (Core Process / Data / UX / Security / Edge Cases / Files / Performance / Migration / Human Errors / Technical Constraints / Error Recovery)
+- + มาตรฐานอ้างอิง: ISO 25010 · OWASP Top 10 · WCAG 2.1 พื้นฐาน · บัญชีคู่ · Maker-Checker
+- ผลตรวจ: คะแนนรายหมวด 0-10 + คะแนนรวม + ข้อเสนอ P1/P2/P3 → ลง WORK-TRACKER → **ขออนุมัติ Pom ก่อนแก้เสมอ**
+- มาตรฐานโค้ด (ส่วน D ของไฟล์) ใช้ review งานใหม่ทุกชิ้นด้วย
+
 # Work Tracker — กฎตรวจงานครบ 3 ฝ่าย (PERMANENT — กันงานตกหล่น)
 
 **ปัญหาที่ต้องกัน:** สั่ง 10 รายการ ทำ 7 อีก 3 หายเงียบ → แอปไม่สมบูรณ์

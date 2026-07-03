@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Clock, ClipboardCheck,
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
@@ -26,6 +26,9 @@ import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
+import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
+import { thaiDbError } from "@/lib/db-errors";
+import { uploadFailText } from "@/lib/upload-photos";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
@@ -125,6 +128,29 @@ const emptyFinanceForm = {
   wht_rate: "0",         // อัตราภาษีหัก ณ ที่จ่าย (%)
 };
 
+// เก็บร่างฟอร์มลง localStorage อัตโนมัติ — เน็ตหลุด/เผลอปิดหน้า ข้อความที่พิมพ์ไม่หาย
+// (มาตรฐานทีม docs/QA-STANDARD.md ส่วน D) · เคลียร์ร่างเมื่อบันทึกสำเร็จด้วย clearFormDraft
+function useFormDraft<T extends object>(key: string, form: T, setForm: (f: T) => void, active: boolean) {
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!active) { restored.current = false; return; }
+    if (restored.current) return;
+    restored.current = true;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) setForm({ ...form, ...JSON.parse(raw) });
+    } catch { /* ร่างเสีย → เริ่มใหม่ */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, key]);
+  useEffect(() => {
+    if (!active || !restored.current) return;
+    try { localStorage.setItem(key, JSON.stringify(form)); } catch { /* storage เต็ม/ถูกปิดกั้น → ข้าม */ }
+  }, [form, active, key]);
+}
+function clearFormDraft(key: string) {
+  try { localStorage.removeItem(key); } catch { /* ข้าม */ }
+}
+
 function FinanceContent() {
   const user = useCurrentUser();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -145,6 +171,8 @@ function FinanceContent() {
   const [showPayModal, setShowPayModal] = useState(false);
   const [payingInst, setPayingInst] = useState<ContractorInstallmentPay | null>(null);
   const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
+  const [finToast, setFinToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  useFormDraft("office-draft-finance", form, setForm, showModal);
 
   const fetchData = (limit = finLimit) => {
     let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
@@ -254,12 +282,16 @@ function FinanceContent() {
   };
 
   const handleSave = async () => {
-    if (!form.amount || !form.description) return;
+    if (!form.description) { setFinToast({ msg: "กรอกรายละเอียดก่อนบันทึก", type: "error" }); return; }
+    // มาตรฐานทีม: ยอดเงินผ่าน parseAmount (กัน NaN/ติดลบ/ลูกน้ำ เช่น "1,000")
+    const amt = parseAmount(form.amount);
+    if (amt === null) { setFinToast({ msg: AMOUNT_ERROR, type: "error" }); return; }
+    const whtRate = parseAmountOrZero(form.wht_rate);
+    if (whtRate === null || whtRate > 100) { setFinToast({ msg: "อัตราหัก ณ ที่จ่ายไม่ถูกต้อง (0-100%)", type: "error" }); return; }
     setSaving(true);
-    const amt = Number(form.amount);
     if (amt >= 50000) {
       const finDocNum = await generateDocNumber("FIN");
-      const { data } = await supabase.from("approvals").insert({
+      const { data, error: apprErr } = await supabase.from("approvals").insert({
         module: "finance",
         reference_type: "transaction",
         amount: amt,
@@ -267,7 +299,8 @@ function FinanceContent() {
         status: "pending",
         requested_by: user?.full_name ?? "Admin",
       }).select().single();
-      const { data: logRow } = await supabase.from("approval_logs").insert({
+      if (apprErr) { setSaving(false); setFinToast({ msg: thaiDbError(apprErr, "ส่งขออนุมัติ"), type: "error" }); return; }
+      const { data: logRow, error: logErr } = await supabase.from("approval_logs").insert({
         workflow_type: "Finance_Approval",
         source_doc_index: `${finDocNum} | [${form.category}] ${form.description}${form.cost_center ? ` (${form.cost_center})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
         submitted_by_user_id: user?.id ?? null,
@@ -278,31 +311,36 @@ function FinanceContent() {
         sla_due_at: calcSlaDueAt("Finance_Approval"),
         assigned_to_name: "ผู้จัดการ",
       }).select("approval_id").single();
+      if (logErr) { setSaving(false); setFinToast({ msg: thaiDbError(logErr, "ส่งขออนุมัติ"), type: "error" }); return; }
       // แนบใบเสร็จ/สลิป เข้ากับคำขออนุมัติ (ให้ผู้อนุมัติเปิดดูในหน้าตรวจสอบ)
       if (receiptFiles.length && logRow?.approval_id) {
-        const urls = await uploadPhotos("document-attachments", `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}`, receiptFiles);
+        const urls = await uploadPhotos("document-attachments", `entity-docs/approval_log/${logRow.approval_id}/${Date.now()}`, receiptFiles,
+          { onFail: f => setFinToast({ msg: uploadFailText(f), type: "error" }) });
         for (let i = 0; i < urls.length; i++) {
           await attachDocumentToEntity("approval_log", logRow.approval_id, urls[i], receiptFiles[i]?.name ?? `แนบ-${i + 1}`, user?.full_name ?? user?.email ?? "ผู้ขอ");
         }
       }
       await logAction("finance", "request_approval", `ขออนุมัติ ฿${amt.toLocaleString()} — ${form.description}`, data?.id);
       await createNotification({ type: "approval", title: "ขออนุมัติรายจ่าย", message: `จาก ${user?.full_name ?? "ฝ่ายการเงิน"} · [${form.category}] ${form.description} ฿${amt.toLocaleString()} · ส่งให้${amt >= 500000 ? "ผู้บริหาร" : "ผู้จัดการ"}พิจารณา`, from_dept: "ฝ่ายการเงิน", to_dept: "ผู้บริหาร" });
+      setFinToast({ msg: "ส่งขออนุมัติแล้ว — รอผู้จัดการ/ผู้บริหารพิจารณา", type: "success" });
     } else {
       const isIncome = form.transaction_type === "income";
       // คำนวณภาษี (เฉพาะรายจ่าย): VAT ซื้อ 7% + หัก ณ ที่จ่าย
-      const wht = Number(form.wht_rate) || 0;
+      const wht = whtRate;
       const tax = !isIncome && (form.vat_included || wht > 0) ? calcTax(amt, form.vat_included, wht) : null;
       const expenseRecognized = tax ? tax.base : amt; // ค่าใช้จ่ายจริง (ไม่รวม VAT ที่ขอคืนได้)
 
-      const { data } = await supabase.from("finance_transactions").insert({
+      const { data, error: txnErr } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
         transaction_type: form.transaction_type,
         amount: isIncome ? amt : -expenseRecognized,
         description: `[${form.category}] ${form.description}`,
       }).select().single();
+      if (txnErr) { setSaving(false); setFinToast({ msg: thaiDbError(txnErr, "บันทึกรายการ"), type: "error" }); return; }
 
       // Auto-create JV entry — map หมวด -> บัญชี GL ที่ถูกต้อง (ไม่ hardcode 5000/1100)
-      const jvDate = new Date().toISOString().split("T")[0];
+      // วันที่แบบเวลาไทย (UTC+7) — กันรายการช่วง 00:00-07:00 น. ตกวันผิด
+      const jvDate = new Date(Date.now() + 7 * 3_600_000).toISOString().split("T")[0];
       if (isIncome) {
         const rev = revenueAccountFor(form.category);
         await postJv({
@@ -341,11 +379,13 @@ function FinanceContent() {
         ? ` (ฐาน ฿${tax.base.toLocaleString()}${tax.vat > 0 ? `, VAT ฿${tax.vat.toLocaleString()}` : ""}${tax.wht > 0 ? `, หัก ณ ที่จ่าย ฿${tax.wht.toLocaleString()} จ่ายสุทธิ ฿${tax.net.toLocaleString()}` : ""})`
         : "";
       await logAction("finance", "add_transaction", `เพิ่มรายการ ${form.transaction_type} ฿${amt.toLocaleString()} — ${form.description}${taxNote}`, data?.id);
+      setFinToast({ msg: "บันทึกรายการเรียบร้อย", type: "success" });
     }
     setSaving(false);
     setShowModal(false);
     setForm(emptyFinanceForm);
     setReceiptFiles([]);
+    clearFormDraft("office-draft-finance");
     fetchData();
   };
 
@@ -355,26 +395,35 @@ function FinanceContent() {
     // Maker-Checker: ผู้อนุมัติ/ปฏิเสธ ต้องไม่ใช่ผู้ขอ
     const requester = (approval as { requested_by?: string | null }).requested_by;
     if (requester && user?.full_name && requester === user.full_name) {
-      alert("ไม่สามารถดำเนินการกับรายการที่ท่านเป็นผู้ขอได้ (Maker-Checker)");
+      setFinToast({ msg: "ไม่สามารถดำเนินการกับรายการที่ท่านเป็นผู้ขอได้ (Maker-Checker)", type: "error" });
       return;
     }
-    await supabase.from("approvals").update({
+    // กันอนุมัติซ้ำ (กดรัว/เปิด 2 หน้าต่าง): update เฉพาะแถวที่ยัง pending แล้วตรวจว่าเปลี่ยนจริง
+    // — ถ้าไม่มีแถวเปลี่ยน = มีคนดำเนินการไปแล้ว ห้าม insert รายจ่าย/JV ซ้ำ (กันลงบัญชี 2 รอบ)
+    const { data: changed, error: updErr } = await supabase.from("approvals").update({
       status: approved ? "approved" : "rejected",
       approved_by: user?.full_name ?? user?.email ?? "Admin",
       approved_at: new Date().toISOString(),
-    }).eq("id", id);
+    }).eq("id", id).eq("status", "pending").select("id");
+    if (updErr) { setFinToast({ msg: thaiDbError(updErr, "อนุมัติ"), type: "error" }); return; }
+    if (!changed || changed.length === 0) {
+      setFinToast({ msg: "รายการนี้ถูกดำเนินการไปแล้ว (โดยคุณหรือผู้อนุมัติท่านอื่น)", type: "info" });
+      fetchData();
+      return;
+    }
     if (approved) {
-      await supabase.from("finance_transactions").insert({
+      const { error: txnErr } = await supabase.from("finance_transactions").insert({
         project_id: PROJECT_ID,
         transaction_type: "expense",
         amount: -approval.amount,
         description: approval.description,
       });
+      if (txnErr) { setFinToast({ msg: thaiDbError(txnErr, "บันทึกรายจ่ายหลังอนุมัติ"), type: "error" }); return; }
       // Auto-create JV for approved finance transaction — map หมวด -> บัญชี GL ที่ถูกต้อง
       const exp = expenseAccountFor(categoryFromDescription(approval.description));
       await postJv({
         project_id: PROJECT_ID,
-        jv_date: new Date().toISOString().split("T")[0],
+        jv_date: new Date(Date.now() + 7 * 3_600_000).toISOString().split("T")[0],
         description: `[อนุมัติแล้ว] ${approval.description}`,
         lines: [
           { account_code: exp.code, account_name: exp.name, debit: approval.amount, credit: 0 },
@@ -395,6 +444,7 @@ function FinanceContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      {finToast && <Toast message={finToast.msg} type={finToast.type} onClose={() => setFinToast(null)} />}
       <DeptAIChat dept="finance" label="AI ฝ่ายการเงิน" />
       <DeptBriefingPanel dept="finance" label="ฝ่ายการเงิน" />
       {materialPurchasePending > 0 && (
@@ -457,7 +507,17 @@ function FinanceContent() {
 
       {user?.isManager && <FinancialStatementsPanel />}
 
-      <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
+      <div className="flex items-center gap-2">
+        <div className="flex-1"><PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} /></div>
+        <button
+          onClick={() => downloadCsv(`finance-transactions-${new Date().toISOString().slice(0, 10)}`,
+            ["วันที่", "ประเภท", "จำนวนเงิน", "รายละเอียด"],
+            transactions.map(t => [t.created_at ? new Date(t.created_at).toLocaleDateString("th-TH") : "", t.transaction_type === "income" ? "รายรับ" : "รายจ่าย", t.amount ?? 0, t.description ?? ""]))}
+          className="flex items-center gap-1 text-[11px] font-semibold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-2.5 py-1.5 rounded-xl flex-shrink-0"
+        >
+          <Download size={11} /> CSV
+        </button>
+      </div>
 
       {/* Add + Export buttons */}
       <div className="flex gap-2">
@@ -955,6 +1015,8 @@ function AccountingContent() {
   const [kpiModalAcct, setKpiModalAcct] = useState<"all" | "income" | "expense" | null>(null);
   const [acctEntries, setAcctEntries] = useState<ConstructionJv[]>([]);
   const [acctView, setAcctView] = useState<"receipts" | "construction">("receipts");
+  const [acctToast, setAcctToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  useFormDraft("office-draft-accounting", form, setForm, showModal);
 
   const fetchReceipts = (limit = acctLimit) => {
     let q = supabase.from("receipts").select("*").eq("project_id", PROJECT_ID);
@@ -1019,45 +1081,53 @@ function AccountingContent() {
   };
 
   const handleSave = async () => {
-    if (!form.vendor_name || !form.amount) return;
+    if (!form.vendor_name) { setAcctToast({ msg: "กรอกชื่อผู้ขาย/แหล่งที่มาก่อนบันทึก", type: "error" }); return; }
+    // มาตรฐานทีม: ยอดเงินผ่าน parseAmount (กัน NaN/ติดลบ/ลูกน้ำ)
+    const amt = parseAmount(form.amount);
+    if (amt === null) { setAcctToast({ msg: AMOUNT_ERROR, type: "error" }); return; }
     setSaving(true);
     const rcptNum = form.receipt_number || `RC-${Date.now().toString().slice(-6)}`;
-    await supabase.from("receipts").insert({
+    const { error: rcptErr } = await supabase.from("receipts").insert({
       project_id: PROJECT_ID,
       receipt_date: form.receipt_date,
       vendor_name: form.vendor_name,
       description: form.description,
-      amount: Number(form.amount),
+      amount: amt,
       category: form.category,
       receipt_type: form.receipt_type,
       receipt_number: rcptNum,
     });
+    if (rcptErr) { setSaving(false); setAcctToast({ msg: thaiDbError(rcptErr, "บันทึกบิล"), type: "error" }); return; }
     // When recording income receipt, also create AR invoice for accounting integration
     if (form.receipt_type === "income") {
       const invNum = `INV-${Date.now().toString().slice(-6)}`;
-      await supabase.from("ar_invoices").insert({
+      const { error: arErr } = await supabase.from("ar_invoices").insert({
         invoice_number: invNum,
         customer_name: form.vendor_name,
         invoice_date: form.receipt_date,
         due_date: form.receipt_date,
-        base_amount: Number(form.amount),
+        base_amount: amt,
         vat_amount: 0,
-        total_amount: Number(form.amount),
-        paid_amount: Number(form.amount),
+        total_amount: amt,
+        paid_amount: amt,
         status: "paid",
         description: form.description || form.category,
         project_id: PROJECT_ID,
         ref_number: rcptNum,
       });
+      if (arErr) setAcctToast({ msg: thaiDbError(arErr, "สร้างใบแจ้งหนี้ AR (บิลบันทึกแล้ว)"), type: "error" });
     }
     setSaving(false);
     setShowModal(false);
     setForm(emptyReceiptForm);
+    clearFormDraft("office-draft-accounting");
+    setAcctToast({ msg: "บันทึกบิลเรียบร้อย", type: "success" });
     fetchReceipts();
   };
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      {acctToast && <Toast message={acctToast.msg} type={acctToast.type} onClose={() => setAcctToast(null)} />}
       <DeptAIChat dept="accounting" label="AI ฝ่ายบัญชี" />
       <DeptBriefingPanel dept="accounting" label="ฝ่ายบัญชี" />
       {/* Summary */}
@@ -1104,7 +1174,17 @@ function AccountingContent() {
         <span className="text-aviva-gold/60">→</span>
       </Link>
 
-      <PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} />
+      <div className="flex items-center gap-2">
+        <div className="flex-1"><PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} /></div>
+        <button
+          onClick={() => downloadCsv(`accounting-receipts-${new Date().toISOString().slice(0, 10)}`,
+            ["วันที่", "เลขที่บิล", "ผู้ขาย/แหล่งที่มา", "ประเภท", "หมวด", "จำนวนเงิน", "รายละเอียด"],
+            receipts.map(r => [r.receipt_date ?? "", r.receipt_number ?? "", r.vendor_name ?? "", r.receipt_type === "income" ? "รายรับ" : "รายจ่าย", r.category ?? "", r.amount ?? 0, r.description ?? ""]))}
+          className="flex items-center gap-1 text-[11px] font-semibold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-2.5 py-1.5 rounded-xl flex-shrink-0"
+        >
+          <Download size={11} /> CSV
+        </button>
+      </div>
 
       {/* Add + Export buttons */}
       <div className="flex gap-2">
@@ -3469,7 +3549,8 @@ function ApprovalsContent() {
 
     // 2-level enforcement: manager (non-admin) with amount > 50,000 must escalate
     if (log && !user?.isAdmin && (log.amount ?? 0) > 50000 && !log.source_doc_index.startsWith("[2nd Approval]")) {
-      const { error: e1 } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+      const { data: ch1, error: e1 } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id).eq("action_taken", "Pending").select("approval_id");
+      if (!e1 && (!ch1 || ch1.length === 0)) { setSaving(false); setToast({ msg: "รายการนี้ถูกดำเนินการไปแล้ว", type: "info" }); fetchLogs(); return; }
       if (e1) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + e1.message, type: "error" }); return; }
       await supabase.from("approval_logs").insert({
         workflow_type: log.workflow_type,
@@ -3488,7 +3569,8 @@ function ApprovalsContent() {
       setSaving(false); fetchLogs(); return;
     }
 
-    const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+    const { data: chA, error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id).eq("action_taken", "Pending").select("approval_id");
+    if (!error && (!chA || chA.length === 0)) { setSaving(false); setToast({ msg: "รายการนี้ถูกดำเนินการไปแล้ว (โดยผู้อนุมัติท่านอื่น)", type: "info" }); fetchLogs(); return; }
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log?.source_record_id) {
       if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
@@ -3525,7 +3607,8 @@ function ApprovalsContent() {
       return;
     }
 
-    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: commentArg ?? rejectComment }).eq("approval_id", id);
+    const { data: chR, error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: commentArg ?? rejectComment }).eq("approval_id", id).eq("action_taken", "Pending").select("approval_id");
+    if (!error && (!chR || chR.length === 0)) { setSaving(false); setToast({ msg: "รายการนี้ถูกดำเนินการไปแล้ว (โดยผู้อนุมัติท่านอื่น)", type: "info" }); fetchLogs(); return; }
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
     if (log?.source_record_id) {
       if (log.workflow_type === "Installment_Review") await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
@@ -3814,7 +3897,10 @@ function MaterialsContent() {
 
   const handlePOApprove = async (id: string) => {
     const po = pos.find(p => p.id === id);
-    await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", id);
+    // กันอนุมัติซ้ำ: update เฉพาะ PO ที่ยังรออนุมัติ แล้วตรวจว่าเปลี่ยนจริง
+    const { data: chPo, error: poErr } = await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", id).eq("status", "pending_approval").select("id");
+    if (poErr) { alert(thaiDbError(poErr, "อนุมัติ PO")); return; }
+    if (!chPo || chPo.length === 0) { alert("PO นี้ถูกดำเนินการไปแล้ว"); fetchMaterialsData(); return; }
     await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending");
     if (po) {
       await createNotification({
@@ -4541,7 +4627,7 @@ function DocumentsContent() {
   const [saving, setSaving] = useState(false);
 
   const fetchDocs = () => {
-    supabase.from("documents").select("*").eq("project_id", PROJECT_ID)
+    supabase.from("documents").select("*").eq("project_id", PROJECT_ID).limit(300)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setDocs((data as OfficeDocument[]) ?? []); setLoading(false); });
   };
@@ -4562,7 +4648,7 @@ function DocumentsContent() {
     if (!form.name) return;
     setSaving(true);
     const docNum = await generateDocNumber("DOC");
-    const { data: docData } = await supabase.from("documents").insert({
+    const { data: docData, error: docErr } = await supabase.from("documents").insert({
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
@@ -4572,6 +4658,7 @@ function DocumentsContent() {
       description: form.description || null,
       status: "pending",
     }).select().single();
+    if (docErr) { setSaving(false); alert(thaiDbError(docErr, "เพิ่มเอกสาร")); return; }
     if (docData) {
       await supabase.from("approval_logs").insert({
         workflow_type: "Document_Approval",
@@ -5115,6 +5202,12 @@ export default function OfficePage() {
   const [activeTab, setActiveTab] = useState<OfficeTab>("finance");
   useFocusHighlight();
 
+  // มาตรฐานทีม: sync แท็บลง URL — refresh/แชร์ลิงก์แล้วกลับมาแท็บเดิม (deep-link ?tab= มีขาอ่านอยู่แล้ว)
+  const selectTab = (key: OfficeTab) => {
+    setActiveTab(key);
+    window.history.replaceState(null, "", `/office?tab=${key}`);
+  };
+
   const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
   const canSeeTab = (t: (typeof TABS)[number]) => {
     if (t.adminOnly && !user?.isAdmin) return false;
@@ -5167,7 +5260,7 @@ export default function OfficePage() {
                   {items.map(({ key, label, icon: Icon, iconColor, iconBg }) => (
                     <button
                       key={key}
-                      onClick={() => setActiveTab(key)}
+                      onClick={() => selectTab(key)}
                       className={clsx(
                         "flex flex-col items-center gap-1 rounded-xl border px-0.5 py-2 transition-all active:scale-95",
                         activeTab === key

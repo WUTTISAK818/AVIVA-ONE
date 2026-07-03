@@ -16,7 +16,7 @@
 | 1 | ตั้ง VAPID x3 + LINE OA ID ใน Vercel → Redeploy | `SELECT count(*) FROM push_subscriptions` > 0 หลัง subscribe + ปุ่มเพิ่มเพื่อน/QR LINE แสดง | Vee | 🆕 | push_subs = **0** |
 | 2 | ทดสอบ production v6.81 (รายงานทีม/การ์ดงานที่ต้องทำ/ไม่มีเมนูกล่องงาน/AI ร่าง+สรุป/ย้อนหลัง+แก้+ตีกลับ) | เปิดแอปจริง: dashboard = v6.81 + เช็คลิสต์ `docs/VEE-TODO-MONDAY.md` ครบ (แนบสกรีนช็อต) | Pom+Vee | 🆕 | — |
 | 3 | ชวนทีมผูก LINE (ตั้งค่า → ผูกบัญชี LINE) | `SELECT count(*) FILTER (WHERE linked_at IS NOT NULL) FROM line_links` เพิ่มขึ้น | Vee | 🆕 | linked = **1** |
-| 4 | ทบทวน/ล้าง test data + demo accounts | test/demo ทุกตาราง = 0 | ONE | ✔️ ตรวจผ่าน | ลบครบ: demo users 11(auth+public)=0 · reports/installments/work_queue=0 · 3 audit logs=0 (ปิด trigger ชั่วคราวแล้วเปิดคืน) · leads จริงไม่กระทบ |
+| 4 | ทบทวน/ล้าง test data + demo accounts | test/demo ทุกตาราง = 0 | ONE | ✔️ ตรวจผ่าน | ลบครบ: demo users 11(auth+public)=0 · reports/installments/work_queue=0 · 3 audit logs=0 (ปิด trigger ชั่วคราวแล้วเปิดคืน) · leads จริงไม่กระทบ · **เพิ่มเติม 2026-07-03:** Pom พบพนักงานจำลองอีก 3 คน (EMP-002/003/004 ปภาดา/ณัชพล/สิริพร) → ONE verify กับ DB + Pom ยืนยัน → ลบ employees 3 + ใบลา 3 + payroll config 3 · verify เหลือ 0 · พนักงานจริงคง 5 คน |
 | 5 | iPhone: เพิ่มลงหน้าจอโฮม (PWA) + ทดสอบ push | ส่ง push ทดสอบแล้วเด้งบนมือถือ Pom จริง | Pom | 🆕 | — |
 
 | 6 | **[ด่วน-ความปลอดภัย] Rotate secret ที่เคยหลุดใน repo** (Supabase service_role key, Vercel token, CRON_SECRET) | สร้าง key/token ใหม่ + อัปเดต Vercel env + ของเก่าใช้ไม่ได้แล้ว | Pom+Vee | 🚫 รอ Pom/Vee | ONE ลบไฟล์+เพิ่ม .gitignore แล้ว แต่ rotate ต้องทำใน dashboard |

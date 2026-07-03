@@ -5144,20 +5144,25 @@ export default function OfficePage() {
       <div className="px-4 pt-12 pb-3 border-b border-aviva-gold/10">
         <div className="max-w-lg mx-auto space-y-3">
           <h1 className="text-lg font-bold text-aviva-text">ออฟฟิศ</h1>
-          {MENU_SECTIONS.map(section => {
-            const items = section.keys
-              .map(k => TABS.find(t => t.key === k)!)
-              .filter(t => t && canSeeTab(t));
-            const withLinks = section.title === "ผู้บริหารและระบบ" && showManagerLinks;
-            if (items.length === 0 && !withLinks) return null;
-            const cellCount = items.length + (withLinks ? MANAGER_LINKS.length : 0);
+          {(() => {
+            // ทุกหมวดใช้จำนวนคอลัมน์เท่ากัน (อิงหมวดที่มีเมนูมากสุด) → ช่องทุกหมวดกว้างเท่ากัน
+            const sectionCells = MENU_SECTIONS.map(section => {
+              const items = section.keys
+                .map(k => TABS.find(t => t.key === k)!)
+                .filter(t => t && canSeeTab(t));
+              const withLinks = section.title === "ผู้บริหารและระบบ" && showManagerLinks;
+              return { section, items, withLinks, count: items.length + (withLinks ? MANAGER_LINKS.length : 0) };
+            });
+            const cols = Math.max(...sectionCells.map(s => s.count), 4);
+            return sectionCells.map(({ section, items, withLinks, count }) => {
+            if (count === 0) return null;
             return (
               <div key={section.title}>
                 <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wider mb-1.5">{section.title}</p>
-                {/* กลุ่มละ 1 บรรทัดพอดีจอ — ช่องเท่ากันทุกเมนู (ไอคอนบน ชื่อล่าง) */}
+                {/* กลุ่มละ 1 บรรทัดพอดีจอ — ช่องเท่ากันทุกหมวด (ไอคอนบน ชื่อล่าง) */}
                 <div
                   className="grid gap-1.5"
-                  style={{ gridTemplateColumns: `repeat(${Math.max(cellCount, 4)}, minmax(0, 1fr))` }}
+                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
                 >
                   {items.map(({ key, label, icon: Icon, iconColor, iconBg }) => (
                     <button
@@ -5195,7 +5200,8 @@ export default function OfficePage() {
                 </div>
               </div>
             );
-          })}
+          });
+          })()}
         </div>
       </div>
 

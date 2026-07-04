@@ -114,6 +114,8 @@ interface WorkItem {
   template_id: string;
   item_name: string;
   seq_order: number;
+  category: string | null;
+  criteria: string | null;
 }
 
 interface Inspection {
@@ -121,7 +123,7 @@ interface Inspection {
   contractor_installment_id: string;
   work_item_id: string;
   work_item_name: string;
-  result: 'pass' | 'fail' | 'pending';
+  result: 'pass' | 'acceptable' | 'fail' | 'pending';
   note: string | null;
   photo_url: string | null;
   photo_urls: string[] | null;
@@ -299,7 +301,7 @@ function InspectionPanel({
   uploadingInsp: string | null;
   savingInsp: boolean;
   onEnsure: () => Promise<Inspection[]>;
-  onSave: (insp: Inspection, result: 'pass' | 'fail', note: string, sub: string) => Promise<void>;
+  onSave: (insp: Inspection, result: 'pass' | 'acceptable' | 'fail', note: string, sub: string) => Promise<void>;
   onUpload: (insp: Inspection, files: File[]) => Promise<void>;
 }) {
   const [loaded, setLoaded] = useState(false);
@@ -337,6 +339,7 @@ function InspectionPanel({
 
   const displayInsps = localInsps.length > 0 ? localInsps : inspections;
   const passCount = displayInsps.filter(i => i.result === 'pass').length;
+  const okCount = displayInsps.filter(i => i.result === 'acceptable').length;
   const failCount = displayInsps.filter(i => i.result === 'fail').length;
 
   return (
@@ -345,25 +348,36 @@ function InspectionPanel({
         <div className="flex items-center gap-2 text-[10px]">
           <span className="text-aviva-secondary">รายการงาน:</span>
           <span className="text-green-400 font-bold">✓ {passCount}</span>
+          <span className="text-yellow-400 font-bold">~ {okCount}</span>
           <span className="text-red-400 font-bold">✗ {failCount}</span>
           <span className="text-aviva-secondary/60">/ {displayInsps.length}</span>
         </div>
       )}
       {displayInsps.map(insp => (
-        <div key={insp.id} className={clsx("bg-aviva-bg rounded-xl p-3 border", insp.result === 'pass' ? "border-green-500/30" : insp.result === 'fail' ? "border-red-500/30" : "border-aviva-gold/10")}>
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-xs font-medium text-aviva-text">{insp.work_item_name}</p>
-            <div className="flex gap-1 flex-shrink-0">
-              <button onClick={() => onSave(insp, 'pass', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
-                disabled={savingInsp}
-                className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'pass' ? "bg-green-500 text-white border-green-500" : "bg-aviva-bg text-green-400 border-green-500/30 hover:bg-green-500/10")}>
-                ✓ ผ่าน
-              </button>
-              <button onClick={() => onSave(insp, 'fail', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
-                disabled={savingInsp}
-                className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'fail' ? "bg-red-500 text-white border-red-500" : "bg-aviva-bg text-red-400 border-red-500/30 hover:bg-red-500/10")}>
-                ✗ ไม่ผ่าน
-              </button>
+        <div key={insp.id} className={clsx("bg-aviva-bg rounded-xl p-3 border", insp.result === 'pass' ? "border-green-500/30" : insp.result === 'acceptable' ? "border-yellow-500/30" : insp.result === 'fail' ? "border-red-500/30" : "border-aviva-gold/10")}>
+          <div className="mb-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-aviva-text">{insp.work_item_name}</p>
+                {(() => { const crit = wis.find(w => w.id === insp.work_item_id)?.criteria; return crit ? <p className="text-[10px] text-aviva-gold/70 mt-0.5">เกณฑ์: {crit}</p> : null; })()}
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => onSave(insp, 'pass', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                  disabled={savingInsp}
+                  className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'pass' ? "bg-green-500 text-white border-green-500" : "bg-aviva-bg text-green-400 border-green-500/30 hover:bg-green-500/10")}>
+                  ดี
+                </button>
+                <button onClick={() => onSave(insp, 'acceptable', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                  disabled={savingInsp}
+                  className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'acceptable' ? "bg-yellow-500 text-white border-yellow-500" : "bg-aviva-bg text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/10")}>
+                  พอใช้
+                </button>
+                <button onClick={() => onSave(insp, 'fail', notes[insp.id] ?? insp.note ?? "", subs[insp.id] ?? insp.sub_contractor_name ?? "")}
+                  disabled={savingInsp}
+                  className={clsx("px-2 py-1 rounded-lg text-[10px] font-bold border transition-all", insp.result === 'fail' ? "bg-red-500 text-white border-red-500" : "bg-aviva-bg text-red-400 border-red-500/30 hover:bg-red-500/10")}>
+                  ไม่ผ่าน
+                </button>
+              </div>
             </div>
           </div>
           <input placeholder="หมายเหตุ / เหตุผล"
@@ -560,7 +574,7 @@ export default function ConstructionPage() {
     let wiList: WorkItem[] = [];
     if (tmplIds.length > 0) {
       const { data: wis } = await supabase.from("installment_work_items")
-        .select("id,template_id,item_name,seq_order")
+        .select("id,template_id,item_name,seq_order,category,criteria")
         .in("template_id", tmplIds)
         .order("seq_order");
       wiList = (wis as WorkItem[]) ?? [];
@@ -614,7 +628,7 @@ export default function ConstructionPage() {
     return existing;
   };
 
-  const saveInspectionResult = async (insp: Inspection, result: 'pass' | 'fail', note: string, subContractor: string) => {
+  const saveInspectionResult = async (insp: Inspection, result: 'pass' | 'acceptable' | 'fail', note: string, subContractor: string) => {
     setSavingInsp(true);
     const updates = { result, note: note || null, sub_contractor_name: subContractor || null, inspected_by: user?.full_name ?? user?.email ?? null, inspected_at: new Date().toISOString() };
     await supabase.from("installment_inspections").update(updates).eq("id", insp.id);
@@ -646,8 +660,8 @@ export default function ConstructionPage() {
     if (newStatus === inst.status) return;
     if (inst.status === "pending") {
       const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
-      if (instInsps.length > 0 && !instInsps.every(i => i.result === 'pass')) {
-        setToast({ msg: "ต้องตรวจผ่านทุกรายการงานก่อนส่งตรวจสอบ", type: "error" });
+      if (instInsps.length > 0 && !instInsps.every(i => i.result === 'pass' || i.result === 'acceptable')) {
+        setToast({ msg: "ต้องตรวจทุกรายการเป็น ดี หรือ พอใช้ ก่อนส่งตรวจสอบ (ยังมีรายการไม่ผ่าน/ยังไม่ตรวจ)", type: "error" });
         setConfirmInst(null); return;
       }
       if (instHouse) {
@@ -867,8 +881,9 @@ export default function ConstructionPage() {
     if (!instHouse) return;
     const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
     const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
-    const passCount = instInsps.filter(i => i.result === "pass").length;
-    const rows = instInsps.map(i => `<tr><td>${i.work_item_name}</td><td style="color:${i.result === "pass" ? "#1E4A35" : "#c0392b"};font-weight:bold">${i.result === "pass" ? "✓ ผ่าน" : "✗ ไม่ผ่าน"}</td><td>${i.note ?? ""}</td><td>${i.inspected_by ?? ""}</td></tr>`).join("");
+    const passCount = instInsps.filter(i => i.result === "pass" || i.result === "acceptable").length;
+    const resultText = (r: string) => r === "pass" ? { c: "#1E4A35", t: "ดี" } : r === "acceptable" ? { c: "#B8860B", t: "พอใช้" } : r === "fail" ? { c: "#c0392b", t: "ไม่ผ่าน" } : { c: "#999", t: "-" };
+    const rows = instInsps.map(i => { const rt = resultText(i.result); return `<tr><td>${i.work_item_name}</td><td style="color:${rt.c};font-weight:bold">${rt.t}</td><td>${i.note ?? ""}</td><td>${i.inspected_by ?? ""}</td></tr>`; }).join("");
     const ackDate = inst.contractor_acknowledged_at ? new Date(inst.contractor_acknowledged_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
     const paidDate = inst.paid_at ? new Date(inst.paid_at).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
     const laborLine = (inst.labor_cost || inst.material_cost) ? `<div><b>ค่าแรง:</b> ฿${(inst.labor_cost ?? 0).toLocaleString("th-TH")}</div><div><b>ค่าวัสดุ:</b> ฿${(inst.material_cost ?? 0).toLocaleString("th-TH")}</div>` : "";
@@ -1180,7 +1195,7 @@ export default function ConstructionPage() {
       ? installments.filter(inst => inspections.some(i => i.contractor_installment_id === inst.id && i.inspected_at?.startsWith(today))).map(inst => {
           const h = houses.find(hh => hh.id === inst.house_id);
           const ii = inspections.filter(i => i.contractor_installment_id === inst.id && i.inspected_at?.startsWith(today));
-          const pass = ii.filter(i => i.result === "pass").length;
+          const pass = ii.filter(i => i.result === "pass" || i.result === "acceptable").length;
           const fail = ii.filter(i => i.result === "fail").length;
           return `• ${h?.house_number ?? "—"} ${inst.name}: ผ่าน ${pass}/${ii.length}${fail > 0 ? ` (ไม่ผ่าน ${fail})` : ""}`;
         }).join("\n")
@@ -2138,7 +2153,7 @@ export default function ConstructionPage() {
               <p className="font-semibold text-aviva-gold mb-1">ผลการตรวจงาน</p>
               {(() => {
                 const instInsps = inspections.filter(i => i.contractor_installment_id === ackInst.id);
-                const pass = instInsps.filter(i => i.result === "pass").length;
+                const pass = instInsps.filter(i => i.result === "pass" || i.result === "acceptable").length;
                 const total = instInsps.length;
                 return total > 0
                   ? <p>ผ่าน <span className="text-green-400 font-bold">{pass}</span> / {total} รายการ {pass === total ? "✓ ครบทุกรายการ" : ""}</p>

@@ -1,7 +1,7 @@
 "use client";
 import { APP_VERSION } from "@/lib/version";
 import { useState, useEffect } from "react";
-import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList, HardHat, Bot, Lightbulb, BarChart3 } from "lucide-react";
+import { Moon, Sun, Monitor, Settings, Users, Building2, ChevronRight, User, Save, Check, BookOpen, FileText, GitBranch, ClipboardList, HardHat, Bot, Lightbulb, BarChart3, ClipboardCheck } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { useTheme } from "@/lib/theme-context";
 import { supabase } from "@/lib/supabase";
@@ -136,6 +136,13 @@ export default function SettingsPage() {
             <div className="flex-1"><p className="text-sm text-aviva-text">แบบฟอร์มมาตรฐาน</p><p className="text-xs text-aviva-secondary">8 แบบฟอร์ม FIN / INST / PO / WR / LEAVE / MKTG / BOOK / DOC</p></div>
             <ChevronRight size={16} className="text-aviva-secondary/50" />
           </Link>
+          {user?.isManager && (
+            <Link href="/settings/qc-checklist" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
+              <div className="w-8 h-8 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center"><ClipboardCheck size={14} className="text-green-400" /></div>
+              <div className="flex-1"><p className="text-sm text-aviva-text">รายการตรวจคุณภาพงาน (QC)</p><p className="text-xs text-aviva-secondary">กำหนดรายการตรวจต่องวด + หมวด + เกณฑ์ยอมรับ (แก้ไขได้)</p></div>
+              <ChevronRight size={16} className="text-aviva-secondary/50" />
+            </Link>
+          )}
           <Link href="/settings/suggestions" className="flex items-center gap-3 px-4 py-3 hover:bg-aviva-gold/5 transition-all border-t border-aviva-gold/10">
             <div className="w-8 h-8 rounded-full bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center"><Lightbulb size={14} className="text-yellow-400" /></div>
             <div className="flex-1"><p className="text-sm text-aviva-text">ข้อเสนอแนะ / ปรับปรุงแอป</p><p className="text-xs text-aviva-secondary">เสนอไอเดียพัฒนาแอป — ผู้บริหารพิจารณาอนุมัติก่อนส่งให้ผู้พัฒนา</p></div>

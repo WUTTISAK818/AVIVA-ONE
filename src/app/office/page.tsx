@@ -29,6 +29,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
 import { thaiDbError } from "@/lib/db-errors";
 import { uploadFailText } from "@/lib/upload-photos";
+import { MATERIAL_CATEGORIES, DEFAULT_MATERIAL_CATEGORY } from "@/lib/material-categories";
 import DeptAIChat from "@/components/DeptAIChat";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
 import { generateDocNumber } from "@/lib/doc-numbers";
@@ -3588,6 +3589,7 @@ function ApprovalsContent() {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
       setToast({ msg: `อนุมัติแล้ว — ${log.source_doc_index}`, type: "success" });
       await createNotification({ type: "success", title: `อนุมัติแล้ว — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`, from_dept: dept, to_dept: dept });
+      await notifyRequester(log, true);
     }
     if (log?.source_record_id) {
       await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: true, amount: log.amount ?? null, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager" });
@@ -3595,6 +3597,21 @@ function ApprovalsContent() {
     setSaving(false);
     fetchLogs();
   };
+
+  // แจ้งผลอนุมัติ/ตีกลับ เจาะถึงตัวผู้ขอ (ทดแทนการตอบในแชต LINE)
+  async function notifyRequester(log: { submitted_by_user_id: string | null; source_doc_index: string; workflow_type: string }, approved: boolean, note?: string) {
+    if (!log.submitted_by_user_id) return;
+    const { data: reqUser } = await supabase.from("users").select("email").eq("id", log.submitted_by_user_id).maybeSingle();
+    if (!reqUser?.email) return;
+    await createNotification({
+      type: approved ? "success" : "info",
+      title: approved ? "✅ คำขอของคุณได้รับอนุมัติ" : "↩️ คำขอของคุณถูกตีกลับ",
+      message: `${log.source_doc_index}${!approved && note ? ` — เหตุผล: ${note}` : ""}`,
+      from_dept: "ผู้บริหาร",
+      to_user_email: reqUser.email,
+      link: log.workflow_type === "Material_Purchase" ? "/construction" : "/office",
+    });
+  }
 
   const handleReject = async (id: string, commentArg?: string) => {
     setSaving(true);
@@ -3629,6 +3646,7 @@ function ApprovalsContent() {
       const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
       setToast({ msg: `ปฏิเสธแล้ว — ${log.source_doc_index}`, type: "info" });
       await createNotification({ type: "info", title: `ปฏิเสธ — ${log.source_doc_index}`, message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`, from_dept: dept, to_dept: dept });
+      await notifyRequester(log, false, commentArg ?? rejectComment);
     }
     if (log?.source_record_id) {
       await resolveApprovalQueue({ workflowType: log.workflow_type, sourceRecordId: log.source_record_id, docIndex: log.source_doc_index, approved: false, amount: log.amount ?? null, actorName: user?.full_name ?? user?.email, actorRole: user?.isAdmin ? "admin" : "manager", conditionNote: (commentArg ?? rejectComment) || undefined });
@@ -3785,6 +3803,7 @@ interface PurchaseOrder {
   id: string; po_number: string; supplier_name: string;
   items: { name: string; qty: number; unit: string; unit_price: number }[];
   total_amount: number; status: string; requested_by: string; created_at: string;
+  house_id?: string | null; category?: string | null;
 }
 
 // โหมด A — ใบสั่งซื้อวัสดุ (PO) ฝั่งจัดซื้อสำนักงาน
@@ -3814,11 +3833,13 @@ function MaterialsContent() {
   const user = useCurrentUser();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
+  const [houseList, setHouseList] = useState<{ id: string; house_number: string }[]>([]);
   const [activeView, setActiveView] = useState<"stock" | "po">("stock");
   const [loading, setLoading] = useState(true);
   const [showPOModal, setShowPOModal] = useState(false);
-  const [poForm, setPoForm] = useState({ supplier_name: "", notes: "", delivery_date: "" });
+  const [poForm, setPoForm] = useState({ supplier_name: "", notes: "", delivery_date: "", house_id: "", category: DEFAULT_MATERIAL_CATEGORY as string });
   const [poItemRows, setPoItemRows] = useState([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
+  const [poFiles, setPoFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
@@ -3827,9 +3848,11 @@ function MaterialsContent() {
     Promise.all([
       supabase.from("materials").select("*").eq("project_id", PROJECT_ID).order("name"),
       supabase.from("purchase_orders").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
-    ]).then(([mRes, pRes]) => {
+      supabase.from("houses").select("id, house_number").eq("project_id", PROJECT_ID).order("house_number"),
+    ]).then(([mRes, pRes, hRes]) => {
       setMaterials((mRes.data as Material[]) ?? []);
       setPos((pRes.data as PurchaseOrder[]) ?? []);
+      setHouseList((hRes.data as { id: string; house_number: string }[]) ?? []);
       setLoading(false);
     });
   };
@@ -3852,11 +3875,15 @@ function MaterialsContent() {
   };
 
   const handleCreatePO = async () => {
-    if (!poForm.supplier_name || poItemRows.every(r => !r.name)) return;
+    if (!poForm.supplier_name) { setToast({ msg: "กรอกชื่อผู้จัดจำหน่ายก่อน", type: "error" }); return; }
+    if (poItemRows.every(r => !r.name)) { setToast({ msg: "เพิ่มรายการสั่งซื้ออย่างน้อย 1 รายการ", type: "error" }); return; }
     setSaving(true);
     const poDocNum = await generateDocNumber("PO");
     const parsedItems = poItemRows.filter(r => r.name).map(r => ({ name: r.name, qty: Number(r.qty) || 1, unit: r.unit || "ชิ้น", unit_price: Number(r.unit_price) || 0 }));
     const total = parsedItems.reduce((s, i) => s + (i.qty * i.unit_price), 0);
+    const byName = user?.full_name ?? user?.email ?? "Unknown";
+    const houseObj = houseList.find(h => h.id === poForm.house_id);
+    const houseLabel = houseObj ? `หน้างาน ${houseObj.house_number}` : "";
     const { data: poData, error: poErr } = await supabase.from("purchase_orders").insert({
       project_id: PROJECT_ID,
       po_number: poDocNum,
@@ -3864,15 +3891,25 @@ function MaterialsContent() {
       items: parsedItems,
       total_amount: total,
       status: "draft",
-      requested_by: user?.full_name ?? user?.email ?? "Unknown",
+      requested_by: byName,
       notes: poForm.notes,
+      house_id: poForm.house_id || null,
+      category: poForm.category,
       ...(poForm.delivery_date ? { delivery_date: poForm.delivery_date } : {}),
     }).select().single();
-    if (poErr) { setSaving(false); setToast({ msg: "สร้าง PO ไม่สำเร็จ: " + poErr.message, type: "error" }); return; }
+    if (poErr) { setSaving(false); setToast({ msg: thaiDbError(poErr, "สร้าง PO"), type: "error" }); return; }
     if (poData) {
+      // แนบใบเสนอราคา/เอกสารร้านค้า
+      if (poFiles.length) {
+        const urls = await uploadPhotos("document-attachments", `entity-docs/purchase_order/${poData.id}/${Date.now()}`, poFiles,
+          { onFail: f => setToast({ msg: uploadFailText(f), type: "error" }) });
+        for (let i = 0; i < urls.length; i++) {
+          await attachDocumentToEntity("purchase_order", poData.id, urls[i], poFiles[i]?.name ?? `เอกสาร-${i + 1}`, byName);
+        }
+      }
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
-        source_doc_index: `${poDocNum} | PO — ${poForm.supplier_name}${poForm.delivery_date ? ` (กำหนดส่ง ${poForm.delivery_date})` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+        source_doc_index: `${poDocNum} | ${houseLabel ? houseLabel + " · " : ""}[${poForm.category}] PO — ${poForm.supplier_name}${poForm.delivery_date ? ` (กำหนดส่ง ${poForm.delivery_date})` : ""} | โดย ${byName}`,
         submitted_by_user_id: user?.id ?? null,
         source_record_id: poData.id,
         current_approver_role: "manager",
@@ -3885,13 +3922,14 @@ function MaterialsContent() {
     await createNotification({
       type: "approval",
       title: "ใบสั่งซื้อ (PO) ใหม่",
-      message: `จาก ${user?.full_name ?? "ฝ่ายจัดซื้อ"} · ${poForm.supplier_name} ฿${total.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
+      message: `จาก ${byName} · ${houseLabel ? houseLabel + " · " : ""}[${poForm.category}] ${poForm.supplier_name} ฿${total.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
       from_dept: "ฝ่ายก่อสร้าง",
     });
     setSaving(false);
     setShowPOModal(false);
-    setPoForm({ supplier_name: "", notes: "", delivery_date: "" });
+    setPoForm({ supplier_name: "", notes: "", delivery_date: "", house_id: "", category: DEFAULT_MATERIAL_CATEGORY });
     setPoItemRows([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
+    setPoFiles([]);
     fetchMaterialsData();
   };
 
@@ -3901,14 +3939,32 @@ function MaterialsContent() {
     const { data: chPo, error: poErr } = await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", id).eq("status", "pending_approval").select("id");
     if (poErr) { alert(thaiDbError(poErr, "อนุมัติ PO")); return; }
     if (!chPo || chPo.length === 0) { alert("PO นี้ถูกดำเนินการไปแล้ว"); fetchMaterialsData(); return; }
-    await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending");
+    // ดึงผู้ขอ (submitted_by_user_id) เพื่อแจ้งผลกลับถึงตัวคนขอ
+    const { data: logRow } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("source_record_id", id).eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending").select("submitted_by_user_id").maybeSingle();
     if (po) {
+      let requesterEmail: string | null = null;
+      if (logRow?.submitted_by_user_id) {
+        const { data: reqUser } = await supabase.from("users").select("email").eq("id", logRow.submitted_by_user_id).maybeSingle();
+        requesterEmail = reqUser?.email ?? null;
+      }
       await createNotification({
         type: "success",
         title: "อนุมัติ PO แล้ว",
         message: `${po.supplier_name} — ฿${(po.total_amount ?? 0).toLocaleString("th-TH")} ได้รับการอนุมัติโดย ${user?.full_name ?? "Admin"}`,
         from_dept: "ฝ่ายก่อสร้าง",
+        to_dept: "ฝ่ายก่อสร้าง",
       });
+      // แจ้งเจาะถึงผู้ขอโดยตรง (ถ้าทราบอีเมล)
+      if (requesterEmail) {
+        await createNotification({
+          type: "success",
+          title: `✅ คำขอสั่งซื้อของคุณได้รับอนุมัติ`,
+          message: `${po.po_number ?? ""} · ${po.supplier_name} ฿${(po.total_amount ?? 0).toLocaleString("th-TH")} — อนุมัติโดย ${user?.full_name ?? "ผู้บริหาร"}`,
+          from_dept: "ผู้บริหาร",
+          to_user_email: requesterEmail,
+          link: "/construction",
+        });
+      }
     }
     fetchMaterialsData();
   };
@@ -4014,7 +4070,15 @@ function MaterialsContent() {
                       <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", stConf.cls)}>{stConf.label}</span>
                     </div>
                     <p className="text-sm text-aviva-text mt-0.5">{po.supplier_name}</p>
-                    <p className="text-[10px] text-aviva-secondary">โดย {po.requested_by} · ฿{(po.total_amount ?? 0).toLocaleString("th-TH")}</p>
+                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                      {po.house_id && houseList.find(h => h.id === po.house_id) && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/30">🏠 {houseList.find(h => h.id === po.house_id)!.house_number}</span>
+                      )}
+                      {po.category && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/25">{po.category}</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-aviva-secondary mt-0.5">โดย {po.requested_by} · ฿{(po.total_amount ?? 0).toLocaleString("th-TH")}</p>
                   </div>
                   <button onClick={() => setExpandedPO(isExpanded ? null : po.id)} className="text-aviva-secondary/50 mt-1">
                     {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -4060,6 +4124,23 @@ function MaterialsContent() {
               <button onClick={() => setShowPOModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="poform-house" className="text-xs text-aviva-secondary mb-1 block">บ้าน / หน้างาน</label>
+                  <select id="poform-house" value={poForm.house_id} onChange={e => setPoForm(p => ({ ...p, house_id: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="">— เลือกหน้างาน —</option>
+                    {houseList.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="poform-category" className="text-xs text-aviva-secondary mb-1 block">หมวดวัสดุ</label>
+                  <select id="poform-category" value={poForm.category} onChange={e => setPoForm(p => ({ ...p, category: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    {MATERIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
               <div>
                 <label htmlFor="poform-supplier_name" className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้จำหน่าย *</label>
                 <input id="poform-supplier_name" value={poForm.supplier_name} onChange={e => setPoForm(p => ({ ...p, supplier_name: e.target.value }))}
@@ -4099,6 +4180,10 @@ function MaterialsContent() {
                 <label htmlFor="poform-notes" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
                 <input id="poform-notes" value={poForm.notes} onChange={e => setPoForm(p => ({ ...p, notes: e.target.value }))}
                   placeholder="หมายเหตุเพิ่มเติม" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสนอราคา / เอกสารร้านค้า (รูปหรือ PDF)</label>
+                <MultiPhotoInput value={poFiles} onChange={setPoFiles} accept="image/*,application/pdf" label="แตะเพื่อแนบใบเสนอราคา/เอกสาร" />
               </div>
             </div>
             <button onClick={handleCreatePO} disabled={saving || !poForm.supplier_name || poItemRows.every(r => !r.name)}

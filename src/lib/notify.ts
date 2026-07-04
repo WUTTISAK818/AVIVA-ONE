@@ -73,6 +73,8 @@ export async function createNotification(opts: {
   link?: string;
   /** เจาะ LINE ส่วนตัวเฉพาะแผนกเหล่านี้ (ค่าเริ่มต้น = [to_dept]) */
   line_to_depts?: string[];
+  /** ส่งถึงผู้ใช้รายคน (อีเมล) — กระดิ่งจะเด้งเฉพาะคนนี้ เช่น แจ้งผลอนุมัติกลับผู้ขอ */
+  to_user_email?: string | null;
 }) {
   const toDept = normalizeDept(opts.to_dept);
 
@@ -90,6 +92,7 @@ export async function createNotification(opts: {
         is_read: false,
         record_id: opts.record_id ?? null,
         link: opts.link ?? null,
+        to_user_email: opts.to_user_email ?? null,
       });
 
       if (error) {

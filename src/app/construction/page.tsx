@@ -27,7 +27,9 @@ import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor } from "@/lib/workflow-events";
 import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
 import { logAction } from "@/lib/audit";
-import { uploadPhotos } from "@/lib/upload-photos";
+import { uploadPhotos, uploadFailText } from "@/lib/upload-photos";
+import { attachDocumentToEntity } from "@/lib/doc-attach";
+import { MATERIAL_CATEGORIES, DEFAULT_MATERIAL_CATEGORY } from "@/lib/material-categories";
 import MultiPhotoInput from "@/components/MultiPhotoInput";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -441,8 +443,9 @@ export default function ConstructionPage() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [showPRModal, setShowPRModal] = useState(false);
   const [savingPR, setSavingPR] = useState(false);
-  const [prForm, setPrForm] = useState({ supplier_name: "", notes: "" });
+  const [prForm, setPrForm] = useState({ supplier_name: "", notes: "", house_id: "", category: DEFAULT_MATERIAL_CATEGORY as string });
   const [prItems, setPrItems] = useState<PrLineItem[]>([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
+  const [prFiles, setPrFiles] = useState<File[]>([]);
   const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -1093,6 +1096,8 @@ export default function ConstructionPage() {
     const totalAmount = itemsData.reduce((s, it) => s + it.qty * it.unit_price, 0);
     const byName = user?.full_name ?? user?.email ?? "Unknown";
     const docNum = await generateDocNumber("PO");
+    const houseObj = houses.find(h => h.id === prForm.house_id);
+    const houseLabel = houseObj ? `หน้างาน ${houseObj.house_number}` : "";
     const { data: po } = await supabase.from("purchase_orders").insert({
       project_id: PROJECT_ID,
       po_number: docNum,
@@ -1102,12 +1107,23 @@ export default function ConstructionPage() {
       status: "pending",
       requested_by: byName,
       notes: prForm.notes || null,
+      house_id: prForm.house_id || null,
+      category: prForm.category,
     }).select().single();
     if (po) {
+      // แนบใบเสนอราคา/เอกสารร้านค้าเข้ากับ PO (ให้ผู้บริหารเปิดดูตอนอนุมัติ)
+      if (prFiles.length) {
+        const urls = await uploadPhotos("document-attachments", `entity-docs/purchase_order/${(po as PurchaseOrder).id}/${Date.now()}`, prFiles,
+          { onFail: f => setToast({ msg: uploadFailText(f), type: "error" }) });
+        for (let i = 0; i < urls.length; i++) {
+          await attachDocumentToEntity("purchase_order", (po as PurchaseOrder).id, urls[i], prFiles[i]?.name ?? `เอกสาร-${i + 1}`, byName);
+        }
+      }
       const slaDue = calcSlaDueAt("Material_Purchase");
+      const docIndexFull = `${docNum} | ${houseLabel ? houseLabel + " · " : ""}[${prForm.category}] จัดซื้อจาก ${prForm.supplier_name} | โดย ${byName}`;
       await supabase.from("approval_logs").insert({
         workflow_type: "Material_Purchase",
-        source_doc_index: `${docNum} | จัดซื้อจาก ${prForm.supplier_name} | โดย ${byName}`,
+        source_doc_index: docIndexFull,
         source_record_id: (po as PurchaseOrder).id,
         submitted_by_user_id: user?.id ?? null,
         current_approver_role: "manager",
@@ -1119,8 +1135,8 @@ export default function ConstructionPage() {
       await createWorkQueue({
         workflowType: "Material_Purchase",
         sourceRecordId: (po as PurchaseOrder).id,
-        docIndex: `${docNum} | จัดซื้อจาก ${prForm.supplier_name}`,
-        title: `อนุมัติจัดซื้อ: ${prForm.supplier_name}`,
+        docIndex: docIndexFull,
+        title: `อนุมัติจัดซื้อ: ${houseLabel ? houseLabel + " · " : ""}${prForm.supplier_name}`,
         amount: totalAmount || null,
         assignedRole: "manager",
         slaDueAt: slaDue,
@@ -1128,7 +1144,7 @@ export default function ConstructionPage() {
       await createNotification({
         type: "approval",
         title: `ขออนุมัติจัดซื้อ ${docNum}`,
-        message: `จาก ${byName} · ${prForm.supplier_name} ฿${totalAmount.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
+        message: `จาก ${byName} · ${houseLabel ? houseLabel + " · " : ""}[${prForm.category}] ${prForm.supplier_name} ฿${totalAmount.toLocaleString("th-TH")} · ส่งให้ผู้จัดการพิจารณา`,
         from_dept: "ฝ่ายก่อสร้าง",
         to_dept: "ผู้บริหาร",
       });
@@ -1136,8 +1152,9 @@ export default function ConstructionPage() {
       setToast({ msg: `ส่งขออนุมัติ ${docNum} แล้ว ✓`, type: "success" });
     }
     setShowPRModal(false);
-    setPrForm({ supplier_name: "", notes: "" });
+    setPrForm({ supplier_name: "", notes: "", house_id: "", category: DEFAULT_MATERIAL_CATEGORY });
     setPrItems([{ name: "", qty: "1", unit: "ชิ้น", unit_price: "0" }]);
+    setPrFiles([]);
     setSavingPR(false);
   };
 
@@ -2172,6 +2189,23 @@ export default function ConstructionPage() {
               </div>
               <button onClick={() => setShowPRModal(false)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="consform-house" className="text-xs text-aviva-secondary mb-1 block">บ้าน / หน้างาน</label>
+                <select id="consform-house" value={prForm.house_id} onChange={e => setPrForm(p => ({ ...p, house_id: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="">— เลือกหน้างาน —</option>
+                  {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="consform-category" className="text-xs text-aviva-secondary mb-1 block">หมวดวัสดุ</label>
+                <select id="consform-category" value={prForm.category} onChange={e => setPrForm(p => ({ ...p, category: e.target.value }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {MATERIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
             <div>
               <label htmlFor="consform-supplier_name" className="text-xs text-aviva-secondary mb-1 block">ผู้จัดจำหน่าย / บริษัทที่สั่งซื้อ *</label>
               <input id="consform-supplier_name" type="text" value={prForm.supplier_name} onChange={e => setPrForm(p => ({ ...p, supplier_name: e.target.value }))}
@@ -2241,9 +2275,13 @@ export default function ConstructionPage() {
                 rows={3}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
             </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสนอราคา / เอกสารร้านค้า (รูปหรือ PDF)</label>
+              <MultiPhotoInput value={prFiles} onChange={setPrFiles} accept="image/*,application/pdf" label="แตะเพื่อแนบใบเสนอราคา/เอกสาร" />
+            </div>
             <div className="bg-aviva-gold/5 border border-aviva-gold/20 rounded-xl p-3 text-[11px] text-aviva-secondary space-y-0.5">
               <p>ผู้ขอ: <span className="text-aviva-text font-medium">{user?.full_name ?? user?.email ?? "—"}</span></p>
-              <p>หลังส่งคำขอ ผู้จัดการจะได้รับแจ้งเตือนเพื่ออนุมัติในหน้า &quot;ระบบอนุมัติ&quot;</p>
+              <p>หลังส่งคำขอ ผู้จัดการจะได้รับแจ้งเตือนเพื่ออนุมัติในหน้า &quot;ระบบอนุมัติ&quot; · ผลอนุมัติจะแจ้งกลับถึงคุณ</p>
             </div>
             <button onClick={handleSubmitPR}
               disabled={savingPR || !prForm.supplier_name || !prItems.some(it => it.name.trim())}

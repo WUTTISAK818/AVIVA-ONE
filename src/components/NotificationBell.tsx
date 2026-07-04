@@ -20,6 +20,7 @@ interface Notification {
   created_at: string;
   record_id: string | null;
   link: string | null;
+  to_user_email: string | null;
 }
 
 const TYPE_CONFIG: Record<string, { Icon: typeof Bell; color: string; bg: string; label: string; needsAction?: boolean }> = {
@@ -109,8 +110,13 @@ export default function NotificationBell() {
       .limit(50);
     const all = (data as Notification[]) ?? [];
     // ทุกคน (รวมผู้บริหาร) ต้อง filter เฉพาะแจ้งเตือนที่เกี่ยวข้องกับตัว/แผนกของตัว
+    const myEmail = user?.email?.toLowerCase();
     const visible = user
-      ? all.filter(n => !n.to_dept || deptRelated(n.to_dept, user.department) || deptRelated(n.from_dept, user.department))
+      ? all.filter(n => {
+          // แจ้งเตือนเจาะรายคน (เช่น ผลอนุมัติกลับผู้ขอ) — เห็นเฉพาะเจ้าของอีเมล
+          if (n.to_user_email) return n.to_user_email.toLowerCase() === myEmail;
+          return !n.to_dept || deptRelated(n.to_dept, user.department) || deptRelated(n.from_dept, user.department);
+        })
       : all;
     const shown = visible.slice(0, 30);
     // ดึงสถานะอ่านรายคนของผู้ใช้ปัจจุบัน

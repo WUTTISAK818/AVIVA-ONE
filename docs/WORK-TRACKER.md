@@ -132,9 +132,9 @@
 - ✅ #8 draft ฟอร์มการเงิน/บัญชีลง localStorage — เน็ตหลุด/ปิดหน้า ข้อความไม่หาย เคลียร์เมื่อบันทึกสำเร็จ
 - ✅ #9 `src/lib/db-errors.ts` แปล error เป็นไทย+วิธีแก้ ใช้ทุกจุดที่แตะ
 
-| 10 | เปลี่ยนไฟล์แนบใบเสร็จเป็น signed URL (bucket document-attachments ใช้ร่วมกับระบบรายงาน — ต้องไล่แก้ reader ทุกจุด+flip bucket พร้อมกัน) | แนบไฟล์แล้วเปิดได้เฉพาะคนล็อกอิน · ลิงก์เก่าหมดอายุได้ | ONE | 🆕 รอทำ (แยกรอบ กันกระทบ go-live รายงาน) | reader: ApprovalVerifyModal, doc-attach, reports |
+| 10 | ~~เปลี่ยนไฟล์แนบใบเสร็จเป็น signed URL~~ → **ตรวจแล้วเป็น "เตือนผิด" (false positive)** | พิสูจน์ storage.buckets: ทุก bucket public=false อยู่แล้ว (รวม document-attachments) + ผู้อ่านทุกจุด (AttachDocButton/ApprovalVerifyModal/review) ใช้ toSignedUrl แล้ว — URL รูปแบบ public ในตารางเป็นแค่ตัวเก็บ path เปิดตรงไม่ได้จริง | ONE | ✔️ ตรวจผ่าน (2026-07-03) | คะแนนหมวด 4 (Security) ที่เคยหักจากประเด็นนี้ ปรับขึ้น 8→9 |
 
-**สรุปกระทบยอด #6:** 10 รายการ — ✅ โค้ดเสร็จ ×9 (v7.00, build ผ่าน) · 🆕 ×1 (signed URL แยกรอบ) → รอ deploy + Pom/Vee ทดสอบ UI จริงจึงเป็น ✔️
+**สรุปกระทบยอด #6:** 10 รายการ — ✅ โค้ดเสร็จ ×9 (v7.00 บน production) · ✔️ ×1 (ข้อ 10 false positive) → **ฝั่งโค้ดครบ 10/10** เหลือ Pom/Vee ทดสอบ UI ตาม docs/TEST-CHECKLIST-V7.md จึงปิดชุดเป็น ✔️ ทั้งหมด
 
 ---
 

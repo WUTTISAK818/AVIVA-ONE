@@ -893,6 +893,59 @@ export default function ConstructionPage() {
     w.document.close();
   };
 
+  // พิมพ์เอกสารตรวจสอบคุณภาพงาน (QC Checklist) ตามเลย์เอาต์เอกสารจริง — จัดกลุ่มหมวด + 3 ระดับ ดี/พอใช้/ไม่ผ่าน + เกณฑ์ยอมรับ
+  const printQCChecklist = (inst: Installment) => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const instInsps = inspections.filter(i => i.contractor_installment_id === inst.id);
+    const tmpl = instTemplates.find(t => t.installment_number === inst.installment_no);
+    const wis = instWorkItems.filter(w => w.template_id === (tmpl?.id ?? ""));
+    const critOf = (wid: string) => wis.find(w => w.id === wid)?.criteria ?? "";
+    const catOf = (wid: string) => wis.find(w => w.id === wid)?.category ?? "อื่น ๆ";
+    // จัดกลุ่มตามหมวด (เรียงตามลำดับ work item)
+    const cats: string[] = [];
+    wis.slice().sort((a, b) => (a.seq_order ?? 0) - (b.seq_order ?? 0)).forEach(w => { const c = w.category ?? "อื่น ๆ"; if (!cats.includes(c)) cats.push(c); });
+    if (cats.length === 0) cats.push("อื่น ๆ");
+    const mark = (r: string, want: string) => r === want ? '<span style="color:#1E4A35;font-weight:900">✓</span>' : "";
+    let bodyRows = "";
+    let no = 0;
+    for (const cat of cats) {
+      bodyRows += `<tr class="cat"><td colspan="6">${cat}</td></tr>`;
+      const catInsps = instInsps.filter(i => catOf(i.work_item_id) === cat);
+      for (const i of catInsps) {
+        no++;
+        const crit = critOf(i.work_item_id);
+        bodyRows += `<tr><td style="text-align:center">${no}</td><td>${i.work_item_name}${crit ? `<div class="crit">เกณฑ์: ${crit}</div>` : ""}</td><td style="text-align:center">${mark(i.result, "pass")}</td><td style="text-align:center">${mark(i.result, "acceptable")}</td><td style="text-align:center">${mark(i.result, "fail")}</td><td>${i.note ?? ""}</td></tr>`;
+      }
+    }
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>เอกสารตรวจสอบคุณภาพงาน — ${instHouse.house_number} งวด ${inst.installment_no}</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:28px;font-size:12px;color:#1a1a1a}.header{text-align:center;border-bottom:2px solid #1E4A35;padding-bottom:10px;margin-bottom:12px}.logo{font-size:16px;font-weight:900;color:#1E4A35;letter-spacing:1px}.logo span{color:#D4AF37}h2{font-size:14px;font-weight:700;margin:4px 0 0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:11px;margin:10px 0;border:1px solid #ddd;padding:8px;border-radius:6px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#1E4A35;color:#fff;padding:6px 6px;font-size:10px;border:1px solid #1E4A35}td{padding:5px 6px;border:1px solid #ddd;vertical-align:top}tr.cat td{background:#f0f7f3;font-weight:700;color:#1E4A35;font-size:11px}.crit{font-size:9px;color:#B8860B;margin-top:2px}.sig-row{display:flex;gap:40px;margin-top:36px}.sig{flex:1;text-align:center}.sig-line{border-top:1px solid #555;margin:40px 0 6px}.sig-role{font-size:11px;color:#444;font-weight:600}.sig-name{font-size:10px;color:#888}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:16px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>เอกสารตรวจสอบคุณภาพงาน (Quality Checklist)</h2></div><div class="meta"><div><b>โครงการ:</b> AVIVA Private</div><div><b>แปลง/ยูนิต:</b> ${instHouse.house_number}</div><div><b>ผู้รับเหมา:</b> ${instHouse.contractor ?? "—"}</div><div><b>งวดที่:</b> ${inst.installment_no} — ${inst.name}</div><div><b>ผู้ควบคุมงาน:</b> ${instHouse.site_engineer ?? "—"}</div><div><b>วันที่ตรวจ:</b> ${dateStr}</div></div><table><thead><tr><th style="width:6%">ลำดับ</th><th>รายการตรวจสอบ</th><th style="width:9%">ดี</th><th style="width:9%">พอใช้</th><th style="width:9%">ไม่ผ่าน</th><th style="width:22%">หมายเหตุ</th></tr></thead><tbody>${bodyRows || "<tr><td colspan='6' style='text-align:center;color:#999'>ยังไม่มีรายการตรวจ (ตั้งค่าได้ที่ ตั้งค่า → รายการตรวจคุณภาพงาน)</td></tr>"}</tbody></table><div class="sig-row"><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้ควบคุมงาน (ตรวจรับ)</div><div class="sig-name">(${instHouse.site_engineer ?? "..................................."})</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้รับเหมา</div><div class="sig-name">(${instHouse.contractor ?? "..................................."})</div></div></div><p style="margin-top:20px;font-size:10px;color:#bbb;text-align:center">จัดทำโดยระบบ AVIVA ONE · เกณฑ์ตรวจปรับได้ที่ ตั้งค่า → รายการตรวจคุณภาพงาน (QC)</p></body></html>`);
+    w.document.close();
+  };
+
+  // พิมพ์ใบสรุปงวดงานทั้งสัญญา (ทุกงวดในใบเดียว + ยอดสะสม) ตามเลย์เอาต์เอกสารผู้รับเหมา
+  // ใช้สูตรจ่ายจริงของแอป (calcNetPayout: amount − WHT − retention − ค่าปรับ) — ยังไม่รวม VAT (รอ Pom ยืนยันสูตร)
+  const printInstallmentSummary = () => {
+    if (!instHouse) return;
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const rows2 = installments.filter(i => i.house_id === instHouse.id).sort((a, b) => (a.installment_no ?? 0) - (b.installment_no ?? 0));
+    const contractTotal = rows2.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    let cumulative = 0;
+    const bodyRows = rows2.map(i => {
+      const p = calcNetPayout(i);
+      const isPaid = i.status === "paid";
+      if (isPaid) cumulative += p.net;
+      const payDate = i.paid_at ? new Date(i.paid_at).toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+      return `<tr><td style="text-align:center">${i.installment_no}</td><td>${i.name}</td><td style="text-align:right">${baht0(p.amount)}</td><td style="text-align:right;color:#c0392b">${baht0(p.retention)}</td><td style="text-align:right;color:#c0392b">${baht0(p.wht)}</td><td style="text-align:right;color:#c0392b">${p.penalty ? baht0(p.penalty) : "-"}</td><td style="text-align:right;font-weight:700">${baht0(p.net)}</td><td style="text-align:right;color:#1E4A35">${isPaid ? baht0(cumulative) : "-"}</td><td style="text-align:center;font-size:9px">${isPaid ? "จ่าย " + payDate : (i.status === "approved" ? "อนุมัติ" : i.status === "pending" ? "รอตรวจ" : "-")}</td></tr>`;
+    }).join("");
+    const totNet = rows2.reduce((s, i) => s + calcNetPayout(i).net, 0);
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบส่งงานผู้รับเหมา — ${instHouse.house_number}</title><style>*{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:26px;font-size:12px;color:#1a1a1a}.header{text-align:center;border-bottom:2px solid #1E4A35;padding-bottom:8px;margin-bottom:10px}.logo{font-size:16px;font-weight:900;color:#1E4A35;letter-spacing:1px}.logo span{color:#D4AF37}h2{font-size:14px;font-weight:700;margin:4px 0 0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:11px;margin:10px 0;border:1px solid #ddd;padding:8px;border-radius:6px}table{width:100%;border-collapse:collapse;font-size:10px;margin-top:8px}th{background:#1E4A35;color:#fff;padding:5px 4px;font-size:9px;border:1px solid #1E4A35;text-align:center}td{padding:4px 5px;border:1px solid #ddd}tfoot td{font-weight:700;background:#f0f7f3}.sig-row{display:flex;gap:40px;margin-top:36px}.sig{flex:1;text-align:center}.sig-line{border-top:1px solid #555;margin:40px 0 6px}.sig-role{font-size:11px;color:#444;font-weight:600}.sig-name{font-size:10px;color:#888}.note{font-size:9px;color:#B8860B;margin-top:8px}.btns{position:fixed;top:16px;right:16px;display:flex;gap:8px}.btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;font-weight:600}.btn-p{background:#1E4A35;color:#D4AF37}.btn-c{background:#eee;color:#333}@media print{.btns{display:none!important}body{padding:16px}}</style></head><body><div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div><div class="header"><div class="logo">AVIVA <span>Private</span></div><h2>ใบส่งงานผู้รับเหมา (สรุปงวดงานทั้งสัญญา)</h2></div><div class="meta"><div><b>โครงการ:</b> AVIVA Private</div><div><b>แปลง/ยูนิต:</b> ${instHouse.house_number}</div><div><b>ผู้รับเหมา:</b> ${instHouse.contractor ?? "—"}</div><div><b>วิศวกรควบคุม:</b> ${instHouse.site_engineer ?? "—"}</div><div><b>ราคาจ้างรวม:</b> ${baht0(contractTotal)}</div><div><b>จำนวนงวด:</b> ${rows2.length} งวด</div></div><table><thead><tr><th style="width:5%">งวด</th><th>ชื่องาน</th><th style="width:11%">ยอดเบิก</th><th style="width:9%">หัก Retention</th><th style="width:9%">หัก ณ ที่จ่าย</th><th style="width:8%">ค่าปรับ</th><th style="width:11%">ยอดสุทธิ</th><th style="width:11%">สะสมจ่ายแล้ว</th><th style="width:10%">สถานะ</th></tr></thead><tbody>${bodyRows}</tbody><tfoot><tr><td colspan="2" style="text-align:center">รวมทั้งสัญญา</td><td style="text-align:right">${baht0(contractTotal)}</td><td colspan="3"></td><td style="text-align:right">${baht0(totNet)}</td><td colspan="2"></td></tr></tfoot></table><p class="note">* ยอดสุทธิคำนวณตามระบบ AVIVA ONE (ยอดเบิก − เงินประกันผลงาน − หัก ณ ที่จ่าย − ค่าปรับล่าช้า) ยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) — หากสัญญาคิด VAT โปรดแจ้งเพื่อปรับสูตร</p><div class="sig-row"><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้ควบคุมงาน (ตรวจรับงาน)</div><div class="sig-name">(${instHouse.site_engineer ?? "..................................."})</div></div><div class="sig"><div class="sig-line"></div><div class="sig-role">ผู้บริหารโครงการ (อนุมัติจ่าย)</div><div class="sig-name">(...................................)</div></div></div><p style="margin-top:16px;font-size:10px;color:#bbb;text-align:center">จัดทำโดยระบบ AVIVA ONE · วันที่พิมพ์ ${dateStr}</p></body></html>`);
+    w.document.close();
+  };
+
   const printRejectionNotice = (inst: Installment) => {
     if (!instHouse) return;
     const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
@@ -1433,7 +1486,8 @@ export default function ConstructionPage() {
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => openDefectModal(instHouse)} aria-label="บัญชีข้อบกพร่อง" className="p-1.5 rounded-xl border border-orange-400/30 text-orange-400 bg-orange-400/5"><Bug size={13} /></button>
                     <button onClick={() => openEditHouse(instHouse)} aria-label="แก้ไข" className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary bg-aviva-bg/50"><Pencil size={13} /></button>
-                    <button onClick={printInstReport} aria-label="พิมพ์" className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> พิมพ์</button>
+                    <button onClick={printInstallmentSummary} aria-label="ใบส่งงวดงาน" className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl"><Printer size={12} /> ใบส่งงวดงาน</button>
+                    <button onClick={printInstReport} aria-label="พิมพ์ตารางงวด" className="flex items-center gap-1 text-[11px] text-aviva-secondary border border-aviva-gold/20 px-2 py-1.5 rounded-xl"><Printer size={12} /></button>
                     <button onClick={() => { setInstHouse(null); setHouseCustomer(null); }} aria-label="ปิด" className="p-1.5 rounded-xl border border-aviva-gold/20 text-aviva-secondary"><X size={13} /></button>
                   </div>
                 </div>
@@ -1505,11 +1559,16 @@ export default function ConstructionPage() {
                                 )}
                               </p>
                             )}
-                            {inst.status === "paid" && (
-                              <button onClick={() => printCertificate(inst)} className="flex items-center gap-1 text-[11px] text-green-400 border border-green-500/30 px-2 py-1.5 rounded-xl bg-green-500/5 hover:bg-green-500/10 transition-all">
-                                <Printer size={11} /> ใบรับรองผลงาน
+                            <div className="flex flex-wrap gap-1.5">
+                              <button onClick={() => printQCChecklist(inst)} className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl bg-aviva-gold/5 hover:bg-aviva-gold/10 transition-all">
+                                <Printer size={11} /> Checklist QC
                               </button>
-                            )}
+                              {inst.status === "paid" && (
+                                <button onClick={() => printCertificate(inst)} className="flex items-center gap-1 text-[11px] text-green-400 border border-green-500/30 px-2 py-1.5 rounded-xl bg-green-500/5 hover:bg-green-500/10 transition-all">
+                                  <Printer size={11} /> ใบรับรองผลงาน
+                                </button>
+                              )}
+                            </div>
                             {inst.status === "rejected" && inst.rejection_reason && (
                               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
                                 <div className="flex items-center justify-between mb-0.5">

@@ -127,7 +127,7 @@ export default function ReportsDigestPage() {
   const stats = data?.stats;
 
   return (
-    <div className="min-h-screen bg-aviva-bg px-4 pt-6 pb-28 max-w-3xl mx-auto space-y-4">
+    <div className="min-h-screen bg-aviva-bg px-4 pt-12 pb-28 max-w-3xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

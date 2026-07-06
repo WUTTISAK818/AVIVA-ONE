@@ -88,20 +88,42 @@ export interface TaxBreakdown {
 }
 
 export interface ContractorPayBreakdown {
-  gross: number;      // มูลค่างานงวด (ก่อนหัก)
-  wht: number;        // ภาษีหัก ณ ที่จ่าย
-  retention: number;  // เงินประกันผลงานที่หักไว้
-  net: number;        // ยอดจ่ายสุทธิ
+  base: number;       // มูลค่างานงวดก่อน VAT (ฐานคำนวณ WHT/ประกันผลงาน)
+  vat: number;        // ภาษีซื้อ 7% (ถ้าผู้รับเหมาจด VAT)
+  gross: number;      // ยอดรวม = base + vat (ยอดบนใบส่งงวด)
+  wht: number;        // ภาษีหัก ณ ที่จ่าย (คิดจาก base)
+  retention: number;  // เงินประกันผลงานที่หักไว้ (คิดจาก base)
+  net: number;        // ยอดจ่ายสุทธิ = gross − wht − retention
 }
 
-/** คำนวณยอดจ่ายผู้รับเหมา: หัก WHT + เงินประกันผลงาน จากมูลค่างานงวด */
-export function calcContractorPay(amount: number, whtRate: number, retentionRate: number): ContractorPayBreakdown {
-  const gross = r2(amount);
-  const wht = whtRate > 0 ? r2((gross * whtRate) / 100) : 0;
-  const retention = retentionRate > 0 ? r2((gross * retentionRate) / 100) : 0;
+/**
+ * คำนวณยอดจ่ายผู้รับเหมา: หัก WHT + เงินประกันผลงาน จากฐานก่อน VAT
+ * - `amount` = มูลค่างานงวดก่อน VAT (ฐาน)
+ * - `vatIncluded` = true เมื่อผู้รับเหมาจด VAT → บวก VAT 7% บนฐาน (ตรงกับใบส่งงวด v7.04)
+ * WHT/ประกันผลงาน คิดจากฐานก่อน VAT ตามหลักภาษี · จ่ายสุทธิ = (ฐาน+VAT) − WHT − ประกันผลงาน
+ * เข้ากันได้กับของเดิม: vatIncluded=false → vat=0, gross=base=amount เหมือนเดิมทุกประการ
+ */
+export function calcContractorPay(amount: number, whtRate: number, retentionRate: number, vatIncluded = false): ContractorPayBreakdown {
+  const base = r2(amount);
+  const vat = vatIncluded ? r2((base * 7) / 100) : 0;
+  const gross = r2(base + vat);
+  const wht = whtRate > 0 ? r2((base * whtRate) / 100) : 0;
+  const retention = retentionRate > 0 ? r2((base * retentionRate) / 100) : 0;
   const net = r2(gross - wht - retention);
-  return { gross, wht, retention, net };
+  return { base, vat, gross, wht, retention, net };
 }
+
+// เลขบัญชีที่ใช้จริงทั้งหมดในโค้ด — ใช้ตรวจ jv_lines.account_code ก่อน post กัน code ผี (เช่น 1100 เดิมที่ไม่มีในผังบัญชี)
+export const KNOWN_ACCOUNT_CODES: ReadonlySet<string> = new Set([
+  CASH.code, BANK.code, INPUT_VAT.code, OUTPUT_VAT.code, WHT_PAYABLE.code,
+  CONTRACTOR_PAYABLE.code, RETENTION_PAYABLE.code, AR.code, CUSTOMER_ADVANCE.code,
+  AP.code, PREPAID_WHT.code, SBT_EXPENSE.code, TRANSFER_FEE.code, WIP.code,
+  COGS.code, LAND_COST.code, SALES_REVENUE.code, ACCUM_DEPR.code,
+  ...Object.values(EXPENSE_BY_CATEGORY).map((a) => a.code),
+  ...Object.values(REVENUE_BY_CATEGORY).map((a) => a.code),
+  ...RECURRING_CATEGORIES.map((c) => c.code),
+  DEFAULT_EXPENSE.code, DEFAULT_REVENUE.code,
+]);
 
 /** คำนวณภาษีจากยอดที่กรอก (vatIncluded = ยอดนั้นรวม VAT 7% แล้ว) */
 export function calcTax(amount: number, vatIncluded: boolean, whtRate: number): TaxBreakdown {

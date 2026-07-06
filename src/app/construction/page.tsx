@@ -658,7 +658,9 @@ export default function ConstructionPage() {
   };
 
   const doAdvanceInst = async (inst: Installment) => {
-    const next: Record<string, string> = { pending: "in_review", in_review: "approved", approved: "paid" };
+    // ฝ่ายก่อสร้างเดินงานได้ถึง "approved" เท่านั้น — การจ่ายเงิน (approved→paid) ทำผ่านฝ่ายการเงิน
+    // เพื่อให้ทุกการจ่ายลงบัญชี (JV) เสมอ · กันเส้นทางคู่ที่ตั้ง paid โดยไม่ลงบัญชี
+    const next: Record<string, string> = { pending: "in_review", in_review: "approved" };
     const newStatus = next[inst.status] ?? inst.status;
     if (newStatus === inst.status) return;
     if (inst.status === "pending") {
@@ -679,19 +681,9 @@ export default function ConstructionPage() {
       setToast({ msg: "ต้องรออนุมัติจากผู้จัดการผ่านหน้าระบบอนุมัติ", type: "error" });
       setConfirmInst(null); return;
     }
-    if (inst.status === "approved") {
-      const { data: approvedLogs } = await supabase.from("approval_logs")
-        .select("approval_id").eq("source_record_id", inst.id)
-        .eq("workflow_type", "Installment_Review").eq("action_taken", "Approved").limit(1);
-      if (!approvedLogs || approvedLogs.length === 0) {
-        setToast({ msg: "ยังไม่มีบันทึกการอนุมัติ — กรุณาอนุมัติจากหน้าระบบอนุมัติก่อน", type: "error" });
-        setConfirmInst(null); return;
-      }
-    }
     const byName = user?.full_name ?? user?.email ?? "Unknown";
     const updatePayload: Record<string, string | null> = { status: newStatus };
     if (newStatus === "in_review") updatePayload.created_by_name = byName;
-    if (newStatus === "paid") { updatePayload.paid_by = byName; updatePayload.paid_at = new Date().toISOString(); }
     await supabase.from("contractor_installments").update(updatePayload).eq("id", inst.id);
     setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, status: newStatus, ...(newStatus === "in_review" ? { created_by_name: byName } : {}) } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
@@ -735,22 +727,6 @@ export default function ConstructionPage() {
         slaDueAt: slaDue,
       });
       notifyPush("ฝ่ายบริหาร", "งวดงานรออนุมัติ", `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`, "/approvals", `inst-${inst.id}`);
-    }
-    if (newStatus === "paid") {
-      // Phase 1 — close the finance queue + record the payment event
-      await closeWorkQueue(inst.id, "finance", byName);
-      await logWorkflowEvent({
-        workflowType: "Installment_Review",
-        sourceRecordId: inst.id,
-        eventType: "paid",
-        stageFrom: "approved",
-        stageTo: "paid",
-        actorName: byName,
-        actorRole: "finance",
-        amount: inst.amount ?? null,
-      });
-      // Phase 3 — notify the contractor (LINE/SMS + track link)
-      notifyContractor(instHouse?.contractor_line_id, "paid", inst.name);
     }
     await createNotification({
       type: notifType[newStatus] ?? "info",
@@ -846,7 +822,8 @@ export default function ConstructionPage() {
   };
 
   const advanceInstStatus = (inst: Installment) => {
-    const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved", approved: "paid" };
+    // ก่อสร้างเดินได้ถึง approved เท่านั้น — จ่ายเงินทำที่ฝ่ายการเงิน (ลง JV เสมอ)
+    const next: Record<string, string> = { pending: "in_review", rejected: "in_review", in_review: "approved" };
     if (!next[inst.status] || next[inst.status] === inst.status) return;
     if (inst.status === "pending" || inst.status === "rejected") {
       setAckInst(inst);
@@ -2265,7 +2242,7 @@ export default function ConstructionPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" role="presentation">
           <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4" role="alertdialog" aria-labelledby="confirm-modal-title">
             <h2 id="confirm-modal-title" className="text-base font-bold text-aviva-text">ยืนยันการส่งเบิก?</h2>
-            <p className="text-sm text-aviva-secondary">{confirmInst.name} — เปลี่ยนสถานะเป็น &quot;{instStatusConfig[({ pending: "in_review", in_review: "approved", approved: "paid" } as Record<string,string>)[confirmInst.status] ?? confirmInst.status]?.label}&quot;</p>
+            <p className="text-sm text-aviva-secondary">{confirmInst.name} — เปลี่ยนสถานะเป็น &quot;{instStatusConfig[({ pending: "in_review", in_review: "approved" } as Record<string,string>)[confirmInst.status] ?? confirmInst.status]?.label}&quot;</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmInst(null)} className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
               <button onClick={() => doAdvanceInst(confirmInst)} className="flex-1 py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm">ยืนยัน</button>

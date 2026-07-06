@@ -219,16 +219,16 @@
 | VAT ครบวงจร | 6/10 | AR→OUTPUT_VAT, AP→INPUT_VAT+vat_register ครบ · แต่จ่ายผู้รับเหมา **ไม่มีบรรทัด INPUT_VAT** ขณะที่ใบพิมพ์ v7.04 โชว์ VAT 7% → เอกสารกับบัญชีไม่ตรง |
 | **รวม** | **6.8/10** | โครงหลักดี (บัญชีคู่ balance 100%) แต่มีรอยต่อไม่สอดคล้อง 4 จุด |
 
-### รายการที่ต้องตัดสินใจแก้ (รออนุมัติ Pom)
-| # | ระดับ | ปัญหา | ข้อเสนอแก้ | สถานะ |
-|---|------|-------|-----------|-------|
-| 1 | P1 | จ่ายงวดไม่ idempotent → JV กำพร้า/เสี่ยงโพสต์ซ้ำ (งวด 1 มี JV แต่งวดไม่ paid; 10 JV vs 9 paid) | เช็ก `status='approved'` ก่อน postJv (guard `.eq status`) + กันกดซ้ำ + เก็บ `jv_id` อ้างอิงบน installment | 🆕 รอ Pom |
-| 2 | P1 | เส้นทางคู่ตั้ง `paid`: `construction/doAdvanceInst` ตั้ง paid ได้โดยไม่ลง JV (ตอนนี้ปุ่ม disable → latent) | ตัด `approved→paid` ออกจากฝั่งก่อสร้างถาวร (จ่าย=การเงินเท่านั้น) | 🆕 รอ Pom |
-| 3 | P2 | จ่ายผู้รับเหมาไม่บันทึก INPUT_VAT แต่ใบพิมพ์โชว์ VAT 7% → เอกสาร≠บัญชี | เพิ่มตัวเลือก VAT ตอนจ่ายงวด → ลง INPUT_VAT + vat_register (ให้ตรงใบ) | 🆕 รอ Pom |
-| 4 | P2 | JV เก่าอ้าง account `1100`/`2100` ที่ผิด/ไม่มีในผังบัญชี (ข้อมูล demo) | validate `jv_lines.account_code` ต้องมีใน `chart_of_accounts` + ล้าง JV demo (amount=0) | 🆕 รอ Pom |
-| 5 | P3 | `net_payout` = null บนงวดที่ paid (ไม่เก็บยอดจ่ายสุทธิตอนจ่าย) | เขียน `net_payout` ตอน postJv การเงิน | 🆕 รอ Pom |
+### รายการแก้ (Pom อนุมัติทั้งหมด 2026-07-06 → ทำ v7.07)
+| # | ระดับ | ปัญหา | ทำอะไร | สถานะ |
+|---|------|-------|--------|-------|
+| 1 | P1 | จ่ายงวดไม่ idempotent → JV กำพร้า/เสี่ยงโพสต์ซ้ำ | `handlePayInstallment` พลิก `approved→paid` แบบ atomic (`.eq("status","approved")`) ก่อน — post JV ต่อเมื่อพลิกได้จริง กันกดซ้ำ/JV ซ้ำ | ✅ โค้ดเสร็จ v7.07 (build ผ่าน) |
+| 2 | P1 | เส้นทางคู่ตั้ง `paid` ฝั่งก่อสร้างไม่ลง JV | ตัด `approved→paid` ออกจาก `doAdvanceInst`+`advanceInstStatus` ถาวร (ก่อสร้างสุดที่ approved · จ่าย=การเงินเท่านั้น) | ✅ โค้ดเสร็จ v7.07 |
+| 3 | P2 | จ่ายผู้รับเหมาไม่บันทึก INPUT_VAT แต่ใบโชว์ VAT 7% | เพิ่ม checkbox "ผู้รับเหมาจด VAT" ตอนจ่าย → `calcContractorPay(...,vatIncluded)` ลง INPUT_VAT + vat_register (base/vat/gross ตรงใบ) | ✅ โค้ดเสร็จ v7.07 |
+| 4 | P2 | JV เก่าอ้าง account `1100`/`2100` ไม่มีในผังบัญชี | โค้ด: `postJv` validate ทุกบรรทัดต้องอยู่ใน `KNOWN_ACCOUNT_CODES` (กัน code ผีต่อไป) · **DB: ล้าง JV demo (amount=0) = ส่ง SQL ให้ Vee** | ✅ โค้ดเสร็จ · 🚫 DB รอ Vee รัน SQL |
+| 5 | P3 | `net_payout` = null บนงวดที่ paid | `handlePayInstallment` เขียน `net_payout = pay.net` ตอนจ่าย | ✅ โค้ดเสร็จ v7.07 |
 
-**สรุปกระทบยอด #10:** ตรวจเสร็จ · พบ 5 ข้อ (P1×2 · P2×2 · P3×1) — **ทั้งหมด 🆕 รอ Pom อนุมัติก่อนแก้** (ห้ามแก้บัญชีเองตาม QA-STANDARD ส่วน C#6) · ข้อดี: บัญชีคู่ balance 100% (0 JV เพี้ยน) · ผังบัญชีกลางรวมศูนย์แล้ว
+**สรุปกระทบยอด #10:** 5 ข้อ — ✅ โค้ดเสร็จ ×5 (v7.07 build ผ่าน) · ข้อ 4 เหลือ DB cleanup → 🚫 รอ Vee รัน SQL (ล้าง JV demo ยอด 0) · รอ Pom/Vee ทดสอบจ่ายจริง (VAT/กันซ้ำ) บนมือถือเพื่อเป็น ✔️
 
 ---
 

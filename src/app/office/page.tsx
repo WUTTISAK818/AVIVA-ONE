@@ -19,7 +19,7 @@ import AIInsightPanel from "@/components/AIInsightPanel";
 import AttachDocButton from "@/components/AttachDocButton";
 import { renderDocShell, renderItemsTable, esc, type DocTemplate } from "@/lib/doc-templates";
 import { supabase } from "@/lib/supabase";
-import { postJv } from "@/lib/jv";
+import { postJv, yymm } from "@/lib/jv";
 import { logAction } from "@/lib/audit";
 import { attachDocumentToEntity } from "@/lib/doc-attach";
 import { useCurrentUser } from "@/lib/user-context";
@@ -171,7 +171,7 @@ function FinanceContent() {
   const [approvedInsts, setApprovedInsts] = useState<ContractorInstallmentPay[]>([]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [payingInst, setPayingInst] = useState<ContractorInstallmentPay | null>(null);
-  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
+  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION, vat_included: false });
   const [finToast, setFinToast] = useState<{ msg: string; type: ToastType } | null>(null);
   useFormDraft("office-draft-finance", form, setForm, showModal);
 
@@ -216,31 +216,54 @@ function FinanceContent() {
   const handlePayInstallment = async () => {
     if (!payingInst) return;
     setSaving(true);
+    const paidByName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
+    // Idempotency: พลิกสถานะ approved→paid แบบ atomic ก่อน (guard .eq status) — ลง JV ต่อเมื่อพลิกได้จริง
+    // กันกดจ่ายซ้ำ/JV กำพร้า: ถ้างวดถูกจ่ายไปแล้ว update จะไม่โดนแถวไหน → หยุด ไม่ post JV ซ้ำ
+    const { data: flipped } = await supabase.from("contractor_installments")
+      .update({ status: "paid", paid_by: paidByName, paid_at: new Date().toISOString() })
+      .eq("id", payingInst.id).eq("status", "approved").select("id");
+    if (!flipped || flipped.length === 0) {
+      setSaving(false);
+      alert("งวดนี้ถูกจ่ายไปแล้วหรือยังไม่อนุมัติ — ไม่บันทึกซ้ำ");
+      setShowPayModal(false); setPayingInst(null); fetchApprovedInsts();
+      return;
+    }
     // บันทึกเป็น JV เดียว (jv_entries/jv_lines) — แหล่งบัญชีเดียว ไม่เขียนซ้ำลง accounting_entries
     // ฝัง payment_method / notes ไว้ในคำอธิบายเพื่อคงข้อมูลเดิม โดยขึ้นต้นด้วย "จ่ายงวดก่อสร้าง:" สำหรับ filter
     const unit = payingInst.house_number ?? payingInst.house_id;
-    // หัก WHT (ค่าจ้างทำของ) + เงินประกันผลงาน (retention) จากมูลค่างานงวด
-    const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate);
+    // หัก WHT (ค่าจ้างทำของ) + เงินประกันผลงาน (retention) จากฐานก่อน VAT · บวก VAT 7% ถ้าผู้รับเหมาจด VAT
+    const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate, payForm.vat_included);
     let jvDesc = `จ่ายงวดก่อสร้าง: ${payingInst.name} — ยูนิต ${unit} (${payForm.payment_method})`;
+    if (pay.vat > 0) jvDesc += ` — VAT 7% ฿${pay.vat.toLocaleString()}`;
     jvDesc += ` — หัก ณ ที่จ่าย ${payForm.wht_rate}% ฿${pay.wht.toLocaleString()}, ประกันผลงาน ${payForm.retention_rate}% ฿${pay.retention.toLocaleString()}, จ่ายสุทธิ ฿${pay.net.toLocaleString()}`;
     if (payForm.notes) jvDesc += ` — ${payForm.notes}`;
-    // เดบิตงานระหว่างก่อสร้าง (สินค้าคงเหลือ) — ต้นทุนสะสมจนตัดเป็นต้นทุนขายตอนโอน
+    // เดบิตงานระหว่างก่อสร้าง (สินค้าคงเหลือ) = ฐานก่อน VAT · เดบิตภาษีซื้อ (ถ้ามี VAT)
     // หัก WHT/ประกันผลงาน ฝั่งเครดิต จ่ายสุทธิเข้าธนาคาร
     const payLines = [
-      { account_code: WIP.code, account_name: WIP.name, debit: pay.gross, credit: 0 },
+      { account_code: WIP.code, account_name: WIP.name, debit: pay.base, credit: 0 },
     ];
+    if (pay.vat > 0) payLines.push({ account_code: INPUT_VAT.code, account_name: INPUT_VAT.name, debit: pay.vat, credit: 0 });
     if (pay.wht > 0) payLines.push({ account_code: WHT_PAYABLE.code, account_name: WHT_PAYABLE.name, debit: 0, credit: pay.wht });
     if (pay.retention > 0) payLines.push({ account_code: RETENTION_PAYABLE.code, account_name: RETENTION_PAYABLE.name, debit: 0, credit: pay.retention });
     payLines.push({ account_code: BANK.code, account_name: BANK.name, debit: 0, credit: pay.net });
-    await postJv({
+    const jvId = await postJv({
       project_id: PROJECT_ID,
       jv_date: payForm.entry_date,
       description: jvDesc,
       ref_number: payForm.reference_number || null,
       lines: payLines,
     });
-    const paidByName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
-    await supabase.from("contractor_installments").update({ status: "paid", paid_by: paidByName, paid_at: new Date().toISOString() }).eq("id", payingInst.id);
+    // ลงทะเบียนภาษีซื้อให้ตรงกับใบส่งงวด (เอกสาร = บัญชี) เมื่อมี VAT
+    if (pay.vat > 0) {
+      await supabase.from("vat_register").insert({
+        vat_type: "input", invoice_no: payForm.reference_number || `INST-${payingInst.id.slice(0, 8)}`,
+        invoice_date: payForm.entry_date, party_name: `งวดงาน ${payingInst.name} — ยูนิต ${unit}`,
+        base_amount: pay.base, vat_amount: pay.vat, total_amount: pay.gross,
+        period: yymm(new Date(payForm.entry_date)), etax_status: "pending", project_id: PROJECT_ID,
+      });
+    }
+    // เก็บยอดจ่ายสุทธิลงงวด (P3) เพื่ออ้างอิงย้อนหลัง
+    await supabase.from("contractor_installments").update({ net_payout: pay.net }).eq("id", payingInst.id);
     await createNotification({
       type: "success",
       title: `${payingInst.name} — บันทึกจ่ายแล้ว`,
@@ -250,7 +273,7 @@ function FinanceContent() {
     setSaving(false);
     setShowPayModal(false);
     setPayingInst(null);
-    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION });
+    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION, vat_included: false });
     fetchApprovedInsts();
   };
 
@@ -709,11 +732,18 @@ function FinanceContent() {
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
               </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={payForm.vat_included}
+                  onChange={e => setPayForm({ ...payForm, vat_included: e.target.checked })}
+                  className="w-4 h-4 accent-aviva-gold" />
+                <span className="text-xs text-aviva-secondary">ผู้รับเหมาจด VAT — บวกภาษีซื้อ 7% (ตรงกับใบส่งงวด)</span>
+              </label>
               {payingInst && (() => {
-                const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate);
+                const pay = calcContractorPay(payingInst.amount, payForm.wht_rate, payForm.retention_rate, payForm.vat_included);
                 return (
                   <div className="bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-4 py-2.5 text-xs space-y-1">
-                    <div className="flex justify-between text-aviva-secondary"><span>มูลค่างานงวด</span><span>฿{pay.gross.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-aviva-secondary"><span>มูลค่างานงวด (ก่อน VAT)</span><span>฿{pay.base.toLocaleString()}</span></div>
+                    {pay.vat > 0 && <div className="flex justify-between text-sky-400/90"><span>+ ภาษีซื้อ VAT 7%</span><span>+฿{pay.vat.toLocaleString()}</span></div>}
                     <div className="flex justify-between text-red-400/90"><span>หัก ณ ที่จ่าย {payForm.wht_rate}%</span><span>−฿{pay.wht.toLocaleString()}</span></div>
                     <div className="flex justify-between text-orange-400/90"><span>หักประกันผลงาน {payForm.retention_rate}%</span><span>−฿{pay.retention.toLocaleString()}</span></div>
                     <div className="flex justify-between text-aviva-gold font-bold border-t border-aviva-gold/10 pt-1"><span>จ่ายสุทธิ</span><span>฿{pay.net.toLocaleString()}</span></div>

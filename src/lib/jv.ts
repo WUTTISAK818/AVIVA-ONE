@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { KNOWN_ACCOUNT_CODES } from "@/lib/gl-accounts";
 
 /** "YYMM" — งวดบัญชี/ภาษี (พ.ศ. 2 หลักท้าย + เดือน 2 หลัก) จากปี ค.ศ. */
 export function yymm(d: Date = new Date()) {
@@ -37,6 +38,13 @@ export async function postJv(params: {
   // Guard: รายการบัญชีต้องสมดุล (เดบิต = เครดิต) — ป้องกัน JV ไม่ balance ตามหลักบัญชีคู่
   if (Math.round(total_debit * 100) !== Math.round(total_credit * 100)) {
     console.error("postJv: JV ไม่สมดุล — ไม่บันทึก", { total_debit, total_credit, description: params.description });
+    return null;
+  }
+
+  // Guard: ทุกบรรทัดต้องอ้างเลขบัญชีที่มีจริงในผังบัญชี — กัน code ผี (เช่น 1100 เดิมที่ไม่มีในผังบัญชี)
+  const badCodes = params.lines.map((l) => l.account_code).filter((c) => !KNOWN_ACCOUNT_CODES.has(c));
+  if (badCodes.length > 0) {
+    console.error("postJv: เลขบัญชีไม่มีในผังบัญชี — ไม่บันทึก", { badCodes, description: params.description });
     return null;
   }
 

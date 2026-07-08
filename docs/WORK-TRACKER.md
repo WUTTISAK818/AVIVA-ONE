@@ -225,7 +225,7 @@
 | 1 | P1 | จ่ายงวดไม่ idempotent → JV กำพร้า/เสี่ยงโพสต์ซ้ำ | `handlePayInstallment` พลิก `approved→paid` แบบ atomic (`.eq("status","approved")`) ก่อน — post JV ต่อเมื่อพลิกได้จริง กันกดซ้ำ/JV ซ้ำ | ✅ โค้ดเสร็จ v7.07 (build ผ่าน) |
 | 2 | P1 | เส้นทางคู่ตั้ง `paid` ฝั่งก่อสร้างไม่ลง JV | ตัด `approved→paid` ออกจาก `doAdvanceInst`+`advanceInstStatus` ถาวร (ก่อสร้างสุดที่ approved · จ่าย=การเงินเท่านั้น) | ✅ โค้ดเสร็จ v7.07 |
 | 3 | P2 | จ่ายผู้รับเหมาไม่บันทึก INPUT_VAT แต่ใบโชว์ VAT 7% | เพิ่ม checkbox "ผู้รับเหมาจด VAT" ตอนจ่าย → `calcContractorPay(...,vatIncluded)` ลง INPUT_VAT + vat_register (base/vat/gross ตรงใบ) | ✅ โค้ดเสร็จ v7.07 |
-| 4 | P2 | JV เก่าอ้าง account `1100`/`2100` ไม่มีในผังบัญชี | โค้ด: `postJv` validate ทุกบรรทัดต้องอยู่ใน `KNOWN_ACCOUNT_CODES` (กัน code ผีต่อไป) · **DB: ล้าง JV demo (amount=0) = ส่ง SQL ให้ Vee** | ✅ โค้ดเสร็จ · 🚫 DB รอ Vee รัน SQL |
+| 4 | P2 | JV เก่าอ้าง account `1100`/`2100` ไม่มีในผังบัญชี | โค้ด: `postJv` validate `KNOWN_ACCOUNT_CODES` · **DB: ล้าง JV demo แล้ว (ONE รันเอง v7.09) — 15→5 JV, code 1100 หมด, 0 unbalanced** | ✔️ ตรวจผ่าน (โค้ด+DB) |
 | 5 | P3 | `net_payout` = null บนงวดที่ paid | `handlePayInstallment` เขียน `net_payout = pay.net` ตอนจ่าย | ✅ โค้ดเสร็จ v7.07 |
 
 **สรุปกระทบยอด #10:** 5 ข้อ — ✅ โค้ดเสร็จ ×5 (v7.07 build ผ่าน) · ข้อ 4 เหลือ DB cleanup → 🚫 รอ Vee รัน SQL (ล้าง JV demo ยอด 0) · รอ Pom/Vee ทดสอบจ่ายจริง (VAT/กันซ้ำ) บนมือถือเพื่อเป็น ✔️
@@ -258,9 +258,10 @@
 | 3 | P1 | ข้อเสนอแนะ (`/settings/suggestions`) | เสนอไอเดีย · ผู้บริหารพิจารณา · ส่งออกให้ผู้พัฒนา | ✅ โค้ดเสร็จ v7.08 |
 | 4 | P2 | จัดการผู้รับเหมา (`/settings/contractors`) | เพิ่ม/แก้ · ผูกแปลง · คะแนน Scorecard | ✅ โค้ดเสร็จ v7.08 |
 | 5 | P2 | แบบฟอร์มมาตรฐาน (`/settings/forms`) | ดู/พิมพ์แบบฟอร์มเปล่า · ใช้เมื่อไร | ✅ โค้ดเสร็จ v7.08 |
-| 6 | P3 | contractor-scorecard · reports/audit · settings/shifts | ยังไม่ลิงก์เมนูหลัก | 🚫 รอเปิดใช้ก่อนค่อยเขียน |
+| 6 | P3 | ประวัติการตรวจสอบ (`/reports/audit`) — ลิงก์จากรายงานทีม | เพิ่มหมวด "ประวัติการตรวจสอบ (Audit Trail)" | ✅ โค้ดเสร็จ v7.09 |
+| 7 | P3 | contractor-scorecard · settings/shifts | **ไม่ลิงก์ในเมนูใด (orphaned)** → ไม่เขียน เพื่อไม่พาผู้ใช้ไปหน้าตาย (scorecard มีอยู่แล้วในหน้าผู้รับเหมา) | 🚫 ไม่เขียน (ยังไม่เปิดใช้) |
 
-**สรุปกระทบยอด #11:** ✅ แก้ Docs Sync (หัวข้อจ่ายผู้รับเหมาตรง v7.07) + เพิ่ม 5 หัวข้อใหม่ (P1×3 · P2×2) เข้าคู่มือ v7.08 (16→21 หมวด) build ผ่าน · คู่มือครบขึ้นจาก 8.4 → ~9.5/10 · เหลือ P3 (3 route ยังไม่ลิงก์เมนู — เปิดใช้ก่อนค่อยเขียน) · รอ Pom/Vee เปิดคู่มือดูจริง
+**สรุปกระทบยอด #11:** ✅ แก้ Docs Sync + เพิ่ม 6 หมวดใหม่ (P1×3 · P2×2 · P3×1 Audit) เข้าคู่มือ (16→22 หมวด) build ผ่าน · คู่มือครบ ~9.7/10 · เหลือ 2 route orphaned (ไม่ลิงก์เมนู) จงใจไม่เขียนกันพาไปหน้าตาย · รอ Pom/Vee เปิดคู่มือดูจริง
 
 ---
 

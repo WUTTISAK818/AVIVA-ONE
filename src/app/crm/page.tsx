@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
 import { createNotification, notifyActivityLine, notifyMilestone } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
+import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
@@ -1475,6 +1476,7 @@ export default function CRMPage() {
                 </p>
               </GlassCard>
             )}
+            {user?.isManager && <WeeklyIntakeWidget />}
             {salesActs.length > 0 && (
               <GlassCard className="p-4">
                 <p className="text-xs font-semibold text-aviva-gold mb-2">กิจกรรมล่าสุด</p>

@@ -12,6 +12,7 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
 import TeamReportsSummaryWidget from "@/components/TeamReportsSummaryWidget";
+import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import { supabase } from "@/lib/supabase";
 import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
@@ -602,6 +603,10 @@ export default function DashboardPage() {
 
         {ctxUser?.isManager && (
           <TeamReportsSummaryWidget />
+        )}
+
+        {ctxUser?.isManager && (
+          <WeeklyIntakeWidget />
         )}
 
         {ctxUser?.isManager && (

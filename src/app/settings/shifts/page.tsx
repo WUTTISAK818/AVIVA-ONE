@@ -1,240 +1,164 @@
 'use client';
-
-import { useState, useEffect } from 'react';
-import { Clock, Users, AlertCircle, CheckCircle } from 'lucide-react';
-import SectionHeader from '@/components/SectionHeader';
+// เวลาทำงาน & วันหยุดบริษัท — ผู้บริหารกำหนดเอง (ใช้คำนวณมาสาย + วันทำงานในระบบเงินเดือน)
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ChevronLeft, Clock, CalendarOff, Plus, Trash2, Save, Check } from 'lucide-react';
 import GlassCard from '@/components/GlassCard';
-import type { EmployeeShift } from '@/lib/types/attendance';
+import { supabase } from '@/lib/supabase';
+import { useCurrentUser } from '@/lib/user-context';
+import { loadWorkSchedule, saveWorkSchedule, loadHolidays, DEFAULT_SCHEDULE, type WorkSchedule } from '@/lib/work-schedule';
 
-interface EmployeeWithShift {
-  id: string;
-  first_name: string;
-  last_name: string;
-  shift?: EmployeeShift;
-}
+const PROJECT_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
+const DOW = [['อา', 0], ['จ', 1], ['อ', 2], ['พ', 3], ['พฤ', 4], ['ศ', 5], ['ส', 6]] as const;
+const thDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
-export default function ShiftsSettingPage() {
-  const [employees, setEmployees] = useState<EmployeeWithShift[]>([]);
-  const [shifts, setShifts] = useState<EmployeeShift[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    start_time: '09:00',
-    end_time: '17:00',
-    shift_name: 'Standard',
-    grace_period_minutes: 15,
-    break_duration_minutes: 60,
-    working_days: 'Mon,Tue,Wed,Thu,Fri',
-    notes: '',
-  });
+export default function WorkScheduleSettingsPage() {
+  const user = useCurrentUser();
+  const router = useRouter();
+  const [sched, setSched] = useState<WorkSchedule>(DEFAULT_SCHEDULE);
+  const [holidays, setHolidays] = useState<{ id?: string; holiday_date: string; name: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const [newName, setNewName] = useState('');
 
-  useEffect(() => {
-    fetchData();
+  const reloadHolidays = useCallback(async () => {
+    const { data } = await supabase.from('company_holidays').select('id, holiday_date, name').order('holiday_date');
+    setHolidays((data as { id: string; holiday_date: string; name: string | null }[]) ?? []);
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Fetch shifts
-      const shiftsRes = await fetch('/api/shifts');
-      const shiftsData = await shiftsRes.json();
-      if (shiftsData.success) {
-        setShifts(shiftsData.data || []);
-      }
-
-      // Fetch employees (placeholder - would need actual endpoint)
-      // For now, we'll show shifts
-    } catch (err) {
-      console.error('Failed to fetch data:', err);
-    } finally {
+  useEffect(() => {
+    if (!user) return;
+    if (!user.isManager) { router.replace('/dashboard'); return; }
+    (async () => {
+      setSched(await loadWorkSchedule());
+      await reloadHolidays();
       setLoading(false);
-    }
+    })();
+  }, [user, router, reloadHolidays]);
+
+  const save = async () => {
+    await saveWorkSchedule(sched);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   };
 
-  const handleSaveShift = async (employeeId: string) => {
-    try {
-      const response = await fetch('/api/shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_id: employeeId,
-          ...formData,
-        }),
-      });
+  const toggleOff = (d: number) => setSched(s => ({
+    ...s,
+    weekly_off_days: s.weekly_off_days.includes(d) ? s.weekly_off_days.filter(x => x !== d) : [...s.weekly_off_days, d].sort(),
+  }));
 
-      const data = await response.json();
-      if (data.success) {
-        setEditingId(null);
-        fetchData();
-      }
-    } catch (err) {
-      console.error('Failed to save shift:', err);
-    }
+  const addHoliday = async () => {
+    if (!newDate) return;
+    await supabase.from('company_holidays').upsert({ project_id: PROJECT_ID, holiday_date: newDate, name: newName.trim() || null }, { onConflict: 'project_id,holiday_date' });
+    setNewDate(''); setNewName('');
+    reloadHolidays();
   };
+  const delHoliday = async (id?: string) => { if (!id) return; await supabase.from('company_holidays').delete().eq('id', id); reloadHolidays(); };
+
+  if (loading) return <div className="min-h-screen bg-aviva-bg flex items-center justify-center text-aviva-secondary text-sm">กำลังโหลด…</div>;
 
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        title="Employee Shifts Management"
-        subtitle="Set work start/end times for each employee - used for automatic late detection"
-      />
-
-      {/* Info Box */}
-      <GlassCard className="border border-blue-500/20 bg-blue-500/5">
-        <div className="flex gap-3">
-          <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-1" />
-          <div className="text-sm text-aviva-secondary/80">
-            <p className="font-semibold text-blue-300 mb-1">How It Works</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Set the expected work start time for each employee</li>
-              <li>Late arrivals are automatically detected from Hikvision check-ins</li>
-              <li>Grace period allows N minutes buffer before flagging as late</li>
-              <li>Late records are tracked for payroll deductions</li>
-            </ul>
-          </div>
+    <div className="min-h-screen bg-aviva-bg pb-24">
+      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
+        <div className="max-w-lg mx-auto flex items-center gap-2">
+          <Link href="/settings" className="text-aviva-secondary"><ChevronLeft size={20} /></Link>
+          <Clock size={18} className="text-aviva-gold" />
+          <h1 className="text-lg font-bold text-aviva-text">เวลาทำงาน & วันหยุด</h1>
         </div>
-      </GlassCard>
-
-      {/* Shifts List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {shifts.map((shift) => {
-          const isEditing = editingId === shift.id;
-          return (
-            <GlassCard key={shift.id}>
-              <div className="space-y-4">
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-aviva-secondary/60 mb-1">Employee</p>
-                    <p className="font-semibold">{shift.shift_name}</p>
-                  </div>
-                  {!isEditing && (
-                    <button
-                      onClick={() => {
-                        setEditingId(shift.id);
-                        setFormData({
-                          start_time: shift.start_time.substring(0, 5),
-                          end_time: shift.end_time.substring(0, 5),
-                          shift_name: shift.shift_name,
-                          grace_period_minutes: shift.grace_period_minutes,
-                          break_duration_minutes: shift.break_duration_minutes,
-                          working_days: shift.working_days,
-                          notes: shift.notes || '',
-                        });
-                      }}
-                      className="px-2 py-1 text-xs bg-aviva-gold/20 text-aviva-gold rounded hover:bg-aviva-gold/30 transition"
-                    >
-                      Edit
-                    </button>
-                  )}
-                </div>
-
-                {/* Display Mode */}
-                {!isEditing && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-aviva-gold" />
-                      <div>
-                        <p className="text-xs text-aviva-secondary/60">Work Hours</p>
-                        <p className="text-sm font-medium">{shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}</p>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-aviva-gold/10">
-                      <p className="text-xs text-aviva-secondary/60 mb-1">Grace Period</p>
-                      <p className="text-sm">{shift.grace_period_minutes} minutes</p>
-                    </div>
-
-                    <div className="pt-2 border-t border-aviva-gold/10">
-                      <p className="text-xs text-aviva-secondary/60 mb-1">Working Days</p>
-                      <p className="text-xs text-aviva-secondary/80">{shift.working_days}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Edit Mode */}
-                {isEditing && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-aviva-secondary/60 block mb-1">Shift Name</label>
-                      <input
-                        type="text"
-                        value={formData.shift_name}
-                        onChange={(e) => setFormData({ ...formData, shift_name: e.target.value })}
-                        className="w-full px-3 py-2 bg-aviva-card border border-aviva-gold/20 rounded text-sm text-white"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-aviva-secondary/60 block mb-1">Start Time</label>
-                        <input
-                          type="time"
-                          value={formData.start_time}
-                          onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                          className="w-full px-3 py-2 bg-aviva-card border border-aviva-gold/20 rounded text-sm text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-aviva-secondary/60 block mb-1">End Time</label>
-                        <input
-                          type="time"
-                          value={formData.end_time}
-                          onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                          className="w-full px-3 py-2 bg-aviva-card border border-aviva-gold/20 rounded text-sm text-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-aviva-secondary/60 block mb-1">Grace Period (minutes)</label>
-                      <input
-                        type="number"
-                        value={formData.grace_period_minutes}
-                        onChange={(e) => setFormData({ ...formData, grace_period_minutes: parseInt(e.target.value) })}
-                        className="w-full px-3 py-2 bg-aviva-card border border-aviva-gold/20 rounded text-sm text-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-aviva-secondary/60 block mb-1">Notes</label>
-                      <textarea
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        className="w-full px-3 py-2 bg-aviva-card border border-aviva-gold/20 rounded text-sm text-white"
-                        rows={2}
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleSaveShift(shift.employee_id)}
-                        className="flex-1 px-3 py-2 bg-green-600/30 text-green-400 rounded text-sm font-medium hover:bg-green-600/40 transition flex items-center justify-center gap-2"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="flex-1 px-3 py-2 bg-aviva-gold/10 text-aviva-gold rounded text-sm hover:bg-aviva-gold/20 transition"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </GlassCard>
-          );
-        })}
       </div>
 
-      {shifts.length === 0 && !loading && (
-        <GlassCard className="text-center py-12">
-          <Users className="w-12 h-12 text-aviva-secondary/30 mx-auto mb-3" />
-          <p className="text-aviva-secondary/60">No employee shifts configured yet</p>
+      <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
+        {/* เวลาทำงาน */}
+        <GlassCard className="p-4 space-y-3">
+          <p className="text-sm font-semibold text-aviva-gold">เวลาทำงานมาตรฐาน</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">เวลาเข้างาน</label>
+              <input type="time" value={sched.work_start} onChange={e => setSched({ ...sched, work_start: e.target.value })}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">เวลาเลิกงาน</label>
+              <input type="time" value={sched.work_end} onChange={e => setSched({ ...sched, work_end: e.target.value })}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-aviva-secondary mb-1 block">ผ่อนผันก่อนนับสาย (นาที)</label>
+            <input type="number" inputMode="numeric" value={sched.grace_minutes} onChange={e => setSched({ ...sched, grace_minutes: Number(e.target.value) })}
+              className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
+          </div>
         </GlassCard>
-      )}
+
+        {/* วันหยุดประจำสัปดาห์ */}
+        <GlassCard className="p-4 space-y-2">
+          <p className="text-sm font-semibold text-aviva-gold">วันหยุดประจำสัปดาห์</p>
+          <div className="flex gap-1.5">
+            {DOW.map(([label, d]) => (
+              <button key={d} onClick={() => toggleOff(d)}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold border ${sched.weekly_off_days.includes(d) ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-aviva-bg text-aviva-secondary border-aviva-gold/15'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-aviva-secondary/60">แดง = วันหยุด (ไม่นับเป็นวันทำงาน/ไม่หักขาดงาน)</p>
+        </GlassCard>
+
+        {/* การหักเงิน + ประกันสังคม */}
+        <GlassCard className="p-4 space-y-3">
+          <p className="text-sm font-semibold text-aviva-gold">การหักเงิน</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">หักมาสาย (บาท/ครั้ง)</label>
+              <input type="number" inputMode="numeric" value={sched.late_deduction_per_day} onChange={e => setSched({ ...sched, late_deduction_per_day: Number(e.target.value) })}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
+            </div>
+            <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">หักขาดงาน (บาท/วัน)</label>
+              <input type="number" inputMode="numeric" value={sched.absent_deduction_per_day} onChange={e => setSched({ ...sched, absent_deduction_per_day: Number(e.target.value) })}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
+            </div>
+          </div>
+          <p className="text-[10px] text-aviva-secondary/60">หักขาดงาน = 0 → ระบบใช้ (เงินเดือน ÷ วันทำงานในเดือน) อัตโนมัติ</p>
+          <label className="flex items-center gap-2 cursor-pointer pt-1">
+            <input type="checkbox" checked={sched.sso_enabled} onChange={e => setSched({ ...sched, sso_enabled: e.target.checked })} className="w-4 h-4 accent-aviva-gold" />
+            <span className="text-xs text-aviva-secondary">หักประกันสังคม 5% (เพดาน 750 บาท/เดือน)</span>
+          </label>
+        </GlassCard>
+
+        <button onClick={save} className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm">
+          {saved ? <><Check size={16} /> บันทึกแล้ว</> : <><Save size={16} /> บันทึกเวลาทำงาน</>}
+        </button>
+
+        {/* วันหยุดบริษัท (เพิ่ม/สลับได้) */}
+        <GlassCard className="p-4 space-y-3">
+          <p className="text-sm font-semibold text-aviva-gold flex items-center gap-1.5"><CalendarOff size={14} /> วันหยุดบริษัท (เพิ่ม/เปลี่ยน/สลับได้)</p>
+          <div className="flex gap-2">
+            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+              className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
+            <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="ชื่อวันหยุด (ถ้ามี)"
+              className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
+            <button onClick={addHoliday} className="px-3 bg-aviva-gold/20 text-aviva-gold rounded-lg border border-aviva-gold/30"><Plus size={16} /></button>
+          </div>
+          {holidays.length === 0 ? (
+            <p className="text-xs text-aviva-secondary/60 text-center py-2">ยังไม่มีวันหยุดบริษัท</p>
+          ) : (
+            <div className="space-y-1.5">
+              {holidays.map(h => (
+                <div key={h.id} className="flex items-center justify-between bg-aviva-bg/50 rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-aviva-text">{thDate(h.holiday_date)}</p>
+                    {h.name && <p className="text-[11px] text-aviva-secondary">{h.name}</p>}
+                  </div>
+                  <button onClick={() => delHoliday(h.id)} className="text-red-400/80 p-1"><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+      </div>
     </div>
   );
 }

@@ -8,6 +8,8 @@ export const BANK: GLAccount = { code: "1120", name: "เงินฝากธ�
 export const INPUT_VAT: GLAccount = { code: "1600", name: "ภาษีมูลค่าเพิ่มซื้อ" };
 export const OUTPUT_VAT: GLAccount = { code: "2300", name: "ภาษีมูลค่าเพิ่มขาย" };
 export const WHT_PAYABLE: GLAccount = { code: "2400", name: "ภาษีหัก ณ ที่จ่ายค้างชำระ" };
+export const SSO_PAYABLE: GLAccount = { code: "2410", name: "ประกันสังคมค้างจ่าย" };
+export const SALARY_EXPENSE: GLAccount = { code: "6100", name: "เงินเดือนพนักงาน" };
 export const CONTRACTOR_PAYABLE: GLAccount = { code: "2100", name: "เจ้าหนี้ผู้รับเหมา" };
 export const RETENTION_PAYABLE: GLAccount = { code: "2150", name: "เงินประกันผลงานค้างจ่าย" };
 export const AR: GLAccount = { code: "1200", name: "ลูกหนี้การค้า" };
@@ -115,7 +117,7 @@ export function calcContractorPay(amount: number, whtRate: number, retentionRate
 
 // เลขบัญชีที่ใช้จริงทั้งหมดในโค้ด — ใช้ตรวจ jv_lines.account_code ก่อน post กัน code ผี (เช่น 1100 เดิมที่ไม่มีในผังบัญชี)
 export const KNOWN_ACCOUNT_CODES: ReadonlySet<string> = new Set([
-  CASH.code, BANK.code, INPUT_VAT.code, OUTPUT_VAT.code, WHT_PAYABLE.code,
+  CASH.code, BANK.code, INPUT_VAT.code, OUTPUT_VAT.code, WHT_PAYABLE.code, SSO_PAYABLE.code, SALARY_EXPENSE.code,
   CONTRACTOR_PAYABLE.code, RETENTION_PAYABLE.code, AR.code, CUSTOMER_ADVANCE.code,
   AP.code, PREPAID_WHT.code, SBT_EXPENSE.code, TRANSFER_FEE.code, WIP.code,
   COGS.code, LAND_COST.code, SALES_REVENUE.code, ACCUM_DEPR.code,

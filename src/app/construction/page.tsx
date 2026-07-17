@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2, ShoppingCart } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText, Loader2, Check, Bot, Send, Trash2, ShoppingCart, CalendarRange } from "lucide-react";
+import Link from "next/link";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -1321,6 +1322,10 @@ export default function ConstructionPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
+              <Link href="/construction/plan"
+                className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl bg-aviva-gold/5 hover:bg-aviva-gold/10 transition-all">
+                <CalendarRange size={11} /> แผนงาน
+              </Link>
               <button onClick={openSummaryModal} disabled={loadingSummary}
                 className="flex items-center gap-1 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl bg-aviva-gold/5 hover:bg-aviva-gold/10 transition-all disabled:opacity-50">
                 {loadingSummary ? <Loader2 size={11} className="animate-spin" /> : <ClipboardList size={11} />}

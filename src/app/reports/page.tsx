@@ -79,22 +79,8 @@ export default function ReportsPage() {
   const user = useCurrentUser();
   const router = useRouter();
 
-  // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน
+  // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน — เช็กหลัง hooks ครบ (กัน Rules of Hooks / หน้าแครช)
   const isGardener = user?.department === "ฝ่ายสวน";
-  if (isGardener) {
-    return (
-      <div className="min-h-screen bg-aviva-bg flex items-center justify-center px-4 pb-24">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">🌿</div>
-          <h1 className="text-2xl font-bold text-aviva-text mb-2">ฝ่ายสวน</h1>
-          <p className="text-aviva-secondary mb-6">คนสวนไม่ต้องส่งรายงานประจำวัน</p>
-          <a href="/dashboard" className="inline-block px-6 py-3 bg-aviva-gold text-aviva-bg rounded-lg font-semibold">
-            ← กลับไปหน้าหลัก
-          </a>
-        </div>
-      </div>
-    );
-  }
 
   const today = new Date().toISOString().split("T")[0];
   // วันที่แบบเวลาไทย (UTC+7) — ใช้เทียบ activity_logs.activity_date ที่ฝั่ง activity บันทึกเป็นวันที่ไทย
@@ -155,8 +141,6 @@ export default function ReportsPage() {
   // ฟอร์มแก้ได้เมื่อ: ยังไม่รับทราบ และ (ยังเป็นร่าง / ถูกตีกลับ / กดเข้าโหมดแก้)
   const canEdit = !acknowledged && (!isSubmitted || isReturned || editMode);
   const formLocked = !canEdit;
-
-  if (user?.isManager || user?.isAdmin) return null;
 
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToast({ msg, type });
@@ -464,6 +448,23 @@ export default function ReportsPage() {
   }
 
   const sc = STATUS_CFG[report?.status ?? "draft"];
+
+  // เช็กสิทธิ์/ฝ่ายสวน "หลัง hooks ครบทั้งหมด" — กัน React error "Rendered fewer hooks than expected"
+  if (user?.isManager || user?.isAdmin) return null; // ผู้บริหารถูก redirect ไป /reports/review
+  if (isGardener) {
+    return (
+      <div className="min-h-screen bg-aviva-bg flex items-center justify-center px-4 pb-24">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🌿</div>
+          <h1 className="text-2xl font-bold text-aviva-text mb-2">ฝ่ายสวน</h1>
+          <p className="text-aviva-secondary mb-6">คนสวนไม่ต้องส่งรายงานประจำวัน</p>
+          <a href="/dashboard" className="inline-block px-6 py-3 bg-aviva-gold text-aviva-bg rounded-lg font-semibold">
+            ← กลับไปหน้าหลัก
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">

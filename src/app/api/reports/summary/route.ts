@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
       db.from("employees")
         .select("id", { count: "exact", head: true })
         .eq("status", "active")
-        .neq("department", "ฝ่ายสวน"),
+        // ต้องส่งรายงานประจำวัน = ยกเว้นฝ่ายสวน (คนสวน) และฝ่ายบริหาร (ผู้บริหารเป็นผู้ตรวจ)
+        .not("department", "in", '("ฝ่ายสวน","ฝ่ายบริหาร")'),
       db.from("work_reports")
         .select("id, status")
         .eq("report_type", "daily")

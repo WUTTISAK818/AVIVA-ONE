@@ -200,6 +200,8 @@ export default function ReportsReviewPage() {
       .from("employees")
       .select("id, full_name, department, email")
       .eq("status", "active")
+      // ผู้ที่ต้องส่งรายงานประจำวันเท่านั้น — ยกเว้นฝ่ายสวน (คนสวน) และฝ่ายบริหาร (ผู้บริหารเป็นผู้ตรวจ ไม่ส่ง)
+      .not("department", "in", '("ฝ่ายสวน","ฝ่ายบริหาร")')
       .order("department")
       .order("full_name")
       .then(({ data }) => setEmployees((data ?? []) as Employee[]));

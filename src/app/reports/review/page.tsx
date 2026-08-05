@@ -8,7 +8,7 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
-import { toSignedUrl } from "@/lib/storage";
+import { toSignedUrl, toSignedUrls } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
 
@@ -277,13 +277,10 @@ export default function ReportsReviewPage() {
       .eq("report_id", r.id)
       .order("created_at");
     if (attachments && attachments.length > 0) {
-      const signedAtts = await Promise.all(
-        (attachments as WAttachment[]).map(async (a) => ({
-          ...a,
-          file_url: (await toSignedUrl(a.file_url)) || a.file_url,
-        }))
-      );
-      setSelAttachments(signedAtts);
+      // เซ็นแบบ batch (คำขอเดียว) — เชื่อถือได้กับรายงานที่มีรูปเยอะ (วิศวกร 30–60 รูป/วัน)
+      const atts = attachments as WAttachment[];
+      const signed = await toSignedUrls(atts.map(a => a.file_url));
+      setSelAttachments(atts.map((a, i) => ({ ...a, file_url: signed[i] || a.file_url })));
     } else {
       setSelAttachments([]);
     }

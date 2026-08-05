@@ -53,3 +53,45 @@ export async function toSignedUrl(
   console.warn("[toSignedUrl] No signed URL returned but no error either");
   return stored;
 }
+
+// Batch: เซ็นหลาย URL ในคำขอเดียวต่อ bucket (createSignedUrls) — เชื่อถือได้กว่าเรียก toSignedUrl ทีละรูป
+// จำนวนมากพร้อมกัน (กันบางคำขอพลาดแล้ว fallback เป็น public URL ทำให้รูปแตกบน private bucket)
+export async function toSignedUrls(
+  storedList: (string | null | undefined)[],
+  expiresIn = 3600
+): Promise<(string | null)[]> {
+  const result: (string | null)[] = storedList.map(() => null);
+  const byBucket = new Map<string, { idx: number; path: string; stored: string }[]>();
+
+  storedList.forEach((stored, idx) => {
+    if (!stored) return;
+    const cacheKey = `${stored}:${expiresIn}`;
+    const cached = signedUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) { result[idx] = cached.signedUrl; return; }
+    const m = stored.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?([^/?]+)\/(.+?)(?:\?|$)/);
+    if (!m) { result[idx] = stored; return; } // ไม่ใช่ storage URL — คืนค่าเดิม
+    const bucket = m[1];
+    const path = decodeURIComponent(m[2]);
+    if (!byBucket.has(bucket)) byBucket.set(bucket, []);
+    byBucket.get(bucket)!.push({ idx, path, stored });
+  });
+
+  for (const [bucket, items] of byBucket) {
+    try {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(items.map(i => i.path), expiresIn);
+      if (error || !data) { items.forEach(it => { result[it.idx] = it.stored; }); continue; }
+      data.forEach((d, i) => {
+        const it = items[i];
+        if (d.signedUrl) {
+          result[it.idx] = d.signedUrl;
+          signedUrlCache.set(`${it.stored}:${expiresIn}`, { signedUrl: d.signedUrl, expiresAt: Date.now() + expiresIn * 1000 * 0.9 });
+        } else {
+          result[it.idx] = it.stored;
+        }
+      });
+    } catch {
+      items.forEach(it => { result[it.idx] = it.stored; });
+    }
+  }
+  return result;
+}

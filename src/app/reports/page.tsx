@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin, Wifi, WifiOff, RefreshCw, Sparkles } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
-import { toSignedUrl } from "@/lib/storage";
+import { toSignedUrl, toSignedUrls } from "@/lib/storage";
 import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
@@ -154,7 +154,9 @@ export default function ReportsPage() {
       const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", h.id).order("created_at");
       setHistoryItems((its ?? []) as WItem[]);
       const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", h.id);
-      setHistoryAttachments(await Promise.all(((atts ?? []) as WAttachment[]).map(async a => ({ ...a, signed: (await toSignedUrl(a.file_url)) ?? undefined }))));
+      const hRaw = (atts ?? []) as WAttachment[];
+      const hSigned = await toSignedUrls(hRaw.map(a => a.file_url));
+      setHistoryAttachments(hRaw.map((a, i) => ({ ...a, signed: hSigned[i] ?? undefined })));
     } catch (err) {
       showToast("เกิดข้อผิดพลาดในการโหลด", "error");
     }
@@ -269,7 +271,9 @@ export default function ReportsPage() {
             await pullAutoItems(data.id, loaded);
           }
           const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", data.id);
-          setAttachments(await Promise.all(((atts ?? []) as WAttachment[]).map(async a => ({ ...a, signed: (await toSignedUrl(a.file_url)) ?? undefined }))));
+          const aRaw = (atts ?? []) as WAttachment[];
+          const aSigned = await toSignedUrls(aRaw.map(a => a.file_url));
+          setAttachments(aRaw.map((a, i) => ({ ...a, signed: aSigned[i] ?? undefined })));
         } else {
           const { data: created } = await supabase.from("work_reports").insert({
             user_email: user.email,

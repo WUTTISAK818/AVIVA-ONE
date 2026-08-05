@@ -275,7 +275,7 @@ export default function ReportsReviewPage() {
       .from("work_report_attachments")
       .select("*")
       .eq("report_id", r.id)
-      .order("created_at");
+      .order("uploaded_at"); // ตารางนี้ใช้ uploaded_at (ไม่มี created_at) — order ผิดคอลัมน์ทำให้ query error → รูปไม่ขึ้นฝั่งผู้บริหาร
     if (attachments && attachments.length > 0) {
       // เซ็นแบบ batch (คำขอเดียว) — เชื่อถือได้กับรายงานที่มีรูปเยอะ (วิศวกร 30–60 รูป/วัน)
       const atts = attachments as WAttachment[];

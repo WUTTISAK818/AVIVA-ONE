@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WinVote — ทดลองใช้ (Interactive Demo)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--scale:1;--bg:#F4F7F4;--card:#FFF;--green:#15803D;--deep:#14342A;--text:#1C2925;--sec:#4B5563;--gold:#B07D1E;--bd:#D7E0D7;--win:#15803D;--winbg:#DCFCE7;--toss:#B45309;--tossbg:#FEF3C7;--risk:#DC2626;--riskbg:#FEE2E2;}
+  *{box-sizing:border-box;margin:0;}
+  body{background:#CFD8CF;font-family:'IBM Plex Sans Thai','Noto Sans Thai',sans-serif;padding:14px;display:flex;justify-content:center;}
+  .phone{width:100%;max-width:390px;background:var(--bg);border-radius:30px;border:8px solid #0f1b16;box-shadow:0 18px 44px rgba(0,0,0,.35);overflow:hidden;position:relative;min-height:720px;}
+  .scr{padding:16px;font-size:calc(16px * var(--scale));color:var(--text);}
+  .hide{display:none!important;}
+  .h{font-size:1.3em;font-weight:700;color:var(--deep);} .sub{font-size:.82em;color:var(--sec);}
+  .btn{background:var(--green);color:#fff;font-weight:700;text-align:center;border-radius:14px;padding:15px;font-size:1.05em;border:none;width:100%;cursor:pointer;font-family:inherit;}
+  .btn.g{background:#fff;color:var(--green);border:2px solid var(--green);}
+  .inp{background:#fff;border:2px solid var(--bd);border-radius:14px;padding:15px;color:var(--sec);font-size:1em;margin-top:10px;width:100%;}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px;margin-top:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+  .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-top:9px;cursor:pointer;}
+  .row b{font-size:1.05em;color:var(--deep);}
+  .pill{font-size:.78em;font-weight:700;padding:6px 11px;border-radius:22px;}
+  .kpi{background:#fff;border:2px solid var(--green);border-radius:18px;padding:18px;text-align:center;margin-top:12px;}
+  .kpi .big{font-size:2.6em;font-weight:700;color:var(--green);line-height:1;}
+  .kpi .big small{font-size:.4em;color:var(--sec);}
+  .tabs{position:absolute;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid var(--bd);}
+  .tabs button{flex:1;border:none;background:none;padding:10px 0 14px;font-size:11px;color:var(--sec);font-family:inherit;cursor:pointer;}
+  .tabs button.on{color:var(--green);font-weight:700;}
+  .tabs .ic{font-size:18px;display:block;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .logo{display:flex;align-items:center;gap:8px;}
+  .fs{display:flex;gap:5px;} .fs button{width:30px;height:30px;border:1px solid var(--bd);background:#fff;border-radius:8px;color:var(--deep);font-weight:700;cursor:pointer;font-family:inherit;}
+  .fs button.a{background:var(--green);color:#fff;border-color:var(--green);}
+  .mark{width:30px;height:30px;} .content{padding-bottom:70px;}
+  input[type=range]{width:100%;accent-color:var(--green);}
+  label{font-size:.8em;color:var(--sec);display:flex;justify-content:space-between;margin:8px 0 3px;}
+  .step{font-size:.8em;color:var(--green);font-weight:700;}
+  .modal{position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;z-index:20;}
+  .sheet{background:var(--bg);width:100%;border-radius:22px 22px 0 0;padding:18px;max-height:88%;overflow:auto;}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:.8em;font-weight:700;padding:5px 10px;border-radius:20px;margin:3px;}
+  .center{text-align:center;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scr content">
+
+    <!-- ===== LOGIN ===== -->
+    <div id="login" class="center" style="padding-top:80px;">
+      <svg class="mark" viewBox="0 0 120 120" style="width:80px;height:80px;margin:0 auto 4px;"><circle cx="60" cy="60" r="54" fill="none" stroke="#15803D" stroke-width="4"/><circle cx="60" cy="60" r="47" fill="none" stroke="#15803D" stroke-width="1.4" opacity=".4"/><g fill="none" stroke="#15803D" stroke-width="2.6" stroke-linecap="round"><path d="M40 93 C 34 77 36 63 45 51"/><path d="M40 81 q -8 -3 -12 -10"/><path d="M42 73 q -8 -2 -12 -9"/><path d="M44 65 q -7 -2 -11 -8"/><path d="M80 93 C 86 77 84 63 75 51"/><path d="M80 81 q 8 -3 12 -10"/><path d="M78 73 q 8 -2 12 -9"/><path d="M76 65 q 7 -2 11 -8"/></g><path d="M45 61 l11 13 l20 -28" fill="none" stroke="#B07D1E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="h" style="font-size:1.6em;">WinVote</div>
+      <div class="sub" style="margin-bottom:16px;">ระบบเครือข่ายฐานเสียง</div>
+      <div class="inp">✉️ อีเมล</div>
+      <div class="inp">🔒 รหัสผ่าน</div>
+      <button class="btn" style="margin-top:14px;" onclick="go('app')">เข้าสู่ระบบ (ทดลอง)</button>
+      <div class="sub" style="margin-top:16px;">เดโม — กดเข้าสู่ระบบได้เลย</div>
+    </div>
+
+    <!-- ===== APP ===== -->
+    <div id="app" class="hide">
+      <div class="topbar">
+        <div class="logo"><svg class="mark" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="#15803D" stroke-width="5"/><path d="M45 61 l11 13 l20 -28" fill="none" stroke="#B07D1E" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg><b class="h" style="font-size:1.1em;">WinVote</b></div>
+        <div class="fs"><button onclick="fs(.9,this)">ก</button><button class="a" onclick="fs(1,this)">ก</button><button onclick="fs(1.2,this)" style="font-size:17px">ก</button></div>
+      </div>
+
+      <!-- TAB: ภาพรวม -->
+      <div id="t-overview">
+        <div class="kpi"><div class="sub">คาดว่าชนะ</div><div class="big">3<small> / 4 เขต</small></div></div>
+        <div class="sub" style="margin-top:12px;">แตะเขตเพื่อดูรายละเอียด</div>
+        <div class="row" onclick="go('district')"><b>เขต 1</b><span class="pill" style="background:var(--winbg);color:var(--win)">✓ ชนะ 72%</span></div>
+        <div class="row" onclick="go('district')"><b>เขต 2</b><span class="pill" style="background:var(--winbg);color:var(--win)">✓ ชนะ 68%</span></div>
+        <div class="row" onclick="go('district')"><b>เขต 3</b><span class="pill" style="background:var(--tossbg);color:var(--toss)">! ก้ำกึ่ง 54%</span></div>
+        <div class="row" onclick="go('district')"><b>เขต 4</b><span class="pill" style="background:var(--riskbg);color:var(--risk)">✕ เสี่ยง 38%</span></div>
+      </div>
+
+      <!-- TAB: หน่วย (drill) -->
+      <div id="t-district" class="hide">
+        <div class="step" onclick="go('overview')">‹ กลับภาพรวม</div>
+        <div class="h" style="font-size:1.15em;margin-top:6px;">เขต 1 · ชุมชนสามัคคี</div>
+        <div class="row"><b>หัวคะแนน: ก้อย</b><span class="pill" style="background:var(--winbg);color:var(--win)">41/50</span></div>
+        <button class="btn" style="margin-top:12px;" onclick="openAdd()">+ เพิ่มผู้มีสิทธิ์</button>
+        <div class="card"><div class="sub">ฐานเสียงล่าสุด</div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.95em;"><span>นายสมชาย ใจดี</span><span class="badge" style="background:var(--winbg);color:var(--win)">✓ ยืนยันครบ</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.95em;"><span>นางสมหญิง มีสุข</span><span class="badge" style="background:var(--tossbg);color:var(--toss)">รอยืนยันเบอร์</span></div>
+        </div>
+      </div>
+
+      <!-- TAB: วิเคราะห์ -->
+      <div id="t-analysis" class="hide">
+        <div class="h" style="font-size:1.15em;">วิเคราะห์โอกาสชนะ</div>
+        <div class="sub">ปรับฐานเสียง → โอกาสชนะเปลี่ยนสด</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;"><b>เขต 4</b><span id="a-status" class="pill" style="background:var(--riskbg);color:var(--risk)">✕ เสี่ยง 38%</span></div>
+          <label>ฐานเสียงยืนยันแล้ว <b id="a-val" style="color:var(--green)">2,000</b></label>
+          <input type="range" min="0" max="7000" step="100" value="2000" oninput="calc(this.value)">
+          <div class="sub" id="a-note" style="margin-top:6px;">ต้องเพิ่มอีก ~1,000 เพื่อชนะมั่นใจ</div>
+        </div>
+      </div>
+
+      <!-- TAB: รายงาน -->
+      <div id="t-report" class="hide"><div class="h" style="font-size:1.15em;">รายงาน</div><div class="card"><div class="sub">สรุปทั้งเทศบาล</div><div style="font-size:1.4em;font-weight:700;color:var(--green);margin-top:6px;">ฐานเสียงรวม 6,240 คน</div><div class="sub">ยืนยันแล้ว 5,180 · รอยืนยัน 1,060</div></div></div>
+
+      <!-- bottom nav -->
+      <div class="tabs">
+        <button class="on" id="nav-overview" onclick="tab('overview')"><span class="ic">🏠</span>ภาพรวม</button>
+        <button id="nav-district" onclick="tab('district')"><span class="ic">📍</span>หน่วย</button>
+        <button id="nav-analysis" onclick="tab('analysis')"><span class="ic">📈</span>วิเคราะห์</button>
+        <button id="nav-report" onclick="tab('report')"><span class="ic">📊</span>รายงาน</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD MODAL -->
+  <div id="addModal" class="modal hide"><div class="sheet">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><b class="h" style="font-size:1.15em;">เพิ่มผู้มีสิทธิ์</b><span onclick="closeAdd()" style="font-size:22px;color:var(--sec);cursor:pointer;">✕</span></div>
+
+    <div id="add-1">
+      <div class="sub" style="margin:8px 0;">เลือกวิธีเก็บข้อมูล</div>
+      <button class="btn g" onclick="addStep(2)">💳 เสียบบัตร (ชิป) — แม่น 100%</button>
+      <button class="btn g" style="margin-top:8px;" onclick="addStep(2)">📷 ถ่ายบัตร + กรอกเบอร์ (โหมดง่าย)</button>
+      <button class="btn g" style="margin-top:8px;" onclick="addStep(2)">⌨️ พิมพ์เลขบัตรเอง</button>
+    </div>
+
+    <div id="add-2" class="hide center" style="padding:14px 0;">
+      <div style="font-size:44px;">🔍</div>
+      <div class="sub">กำลังเทียบบัญชีผู้มีสิทธิ์...</div>
+    </div>
+
+    <div id="add-3" class="hide">
+      <div class="badge" style="background:var(--winbg);color:var(--win);font-size:.9em;">✓ อยู่ในบัญชี เขตนี้</div>
+      <div class="card"><div class="sub">ชื่อทางการจากบัญชี (สะกดถูก 100%)</div><div style="font-size:1.15em;font-weight:700;margin-top:4px;">นายวิชัย พัฒนา</div>
+        <div class="sub" style="margin-top:8px;">เบอร์โทร</div><div class="inp" style="margin-top:4px;">08x-xxx-xxxx</div></div>
+      <button class="btn" style="margin-top:12px;" onclick="addStep(4)">บันทึก + ส่งยืนยันเจตนา</button>
+    </div>
+
+    <div id="add-4" class="hide center" style="padding:20px 0;">
+      <div style="font-size:56px;color:var(--green);">✓</div>
+      <div class="h" style="color:var(--green);">บันทึกสำเร็จ</div>
+      <div class="sub">ส่งข้อความให้เจ้าตัวกดยืนยันเจตนาแล้ว</div>
+      <button class="btn" style="margin-top:14px;" onclick="closeAdd()">เสร็จสิ้น</button>
+    </div>
+  </div></div>
+</div>
+
+<script>
+  function go(id){ if(id==='app'){document.getElementById('login').classList.add('hide');document.getElementById('app').classList.remove('hide');} else tab(id); }
+  function tab(name){
+    ['overview','district','analysis','report'].forEach(t=>{
+      document.getElementById('t-'+t).classList.toggle('hide',t!==name);
+      document.getElementById('nav-'+t).classList.toggle('on',t===name);
+    });
+  }
+  function fs(v,el){ document.documentElement.style.setProperty('--scale',v); document.querySelectorAll('.fs button').forEach(b=>b.classList.remove('a')); el.classList.add('a'); }
+  function openAdd(){ document.getElementById('addModal').classList.remove('hide'); addStep(1); }
+  function closeAdd(){ document.getElementById('addModal').classList.add('hide'); }
+  function addStep(n){ [1,2,3,4].forEach(i=>document.getElementById('add-'+i).classList.toggle('hide',i!==n)); if(n===2) setTimeout(()=>addStep(3),1100); }
+  function calc(v){
+    document.getElementById('a-val').textContent=Number(v).toLocaleString();
+    var exp=v*0.62, need=3300;   // ประมาณการ
+    var wp=Math.max(3,Math.min(97,Math.round(exp/need*55)));
+    var s=document.getElementById('a-status'), note=document.getElementById('a-note');
+    if(wp>=60){s.style.background='var(--winbg)';s.style.color='var(--win)';s.textContent='✓ น่าจะชนะ '+wp+'%';note.textContent='ฐานเสียงพอแล้ว';}
+    else if(wp>=45){s.style.background='var(--tossbg)';s.style.color='var(--toss)';s.textContent='! ก้ำกึ่ง '+wp+'%';note.textContent='ต้องเพิ่มอีกเล็กน้อย';}
+    else {s.style.background='var(--riskbg)';s.style.color='var(--risk)';s.textContent='✕ เสี่ยง '+wp+'%';note.textContent='ต้องเพิ่มฐานเสียงอีกมาก';}
+  }
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 
@@ -15,6 +15,18 @@ interface PhotoGalleryProps {
 export function PhotoGallery({ photos = [], captions = [], title = "ภาพแนบ", onDelete, isEditable = false }: PhotoGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const photoArray = photos?.filter(Boolean) || [];
+
+  // ปิด/เลื่อนด้วยคีย์บอร์ด (ผูกกับ window จริง — เดิมผูกกับ div ที่ hidden เลยกด ESC ไม่ได้)
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null);
+      else if (e.key === "ArrowLeft") setLightboxIndex((p) => (p === null ? p : p === 0 ? photoArray.length - 1 : p - 1));
+      else if (e.key === "ArrowRight") setLightboxIndex((p) => (p === null ? p : p === photoArray.length - 1 ? 0 : p + 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIndex, photoArray.length]);
 
   if (!photoArray || photoArray.length === 0) {
     return (
@@ -81,20 +93,25 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
         ))}
       </div>
 
-      {/* Lightbox */}
+      {/* Lightbox — z สูงกว่าโมดัลรายงาน · แตะพื้นที่ว่างเพื่อปิด */}
       {lightboxIndex !== null && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-          {/* Close button */}
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4"
+          onClick={() => setLightboxIndex(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Close button (แตะปิด) */}
           <button
-            onClick={() => setLightboxIndex(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
-            aria-label="Close lightbox"
+            onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
+            className="absolute top-4 right-4 z-10 p-3 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white"
+            aria-label="ปิด"
           >
-            <X size={24} />
+            <X size={26} />
           </button>
 
-          {/* Image container */}
-          <div className="flex-1 flex flex-col items-center justify-center max-w-4xl max-h-[85vh]">
+          {/* Image container (กดที่รูปไม่ปิด) */}
+          <div className="flex-1 flex flex-col items-center justify-center max-w-4xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
             <img
               src={photoArray[lightboxIndex]}
               alt={captions?.[lightboxIndex] || `Photo ${lightboxIndex + 1}`}
@@ -106,7 +123,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center gap-4 mt-4">
+          <div className="flex items-center gap-4 mt-4" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handlePrevious}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-50"
@@ -130,22 +147,8 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
             </button>
           </div>
 
-          {/* Keyboard shortcuts hint */}
-          <p className="text-white/50 text-xs mt-3">Press ESC to close</p>
+          <p className="text-white/50 text-xs mt-3">แตะพื้นที่ว่าง · กากบาท · หรือ ESC เพื่อปิด</p>
         </div>
-      )}
-
-      {/* Keyboard handler */}
-      {lightboxIndex !== null && (
-        <div
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setLightboxIndex(null);
-            if (e.key === "ArrowLeft") handlePrevious();
-            if (e.key === "ArrowRight") handleNext();
-          }}
-          tabIndex={0}
-          className="hidden"
-        />
       )}
     </div>
   );

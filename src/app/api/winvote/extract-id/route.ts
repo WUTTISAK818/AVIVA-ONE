@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// fallback กัน build พังตอน collect page data ถ้า env หาย/ยังไม่ตั้ง (ใช้ค่าจริงตอน runtime)
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "public-anon-key"
 );
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

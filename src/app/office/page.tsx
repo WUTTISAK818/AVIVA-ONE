@@ -2166,6 +2166,9 @@ const emptyEmployeeForm = {
 function HRContent() {
   const user = useCurrentUser();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  // รายชื่อพนักงานแบบปลอดภัย (ไม่มีเงินเดือน) — ใช้กับ dropdown ยื่นคำขอลาที่พนักงานทุกคนต้องเข้าถึงได้
+  // แยกจาก employees (ตารางเต็มมีฐานเงินเดือน — RLS จำกัดเฉพาะผู้บริหาร/บัญชี/บุคคล)
+  const [directory, setDirectory] = useState<{ id: string; full_name: string; department: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyEmployeeForm);
@@ -2191,6 +2194,11 @@ function HRContent() {
         setEmployees((data as Employee[]) ?? []);
         setLoading(false);
       });
+  };
+
+  const fetchDirectory = () => {
+    supabase.from("employees_directory").select("id,full_name,department,status")
+      .then(({ data }) => setDirectory(data ?? []));
   };
 
   const fetchLeave = () => {
@@ -2230,7 +2238,7 @@ function HRContent() {
     }
   };
 
-  useEffect(() => { fetchEmployees(); }, []);
+  useEffect(() => { fetchEmployees(); fetchDirectory(); }, []);
 
   // มาจากกล่องงาน (/office?tab=hr&focus=<leaveId>) → เปิดแท็บ "การลา" ให้เห็นใบลาที่ต้องอนุมัติ
   useEffect(() => {
@@ -2539,7 +2547,7 @@ function HRContent() {
               <select id="leaveform-employee_name" value={leaveForm.employee_name} onChange={e => { setLeaveForm({...leaveForm, employee_name: e.target.value}); fetchLeaveBalance(e.target.value); }}
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
                 <option value="">— เลือกพนักงาน —</option>
-                {employees.filter(e => e.status === "active").map(e => (
+                {directory.map(e => (
                   <option key={e.id} value={e.full_name}>{e.full_name} ({e.department})</option>
                 ))}
               </select>
@@ -3146,7 +3154,7 @@ function AfterSalesContent() {
   // UX-10: ดึงผู้รับผิดชอบจากพนักงานฝ่ายก่อสร้าง (fallback เป็นรายการเริ่มต้นถ้าไม่มีข้อมูล)
   const [assignees, setAssignees] = useState<string[]>(ASSIGNED_TO_OPTIONS);
   useEffect(() => {
-    supabase.from("employees").select("full_name").eq("status", "active").eq("department", "ฝ่ายก่อสร้าง")
+    supabase.from("employees_directory").select("full_name").eq("department", "ฝ่ายก่อสร้าง")
       .then(({ data }) => {
         const names = ((data ?? []) as { full_name: string }[]).map(e => e.full_name).filter(Boolean);
         if (names.length) setAssignees(names);
@@ -5007,8 +5015,8 @@ const TABS: {
   key: OfficeTab; label: string; icon: any; iconColor: string; iconBg: string;
   managerOnly?: boolean; constructionOnly?: boolean; adminOnly?: boolean; dept?: string;
 }[] = [
-  { key: "finance",     label: "การเงิน",    icon: DollarSign,  iconColor: "text-yellow-400",  iconBg: "bg-yellow-500/10 border-yellow-500/30",   dept: "ฝ่ายการเงิน" },
-  { key: "accounting",  label: "บัญชี",       icon: BookOpen,    iconColor: "text-blue-400",    iconBg: "bg-blue-500/10 border-blue-500/30",       dept: "ฝ่ายบัญชี" },
+  { key: "finance",     label: "การเงิน",    icon: DollarSign,  iconColor: "text-yellow-400",  iconBg: "bg-yellow-500/10 border-yellow-500/30",   dept: "ฝ่ายการเงิน", managerOnly: true },
+  { key: "accounting",  label: "บัญชี",       icon: BookOpen,    iconColor: "text-blue-400",    iconBg: "bg-blue-500/10 border-blue-500/30",       dept: "ฝ่ายบัญชี", managerOnly: true },
   { key: "marketing",   label: "การตลาด",     icon: Megaphone,   iconColor: "text-pink-400",    iconBg: "bg-pink-500/10 border-pink-500/30",       dept: "ฝ่ายการตลาด" },
   { key: "hr",          label: "บุคคล",        icon: Users,       iconColor: "text-cyan-400",    iconBg: "bg-cyan-500/10 border-cyan-500/30",       dept: "ฝ่ายบุคคล" },
   { key: "after-sales", label: "หลังการขาย",  icon: Wrench,      iconColor: "text-orange-400",  iconBg: "bg-orange-500/10 border-orange-500/30",   dept: "ฝ่ายหลังการขาย" },

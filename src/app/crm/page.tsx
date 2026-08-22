@@ -347,7 +347,7 @@ export default function CRMPage() {
       .then(({ data }) => setHouses((data ?? []) as HouseSlot[]));
     fetchSalesActs();
     // โหลดพนักงานฝ่ายขาย (active) มาเป็นตัวเลือก "พนักงานขายที่ดูแล"
-    supabase.from("employees").select("full_name,nickname,department,status").eq("status", "active")
+    supabase.from("employees_directory").select("full_name,nickname,department,status")
       .then(({ data }) => {
         const sales = (data ?? []).filter((e: { department?: string | null }) =>
           (e.department ?? "").includes("ขาย") && !(e.department ?? "").includes("หลังการขาย"));

@@ -254,7 +254,7 @@ export default function DashboardPage() {
         .eq("project_id", PROJECT_ID)
         .gte("created_at", `${yearStr}-01-01`)
         .lt("created_at", `${year + 1}-01-01`),
-      supabase.from("employees").select("id", { count: "exact" }).eq("status", "active"),
+      supabase.from("employees_directory").select("id", { count: "exact" }),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),

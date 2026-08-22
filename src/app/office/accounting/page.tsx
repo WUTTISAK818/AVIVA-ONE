@@ -15,6 +15,8 @@ import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import ReceiptScanner from "@/components/ReceiptScanner";
 import clsx from "clsx";
+import { useRouter } from "next/navigation";
+import { useCurrentUser } from "@/lib/user-context";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 // C6 — รวมอัตราภาษีไว้ที่เดียว (เลิก hardcode กระจาย)
@@ -1735,13 +1737,22 @@ function ReportsTab({ accounts }: { accounts: ChartAccount[] }) {
 }
 
 export default function AccountingPage() {
+  const user = useCurrentUser();
+  const router = useRouter();
   const [tab, setTab] = useState<AccTab>("dashboard");
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!user.isManager && !user.isAdmin) { router.replace("/dashboard"); return; }
+  }, [user, router]);
 
   useEffect(() => {
     supabase.from("chart_of_accounts").select("code,name_th,account_type").eq("is_active", true).order("code")
       .then(({ data }) => setAccounts((data ?? []) as ChartAccount[]));
   }, []);
+
+  if (user && !user.isManager && !user.isAdmin) return null;
 
   return (
     <div className="min-h-screen bg-aviva-bg">

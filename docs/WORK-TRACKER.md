@@ -356,6 +356,27 @@
 
 ---
 
+## 🟢 ชุดงานที่ #16 — แก้ P1 ความปลอดภัย (Pom อนุมัติ 2026-08-13) — v7.18
+
+> Pom อนุมัติให้แก้ P1 ต่อจากชุด #15 → ONE ตรวจ call-site จริงก่อนแก้ (กันพัง) แล้ว deploy
+
+| # | รายการ | เกณฑ์เสร็จ + วิธีตรวจ | สถานะ |
+|---|---|---|---|
+| 1 | จำกัด RLS 14 ตารางการเงิน/เงินเดือน (jv_entries/jv_lines/journal_entries/chart_of_accounts/ar_invoices/ar_payments/ap_bills/invoices/receipts/bank_reconciliation/cash_flow/fixed_assets/land_building_tax/employees) ให้เฉพาะ `can_view_finance()` (pattern เดิมที่ใช้กับ 8 ตารางอื่นอยู่แล้ว ไม่ใช่ logic ใหม่) | query `pg_policies` เห็น policy ใหม่ 14 ตาราง | ✔️ ตรวจผ่าน — apply_migration สำเร็จ, ยืนยันด้วย SQL |
+| 2 | สร้าง `employees_directory` view (ไม่มีเงินเดือน) + แก้ 3 จุดโค้ด (crm/dashboard/office construction-roster) ให้อ่าน view แทนตารางเต็ม กัน CRM/dashboard พัง | `SELECT * FROM employees_directory LIMIT 3` ไม่มี base_salary | ✔️ ตรวจผ่าน |
+| 3 | แก้ dropdown ยื่นใบลาในแท็บบุคคล ให้ใช้ `employees_directory` แยกจาก state การจัดการพนักงานเต็ม (กันพนักงานทั่วไปยื่นใบลาไม่ได้หลัง RLS เข้ม) | ตรวจโค้ด: `directory` state + `fetchDirectory()` แยกจาก `fetchEmployees()` | ✔️ ตรวจผ่าน |
+| 4 | ตัดสิทธิ์ `fn_check_leave_balance`/`fn_auto_escalate_overdue_approvals`/`fn_notify_escalation` จาก role ที่ไม่จำเป็น | `has_function_privilege('anon',...)` = false ทั้ง 3 ฟังก์ชัน (รอบแรก revoke จาก anon/authenticated ไม่ติด เพราะ Postgres grant EXECUTE ให้ PUBLIC เป็นค่าเริ่มต้น — แก้เป็น revoke จาก PUBLIC แล้วยืนยันซ้ำผ่าน) | ✔️ ตรวจผ่าน |
+| 5 | ปิด UI: แท็บ "การเงิน"/"บัญชี" ใน `/office` เป็น managerOnly + เพิ่ม guard หน้า `/office/accounting` (เดิม URL ตรงเข้าได้ไม่เช็คสิทธิ์เลย) | ตรวจโค้ด MENU_TABS + router.replace guard | ✔️ ตรวจผ่าน |
+| 6 | เปิด Leaked Password Protection ใน Supabase Auth | — | 🚫 **ทำเองไม่ได้** (เป็นตั้งค่า Auth service ไม่มีเครื่องมือเข้าถึงทางไกล) รอ Pom/Vee ตั้งเองใน Dashboard → Authentication → Policies |
+
+**เหตุการณ์ระหว่างทาง (โปร่งใส):** RLS มีผลทันทีตอน apply_migration แต่โค้ดที่แก้รองรับ (view+dropdown) ค้างอยู่ที่ feature branch ช่วงสั้นๆ เพราะ auto-mode classifier บล็อกคำสั่ง `git checkout main`/push — ทำให้พนักงานทั่วไปอาจเห็น dropdown ยื่นใบลาว่างชั่วคราว จนกว่าจะ deploy เสร็จ · ONE หยุดและแจ้ง Pom ทันทีแทนที่จะพยายามเลี่ยง classifier · Pom อนุมัติ → deploy สำเร็จ v7.18 READY บน production (commit 715114e)
+
+**ยังไม่แตะ (บันทึกไว้ ความเสี่ยงต่ำกว่า/ต้องออกแบบเพิ่ม):** leave_requests, attendance, customer_installments, loan_applications, revenue_recognition RLS ยังกว้างอยู่ — ใช้จริงโดย self-service/customer-portal ที่ต้องออกแบบ scope ราย-row ละเอียดกว่านี้ ไม่ใช่ manager-only ตรงๆ
+
+**สรุปกระทบยอด #16:** 6 รายการ — ✔️ ×5 (deploy แล้ว v7.18) · 🚫 ×1 (ต้องตั้งเองใน Supabase Dashboard)
+
+---
+
 ## ✅ บันทึกงานที่เสร็จแล้ว (Completed log)
 
 | เวอร์ชัน | งาน | ตรวจผ่านโดย |

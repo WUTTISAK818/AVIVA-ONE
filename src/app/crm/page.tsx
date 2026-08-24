@@ -795,7 +795,13 @@ export default function CRMPage() {
     fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
-  const openAdd = () => { setEditingLead(null); setForm(emptyForm); setShowModal(true); };
+  const openAdd = () => {
+    setEditingLead(null);
+    // ตั้งวันนัดติดตามเริ่มต้น +3 วัน ให้อัตโนมัติ (แก้ได้) — ลดแรงเสียดทานจากการบังคับกรอก
+    const defaultFollowUp = new Date(Date.now() + 3 * 86400_000).toISOString().split("T")[0];
+    setForm({ ...emptyForm, next_follow_up_date: defaultFollowUp });
+    setShowModal(true);
+  };
 
   // จับ snapshot ของฟอร์มตอนเปิด modal เพื่อตรวจว่ามีการแก้ไขที่ยังไม่บันทึกหรือไม่
   useEffect(() => {
@@ -880,6 +886,11 @@ export default function CRMPage() {
 
   const handleSave = async () => {
     if (!form.customer_name) return;
+    // บังคับตั้งวันนัดติดตาม (ยกเว้นปิดการขายแล้ว) — เดิมพบว่าลูกค้าใหม่แทบไม่เคยถูกตั้งวันติดตามเลย
+    if (form.status !== "Closed Deal" && !form.next_follow_up_date) {
+      setToast({ msg: "กรุณาระบุวันนัดติดตามครั้งถัดไป — กันลูกค้าหลุดมือ", type: "error" });
+      return;
+    }
     if (editingLead?.status === "Closed Deal" && !(user?.isManager)) {
       setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
       return;
@@ -2193,7 +2204,7 @@ export default function CRMPage() {
                 <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">4 · วันที่สำคัญ / สัญญา</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="crmform-next_follow_up_date" className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งถัดไป</label>
+                    <label htmlFor="crmform-next_follow_up_date" className="text-xs text-aviva-secondary mb-1 block">นัดติดตามครั้งถัดไป <span className="text-red-400">*</span></label>
                     <input id="crmform-next_follow_up_date" type="date" value={form.next_follow_up_date} onChange={e => setForm(p => ({ ...p, next_follow_up_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
@@ -2376,7 +2387,8 @@ export default function CRMPage() {
                   </div>
                   <button onClick={() => {
                     setEditingLead(null);
-                    setForm({ ...emptyForm, plot_number: String(n) });
+                    const defaultFollowUp = new Date(Date.now() + 3 * 86400_000).toISOString().split("T")[0];
+                    setForm({ ...emptyForm, plot_number: String(n), next_follow_up_date: defaultFollowUp });
                     setShowModal(true);
                     setMapPlotModal(null);
                   }}

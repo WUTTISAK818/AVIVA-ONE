@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// fallback กัน build พังตอน collect page data ถ้า env หาย/ยังไม่ตั้ง (ใช้ค่าจริงตอน runtime)
+// fallback เป็นค่า public จริงของ WinVote เพื่อให้ auth verify ทำงานได้แม้ไม่ได้ตั้ง env (anon key ปลอดภัย ป้องกันด้วย RLS)
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "public-anon-key"
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://gfnelofmgzqfwvlbaabd.supabase.co",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmbmVsb2ZtZ3pxZnd2bGJhYWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzEwMDAsImV4cCI6MjA5NjE0NzAwMH0.zpAG-5MorIEhBjd21V5XTl6snJ_RWDewV9jqR0NfyOQ"
 );
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

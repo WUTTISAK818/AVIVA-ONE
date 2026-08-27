@@ -48,6 +48,28 @@ function interestTier(l: LeadRow): { emoji: string; rank: number } {
   return { emoji: "⚪", rank: 2 };
 }
 
+// จัดกลุ่มช่องทางที่มาของลูกค้า (จาก leads.source ที่กรอกจริง) เป็น 4 กลุ่มตามที่ Pom ขอ
+const CHANNEL_ORDER = ["วอล์กอิน", "Facebook", "LINE", "อื่นๆ"] as const;
+function channelBucket(source: string | null): (typeof CHANNEL_ORDER)[number] {
+  const s = (source ?? "").toLowerCase();
+  if (!s) return "อื่นๆ";
+  if (s.includes("walk-in") || s.includes("walkin") || s.includes("วอล์กอิน") || s.includes("วอล์คอิน")) return "วอล์กอิน";
+  if (s.includes("facebook")) return "Facebook";
+  if (s.includes("line")) return "LINE";
+  return "อื่นๆ";
+}
+function channelCounts(withTier: RankedLead[]): Map<string, number> {
+  const byChannel = new Map<string, number>();
+  for (const { l } of withTier) {
+    const c = channelBucket(l.source);
+    byChannel.set(c, (byChannel.get(c) ?? 0) + 1);
+  }
+  return byChannel;
+}
+function channelSummaryLine(byChannel: Map<string, number>): string {
+  return CHANNEL_ORDER.filter((c) => byChannel.has(c)).map((c) => `${c} ${byChannel.get(c)}`).join(" · ");
+}
+
 async function fetchLeadsSince(db: SupabaseClient, sinceIso: string): Promise<LeadRow[]> {
   const { data, error } = await db
     .from("leads")
@@ -66,19 +88,21 @@ function rankLeads(leads: LeadRow[]) {
 
 type RankedLead = ReturnType<typeof rankLeads>[number];
 
-// ใบสรุปแบบรายวัน — ลิสต์รายชื่อทุกรายพร้อมความน่าสนใจ
+// ใบสรุปแบบรายวัน — ลิสต์รายชื่อทุกรายพร้อมความน่าสนใจ + ช่องทางที่มา
 function composeDailyMessage(withTier: RankedLead[]): string {
   if (withTier.length === 0) return "วันนี้ยังไม่มีลูกค้าใหม่เข้าระบบค่ะ";
   const lines = withTier.slice(0, 15).map(({ l, tier }) => {
     const budgetText = Number(l.budget ?? 0) > 0 ? baht(Number(l.budget)) : "ไม่ระบุงบ";
     const plot = l.plot_number ? ` · แปลง ${l.plot_number}` : "";
     const financing = l.financing_type && l.financing_type !== "ไม่ระบุ" ? ` · ${l.financing_type}` : "";
-    const who = l.assigned_to || l.source || "ไม่ระบุผู้ดูแล";
-    return `${tier.emoji} ${l.customer_name} (${who}) — ${budgetText}${l.urgency ? ` · ${l.urgency}` : ""}${financing}${plot}`;
+    const who = l.assigned_to || "ไม่ระบุผู้ดูแล";
+    const channel = channelBucket(l.source);
+    return `${tier.emoji} ${l.customer_name} (${who} · ${channel}) — ${budgetText}${l.urgency ? ` · ${l.urgency}` : ""}${financing}${plot}`;
   });
   const more = withTier.length > 15 ? `\n…และอีก ${withTier.length - 15} ราย` : "";
   const hot = withTier.filter((x) => x.tier.rank === 0).length;
-  return `รับลูกค้าใหม่ทั้งหมด ${withTier.length} ราย (🔥 น่าสนใจสูง ${hot} ราย)\n\n${lines.join("\n")}${more}`;
+  const channelLine = channelSummaryLine(channelCounts(withTier));
+  return `รับลูกค้าใหม่ทั้งหมด ${withTier.length} ราย (🔥 น่าสนใจสูง ${hot} ราย)\nช่องทาง: ${channelLine}\n\n${lines.join("\n")}${more}`;
 }
 
 // ใบสรุปแบบช่วง (สัปดาห์/เดือน) — แยกตามผู้ดูแล + ลิสต์เฉพาะรายที่น่าสนใจสูง (กันข้อความยาวเกิน)
@@ -91,23 +115,27 @@ function composeRangeMessage(withTier: RankedLead[]): string {
 
   const byOwner = new Map<string, number>();
   for (const { l } of withTier) {
-    const who = l.assigned_to || l.source || "ไม่ระบุผู้ดูแล";
+    const who = l.assigned_to || "ไม่ระบุผู้ดูแล";
     byOwner.set(who, (byOwner.get(who) ?? 0) + 1);
   }
   const ownerLines = [...byOwner.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([who, n]) => `- ${who}: ${n} ราย`);
 
+  const byChannel = channelCounts(withTier);
+  const channelLines = CHANNEL_ORDER.filter((c) => byChannel.has(c)).map((c) => `- ${c}: ${byChannel.get(c)} ราย`);
+
   const hotLeads = withTier.filter((x) => x.tier.rank === 0).slice(0, 15);
   const hotLines = hotLeads.map(({ l, tier }) => {
     const budgetText = Number(l.budget ?? 0) > 0 ? baht(Number(l.budget)) : "ไม่ระบุงบ";
-    const who = l.assigned_to || l.source || "ไม่ระบุผู้ดูแล";
-    return `${tier.emoji} ${l.customer_name} (${who}) — ${budgetText}${l.urgency ? ` · ${l.urgency}` : ""}`;
+    const who = l.assigned_to || "ไม่ระบุผู้ดูแล";
+    const channel = channelBucket(l.source);
+    return `${tier.emoji} ${l.customer_name} (${who} · ${channel}) — ${budgetText}${l.urgency ? ` · ${l.urgency}` : ""}`;
   });
   const hotMore = hot > hotLines.length ? `\n…และอีก ${hot - hotLines.length} ราย` : "";
   const hotSection = hotLeads.length > 0 ? `\n\nลูกค้าน่าสนใจสูงในช่วงนี้:\n${hotLines.join("\n")}${hotMore}` : "";
 
-  return `รับลูกค้าใหม่รวม ${withTier.length} ราย (🔥 ${hot} · 🟡 ${warm} · ⚪ ${cold})\n\nแยกตามผู้ดูแล:\n${ownerLines.join("\n")}${hotSection}`;
+  return `รับลูกค้าใหม่รวม ${withTier.length} ราย (🔥 ${hot} · 🟡 ${warm} · ⚪ ${cold})\n\nแยกตามช่องทาง:\n${channelLines.join("\n")}\n\nแยกตามผู้ดูแล:\n${ownerLines.join("\n")}${hotSection}`;
 }
 
 async function deliver(db: SupabaseClient, title: string, message: string) {

@@ -66,8 +66,25 @@ function channelCounts(withTier: RankedLead[]): Map<string, number> {
   }
   return byChannel;
 }
-function channelSummaryLine(byChannel: Map<string, number>): string {
-  return CHANNEL_ORDER.filter((c) => byChannel.has(c)).map((c) => `${c} ${byChannel.get(c)}`).join(" · ");
+const ONLINE_CHANNELS = ["Facebook", "LINE", "อื่นๆ"] as const;
+
+// สรุปแบบสั้น 1 บรรทัด: วอล์กอิน vs ออนไลน์ (แยกย่อย Facebook/LINE/อื่นๆ ในวงเล็บ) — ใช้ในสรุปรายวัน
+function channelSummaryBlock(byChannel: Map<string, number>): string {
+  const walkin = byChannel.get("วอล์กอิน") ?? 0;
+  const online = ONLINE_CHANNELS.reduce((s, c) => s + (byChannel.get(c) ?? 0), 0);
+  const onlineDetail = ONLINE_CHANNELS.filter((c) => byChannel.has(c)).map((c) => `${c} ${byChannel.get(c)}`).join(" · ");
+  return `วอล์กอิน ${walkin} ราย · ออนไลน์ ${online} ราย${onlineDetail ? ` (${onlineDetail})` : ""}`;
+}
+
+// สรุปแบบหลายบรรทัด: วอล์กอิน แยกจากช่องทางออนไลน์ (Facebook/LINE/อื่นๆ ย่อยใต้ออนไลน์) — ใช้ในสรุปรายสัปดาห์/รายเดือน
+function channelBreakdownLines(byChannel: Map<string, number>): string[] {
+  const walkin = byChannel.get("วอล์กอิน") ?? 0;
+  const online = ONLINE_CHANNELS.reduce((s, c) => s + (byChannel.get(c) ?? 0), 0);
+  const lines = [`- วอล์กอิน: ${walkin} ราย`, `- ช่องทางออนไลน์: ${online} ราย`];
+  for (const c of ONLINE_CHANNELS) {
+    if (byChannel.has(c)) lines.push(`   • ${c}: ${byChannel.get(c)} ราย`);
+  }
+  return lines;
 }
 
 async function fetchLeadsSince(db: SupabaseClient, sinceIso: string): Promise<LeadRow[]> {
@@ -101,8 +118,8 @@ function composeDailyMessage(withTier: RankedLead[]): string {
   });
   const more = withTier.length > 15 ? `\n…และอีก ${withTier.length - 15} ราย` : "";
   const hot = withTier.filter((x) => x.tier.rank === 0).length;
-  const channelLine = channelSummaryLine(channelCounts(withTier));
-  return `รับลูกค้าใหม่ทั้งหมด ${withTier.length} ราย (🔥 น่าสนใจสูง ${hot} ราย)\nช่องทาง: ${channelLine}\n\n${lines.join("\n")}${more}`;
+  const channelLine = channelSummaryBlock(channelCounts(withTier));
+  return `รับลูกค้าใหม่ทั้งหมด ${withTier.length} ราย (🔥 น่าสนใจสูง ${hot} ราย)\n${channelLine}\n\n${lines.join("\n")}${more}`;
 }
 
 // ใบสรุปแบบช่วง (สัปดาห์/เดือน) — แยกตามผู้ดูแล + ลิสต์เฉพาะรายที่น่าสนใจสูง (กันข้อความยาวเกิน)
@@ -123,7 +140,7 @@ function composeRangeMessage(withTier: RankedLead[]): string {
     .map(([who, n]) => `- ${who}: ${n} ราย`);
 
   const byChannel = channelCounts(withTier);
-  const channelLines = CHANNEL_ORDER.filter((c) => byChannel.has(c)).map((c) => `- ${c}: ${byChannel.get(c)} ราย`);
+  const channelLines = channelBreakdownLines(byChannel);
 
   const hotLeads = withTier.filter((x) => x.tier.rank === 0).slice(0, 15);
   const hotLines = hotLeads.map(({ l, tier }) => {

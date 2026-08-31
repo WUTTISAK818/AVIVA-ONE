@@ -211,7 +211,7 @@ const emptyForm = {
   phone: "",
   email: "",
   budget: "",
-  source: "Facebook",
+  source: "",
   status: "New Lead" as LeadStatus,
   notes: "",
   plot_number: "",
@@ -889,6 +889,11 @@ export default function CRMPage() {
     // บังคับตั้งวันนัดติดตาม (ยกเว้นปิดการขายแล้ว) — เดิมพบว่าลูกค้าใหม่แทบไม่เคยถูกตั้งวันติดตามเลย
     if (form.status !== "Closed Deal" && !form.next_follow_up_date) {
       setToast({ msg: "กรุณาระบุวันนัดติดตามครั้งถัดไป — กันลูกค้าหลุดมือ", type: "error" });
+      return;
+    }
+    // บังคับเลือกช่องทางที่มา — เดิม default เป็น Facebook เงียบๆ ทำให้ข้อมูลช่องทางเพี้ยน (ส.ค. 69: Facebook 85% วอล์กอิน 0%)
+    if (!form.source) {
+      setToast({ msg: "กรุณาเลือกช่องทางที่มาของลูกค้า — ข้อมูลสำคัญสำหรับวิเคราะห์การตลาด", type: "error" });
       return;
     }
     if (editingLead?.status === "Closed Deal" && !(user?.isManager)) {
@@ -2124,11 +2129,18 @@ export default function CRMPage() {
                 <p className="text-[11px] font-bold text-aviva-gold uppercase tracking-wide">2 · ความสนใจ / ที่มา</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="crmform-source" className="text-xs text-aviva-secondary mb-1 block">ช่องทางที่มา</label>
+                    <label htmlFor="crmform-source" className="text-sm font-bold text-amber-400 mb-1 block">ช่องทางที่มา <span className="text-red-400">*</span></label>
                     <select id="crmform-source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))}
-                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      className={clsx(
+                        "w-full rounded-xl px-3 py-2.5 text-sm font-semibold outline-none",
+                        form.source
+                          ? "bg-aviva-bg border-2 border-amber-400/40 text-aviva-text focus:border-amber-400"
+                          : "bg-amber-400/10 border-2 border-amber-400 text-amber-300 focus:border-amber-400",
+                      )}>
+                      <option value="">— เลือกช่องทางที่มา —</option>
                       {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
+                    <p className="text-[10px] text-amber-400/80 mt-1">⚠️ ข้อมูลสำคัญสำหรับวิเคราะห์การตลาด — กรุณาเลือกให้ตรงกับความเป็นจริง ห้ามเว้นไว้ตามค่าเดิม</p>
                   </div>
                   <div>
                     <label htmlFor="crmform-plot_number" className="text-xs text-aviva-secondary mb-1 block">แปลงที่สนใจ</label>

@@ -5,12 +5,14 @@ interface GlassCardProps {
   className?: string;
   gold?: boolean;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
-export default function GlassCard({ children, className, gold, onClick }: GlassCardProps) {
+export default function GlassCard({ children, className, gold, onClick, style }: GlassCardProps) {
   return (
     <div
       onClick={onClick}
+      style={style}
       className={clsx(
         "rounded-2xl border backdrop-blur-sm",
         gold

@@ -27,6 +27,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
 
   const pinchStartRef = useRef<{ dist: number; scale: number } | null>(null);
   const dragStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastTapRef = useRef(0);
 
   // รูปใหม่/ปิด lightbox → รีเซ็ตซูมกลับ 1x เสมอ กันซูมค้างข้ามรูป
@@ -81,13 +82,15 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
     }
   };
 
-  // มือถือ: บีบนิ้วซูม + ลากเลื่อนตอนซูมค้าง + แตะสองครั้งสลับซูม
+  // มือถือ: บีบนิ้วซูม + ลากเลื่อนตอนซูมค้าง + แตะสองครั้งสลับซูม + ปัดซ้าย-ขวาเปลี่ยนรูป (ตอนไม่ได้ซูมอยู่)
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       pinchStartRef.current = { dist: touchDistance(e.touches[0], e.touches[1]), scale };
     } else if (e.touches.length === 1) {
       if (scale > 1) {
         dragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: translate.x, ty: translate.y };
+      } else {
+        swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       }
       const now = Date.now();
       if (now - lastTapRef.current < 300) {
@@ -114,7 +117,19 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
 
   const onTouchEnd = (e: React.TouchEvent) => {
     if (e.touches.length < 2) pinchStartRef.current = null;
-    if (e.touches.length === 0) dragStartRef.current = null;
+    if (e.touches.length === 0) {
+      dragStartRef.current = null;
+      const swipeStart = swipeStartRef.current;
+      swipeStartRef.current = null;
+      if (swipeStart && scale <= 1 && photoArray.length > 1) {
+        const end = e.changedTouches[0];
+        const dx = (end?.clientX ?? swipeStart.x) - swipeStart.x;
+        const dy = (end?.clientY ?? swipeStart.y) - swipeStart.y;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          if (dx < 0) handleNext(); else handlePrevious();
+        }
+      }
+    }
   };
 
   // เดสก์ท็อป: ล้อเมาส์ซูม + ลากเมาส์เลื่อนตอนซูมค้าง + ดับเบิลคลิกสลับซูม
@@ -180,21 +195,21 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
         ))}
       </div>
 
-      {/* Lightbox — z สูงกว่าโมดัลรายงาน · แตะพื้นที่ว่างเพื่อปิด */}
+      {/* Lightbox — z สูงกว่าโมดัลรายงาน · พื้นทึบกันโมดัลข้างหลังโผล่มาซ้อนกับปุ่ม · แตะพื้นที่ว่างเพื่อปิด */}
       {lightboxIndex !== null && (
         <div
-          className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-4"
           onClick={() => setLightboxIndex(null)}
           role="dialog"
           aria-modal="true"
         >
-          {/* Close button (แตะปิด) */}
+          {/* ปุ่มย้อนกลับ (แทนกากบาท — อ่านง่ายกว่า ไม่ปนกับปุ่มปิดของโมดัลรายงานข้างหลัง) */}
           <button
             onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
-            className="absolute top-4 right-4 z-10 p-3 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white"
-            aria-label="ปิด"
+            className="absolute top-4 right-4 z-10 flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white text-sm font-semibold"
+            aria-label="ย้อนกลับ"
           >
-            <X size={26} />
+            <ChevronLeft size={20} /> ย้อนกลับ
           </button>
 
           {/* ปุ่มซูมด่วน */}
@@ -262,7 +277,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
             </button>
           </div>
 
-          <p className="text-white/50 text-xs mt-3">บีบนิ้ว/ล้อเมาส์ซูม · ดับเบิลแทปสลับซูม · แตะพื้นที่ว่าง/กากบาท/ESC เพื่อปิด</p>
+          <p className="text-white/50 text-xs mt-3">บีบนิ้ว/ล้อเมาส์ซูม · ดับเบิลแทปสลับซูม · ปัดซ้าย-ขวาเปลี่ยนรูป · แตะพื้นที่ว่าง/ปุ่มย้อนกลับ/ESC เพื่อปิด</p>
         </div>
       )}
     </div>

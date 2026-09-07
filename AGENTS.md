@@ -24,9 +24,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Step 1 — อ่านเวอร์ชันปัจจุบันจาก GitHub main โดยตรง
 ```
-mcp__github__get_file_contents → owner: wuttisak818, repo: aviva-app-gpt, path: src/app/dashboard/page.tsx, ref: refs/heads/main
+mcp__github__get_file_contents → owner: wuttisak818, repo: aviva-one, path: src/lib/version.ts, ref: refs/heads/main
 ```
-ค้นหา `v2.9.x` badge ในไฟล์ — นั่นคือ **CURRENT_VERSION**
+ค่า `APP_VERSION` ในไฟล์นี้คือ **CURRENT_VERSION**
 
 ## Step 2 — ใช้ CURRENT_VERSION เป็นฐาน
 Version bump ทุกครั้งต้อง increment จาก CURRENT_VERSION ที่อ่านได้จริง ห้ามใช้เวอร์ชันจากความจำหรือบทสนทนาก่อนหน้า
@@ -70,7 +70,7 @@ grep -n "setForm({" src/app/FILENAME.tsx
 - [ ] `npm run build` ผ่าน ไม่มี TypeScript error
 - [ ] ทุก `setForm({...})` ที่เป็น object literal (ไม่ใช่ spread) มีครบทุก field
 - [ ] ทุก interface มี field ที่ถูกใช้ใน JSX
-- [ ] Version bump ครบทั้ง dashboard + settings
+- [ ] Version bump ที่ `src/lib/version.ts` (`APP_VERSION`)
 <!-- END:pre-push-build-rule -->
 
 <!-- BEGIN:deploy-report-rule -->
@@ -78,34 +78,25 @@ grep -n "setForm({" src/app/FILENAME.tsx
 
 After EVERY push to GitHub, you MUST do ALL of the following steps in order:
 
-## Step 1 — อัปเดตเวอร์ชันในโค้ด (ก่อน commit สุดท้าย)
-Bump the version number in BOTH files:
-- `src/app/dashboard/page.tsx` — badge text เช่น `v2.9.1` → `v2.9.2`
-- `src/app/settings/page.tsx`  — text เช่น `Version 2.9.1` → `Version 2.9.2`
+## Step 1 — Build + อัปเดตเวอร์ชันในโค้ด (ก่อน commit สุดท้าย)
+- `npm run build` ต้องผ่าน (ดู Pre-Push Build Check ด้านบน)
+- Bump `APP_VERSION` ใน `src/lib/version.ts`
 
-Version format: `v{MAJOR}.{MINOR}.{PATCH}` — increment PATCH for fixes, MINOR for new features.
+Version format: `{MAJOR}.{MINOR}.{PATCH}` (ไม่ต้องมี `v` นำหน้าในไฟล์) — increment PATCH for fixes, MINOR for new features.
 
-## Step 2 — Push ไปทั้งสอง branch
-Push ไฟล์ที่แก้ไขไปยัง **ทั้งสอง branch** เพื่อให้ Vercel deploy ได้แน่นอน:
-- `main` — production branch
-- `claude/move-work-location-2CfBA` — Vercel watched branch
+## Step 2 — Push ไปทั้ง feature branch แล้ว fast-forward เข้า main
+- Push ไปยัง feature branch ปัจจุบันของ session ก่อน (เช่น `claude/aviva-one-continuation-h3v402`)
+- จากนั้น `git checkout main && git merge --ff-only origin/main && git merge --ff-only <feature-branch> && git push origin main` เพื่อ trigger Vercel production deploy
+- ยืนยันด้วย `mcp__Vercel__list_deployments`/`get_deployment` ว่า deployment ล่าสุดถึงสถานะ `READY` บน `target: production`
 
-ใช้ `mcp__github__push_files` สองครั้ง (branch ละครั้ง)
-
-## Step 3 — บันทึก Deploy Report ลง Google Drive
-Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
-- Filename: `AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt`
-- Content must include: version number, **date AND time (HH:MM น. เวลาไทย UTC+7)**, list of changes, files changed, commit hashes
-
-**⚠️ บังคับ:** ต้องบันทึกเวลาจริง (HH:MM น.) ทุกครั้ง ไม่ใช่แค่วันที่
-ดึงเวลาจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7 ก่อนบันทึก
-ตัวอย่าง: `วันที่: 29 พฤษภาคม 2569 เวลา 12:00 น. (UTC+7)`
+## Step 3 — บันทึกลง `docs/WORK-TRACKER.md`
+เพิ่ม/อัปเดตชุดงานที่เกี่ยวข้องใน `docs/WORK-TRACKER.md` แล้ว commit+push ไปพร้อมกัน (ไฟล์นี้คือแหล่งความจริงเดียวของ deploy history — ดูกฎเต็มในหัวข้อ "Work Tracker" ด้านบน) **ไม่ใช้ Google Drive สำหรับ deploy report** เพราะเครื่องมือ Drive ที่อ้างในเวอร์ชันเก่าของกฎนี้เป็น MCP tool ID ที่เปลี่ยนทุก session ใช้จริงไม่ได้
 
 ## Step 4 — แจ้งผู้ใช้
 Report to the user:
-- Version deployed (e.g., v2.9.2)
-- Google Drive file link/ID
-- Confirm pushed to both `main` and `claude/move-work-location-2CfBA`
+- Version deployed (e.g., `7.26`)
+- ยืนยันว่า deploy ถึง production `READY` แล้ว
+- สรุปสั้นๆ ว่าอัปเดต WORK-TRACKER ชุดงานที่เท่าไหร่
 
 This rule is PERMANENT and applies to every deploy session without exception.
 <!-- END:deploy-report-rule -->
@@ -124,7 +115,7 @@ This rule is PERMANENT and applies to every deploy session without exception.
 - ยึดหลัก "ความถูกต้อง + โครงสร้างหลักของแอป" เป็นสำคัญก่อนเสมอ
 # AVIVA Plus Separation Rule (PERMANENT — แยกเด็ดขาด ห้ามปน)
 
-**AVIVA Plus (resident/นิติบุคคล/guard portal) ต้องแยกออกจาก AVIVA ONE โดยเด็ดขาด — ห้ามนำโค้ด Plus มาปนใน AVIVA ONE (branch `main` / `claude/move-work-location-2CfBA` / `claude/project-continuation-7pex98`)**
+**AVIVA Plus (resident/นิติบุคคล/guard portal) ต้องแยกออกจาก AVIVA ONE โดยเด็ดขาด — ห้ามนำโค้ด Plus มาปนใน AVIVA ONE (branch `main` หรือ feature branch ใดๆ ของ repo `wuttisak818/aviva-one`)**
 
 - ห้าม merge งาน AVIVA Plus (เช่น branch `claude/aviva-plus-resident-app-*`) เข้า `main` ของ AVIVA ONE
 - โค้ดที่ถือว่าเป็น Plus (ห้ามมีใน AVIVA ONE): `src/proxy.ts` (middleware แยกแอป), `src/lib/supabase-server.ts`, `src/lib/gate-events.ts`, `src/components/security/*`, `src/components/community/*` (เวอร์ชัน Plus), หน้า `guard|security|v` และ subroute Plus ใต้ `community`, API `announcements|bills|gate-events|gates|juristic-journals|residents|resolutions|visitor-passes|mock-alpr|promptpay-qr`

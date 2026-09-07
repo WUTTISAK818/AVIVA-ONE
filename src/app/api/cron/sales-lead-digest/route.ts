@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
+import { isManagerRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,11 +167,21 @@ async function deliver(db: SupabaseClient, title: string, message: string) {
   await sendPush({ department: "ฝ่ายขาย" }, { title, body: message, url: "/crm", tag: "sales-lead-digest" }).catch(() => {});
   await sendPush({ department: "ฝ่ายบริหาร" }, { title, body: message, url: "/crm", tag: "sales-lead-digest" }).catch(() => {});
 
-  // 3) LINE ส่วนตัว — ทุกคนที่ผูกบัญชีไว้ (ช่องทางหลักตามที่ Pom เลือก)
+  // 3) LINE ส่วนตัว — เฉพาะฝ่ายขาย + ผู้บริหาร ที่ผูกบัญชีไว้ (ให้ตรงกับผู้รับตามข้อ 1-2 ไม่ใช่ทุกคนที่ผูก LINE)
   let lineSent = 0;
   try {
-    const { data: links } = await db.from("line_links").select("line_user_id").not("linked_at", "is", null);
-    const ids = (links ?? []).map((l) => l.line_user_id as string).filter(Boolean);
+    const [{ data: links }, { data: roleRows }] = await Promise.all([
+      db.from("line_links").select("line_user_id, user_email").not("linked_at", "is", null),
+      db.from("users").select("email, role"),
+    ]);
+    const roleByEmail = new Map((roleRows ?? []).map((u) => [(u.email ?? "").toLowerCase(), u.role as string | null]));
+    const ids = (links ?? [])
+      .filter((l) => {
+        const role = roleByEmail.get((l.user_email ?? "").toLowerCase());
+        return role === "sales" || isManagerRole(role);
+      })
+      .map((l) => l.line_user_id as string)
+      .filter(Boolean);
     const text = `${title}\n${message}\nเปิดดู: /crm`;
     const res = await Promise.allSettled(ids.map((id) => sendLine(id, text)));
     lineSent = res.reduce((n, r) => n + (r.status === "fulfilled" && r.value.ok ? 1 : 0), 0);

@@ -203,10 +203,11 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
           role="dialog"
           aria-modal="true"
         >
-          {/* ปุ่มย้อนกลับ (แทนกากบาท — อ่านง่ายกว่า ไม่ปนกับปุ่มปิดของโมดัลรายงานข้างหลัง) */}
+          {/* ปุ่มย้อนกลับ (แทนกากบาท — อ่านง่ายกว่า ไม่ปนกับปุ่มปิดของโมดัลรายงานข้างหลัง) — เว้นระยะจาก safe-area กันซ้อนกับแถบสถานะ/รอยบากมือถือ */}
           <button
             onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
-            className="absolute top-4 right-4 z-10 flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white text-sm font-semibold"
+            className="absolute right-4 z-10 flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white text-sm font-semibold"
+            style={{ top: "calc(env(safe-area-inset-top, 0px) + 1.25rem)" }}
             aria-label="ย้อนกลับ"
           >
             <ChevronLeft size={20} /> ย้อนกลับ
@@ -215,7 +216,8 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
           {/* ปุ่มซูมด่วน */}
           <button
             onClick={(e) => { e.stopPropagation(); toggleZoom(); }}
-            className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white text-xs font-semibold"
+            className="absolute left-4 z-10 flex items-center gap-1.5 px-3 py-2.5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white text-xs font-semibold"
+            style={{ top: "calc(env(safe-area-inset-top, 0px) + 1.25rem)" }}
             aria-label="ซูม"
           >
             <ZoomIn size={18} /> {scale > 1 ? `${Math.round(scale * 100)}%` : "ซูม"}

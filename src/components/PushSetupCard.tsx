@@ -38,6 +38,7 @@ export default function PushSetupCard() {
     if (r.ok) { setSubscribed(true); setMsg("เปิดการแจ้งเตือนแล้ว"); }
     else if (r.reason === "denied") setMsg("เบราว์เซอร์ปฏิเสธสิทธิ์แจ้งเตือน");
     else if (r.reason === "no-vapid-key") setMsg("ระบบยังไม่ตั้งค่า VAPID key");
+    else if (r.reason?.startsWith("timeout")) setMsg("เปิดไม่สำเร็จ (หมดเวลา) — ลองปิดแอปแล้วเปิดใหม่แล้วลองอีกครั้ง");
     else setMsg("เปิดไม่สำเร็จ: " + (r.reason ?? ""));
   }
 

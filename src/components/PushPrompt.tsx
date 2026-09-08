@@ -35,10 +35,14 @@ export default function PushPrompt() {
     setBusy(true); setMsg(null);
     const r = await subscribeToPush({ email: user.email, role: user.role, department: user.department });
     setBusy(false);
-    if (r.ok) { setMsg("เปิดการแจ้งเตือนแล้ว ✓"); setTimeout(() => setShow(false), 1200); }
-    else if (r.reason === "denied") { setMsg("เบราว์เซอร์ปฏิเสธสิทธิ์ — เปิดได้ภายหลังที่ ตั้งค่า"); snooze(); }
-    else if (r.reason === "no-vapid-key") { setShow(false); } // ระบบยังไม่ตั้ง VAPID — ไม่รบกวนผู้ใช้
+    if (r.ok) { setMsg("เปิดการแจ้งเตือนแล้ว ✓"); setTimeout(() => setShow(false), 1200); return; }
+    // ทุกกรณีที่ไม่สำเร็จ ต้อง snooze เสมอ — กันป๊อปอัพเด้งซ้ำทุกครั้งที่เปิดแอปทั้งที่กดเปิดไปแล้ว
+    // ถ้าอยากลองใหม่ทันที ไปกดที่หน้า ตั้งค่า ได้เสมอ (ไม่ต้องรอ snooze หมดอายุ)
+    if (r.reason === "denied") setMsg("เบราว์เซอร์ปฏิเสธสิทธิ์ — เปิดได้ภายหลังที่ ตั้งค่า");
+    else if (r.reason === "no-vapid-key") setMsg("ระบบยังไม่ได้ตั้งค่าแจ้งเตือน — แจ้งผู้ดูแลระบบ");
+    else if (r.reason?.startsWith("timeout")) setMsg("เปิดไม่สำเร็จ (หมดเวลา) ลองใหม่ที่หน้า ตั้งค่า");
     else setMsg("เปิดไม่สำเร็จ ลองใหม่ที่หน้า ตั้งค่า");
+    snooze();
   };
 
   if (!show) return null;

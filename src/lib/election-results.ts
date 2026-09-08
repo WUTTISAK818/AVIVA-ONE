@@ -1,73 +1,49 @@
-import { supabase } from "./supabase";
-import { DEMO_MODE } from "./demo-data";
+// ===== ผลเลือกตั้งจริง + ผู้รับผิดชอบ (ข้อมูลนิ่ง โหลดจากไฟล์ static — ไม่พึ่ง DB) =====
+// เลือกตั้งสมาชิกสภาเทศบาลนครนครราชสีมา 8 ก.พ. 2568
+// เป็นข้อมูลอ้างอิงที่ไม่เปลี่ยน จึง bundle เป็นไฟล์ (เร็ว + ไม่หายเมื่อ DB pause)
 
-// ===== ผลเลือกตั้งจริง (เทศบาลนครนครราชสีมา + ตำบล) 8 ก.พ. 2568 =====
 export const ELECTION = "2568-02-08";
 
 export interface Candidate {
-  number: number;
-  name: string;
-  short_name: string | null;
-  party: string | null;
-  is_ours: boolean;
-  color: string | null;
+  number: number; name: string; short_name: string | null;
+  party: string | null; is_ours: boolean; color: string;
 }
-
 export interface OfficialResult {
-  id: string;
-  election: string;
-  area_code: number;
-  area_name: string;
-  area_type: "municipal" | "tambon" | string;
-  unit_no: number;
-  location: string | null;
-  eligible: number;
-  voted: number;
-  turnout_pct: number;
-  v_chatr: number;     // ฉัตร เบอร์ 7
-  v_kongkiat: number;  // ก้องเกียรติ เบอร์ 9
-  v_prasert: number;   // ประเสริฐ เบอร์ 11
+  area_code: number; area_name: string; area_type: "municipal" | "tambon" | string;
+  unit_no: number; location: string | null;
+  eligible: number; voted: number; turnout_pct: number;
+  v_chatr: number; v_kongkiat: number; v_prasert: number;
 }
-
 export interface AdvanceResult {
-  set_no: number;
-  ballots: number;
-  v_chatr: number;
-  v_kongkiat: number;
-  v_prasert: number;
+  set_no: number; ballots: number; v_chatr: number; v_kongkiat: number; v_prasert: number;
+}
+export interface Responsible {
+  reg_code: string; full_name: string; nickname: string | null;
+  role_title: string | null; level: "head" | "assistant";
+  area_code: number; community: string | null;
+}
+export interface UnitResponsible {
+  reg_code: string; area_code: number; unit_no: number; capacity: number | null;
+}
+export interface ElectionData {
+  election: string; election_label: string;
+  candidates: Candidate[]; results: OfficialResult[]; advance: AdvanceResult[];
+  responsibles: Responsible[]; unitResponsibles: UnitResponsible[];
+  grade_thresholds: { A: number; B: number };
 }
 
-function logErr(where: string, error: unknown) {
-  if (error) console.error(`[winvote] ${where}:`, (error as { message?: string })?.message ?? error);
-}
+let _cache: ElectionData | null = null;
+let _inflight: Promise<ElectionData> | null = null;
 
-export async function getCandidates(): Promise<Candidate[]> {
-  if (DEMO_MODE) return [];
-  const { data, error } = await supabase
-    .schema("winvote").from("candidates").select("*").order("number");
-  logErr("getCandidates", error);
-  return (data ?? []) as Candidate[];
-}
-
-export async function getOfficialResults(): Promise<OfficialResult[]> {
-  if (DEMO_MODE) return [];
-  const { data, error } = await supabase
-    .schema("winvote").from("results_official")
-    .select("*")
-    .eq("election", ELECTION)
-    .order("area_code")
-    .order("unit_no");
-  logErr("getOfficialResults", error);
-  return (data ?? []) as OfficialResult[];
-}
-
-export async function getAdvanceResults(): Promise<AdvanceResult[]> {
-  if (DEMO_MODE) return [];
-  const { data, error } = await supabase
-    .schema("winvote").from("advance_results")
-    .select("*")
-    .eq("election", ELECTION)
-    .order("set_no");
-  logErr("getAdvanceResults", error);
-  return (data ?? []) as AdvanceResult[];
+export async function loadElectionData(): Promise<ElectionData> {
+  if (_cache) return _cache;
+  if (_inflight) return _inflight;
+  _inflight = fetch("/winvote/election-data.json", { cache: "force-cache" })
+    .then((r) => {
+      if (!r.ok) throw new Error("load election-data failed");
+      return r.json();
+    })
+    .then((d: ElectionData) => { _cache = d; return d; })
+    .finally(() => { _inflight = null; });
+  return _inflight;
 }

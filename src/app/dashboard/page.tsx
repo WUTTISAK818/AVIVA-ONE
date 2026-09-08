@@ -605,6 +605,18 @@ export default function DashboardPage() {
           <TeamReportsSummaryWidget />
         )}
 
+        {ctxUser?.isAdmin && (
+          <Link href="/reports/monthly">
+            <GlassCard className="p-4 border border-aviva-gold/15 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText size={15} className="text-aviva-gold" />
+                <span className="text-sm font-semibold text-aviva-text">รายงานประจำเดือน</span>
+              </div>
+              <span className="text-[11px] text-aviva-gold font-medium">ดูผลประกอบการ →</span>
+            </GlassCard>
+          </Link>
+        )}
+
         {ctxUser?.isManager && (
           <WeeklyIntakeWidget />
         )}

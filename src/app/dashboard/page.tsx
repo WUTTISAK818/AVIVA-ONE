@@ -2,7 +2,7 @@
 
 import { APP_VERSION } from "@/lib/version";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, AlertTriangle, Clock, ClipboardList } from "lucide-react";
+import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Settings, X, Sparkles, Bot, Send, CheckCircle, HardHat, FileText, Briefcase, TrendingUp, TrendingDown, Activity, AlertTriangle, Clock, ClipboardList, MessageSquareText } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
@@ -600,6 +600,20 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {ctxUser && (
+          <Link href="/directives">
+            <GlassCard className="p-4 border border-aviva-gold/15 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquareText size={15} className="text-aviva-gold" />
+                <span className="text-sm font-semibold text-aviva-text">คำสั่งงาน</span>
+              </div>
+              <span className="text-[11px] text-aviva-gold font-medium">
+                {ctxUser.isManager ? "สั่งงาน/ติดตามความคืบหน้า →" : "ดูงานที่ได้รับมอบหมาย →"}
+              </span>
+            </GlassCard>
+          </Link>
+        )}
 
         {ctxUser?.isManager && (
           <TeamReportsSummaryWidget />

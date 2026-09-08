@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
 import { isManagerRole } from "@/lib/roles";
+import { channelBucket } from "@/lib/lead-channel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,16 +50,6 @@ function interestTier(l: LeadRow): { emoji: string; rank: number } {
   return { emoji: "⚪", rank: 2 };
 }
 
-// จัดกลุ่มช่องทางที่มาของลูกค้า (จาก leads.source ที่กรอกจริง) เป็น 4 กลุ่มตามที่ Pom ขอ
-const CHANNEL_ORDER = ["วอล์กอิน", "Facebook", "LINE", "อื่นๆ"] as const;
-function channelBucket(source: string | null): (typeof CHANNEL_ORDER)[number] {
-  const s = (source ?? "").toLowerCase();
-  if (!s) return "อื่นๆ";
-  if (s.includes("walk-in") || s.includes("walkin") || s.includes("วอล์กอิน") || s.includes("วอล์คอิน")) return "วอล์กอิน";
-  if (s.includes("facebook")) return "Facebook";
-  if (s.includes("line")) return "LINE";
-  return "อื่นๆ";
-}
 function channelCounts(withTier: RankedLead[]): Map<string, number> {
   const byChannel = new Map<string, number>();
   for (const { l } of withTier) {

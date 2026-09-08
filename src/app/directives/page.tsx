@@ -37,8 +37,11 @@ export default function DirectivesPage() {
   const [department, setDepartment] = useState("");
   const [message, setMessage] = useState("");
   const [referenceNote, setReferenceNote] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [sending, setSending] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
+  const [closeErrors, setCloseErrors] = useState<Record<string, string>>({});
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -77,18 +80,25 @@ export default function DirectivesPage() {
       department: department || emp?.department || null,
       message: message.trim(),
       referenceNote: referenceNote.trim() || null,
+      dueDate: dueDate || null,
     });
     setSending(false);
     if (r.ok) {
       setShowCompose(false);
-      setAssignedTo(""); setDepartment(""); setMessage(""); setReferenceNote("");
+      setAssignedTo(""); setDepartment(""); setMessage(""); setReferenceNote(""); setDueDate("");
       if (tab === "sent") load();
     }
   };
 
-  const handleStatusUpdate = async (id: string, status: DirectiveStatus) => {
-    const note = responseDrafts[id];
-    await updateDirectiveStatus(id, status, note);
+  // ปิดงาน "เสร็จแล้ว" ต้องมีรายงานปิดงานแนบเสมอ (กันปิดจ็อบเงียบๆ ไม่มีใครรู้ว่าทำอะไรไปบ้าง)
+  const handleStatusUpdate = async (d: Directive, status: DirectiveStatus) => {
+    const note = responseDrafts[d.id]?.trim() ?? "";
+    if (status === "done" && !note) {
+      setCloseErrors((p) => ({ ...p, [d.id]: "กรุณาเขียนรายงานปิดงานก่อนกดเสร็จแล้ว" }));
+      return;
+    }
+    setCloseErrors((p) => ({ ...p, [d.id]: "" }));
+    await updateDirectiveStatus(d, status, note || undefined);
     load();
   };
 
@@ -141,6 +151,7 @@ export default function DirectivesPage() {
         ) : (
           items.map((d) => {
             const meta = STATUS_META[d.status];
+            const overdue = !!d.due_date && d.due_date < todayStr && d.status !== "done";
             return (
               <GlassCard key={d.id} className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -148,14 +159,26 @@ export default function DirectivesPage() {
                     {tab === "received" ? `จาก ${d.created_by_name || d.created_by}` : `ถึง ${d.assigned_to_name || d.assigned_to}`}
                     {d.department && ` · ${d.department}`}
                   </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${meta.cls}`}>{meta.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    {overdue && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold bg-red-500/10 text-red-400 border-red-500/30">เกินกำหนด</span>
+                    )}
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${meta.cls}`}>{meta.label}</span>
+                  </div>
                 </div>
                 <p className="text-sm text-aviva-text leading-relaxed">{d.message}</p>
                 {d.reference_note && <p className="text-xs text-aviva-gold mt-1">อ้างอิง: {d.reference_note}</p>}
-                <p className="text-[10px] text-aviva-secondary mt-2">{formatDateTime(d.created_at)}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <p className="text-[10px] text-aviva-secondary">{formatDateTime(d.created_at)}</p>
+                  {d.due_date && (
+                    <p className={`text-[10px] ${overdue ? "text-red-400 font-semibold" : "text-aviva-secondary"}`}>
+                      · กำหนดเสร็จ {new Date(d.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  )}
+                </div>
                 {d.response_note && (
                   <div className="mt-2 pt-2 border-t border-aviva-gold/10">
-                    <p className="text-xs text-aviva-secondary">ตอบกลับ: {d.response_note}</p>
+                    <p className="text-xs text-aviva-secondary">{d.status === "done" ? "รายงานปิดงาน" : "ตอบกลับ"}: {d.response_note}</p>
                   </div>
                 )}
 
@@ -163,15 +186,16 @@ export default function DirectivesPage() {
                   <div className="mt-3 pt-3 border-t border-aviva-gold/10 space-y-2">
                     <input
                       type="text"
-                      placeholder="เขียนความคืบหน้า (ไม่บังคับ)"
+                      placeholder="เขียนความคืบหน้า (บังคับตอนกดเสร็จแล้ว)"
                       value={responseDrafts[d.id] ?? ""}
                       onChange={(e) => setResponseDrafts((p) => ({ ...p, [d.id]: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-1.5 text-xs text-aviva-text"
                     />
+                    {closeErrors[d.id] && <p className="text-[11px] text-red-400">{closeErrors[d.id]}</p>}
                     <div className="flex gap-1.5">
                       {d.status === "sent" && (
                         <button
-                          onClick={() => handleStatusUpdate(d.id, "acknowledged")}
+                          onClick={() => handleStatusUpdate(d, "acknowledged")}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[11px] font-semibold"
                         >
                           <Clock size={11} /> รับทราบ
@@ -179,17 +203,17 @@ export default function DirectivesPage() {
                       )}
                       {(d.status === "sent" || d.status === "acknowledged") && (
                         <button
-                          onClick={() => handleStatusUpdate(d.id, "in_progress")}
+                          onClick={() => handleStatusUpdate(d, "in_progress")}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[11px] font-semibold"
                         >
                           <PlayCircle size={11} /> กำลังทำ
                         </button>
                       )}
                       <button
-                        onClick={() => handleStatusUpdate(d.id, "done")}
+                        onClick={() => handleStatusUpdate(d, "done")}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[11px] font-semibold"
                       >
-                        <CheckCircle2 size={11} /> เสร็จแล้ว
+                        <CheckCircle2 size={11} /> เสร็จแล้ว (ปิดงาน)
                       </button>
                     </div>
                   </div>
@@ -221,14 +245,27 @@ export default function DirectivesPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">อ้างอิงถึง (ไม่บังคับ) เช่น ชื่อลูกค้า / เลขที่บ้าน</label>
-                <input
-                  type="text"
-                  value={referenceNote}
-                  onChange={(e) => setReferenceNote(e.target.value)}
-                  className="w-full bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                />
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-aviva-secondary mb-1 block">อ้างอิงถึง (ไม่บังคับ)</label>
+                  <input
+                    type="text"
+                    value={referenceNote}
+                    onChange={(e) => setReferenceNote(e.target.value)}
+                    placeholder="เช่น ชื่อลูกค้า / เลขที่บ้าน"
+                    className="w-full bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ (ไม่บังคับ)</label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ข้อความสั่งงาน</label>

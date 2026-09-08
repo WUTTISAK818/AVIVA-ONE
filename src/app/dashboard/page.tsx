@@ -602,7 +602,7 @@ export default function DashboardPage() {
         </div>
 
         {ctxUser && (
-          <Link href="/directives">
+          <Link href="/directives" className="block">
             <GlassCard className="p-4 border border-aviva-gold/15 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquareText size={15} className="text-aviva-gold" />
@@ -620,7 +620,7 @@ export default function DashboardPage() {
         )}
 
         {ctxUser?.isAdmin && (
-          <Link href="/reports/monthly">
+          <Link href="/reports/monthly" className="block">
             <GlassCard className="p-4 border border-aviva-gold/15 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText size={15} className="text-aviva-gold" />

@@ -50,6 +50,11 @@ export function workdaysInMonth(year: number, month: number, weeklyOff: number[]
   return count;
 }
 
+/** วันนี้เป็นวันหยุดของพนักงานคนนี้ไหม — ใช้วันหยุดเฉพาะคน (weekly_off_day) ถ้าตั้งไว้ ไม่งั้นใช้ค่ากลางบริษัท */
+export function isEmployeeOffDay(dow: number, employeeWeeklyOffDay: number | null | undefined, companyWeeklyOff: number[]): boolean {
+  return employeeWeeklyOffDay != null ? dow === employeeWeeklyOffDay : companyWeeklyOff.includes(dow);
+}
+
 /** มาสายไหม — เทียบเวลาเช็คอินกับเวลาเริ่มงาน + ผ่อนผัน (grace) */
 export function isLateCheckIn(checkIn: string | null | undefined, start: string, graceMinutes: number): boolean {
   if (!checkIn) return false;

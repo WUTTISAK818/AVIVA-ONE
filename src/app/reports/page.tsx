@@ -9,6 +9,7 @@ import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
 import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
+import { loadWorkSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
 import GlassCard from "@/components/GlassCard";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -81,6 +82,20 @@ export default function ReportsPage() {
 
   // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน — เช็กหลัง hooks ครบ (กัน Rules of Hooks / หน้าแครช)
   const isGardener = user?.department === "ฝ่ายสวน";
+
+  // วันหยุดประจำสัปดาห์เฉพาะคน (ตั้งค่าที่ Office → บุคคล) — วันนี้เป็นวันหยุดของตัวเอง ไม่ต้องส่งรายงาน
+  const [isOffToday, setIsOffToday] = useState(false);
+  useEffect(() => {
+    if (!user?.email) return;
+    (async () => {
+      const [{ data: emp }, schedule] = await Promise.all([
+        supabase.from("employees_directory").select("weekly_off_day").ilike("email", user.email).maybeSingle(),
+        loadWorkSchedule(),
+      ]);
+      const dow = new Date(Date.now() + 7 * 3_600_000).getDay();
+      setIsOffToday(isEmployeeOffDay(dow, (emp as { weekly_off_day?: number | null } | null)?.weekly_off_day, schedule.weekly_off_days));
+    })();
+  }, [user?.email]);
 
   const today = new Date().toISOString().split("T")[0];
   // วันที่แบบเวลาไทย (UTC+7) — ใช้เทียบ activity_logs.activity_date ที่ฝั่ง activity บันทึกเป็นวันที่ไทย
@@ -462,6 +477,20 @@ export default function ReportsPage() {
           <div className="text-6xl mb-4">🌿</div>
           <h1 className="text-2xl font-bold text-aviva-text mb-2">ฝ่ายสวน</h1>
           <p className="text-aviva-secondary mb-6">คนสวนไม่ต้องส่งรายงานประจำวัน</p>
+          <a href="/dashboard" className="inline-block px-6 py-3 bg-aviva-gold text-aviva-bg rounded-lg font-semibold">
+            ← กลับไปหน้าหลัก
+          </a>
+        </div>
+      </div>
+    );
+  }
+  if (isOffToday) {
+    return (
+      <div className="min-h-screen bg-aviva-bg flex items-center justify-center px-4 pb-24">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🌴</div>
+          <h1 className="text-2xl font-bold text-aviva-text mb-2">วันหยุดของคุณวันนี้</h1>
+          <p className="text-aviva-secondary mb-6">วันนี้เป็นวันหยุดประจำสัปดาห์ของคุณ ไม่ต้องส่งรายงานประจำวัน</p>
           <a href="/dashboard" className="inline-block px-6 py-3 bg-aviva-gold text-aviva-bg rounded-lg font-semibold">
             ← กลับไปหน้าหลัก
           </a>

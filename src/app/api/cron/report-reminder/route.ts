@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
 import { isManagerRole } from "@/lib/roles";
+import { parseSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +34,9 @@ export async function GET(req: NextRequest) {
   const dateLabel = new Date(Date.now() + 7 * 3_600_000)
     .toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
 
-  const [{ data: employees }, { data: sent }, { data: roleRows }] = await Promise.all([
+  const [{ data: employees }, { data: sent }, { data: roleRows }, { data: cfg }] = await Promise.all([
     db.from("employees")
-      .select("full_name, nickname, email, department")
+      .select("full_name, nickname, email, department, weekly_off_day")
       .eq("status", "active")
       .neq("department", "ฝ่ายสวน"),
     db.from("work_reports")
@@ -44,16 +45,20 @@ export async function GET(req: NextRequest) {
       .eq("report_date", todayThai)
       .in("status", ["submitted", "late"]),
     db.from("users").select("email, role"),
+    db.from("app_settings").select("value").eq("key", "work_schedule").maybeSingle(),
   ]);
 
   const sentEmails = new Set((sent ?? []).map(r => (r.user_email ?? "").toLowerCase()));
   const roleByEmail = new Map(
     (roleRows ?? []).map(u => [(u.email ?? "").toLowerCase(), u.role as string | null])
   );
+  const schedule = parseSchedule((cfg as { value?: string } | null)?.value);
+  const todayDow = new Date(Date.now() + 7 * 3_600_000).getDay();
 
   const missing = (employees ?? []).filter(e => {
     const email = (e.email ?? "").toLowerCase();
     if (!email || sentEmails.has(email)) return false;
+    if (isEmployeeOffDay(todayDow, e.weekly_off_day, schedule.weekly_off_days)) return false; // วันหยุดของพนักงานคนนี้ — ไม่ต้องเตือน
     return !isManagerRole(roleByEmail.get(email)); // ผู้บริหารไม่ต้องส่งรายงาน
   });
 

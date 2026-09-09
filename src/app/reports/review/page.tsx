@@ -8,6 +8,7 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
+import { loadWorkSchedule, isEmployeeOffDay, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
 import { toSignedUrl, toSignedUrls } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
@@ -83,6 +84,7 @@ interface Employee {
   full_name: string;
   department: string;
   email: string;
+  weekly_off_day: number | null;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -194,11 +196,17 @@ export default function ReportsReviewPage() {
       });
   }, [canAccess]);
 
+  const [schedule, setSchedule] = useState<WorkSchedule>(DEFAULT_SCHEDULE);
+  useEffect(() => {
+    if (!canAccess) return;
+    loadWorkSchedule().then(setSchedule);
+  }, [canAccess]);
+
   useEffect(() => {
     if (!canAccess) return;
     supabase
       .from("employees")
-      .select("id, full_name, department, email")
+      .select("id, full_name, department, email, weekly_off_day")
       .eq("status", "active")
       // ผู้ที่ต้องส่งรายงานประจำวันเท่านั้น — ยกเว้นฝ่ายสวน (คนสวน) และฝ่ายบริหาร (ผู้บริหารเป็นผู้ตรวจ ไม่ส่ง)
       .not("department", "in", '("ฝ่ายสวน","ฝ่ายบริหาร")')
@@ -373,7 +381,10 @@ export default function ReportsReviewPage() {
   const submittedEmails = new Set(
     reports.filter(r => r.status === "submitted" || r.status === "late").map(r => r.user_email)
   );
-  const missingEmployees = employees.filter(e => !submittedEmails.has(e.email));
+  const selectedDow = new Date(selectedDate + "T12:00:00").getDay();
+  const missingEmployees = employees.filter(e =>
+    !submittedEmails.has(e.email) && !isEmployeeOffDay(selectedDow, e.weekly_off_day, schedule.weekly_off_days)
+  );
   const departments = ["ทั้งหมด", ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))];
   const filteredReports = selectedDept === "ทั้งหมด"
     ? reports

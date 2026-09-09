@@ -251,7 +251,7 @@ export default function ElectionResults() {
             {e.assist.map(({ r, cap }) => (
               <div key={r.reg_code} className="flex items-center justify-between text-xs">
                 <span className="min-w-0 truncate"><span className="text-aviva-secondary/50 tabular-nums mr-1">{r.reg_code}</span>
-                  <span className="text-aviva-text font-medium">{r.full_name}</span>{r.role_title && <span className="text-aviva-secondary"> · {r.role_title}</span>}</span>
+                  <span className="text-aviva-text font-medium">{r.full_name}</span><span className="text-aviva-secondary"> · {r.role_title || "ว่าง"}</span></span>
                 <span className="text-aviva-secondary shrink-0 ml-1">ฐาน {cap}</span></div>
             ))}
             {e.capTotal > 0 && <p className="text-[11px] pt-1 font-semibold" style={{ color: GRADE_COLOR[e.grade] }}>ศักยภาพรวม {fmt(e.capTotal)} · ฉัตรได้ {fmt(u.v_chatr)} · ทำได้ {e.pct?.toFixed(0)}% → เกรด {e.grade}</p>}
@@ -377,9 +377,7 @@ export default function ElectionResults() {
                       {open && (
                         <div className="mt-2 pt-2 border-t border-aviva-gold/10 text-xs space-y-1.5">
                           {p.cap > 0 && <p className="font-semibold" style={{ color: GRADE_COLOR[p.grade] }}>ฉัตรได้ {fmt(p.chatr)} / ศักยภาพ {fmt(p.cap)} = {p.pct?.toFixed(0)}% (เกรด {p.grade})</p>}
-                          {(h as Responsible & { communities?: string[] }).communities?.length ? (
-                            <div><span className="text-aviva-secondary">ชุมชนที่ดูแล: </span><span className="text-aviva-text">{(h as Responsible & { communities?: string[] }).communities!.join(" · ")}</span></div>
-                          ) : null}
+                          <div><span className="text-aviva-secondary">ชุมชนที่ดูแล: </span><span className="text-aviva-text">{(h as Responsible & { communities?: string[] }).communities?.length ? (h as Responsible & { communities?: string[] }).communities!.join(" · ") : "ว่าง"}</span></div>
                         </div>
                       )}
                     </GlassCard>
@@ -399,7 +397,7 @@ export default function ElectionResults() {
                         <span className="text-[10px] text-aviva-secondary/50 tabular-nums w-12 shrink-0">{r.reg_code}</span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold text-aviva-text truncate">{r.full_name}</p>
-                          <p className="text-[10px] text-aviva-secondary truncate">{r.role_title} · {r.community}</p>
+                          <p className="text-[10px] text-aviva-secondary truncate">{r.role_title || "ว่าง"} · {r.community || "ว่าง"}</p>
                         </div>
                         <div className="text-right shrink-0"><p className="text-sm font-extrabold text-aviva-text">ฐาน {fmt(ownCap)}</p><p className="text-[10px] text-aviva-secondary">{nUnits} หน่วย</p></div>
                       </div>

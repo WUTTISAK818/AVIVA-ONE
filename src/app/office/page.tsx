@@ -2138,7 +2138,10 @@ interface Employee {
   commission_rate: number;
   start_date: string;
   status: string;
+  weekly_off_day: number | null;
 }
+
+const WEEKLY_OFF_OPTIONS = [['อา', 0], ['จ', 1], ['อ', 2], ['พ', 3], ['พฤ', 4], ['ศ', 5], ['ส', 6]] as const;
 
 const DEPARTMENTS = ["ฝ่ายขาย", "ฝ่ายก่อสร้าง", "ฝ่ายการเงิน", "ฝ่ายบัญชี", "ฝ่ายบุคคล", "ฝ่ายบริหาร"];
 
@@ -2161,6 +2164,7 @@ const emptyEmployeeForm = {
   base_salary: "",
   commission_rate: "",
   start_date: today,
+  weekly_off_day: "",
 };
 
 function HRContent() {
@@ -2373,6 +2377,7 @@ function HRContent() {
         position: form.position,
         base_salary: Number(form.base_salary) || 0,
         commission_rate: Number(form.commission_rate) || 0,
+        weekly_off_day: form.weekly_off_day === "" ? null : Number(form.weekly_off_day),
       }).eq("id", editingEmployee.id);
       await logAction("hr", "edit_employee", `แก้ไขข้อมูลพนักงาน ${form.full_name}`);
     } else {
@@ -2389,6 +2394,7 @@ function HRContent() {
         start_date: form.start_date,
         employee_code: empCode,
         status: "active",
+        weekly_off_day: form.weekly_off_day === "" ? null : Number(form.weekly_off_day),
       });
       await logAction("hr", "add_employee", `รับพนักงานใหม่ ${form.full_name} (${empCode}) ${form.department}`);
       await createNotification({ type: "info", title: `พนักงานใหม่เข้าทำงาน — ${form.full_name}`, message: `${empCode} · ${form.department}${form.position ? ` · ${form.position}` : ""} · เริ่ม ${form.start_date}`, from_dept: "ฝ่ายบุคคล", to_dept: "ผู้บริหาร" });
@@ -2444,6 +2450,7 @@ function HRContent() {
       base_salary: String(emp.base_salary ?? ""),
       commission_rate: String(emp.commission_rate ?? ""),
       start_date: emp.start_date ?? today,
+      weekly_off_day: emp.weekly_off_day != null ? String(emp.weekly_off_day) : "",
     });
     setShowModal(true);
   };
@@ -2806,6 +2813,11 @@ function HRContent() {
                         deptColor[emp.department] ?? "bg-gray-500/20 text-gray-400")}>
                         {emp.department}
                       </span>
+                      {emp.weekly_off_day != null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">
+                          หยุด{WEEKLY_OFF_OPTIONS.find(([, d]) => d === emp.weekly_off_day)?.[0]}
+                        </span>
+                      )}
                     </div>
                     {emp.position && (
                       <div className="flex items-center gap-1 mt-0.5">
@@ -2926,6 +2938,22 @@ function HRContent() {
                 <input id="empform-start_date" type="date" value={form.start_date}
                   onChange={e => setForm({ ...form, start_date: e.target.value })}
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">วันหยุดประจำสัปดาห์ (เฉพาะคนนี้)</label>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={() => setForm({ ...form, weekly_off_day: "" })}
+                    className={`flex-1 py-2 rounded-lg text-[10px] font-semibold border ${form.weekly_off_day === "" ? "bg-aviva-gold/20 text-aviva-gold border-aviva-gold/40" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/15"}`}>
+                    ค่ากลาง
+                  </button>
+                  {WEEKLY_OFF_OPTIONS.map(([label, d]) => (
+                    <button type="button" key={d} onClick={() => setForm({ ...form, weekly_off_day: String(d) })}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border ${form.weekly_off_day === String(d) ? "bg-red-500/20 text-red-400 border-red-500/40" : "bg-aviva-bg text-aviva-secondary border-aviva-gold/15"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-aviva-secondary/60 mt-1">"ค่ากลาง" = ใช้วันหยุดบริษัทตามที่ตั้งไว้ที่ Settings → เวลาทำงาน & วันหยุด</p>
               </div>
             </div>
             <button onClick={handleSave} disabled={saving || !form.full_name}

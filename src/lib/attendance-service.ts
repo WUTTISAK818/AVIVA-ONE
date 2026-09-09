@@ -81,10 +81,11 @@ export async function calculateMonthlyPayroll(req: { month: number; year: number
     }
 
     const { data: emp, error: empErr } = await db.from("employees")
-      .select("id, full_name, base_salary").eq("id", employee_id).single();
+      .select("id, full_name, base_salary, weekly_off_day").eq("id", employee_id).single();
     if (empErr) throw empErr;
 
     const { schedule, holidays } = await getScheduleAndHolidays();
+    const weeklyOff = emp.weekly_off_day != null ? [emp.weekly_off_day] : schedule.weekly_off_days;
     const daysInMonth = new Date(year, month, 0).getDate();
     const start = `${monthStr}-01`;
     const end = `${monthStr}-${String(daysInMonth).padStart(2, "0")}`;
@@ -94,7 +95,7 @@ export async function calculateMonthlyPayroll(req: { month: number; year: number
       .eq("employee_id", employee_id).gte("work_date", start).lte("work_date", end);
     const rows = (att as { check_in: string | null; status: string }[] | null) ?? [];
 
-    const workDays = workdaysInMonth(year, month, schedule.weekly_off_days, holidays);
+    const workDays = workdaysInMonth(year, month, weeklyOff, holidays);
     const presentDays = rows.filter((a) => a.status === "present").length;
     const absentDays = rows.filter((a) => a.status === "absent").length;
     const lateCount = rows.filter((a) => a.status === "present" && isLateCheckIn(a.check_in, schedule.work_start, schedule.grace_minutes)).length;

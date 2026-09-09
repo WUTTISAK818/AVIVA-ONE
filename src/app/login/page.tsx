@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { DEMO_MODE } from "@/lib/demo-data";
 
@@ -62,13 +62,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-aviva-bg flex flex-col items-center justify-center px-6">
       {/* Logo */}
       <div className="flex flex-col items-center gap-3 mb-10">
-        <div className="w-16 h-16 rounded-2xl bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center">
-          <Sparkles size={28} className="text-aviva-gold" />
-        </div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-aviva-gold tracking-widest">WinVote</h1>
-          <p className="text-xs text-aviva-secondary mt-1">ระบบเครือข่ายฐานเสียง</p>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/winvote-logo.png" alt="WinVote" width={120} height={120} className="w-28 h-28 rounded-3xl shadow-md" />
+        <p className="text-xs text-aviva-secondary">ระบบเครือข่ายฐานเสียง</p>
       </div>
 
       {/* Form */}

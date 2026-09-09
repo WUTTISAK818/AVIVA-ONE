@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Network, Users, MapPin, Vote, ChevronRight, ChevronLeft, Plus, X,
+  Users, MapPin, Vote, ChevronRight, ChevronLeft, Plus, X,
   Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown, MessageCircle, Target, TrendingUp,
+  LogOut, History,
 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
@@ -20,6 +21,7 @@ import { type ChipIdFields } from "@/lib/thai-id-reader";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { DEMO_MODE } from "@/lib/demo-data";
+import { logAccess, clearLocalSid } from "@/lib/security";
 import {
   getMunicipalitySummary, getDistrictKpi, getCommunityRollup, getMemberLoad,
   getPollingUnits, getResidents, validateThaiId, checkDuplicate,
@@ -104,6 +106,14 @@ export default function WinVotePage() {
     setResidents(await getResidents(m.member_id));
   };
 
+  async function handleLogout() {
+    await logAccess("logout");
+    clearLocalSid();
+    try { if (user) await supabase.schema("winvote").from("user_session").delete().eq("user_id", user.id); } catch { /* */ }
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
+
   if (!authorized) {
     return <div className="min-h-screen bg-aviva-bg" />;
   }
@@ -114,13 +124,22 @@ export default function WinVotePage() {
       <div className="sticky top-0 z-30 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10">
         <div className="max-w-lg mx-auto px-4 pt-12 pb-3">
           <div className="flex items-center gap-2 mb-2">
-            <Network size={22} className="text-aviva-gold" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/winvote-logo.png" alt="WinVote" width={28} height={28} className="w-7 h-7 rounded-lg" />
             <h1 className="text-xl font-bold text-aviva-text">WinVote <span className="text-sm font-normal text-aviva-secondary">เครือข่ายฐานเสียง</span></h1>
-            {DEMO_MODE && (
-              <span className="ml-auto text-[10px] font-bold text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                DEMO
-              </span>
-            )}
+            <div className="ml-auto flex items-center gap-1.5">
+              {DEMO_MODE && <span className="text-[10px] font-bold text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">DEMO</span>}
+              {user?.isAdmin && (
+                <button onClick={() => router.push("/audit")} title="ประวัติการเข้าใช้" className="p-1.5 rounded-lg text-aviva-secondary hover:text-aviva-text hover:bg-aviva-card transition-colors">
+                  <History size={17} />
+                </button>
+              )}
+              {user && (
+                <button onClick={handleLogout} title="ออกจากระบบ" className="p-1.5 rounded-lg text-aviva-secondary hover:text-red-500 hover:bg-aviva-card transition-colors">
+                  <LogOut size={17} />
+                </button>
+              )}
+            </div>
           </div>
           {user && (
             <div className="flex items-center gap-1.5 mb-3 text-[11px] text-aviva-secondary">

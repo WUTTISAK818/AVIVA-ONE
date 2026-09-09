@@ -47,3 +47,22 @@ begin
 end $$;
 
 select email, raw_app_meta_data->>'role' as role from auth.users where email like 'demo.%@winvote.local' order by email;
+
+-- ===== ความปลอดภัย: audit log + single-session (กู้คืนหลัง wipe) =====
+create table if not exists winvote.access_log (
+  id uuid primary key default gen_random_uuid(), user_id uuid, email text,
+  action text not null, ip text, user_agent text, meta jsonb, at timestamptz not null default now());
+create index if not exists winvote_access_at on winvote.access_log(at desc);
+alter table winvote.access_log enable row level security;
+grant select, insert on winvote.access_log to authenticated, service_role;
+drop policy if exists access_insert on winvote.access_log;
+create policy access_insert on winvote.access_log for insert to authenticated with check (true);
+drop policy if exists access_admin_read on winvote.access_log;
+create policy access_admin_read on winvote.access_log for select to authenticated using (winvote.is_admin());
+create table if not exists winvote.user_session (
+  user_id uuid primary key, email text, session_id text not null, ip text, user_agent text, updated_at timestamptz not null default now());
+alter table winvote.user_session enable row level security;
+grant select, insert, update, delete on winvote.user_session to authenticated, service_role;
+drop policy if exists session_rw on winvote.user_session;
+create policy session_rw on winvote.user_session for all to authenticated
+  using (user_id = auth.uid() or winvote.is_admin()) with check (user_id = auth.uid());

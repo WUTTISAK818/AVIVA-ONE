@@ -5,6 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import AuthProvider from "@/components/AuthProvider";
 import KillServiceWorker from "@/components/KillServiceWorker";
 import AccessibilityControls from "@/components/AccessibilityControls";
+import SecurityOverlay from "@/components/SecurityOverlay";
 import { UserProvider } from "@/lib/user-context";
 import { ThemeProvider } from "@/lib/theme-context";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>{children}</AuthProvider>
             <BottomNav />
             <AccessibilityControls />
+            <SecurityOverlay />
           </UserProvider>
         </ThemeProvider>
       </body>

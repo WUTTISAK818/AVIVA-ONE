@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { DEMO_MODE } from "@/lib/demo-data";
+import { registerSession, logAccess } from "@/lib/security";
 
 const DEMO_ACCOUNTS = [
   { email: "demo.admin@winvote.local",     label: "Admin",  dept: "ผู้ดูแลระบบ",    color: "text-aviva-gold   bg-aviva-gold/10   border-aviva-gold/20" },
@@ -24,6 +25,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showDemo, setShowDemo] = useState(false);
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("kicked")) setNotice("บัญชีนี้ถูกใช้ล็อกอินที่อุปกรณ์อื่น — ออกจากระบบอัตโนมัติเพื่อความปลอดภัย");
+    } catch { /* */ }
+  }, []);
 
   async function handleLogin(e?: React.FormEvent, demoEmail?: string, demoPass?: string) {
     e?.preventDefault();
@@ -37,14 +45,25 @@ export default function LoginPage() {
       return;
     }
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data: signIn, error: authError } = await supabase.auth.signInWithPassword({
       email: demoEmail ?? email,
       password: demoPass ?? password,
     });
 
-    if (authError) {
+    if (authError || !signIn.user) {
       setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
       setLoading(false);
+      return;
+    }
+
+    // ลงทะเบียนเซสชัน (เตะเครื่องเก่า) + บันทึกการเข้าใช้
+    await registerSession(signIn.user.id, signIn.user.email ?? null);
+    await logAccess("login");
+
+    // บังคับเปลี่ยนรหัสครั้งแรก
+    if (signIn.user.user_metadata?.must_change_password) {
+      router.push("/change-password");
+      router.refresh();
       return;
     }
 
@@ -66,6 +85,12 @@ export default function LoginPage() {
         <img src="/brand/winvote-logo.png" alt="WinVote" width={120} height={120} className="w-28 h-28 rounded-3xl shadow-md" />
         <p className="text-xs text-aviva-secondary">ระบบเครือข่ายฐานเสียง</p>
       </div>
+
+      {notice && (
+        <p className="w-full max-w-sm mb-4 text-amber-700 text-xs text-center bg-amber-400/15 border border-amber-400/30 rounded-xl py-2 px-3">
+          {notice}
+        </p>
+      )}
 
       {/* Form */}
       <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4">

@@ -55,6 +55,20 @@ export function isEmployeeOffDay(dow: number, employeeWeeklyOffDay: number | nul
   return employeeWeeklyOffDay != null ? dow === employeeWeeklyOffDay : companyWeeklyOff.includes(dow);
 }
 
+// ── วันที่/วันในสัปดาห์แบบเวลาไทย (Asia/Bangkok) — ปลอดภัยไม่ว่ารันจากเครื่อง/เบราว์เซอร์โซนเวลาไหน ──
+// ห้ามใช้ pattern `new Date(Date.now() + 7*3600000).getDay()` เด็ดขาด — ถ้ารันบนเบราว์เซอร์ที่ตั้งโซนเวลาไทยอยู่แล้ว
+// (กรณีปกติของผู้ใช้จริงในไทย) จะบวกเวลาซ้ำซ้อนเป็น +14 ชม. ทำให้วันที่/วันในสัปดาห์เพี้ยนไปข้างหน้า 1 วันได้ตั้งแต่ 17:00 น. เป็นต้นไป
+
+/** วันที่ปัจจุบันตามเวลาไทย เป็น "YYYY-MM-DD" — ใช้ timeZone ตรงๆ ไม่ใช้ trick บวกชั่วโมง */
+export function thaiDateStr(offsetMs = 0): string {
+  return new Date(Date.now() + offsetMs).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+}
+
+/** วันในสัปดาห์ (0=อา..6=ส) ของวันที่แบบ "YYYY-MM-DD" — ไม่ขึ้นกับโซนเวลาเครื่องที่รัน */
+export function dowOfDateStr(dateStr: string): number {
+  return new Date(dateStr + "T12:00:00Z").getUTCDay();
+}
+
 /** มาสายไหม — เทียบเวลาเช็คอินกับเวลาเริ่มงาน + ผ่อนผัน (grace) */
 export function isLateCheckIn(checkIn: string | null | undefined, start: string, graceMinutes: number): boolean {
   if (!checkIn) return false;

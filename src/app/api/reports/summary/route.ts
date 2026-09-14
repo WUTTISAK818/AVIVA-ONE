@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
-import { parseSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
+import { parseSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const todayThai = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
-    const todayDow = new Date(Date.now() + 7 * 3_600_000).getDay();
+    const todayThai = thaiDateStr();
+    const todayDow = dowOfDateStr(todayThai);
     const db = getSupabaseAdmin();
 
     const [{ data: employees }, { data: reports }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([

@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
 import { isManagerRole } from "@/lib/roles";
 import { callClaudeText } from "@/lib/claude";
-import { parseSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
+import { parseSchedule, isEmployeeOffDay, thaiDateStr } from "@/lib/work-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const todayThai = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+    const todayThai = thaiDateStr();
     const date = searchParams.get("date") || todayThai;
     const month = searchParams.get("month"); // "YYYY-MM" → โหมดสรุปรายเดือน/รายคน
     const force = searchParams.get("force") === "true";

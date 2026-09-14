@@ -9,7 +9,7 @@ import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
 import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
-import { loadWorkSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
+import { loadWorkSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 import GlassCard from "@/components/GlassCard";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -92,7 +92,7 @@ export default function ReportsPage() {
         supabase.from("employees_directory").select("weekly_off_day").ilike("email", user.email).maybeSingle(),
         loadWorkSchedule(),
       ]);
-      const dow = new Date(Date.now() + 7 * 3_600_000).getDay();
+      const dow = dowOfDateStr(thaiDateStr());
       setIsOffToday(isEmployeeOffDay(dow, (emp as { weekly_off_day?: number | null } | null)?.weekly_off_day, schedule.weekly_off_days));
     })();
   }, [user?.email]);

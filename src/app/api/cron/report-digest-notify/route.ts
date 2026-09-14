@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
 import { isManagerRole } from "@/lib/roles";
-import { parseSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
+import { parseSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,12 +32,10 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const db = admin();
 
-  const nowThai = new Date(Date.now() + 7 * 3_600_000);
-  const yesterdayThai = new Date(nowThai);
-  yesterdayThai.setDate(yesterdayThai.getDate() - 1);
-  const dateStr = yesterdayThai.toISOString().slice(0, 10);
-  const dateLabel = yesterdayThai.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
-  const dow = yesterdayThai.getDay();
+  const dateStr = thaiDateStr(-24 * 3_600_000); // เมื่อวานตามเวลาไทย
+  const dateLabel = new Date(dateStr + "T12:00:00Z")
+    .toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  const dow = dowOfDateStr(dateStr);
 
   const [{ data: employees }, { data: reports }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
     db.from("employees")

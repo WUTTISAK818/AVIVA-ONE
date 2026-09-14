@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
 import { isManagerRole } from "@/lib/roles";
-import { parseSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
+import { parseSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +30,9 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const db = admin();
 
-  const todayThai = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
-  const dateLabel = new Date(Date.now() + 7 * 3_600_000)
-    .toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+  const todayThai = thaiDateStr();
+  const dateLabel = new Date(todayThai + "T12:00:00Z")
+    .toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
 
   const [{ data: employees }, { data: sent }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
     db.from("employees")
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     (roleRows ?? []).map(u => [(u.email ?? "").toLowerCase(), u.role as string | null])
   );
   const schedule = parseSchedule((cfg as { value?: string } | null)?.value);
-  const todayDow = new Date(Date.now() + 7 * 3_600_000).getDay();
+  const todayDow = dowOfDateStr(todayThai);
   const isHoliday = (holidays ?? []).length > 0;
   const onLeaveIds = new Set((leaves ?? []).map(l => l.employee_id as string));
 

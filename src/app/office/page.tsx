@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Clock, ClipboardCheck,
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
@@ -25,6 +25,7 @@ import { attachDocumentToEntity } from "@/lib/doc-attach";
 import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
+import { loadMySwaps, loadPendingSwaps, requestSwap, decideSwap, thDate as thSwapDate, type OffDaySwap } from "@/lib/off-day-swaps";
 import Toast, { type ToastType } from "@/components/Toast";
 import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
 import { thaiDbError } from "@/lib/db-errors";
@@ -2251,6 +2252,54 @@ function HRContent() {
 
   useEffect(() => { if (hrTab === "การลา") fetchLeave(); }, [hrTab]);
 
+  // ── ขอสลับวันหยุด (พนักงานขอ → ผู้บริหารอนุมัติ → มีผลกับการนับวันหยุด/ส่งรายงาน) ──
+  const [swapForm, setSwapForm] = useState({ employee_name: "", original_off_date: "", swapped_off_date: "", reason: "" });
+  const [swapSaving, setSwapSaving] = useState(false);
+  const [swapList, setSwapList] = useState<OffDaySwap[]>([]);
+
+  const fetchSwaps = useCallback(async () => {
+    if (!user?.email) return;
+    setSwapList(user.isManager ? await loadPendingSwaps() : await loadMySwaps(user.email));
+  }, [user?.email, user?.isManager]);
+  useEffect(() => { if (hrTab === "การลา") fetchSwaps(); }, [hrTab, fetchSwaps]);
+
+  const handleSwapSubmit = async () => {
+    const emp = employees.find(e => e.full_name === swapForm.employee_name);
+    if (!emp || !swapForm.original_off_date || !swapForm.swapped_off_date) return;
+    if (swapForm.original_off_date === swapForm.swapped_off_date) {
+      setHrToast({ msg: "วันที่มาทำงานแทนกับวันที่ขอหยุดต้องไม่ใช่วันเดียวกัน", type: "error" });
+      return;
+    }
+    setSwapSaving(true);
+    const { data: execs } = await supabase.from("users").select("email").in("role", ["admin", "ceo", "coo"]);
+    const res = await requestSwap({
+      employeeId: emp.id,
+      employeeEmail: emp.email || user?.email || "",
+      employeeName: emp.full_name,
+      department: emp.department ?? null,
+      originalOffDate: swapForm.original_off_date,
+      swappedOffDate: swapForm.swapped_off_date,
+      reason: swapForm.reason,
+      executiveEmails: ((execs ?? []) as { email: string | null }[]).map(e => e.email ?? "").filter(Boolean),
+    });
+    setSwapSaving(false);
+    if (!res.ok) { setHrToast({ msg: res.error ?? "ส่งคำขอไม่สำเร็จ", type: "error" }); return; }
+    await logAction("hr", "swap_request", `ขอสลับวันหยุด ${emp.full_name}: ทำงาน ${swapForm.original_off_date} / หยุด ${swapForm.swapped_off_date}`);
+    setSwapForm({ employee_name: "", original_off_date: "", swapped_off_date: "", reason: "" });
+    setHrToast({ msg: "ส่งคำขอสลับวันหยุดแล้ว — รอผู้บริหารอนุมัติ", type: "success" });
+    fetchSwaps();
+  };
+
+  const handleSwapDecision = async (s: OffDaySwap, approve: boolean) => {
+    setSwapSaving(true);
+    const res = await decideSwap(s, approve, user?.full_name ?? user?.email ?? "ผู้บริหาร", user?.role ?? null);
+    setSwapSaving(false);
+    if (!res.ok) { setHrToast({ msg: res.error ?? "ดำเนินการไม่สำเร็จ", type: "error" }); return; }
+    await logAction("hr", approve ? "swap_approve" : "swap_reject", `${approve ? "อนุมัติ" : "ไม่อนุมัติ"}สลับวันหยุด ${s.employee_name}`);
+    setHrToast({ msg: approve ? "อนุมัติสลับวันหยุดแล้ว" : "ไม่อนุมัติคำขอแล้ว", type: "success" });
+    fetchSwaps();
+  };
+
   const handleLeaveSubmit = async () => {
     if (!leaveForm.employee_name || !leaveForm.date_from || !leaveForm.date_to) return;
     setLeaveSaving(true);
@@ -2628,6 +2677,81 @@ function HRContent() {
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
               {leaveSaving ? "กำลังส่ง..." : "ส่งคำขอลา"}
             </button>
+          </GlassCard>
+
+          {/* ขอสลับวันหยุด — ไม่ใช้สิทธิ์วันลา แค่ย้ายว่าสัปดาห์นั้นหยุดวันไหน */}
+          <GlassCard className="p-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-aviva-gold">ขอสลับวันหยุด</p>
+              <p className="text-[10px] text-aviva-secondary/70 mt-0.5">ย้ายวันหยุดประจำสัปดาห์เฉพาะครั้งนั้น — ไม่ตัดสิทธิ์วันลา · มีผลหลังผู้บริหารอนุมัติ</p>
+            </div>
+            <div>
+              <label htmlFor="swapform-employee" className="text-xs text-aviva-secondary mb-1 block">พนักงาน</label>
+              <select id="swapform-employee" value={swapForm.employee_name} onChange={e => setSwapForm({ ...swapForm, employee_name: e.target.value })}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text">
+                <option value="">เลือกพนักงาน</option>
+                {active.map(e => <option key={e.id} value={e.full_name}>{e.full_name}{e.nickname ? ` (${e.nickname})` : ""}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="swapform-original" className="text-xs text-aviva-secondary mb-1 block">วันหยุดเดิม (มาทำงานแทน)</label>
+                <input id="swapform-original" type="date" value={swapForm.original_off_date}
+                  onChange={e => setSwapForm({ ...swapForm, original_off_date: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text" />
+              </div>
+              <div>
+                <label htmlFor="swapform-swapped" className="text-xs text-aviva-secondary mb-1 block">วันที่ขอหยุดแทน</label>
+                <input id="swapform-swapped" type="date" value={swapForm.swapped_off_date}
+                  onChange={e => setSwapForm({ ...swapForm, swapped_off_date: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="swapform-reason" className="text-xs text-aviva-secondary mb-1 block">เหตุผล (ถ้ามี)</label>
+              <input id="swapform-reason" type="text" value={swapForm.reason} onChange={e => setSwapForm({ ...swapForm, reason: e.target.value })}
+                placeholder="เช่น มีธุระวันพุธ ขอสลับมาหยุดวันพฤหัสแทน"
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
+            </div>
+            <button onClick={handleSwapSubmit} disabled={swapSaving || !swapForm.employee_name || !swapForm.original_off_date || !swapForm.swapped_off_date}
+              className="w-full bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/40 font-bold py-2.5 rounded-2xl text-sm disabled:opacity-40">
+              {swapSaving ? "กำลังส่ง..." : "ส่งคำขอสลับวันหยุด"}
+            </button>
+
+            {swapList.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-[11px] font-bold text-aviva-secondary/70">
+                  {user?.isManager ? "คำขอรออนุมัติ" : "คำขอของฉัน"}
+                </p>
+                {swapList.map(s => (
+                  <div key={s.id} className="flex items-center justify-between gap-2 bg-aviva-bg/50 rounded-lg px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-aviva-text truncate">{s.employee_name}</p>
+                      <p className="text-[10px] text-aviva-secondary/70">
+                        ทำงาน {thSwapDate(s.original_off_date)} · หยุดแทน {thSwapDate(s.swapped_off_date)}
+                        {s.reason ? ` — ${s.reason}` : ""}
+                      </p>
+                    </div>
+                    {user?.isManager && s.status === "pending" ? (
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <button onClick={() => handleSwapDecision(s, true)} disabled={swapSaving}
+                          className="text-[10px] font-bold px-2 py-1 rounded-lg bg-green-500/15 text-green-400 border border-green-500/30 disabled:opacity-40">อนุมัติ</button>
+                        <button onClick={() => handleSwapDecision(s, false)} disabled={swapSaving}
+                          className="text-[10px] font-bold px-2 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 disabled:opacity-40">ไม่อนุมัติ</button>
+                      </div>
+                    ) : (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${
+                        s.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/30"
+                          : s.status === "rejected" ? "bg-red-500/10 text-red-400 border-red-500/30"
+                          : "bg-orange-500/10 text-orange-400 border-orange-500/30"
+                      }`}>
+                        {s.status === "approved" ? "อนุมัติแล้ว" : s.status === "rejected" ? "ไม่อนุมัติ" : "รออนุมัติ"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
           <div className="flex items-center justify-between">
             <SectionHeader title="ประวัติคำขอลา" />

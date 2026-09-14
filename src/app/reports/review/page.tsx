@@ -8,7 +8,8 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { createNotification } from "@/lib/notify";
-import { loadWorkSchedule, isEmployeeOffDay, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
+import { loadWorkSchedule, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
+import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
 import { toSignedUrl, toSignedUrls } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
@@ -205,6 +206,7 @@ export default function ReportsReviewPage() {
   // วันหยุดบริษัท + ใบลาที่อนุมัติแล้วของวันที่กำลังดู — ไม่นับคนกลุ่มนี้เป็น "ยังไม่ส่ง"
   const [isHoliday, setIsHoliday] = useState(false);
   const [onLeaveIds, setOnLeaveIds] = useState<Set<string>>(new Set());
+  const [swapRows, setSwapRows] = useState<{ employee_email: string; original_off_date: string; swapped_off_date: string }[]>([]);
   useEffect(() => {
     if (!canAccess) return;
     supabase.from("company_holidays").select("holiday_date").eq("holiday_date", selectedDate)
@@ -212,6 +214,10 @@ export default function ReportsReviewPage() {
     supabase.from("leave_requests").select("employee_id")
       .eq("status", "approved").lte("date_from", selectedDate).gte("date_to", selectedDate)
       .then(({ data }) => setOnLeaveIds(new Set((data ?? []).map(l => l.employee_id as string))));
+    supabase.from("off_day_swaps").select("employee_email, original_off_date, swapped_off_date")
+      .eq("status", "approved")
+      .or(`original_off_date.eq.${selectedDate},swapped_off_date.eq.${selectedDate}`)
+      .then(({ data }) => setSwapRows((data ?? []) as { employee_email: string; original_off_date: string; swapped_off_date: string }[]));
   }, [canAccess, selectedDate]);
 
   useEffect(() => {
@@ -394,11 +400,14 @@ export default function ReportsReviewPage() {
     reports.filter(r => r.status === "submitted" || r.status === "late").map(r => r.user_email)
   );
   const selectedDow = new Date(selectedDate + "T12:00:00").getDay();
-  const missingEmployees = employees.filter(e =>
-    !submittedEmails.has(e.email)
-    && !(isHoliday || isEmployeeOffDay(selectedDow, e.weekly_off_day, schedule.weekly_off_days))
-    && !onLeaveIds.has(e.id)
-  );
+  const swapsByEmail = groupSwapsByEmail(swapRows);
+  const missingEmployees = employees.filter(e => {
+    const { isOff } = resolveOffDay({
+      dateStr: selectedDate, dow: selectedDow, weeklyOffDay: e.weekly_off_day,
+      companyWeeklyOff: schedule.weekly_off_days, swaps: swapsByEmail.get((e.email ?? "").toLowerCase()) ?? [],
+    });
+    return !submittedEmails.has(e.email) && !(isHoliday || isOff) && !onLeaveIds.has(e.id);
+  });
   const departments = ["ทั้งหมด", ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))];
   const filteredReports = selectedDept === "ทั้งหมด"
     ? reports

@@ -3,7 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
 import { isManagerRole } from "@/lib/roles";
 import { callClaudeText } from "@/lib/claude";
-import { parseSchedule, isEmployeeOffDay, thaiDateStr } from "@/lib/work-schedule";
+import { parseSchedule, thaiDateStr } from "@/lib/work-schedule";
+import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +102,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const [{ data: employees }, { data: reports }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
+    const [{ data: employees }, { data: reports }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }, { data: swapRows }] = await Promise.all([
       db.from("employees")
         .select("id, full_name, email, department, weekly_off_day")
         .eq("status", "active")
@@ -119,6 +120,10 @@ export async function GET(req: NextRequest) {
         .eq("status", "approved")
         .lte("date_from", date)
         .gte("date_to", date),
+      db.from("off_day_swaps")
+        .select("employee_email, original_off_date, swapped_off_date")
+        .eq("status", "approved")
+        .or(`original_off_date.eq.${date},swapped_off_date.eq.${date}`),
     ]);
 
     const roleByEmail = new Map(
@@ -131,6 +136,7 @@ export async function GET(req: NextRequest) {
     const isHoliday = (holidays ?? []).length > 0;
     const dow = new Date(date + "T12:00:00").getDay();
     const leaveByEmployeeId = new Map((leaves ?? []).map(l => [l.employee_id as string, l.leave_type as string]));
+    const swapsByEmail = groupSwapsByEmail(swapRows ?? []);
 
     // ผู้บริหารไม่ต้องส่งรายงาน — ไม่นับเป็น "ยังไม่ส่ง"
     const expected = (employees ?? []).filter(
@@ -141,10 +147,15 @@ export async function GET(req: NextRequest) {
       const r = reportByEmail.get((e.email ?? "").toLowerCase());
       let status: PersonRow["status"];
       let reasonDetail: string | null = null;
+      const off = resolveOffDay({
+        dateStr: date, dow, weeklyOffDay: e.weekly_off_day,
+        companyWeeklyOff: schedule.weekly_off_days, swaps: swapsByEmail.get((e.email ?? "").toLowerCase()) ?? [],
+      });
       if (r) {
         status = r.status as "submitted" | "late";
-      } else if (isHoliday || isEmployeeOffDay(dow, e.weekly_off_day, schedule.weekly_off_days)) {
+      } else if (isHoliday || off.isOff) {
         status = "off";
+        reasonDetail = off.swapped ? "สลับวันหยุด" : null;
       } else if (leaveByEmployeeId.has(e.id)) {
         status = "leave";
         reasonDetail = leaveByEmployeeId.get(e.id) ?? null;

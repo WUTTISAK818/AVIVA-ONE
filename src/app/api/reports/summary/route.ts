@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
-import { parseSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { parseSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,9 @@ export async function GET(req: NextRequest) {
     const todayDow = dowOfDateStr(todayThai);
     const db = getSupabaseAdmin();
 
-    const [{ data: employees }, { data: reports }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
+    const [{ data: employees }, { data: reports }, { data: cfg }, { data: holidays }, { data: leaves }, { data: swapRows }] = await Promise.all([
       db.from("employees")
-        .select("id, weekly_off_day")
+        .select("id, email, weekly_off_day")
         .eq("status", "active")
         // ต้องส่งรายงานประจำวัน = ยกเว้นฝ่ายสวน (คนสวน) และฝ่ายบริหาร (ผู้บริหารเป็นผู้ตรวจ)
         .not("department", "in", '("ฝ่ายสวน","ฝ่ายบริหาร")'),
@@ -36,14 +37,23 @@ export async function GET(req: NextRequest) {
         .eq("status", "approved")
         .lte("date_from", todayThai)
         .gte("date_to", todayThai),
+      db.from("off_day_swaps")
+        .select("employee_email, original_off_date, swapped_off_date")
+        .eq("status", "approved")
+        .or(`original_off_date.eq.${todayThai},swapped_off_date.eq.${todayThai}`),
     ]);
 
     const schedule = parseSchedule((cfg as { value?: string } | null)?.value);
     const isHoliday = (holidays ?? []).length > 0;
     const onLeaveIds = new Set((leaves ?? []).map(l => l.employee_id as string));
-    const expected = (employees ?? []).filter(e =>
-      !(isHoliday || isEmployeeOffDay(todayDow, e.weekly_off_day, schedule.weekly_off_days)) && !onLeaveIds.has(e.id)
-    ).length;
+    const swapsByEmail = groupSwapsByEmail(swapRows ?? []);
+    const expected = (employees ?? []).filter(e => {
+      const { isOff } = resolveOffDay({
+        dateStr: todayThai, dow: todayDow, weeklyOffDay: e.weekly_off_day,
+        companyWeeklyOff: schedule.weekly_off_days, swaps: swapsByEmail.get((e.email ?? "").toLowerCase()) ?? [],
+      });
+      return !(isHoliday || isOff) && !onLeaveIds.has(e.id);
+    }).length;
 
     const submitted = reports?.length ?? 0;
     const late = reports?.filter(r => r.status === "late").length ?? 0;

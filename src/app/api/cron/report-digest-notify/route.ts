@@ -3,8 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
 import { isManagerRole } from "@/lib/roles";
-import { parseSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { parseSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 import { ABSENCE_GRACE_DAYS } from "@/lib/report-absences";
+import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     .toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
   const dow = dowOfDateStr(dateStr);
 
-  const [{ data: employees }, { data: reports }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
+  const [{ data: employees }, { data: reports }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }, { data: swapRows }] = await Promise.all([
     db.from("employees")
       .select("id, full_name, email, department, weekly_off_day")
       .eq("status", "active")
@@ -56,6 +57,10 @@ export async function GET(req: NextRequest) {
       .eq("status", "approved")
       .lte("date_from", dateStr)
       .gte("date_to", dateStr),
+    db.from("off_day_swaps")
+      .select("employee_email, original_off_date, swapped_off_date")
+      .eq("status", "approved")
+      .or(`original_off_date.eq.${dateStr},swapped_off_date.eq.${dateStr}`),
   ]);
 
   const roleByEmail = new Map(
@@ -65,6 +70,11 @@ export async function GET(req: NextRequest) {
   const schedule = parseSchedule((cfg as { value?: string } | null)?.value);
   const isHoliday = (holidays ?? []).length > 0;
   const leaveByEmployeeId = new Map((leaves ?? []).map(l => [l.employee_id as string, l.leave_type as string]));
+  const swapsByEmail = groupSwapsByEmail(swapRows ?? []);
+  const offDayOf = (e: { email: string | null; weekly_off_day: number | null }) => resolveOffDay({
+    dateStr, dow, weeklyOffDay: e.weekly_off_day,
+    companyWeeklyOff: schedule.weekly_off_days, swaps: swapsByEmail.get((e.email ?? "").toLowerCase()) ?? [],
+  });
 
   const expected = (employees ?? []).filter(
     e => e.email && !isManagerRole(roleByEmail.get((e.email ?? "").toLowerCase()))
@@ -78,8 +88,9 @@ export async function GET(req: NextRequest) {
   const onLeave: string[] = [];
   const unexplained: string[] = [];
   for (const e of missing) {
-    if (isHoliday || isEmployeeOffDay(dow, e.weekly_off_day, schedule.weekly_off_days)) {
-      offDay.push(e.full_name);
+    const off = offDayOf(e);
+    if (isHoliday || off.isOff) {
+      offDay.push(off.swapped ? `${e.full_name} (สลับวันหยุด)` : e.full_name);
     } else if (leaveByEmployeeId.has(e.id)) {
       onLeave.push(`${e.full_name} (${leaveByEmployeeId.get(e.id)})`);
     } else {
@@ -88,9 +99,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ── เคสขาดส่ง: เปิดเคสใหม่ + ปิดเคสเก่าที่จบแล้ว + เตือนพนักงานครั้งที่ 2 ──
-  const missingUnexplained = missing.filter(e =>
-    !(isHoliday || isEmployeeOffDay(dow, e.weekly_off_day, schedule.weekly_off_days)) && !leaveByEmployeeId.has(e.id)
-  );
+  const missingUnexplained = missing.filter(e => !(isHoliday || offDayOf(e).isOff) && !leaveByEmployeeId.has(e.id));
 
   // เปิดเคสของเมื่อวาน (กันซ้ำด้วย unique constraint employee_email+report_date)
   if (missingUnexplained.length > 0) {

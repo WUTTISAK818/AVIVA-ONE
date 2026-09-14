@@ -9,7 +9,8 @@ import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
 import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
-import { loadWorkSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { loadWorkSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { loadApprovedSwaps, resolveOffDay } from "@/lib/off-day-swaps";
 import { loadMyOpenAbsences, explainAbsence, closeAbsenceOnSubmit, type ReportAbsence } from "@/lib/report-absences";
 import GlassCard from "@/components/GlassCard";
 
@@ -101,12 +102,20 @@ export default function ReportsPage() {
   useEffect(() => {
     if (!user?.email) return;
     (async () => {
-      const [{ data: emp }, schedule] = await Promise.all([
+      const todayStr = thaiDateStr();
+      const [{ data: emp }, schedule, swaps] = await Promise.all([
         supabase.from("employees_directory").select("weekly_off_day").ilike("email", user.email).maybeSingle(),
         loadWorkSchedule(),
+        loadApprovedSwaps(user.email, todayStr, todayStr),
       ]);
-      const dow = dowOfDateStr(thaiDateStr());
-      setIsOffToday(isEmployeeOffDay(dow, (emp as { weekly_off_day?: number | null } | null)?.weekly_off_day, schedule.weekly_off_days));
+      const { isOff } = resolveOffDay({
+        dateStr: todayStr,
+        dow: dowOfDateStr(todayStr),
+        weeklyOffDay: (emp as { weekly_off_day?: number | null } | null)?.weekly_off_day,
+        companyWeeklyOff: schedule.weekly_off_days,
+        swaps,
+      });
+      setIsOffToday(isOff);
     })();
   }, [user?.email]);
 

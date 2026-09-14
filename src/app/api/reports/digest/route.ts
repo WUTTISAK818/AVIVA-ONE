@@ -3,16 +3,18 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
 import { isManagerRole } from "@/lib/roles";
 import { callClaudeText } from "@/lib/claude";
+import { parseSchedule, isEmployeeOffDay } from "@/lib/work-schedule";
 
 export const dynamic = "force-dynamic";
 
 // Executive Daily Digest — หน้าเดียวจบสำหรับผู้บริหาร:
-// ใครส่ง/ใครยังไม่ส่ง + AI สรุปรวมรายงานทุกฝ่ายของวันนั้น (cache ใน app_settings คุมค่าใช้จ่าย)
+// ใครส่ง/ใครยังไม่ส่ง + เหตุผล (วันหยุด/ลาอนุมัติแล้ว/ไม่ทราบสาเหตุ) + AI สรุปรวมรายงานทุกฝ่ายของวันนั้น (cache ใน app_settings คุมค่าใช้จ่าย)
 
 interface PersonRow {
   name: string;
   department: string;
-  status: "submitted" | "late" | "missing";
+  status: "submitted" | "late" | "off" | "leave" | "missing";
+  reasonDetail: string | null; // ประเภทการลา เมื่อ status === "leave"
   submittedAt: string | null;
   acknowledged: boolean;
   reportId: string | null;
@@ -91,9 +93,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const [{ data: employees }, { data: reports }, { data: roleRows }] = await Promise.all([
+    const [{ data: employees }, { data: reports }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
       db.from("employees")
-        .select("full_name, email, department")
+        .select("id, full_name, email, department, weekly_off_day")
         .eq("status", "active")
         .neq("department", "ฝ่ายสวน"),
       db.from("work_reports")
@@ -102,6 +104,13 @@ export async function GET(req: NextRequest) {
         .eq("report_date", date)
         .in("status", ["submitted", "late"]),
       db.from("users").select("email, role"),
+      db.from("app_settings").select("value").eq("key", "work_schedule").maybeSingle(),
+      db.from("company_holidays").select("holiday_date").eq("holiday_date", date),
+      db.from("leave_requests")
+        .select("employee_id, leave_type")
+        .eq("status", "approved")
+        .lte("date_from", date)
+        .gte("date_to", date),
     ]);
 
     const roleByEmail = new Map(
@@ -110,6 +119,10 @@ export async function GET(req: NextRequest) {
     const reportByEmail = new Map(
       (reports ?? []).map(r => [(r.user_email ?? "").toLowerCase(), r])
     );
+    const schedule = parseSchedule((cfg as { value?: string } | null)?.value);
+    const isHoliday = (holidays ?? []).length > 0;
+    const dow = new Date(date + "T12:00:00").getDay();
+    const leaveByEmployeeId = new Map((leaves ?? []).map(l => [l.employee_id as string, l.leave_type as string]));
 
     // ผู้บริหารไม่ต้องส่งรายงาน — ไม่นับเป็น "ยังไม่ส่ง"
     const expected = (employees ?? []).filter(
@@ -118,10 +131,23 @@ export async function GET(req: NextRequest) {
 
     const people: PersonRow[] = expected.map(e => {
       const r = reportByEmail.get((e.email ?? "").toLowerCase());
+      let status: PersonRow["status"];
+      let reasonDetail: string | null = null;
+      if (r) {
+        status = r.status as "submitted" | "late";
+      } else if (isHoliday || isEmployeeOffDay(dow, e.weekly_off_day, schedule.weekly_off_days)) {
+        status = "off";
+      } else if (leaveByEmployeeId.has(e.id)) {
+        status = "leave";
+        reasonDetail = leaveByEmployeeId.get(e.id) ?? null;
+      } else {
+        status = "missing";
+      }
       return {
         name: e.full_name,
         department: e.department ?? "-",
-        status: r ? (r.status as "submitted" | "late") : "missing",
+        status,
+        reasonDetail,
         submittedAt: r?.submitted_at ?? null,
         acknowledged: !!r?.acknowledged_by,
         reportId: r?.id ?? null,
@@ -130,8 +156,10 @@ export async function GET(req: NextRequest) {
 
     const stats = {
       expected: people.length,
-      submitted: people.filter(p => p.status !== "missing").length,
+      submitted: people.filter(p => p.status === "submitted" || p.status === "late").length,
       late: people.filter(p => p.status === "late").length,
+      offDay: people.filter(p => p.status === "off").length,
+      onLeave: people.filter(p => p.status === "leave").length,
       missing: people.filter(p => p.status === "missing").length,
       acknowledged: people.filter(p => p.acknowledged).length,
     };

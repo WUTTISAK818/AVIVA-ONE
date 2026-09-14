@@ -202,6 +202,18 @@ export default function ReportsReviewPage() {
     loadWorkSchedule().then(setSchedule);
   }, [canAccess]);
 
+  // วันหยุดบริษัท + ใบลาที่อนุมัติแล้วของวันที่กำลังดู — ไม่นับคนกลุ่มนี้เป็น "ยังไม่ส่ง"
+  const [isHoliday, setIsHoliday] = useState(false);
+  const [onLeaveIds, setOnLeaveIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!canAccess) return;
+    supabase.from("company_holidays").select("holiday_date").eq("holiday_date", selectedDate)
+      .then(({ data }) => setIsHoliday((data ?? []).length > 0));
+    supabase.from("leave_requests").select("employee_id")
+      .eq("status", "approved").lte("date_from", selectedDate).gte("date_to", selectedDate)
+      .then(({ data }) => setOnLeaveIds(new Set((data ?? []).map(l => l.employee_id as string))));
+  }, [canAccess, selectedDate]);
+
   useEffect(() => {
     if (!canAccess) return;
     supabase
@@ -383,7 +395,9 @@ export default function ReportsReviewPage() {
   );
   const selectedDow = new Date(selectedDate + "T12:00:00").getDay();
   const missingEmployees = employees.filter(e =>
-    !submittedEmails.has(e.email) && !isEmployeeOffDay(selectedDow, e.weekly_off_day, schedule.weekly_off_days)
+    !submittedEmails.has(e.email)
+    && !(isHoliday || isEmployeeOffDay(selectedDow, e.weekly_off_day, schedule.weekly_off_days))
+    && !onLeaveIds.has(e.id)
   );
   const departments = ["ทั้งหมด", ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))];
   const filteredReports = selectedDept === "ทั้งหมด"

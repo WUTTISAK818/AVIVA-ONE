@@ -12,7 +12,8 @@ import GlassCard from "@/components/GlassCard";
 interface PersonRow {
   name: string;
   department: string;
-  status: "submitted" | "late" | "missing";
+  status: "submitted" | "late" | "off" | "leave" | "missing";
+  reasonDetail: string | null;
   submittedAt: string | null;
   acknowledged: boolean;
   reportId: string | null;
@@ -20,7 +21,7 @@ interface PersonRow {
 
 interface DigestData {
   date: string;
-  stats: { expected: number; submitted: number; late: number; missing: number; acknowledged: number };
+  stats: { expected: number; submitted: number; late: number; offDay: number; onLeave: number; missing: number; acknowledged: number };
   people: PersonRow[];
   aiSummary: string | null;
   aiCached: boolean;
@@ -45,7 +46,9 @@ interface MonthData {
 const STATUS_CHIP: Record<PersonRow["status"], { label: string; cls: string }> = {
   submitted: { label: "ส่งแล้ว", cls: "bg-green-500/10 text-green-400 border-green-500/30" },
   late:      { label: "ส่งล่าช้า", cls: "bg-orange-500/10 text-orange-400 border-orange-500/30" },
-  missing:   { label: "ยังไม่ส่ง", cls: "bg-red-500/10 text-red-400 border-red-500/30" },
+  off:       { label: "วันหยุด", cls: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
+  leave:     { label: "ลา", cls: "bg-purple-500/10 text-purple-400 border-purple-500/30" },
+  missing:   { label: "ไม่ทราบสาเหตุ", cls: "bg-red-500/10 text-red-400 border-red-500/30" },
 };
 
 function addDays(dateStr: string, n: number) {
@@ -269,8 +272,8 @@ export default function ReportsDigestPage() {
               { label: "ต้องส่ง", value: stats?.expected ?? 0, cls: "text-aviva-gold" },
               { label: "ส่งแล้ว", value: stats?.submitted ?? 0, cls: "text-green-400" },
               { label: "ล่าช้า", value: stats?.late ?? 0, cls: "text-orange-400" },
-              { label: "ยังไม่ส่ง", value: stats?.missing ?? 0, cls: (stats?.missing ?? 0) > 0 ? "text-red-400" : "text-aviva-secondary/40" },
-              { label: "รับทราบ", value: stats?.acknowledged ?? 0, cls: "text-aviva-secondary" },
+              { label: "มีเหตุผล", value: (stats?.offDay ?? 0) + (stats?.onLeave ?? 0), cls: "text-blue-400" },
+              { label: "ไม่ทราบสาเหตุ", value: stats?.missing ?? 0, cls: (stats?.missing ?? 0) > 0 ? "text-red-400" : "text-aviva-secondary/40" },
             ].map(s => (
               <GlassCard key={s.label} className="p-2 text-center">
                 <p className={`text-lg font-bold ${s.cls}`}>{s.value}</p>
@@ -316,18 +319,19 @@ export default function ReportsDigestPage() {
                     <p className="text-[10px] text-aviva-secondary/70">
                       {p.department}
                       {p.submittedAt && ` · ส่งเมื่อ ${new Date(p.submittedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.`}
+                      {p.status === "leave" && p.reasonDetail && ` · ${p.reasonDetail}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {p.acknowledged && <CheckCircle size={13} className="text-green-400" />}
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${chip.cls}`}>{chip.label}</span>
-                    {p.status === "missing"
-                      ? <UserX size={13} className="text-red-400/60" />
-                      : (
+                    {p.status === "submitted" || p.status === "late"
+                      ? (
                         <Link href="/reports/review" className="p-1 rounded-lg bg-aviva-gold/10 border border-aviva-gold/30">
                           <Eye size={12} className="text-aviva-gold" />
                         </Link>
-                      )}
+                      )
+                      : p.status === "missing" && <UserX size={13} className="text-red-400/60" />}
                   </div>
                 </GlassCard>
               );

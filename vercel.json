@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/report-digest-notify",
-      "schedule": "30 12 * * *"
+      "schedule": "30 1 * * *"
     },
     {
       "path": "/api/cron/sales-lead-digest",

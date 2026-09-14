@@ -34,9 +34,9 @@ export async function GET(req: NextRequest) {
   const dateLabel = new Date(Date.now() + 7 * 3_600_000)
     .toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
 
-  const [{ data: employees }, { data: sent }, { data: roleRows }, { data: cfg }] = await Promise.all([
+  const [{ data: employees }, { data: sent }, { data: roleRows }, { data: cfg }, { data: holidays }, { data: leaves }] = await Promise.all([
     db.from("employees")
-      .select("full_name, nickname, email, department, weekly_off_day")
+      .select("id, full_name, nickname, email, department, weekly_off_day")
       .eq("status", "active")
       .neq("department", "ฝ่ายสวน"),
     db.from("work_reports")
@@ -46,6 +46,12 @@ export async function GET(req: NextRequest) {
       .in("status", ["submitted", "late"]),
     db.from("users").select("email, role"),
     db.from("app_settings").select("value").eq("key", "work_schedule").maybeSingle(),
+    db.from("company_holidays").select("holiday_date").eq("holiday_date", todayThai),
+    db.from("leave_requests")
+      .select("employee_id")
+      .eq("status", "approved")
+      .lte("date_from", todayThai)
+      .gte("date_to", todayThai),
   ]);
 
   const sentEmails = new Set((sent ?? []).map(r => (r.user_email ?? "").toLowerCase()));
@@ -54,11 +60,14 @@ export async function GET(req: NextRequest) {
   );
   const schedule = parseSchedule((cfg as { value?: string } | null)?.value);
   const todayDow = new Date(Date.now() + 7 * 3_600_000).getDay();
+  const isHoliday = (holidays ?? []).length > 0;
+  const onLeaveIds = new Set((leaves ?? []).map(l => l.employee_id as string));
 
   const missing = (employees ?? []).filter(e => {
     const email = (e.email ?? "").toLowerCase();
     if (!email || sentEmails.has(email)) return false;
-    if (isEmployeeOffDay(todayDow, e.weekly_off_day, schedule.weekly_off_days)) return false; // วันหยุดของพนักงานคนนี้ — ไม่ต้องเตือน
+    if (isHoliday || isEmployeeOffDay(todayDow, e.weekly_off_day, schedule.weekly_off_days)) return false; // วันหยุดของพนักงานคนนี้/บริษัท — ไม่ต้องเตือน
+    if (onLeaveIds.has(e.id)) return false; // ลาที่อนุมัติแล้ว — ไม่ต้องเตือน
     return !isManagerRole(roleByEmail.get(email)); // ผู้บริหารไม่ต้องส่งรายงาน
   });
 

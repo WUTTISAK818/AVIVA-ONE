@@ -100,12 +100,54 @@ export async function GET(req: NextRequest) {
     } catch { /* best-effort */ }
   }
 
+  // ── เตือนครั้งที่ 3 (ครั้งสุดท้าย) สำหรับเคสขาดส่งที่ยังไม่ชี้แจง + แจ้งผู้บริหารให้ทราบด้วย ──
+  const { data: finalCases } = await db
+    .from("report_absences")
+    .select("id, employee_email, employee_name, report_date")
+    .eq("status", "open")
+    .eq("reminder_count", 2);
+
+  let finalReminded = 0;
+  for (const c of finalCases ?? []) {
+    const caseLabel = new Date(c.report_date + "T12:00:00Z")
+      .toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
+    const fTitle = "⚠️ เตือนครั้งสุดท้าย — รายงานค้างส่ง";
+    const fBody = `รายงานวันที่ ${caseLabel} ยังไม่ได้ส่งและยังไม่ได้ชี้แจง — กรุณาส่งย้อนหลังหรือชี้แจงเหตุผลในแอป (แจ้งผู้บริหารรับทราบแล้ว)`;
+    await sendPush({ userEmail: c.employee_email }, { title: fTitle, body: fBody, url: "/reports", tag: "report-absence-final" }).catch(() => {});
+    try {
+      const { data: link } = await db.from("line_links").select("line_user_id")
+        .ilike("user_email", c.employee_email).not("linked_at", "is", null).maybeSingle();
+      if (link?.line_user_id) await sendLine(link.line_user_id, `${fTitle}\n${fBody}`);
+    } catch { /* best-effort */ }
+    await db.from("report_absences").update({
+      reminder_count: 3, last_reminded_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("id", c.id);
+    finalReminded++;
+  }
+
+  if (finalReminded > 0) {
+    const names = (finalCases ?? []).map(c => `${c.employee_name} (${c.report_date})`).join(", ");
+    const eTitle = "⚠️ มีพนักงานค้างส่งรายงานหลังเตือนครบ 3 ครั้ง";
+    const eBody = `${names}\n\nเตือนอัตโนมัติครบแล้ว — ระบบจะหยุดเตือน รอพนักงานส่งย้อนหลัง/ชี้แจง หรือครบ 7 วันจะปิดเป็น "ขาดส่ง — ไม่ชี้แจง" อัตโนมัติ`;
+    await db.from("notifications").insert({
+      type: "warning", to_dept: "ผู้บริหาร", from_dept: "ระบบรายงาน",
+      title: eTitle, message: eBody, is_read: false,
+    });
+    await sendPush({ department: "ฝ่ายบริหาร" }, { title: eTitle, body: eBody, url: "/reports/digest", tag: "report-absence-escalate" }).catch(() => {});
+    try {
+      const { data: links } = await db.from("line_links").select("line_user_id, user_email").not("linked_at", "is", null);
+      const managerLinks = (links ?? []).filter(l => isManagerRole(roleByEmail.get((l.user_email ?? "").toLowerCase())));
+      await Promise.allSettled(managerLinks.map(l => sendLine(l.line_user_id, `${eTitle}\n${eBody}`)));
+    } catch { /* best-effort */ }
+  }
+
   return NextResponse.json({
     ok: true,
     date: todayThai,
     expected: employees?.length ?? 0,
     alreadySent: sentEmails.size,
     reminded: missing.map(m => m.full_name),
+    finalReminded,
     pushSent,
     lineSent,
   });

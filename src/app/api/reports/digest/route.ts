@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       const monthEnd = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
         .toISOString().slice(0, 10);
 
-      const [{ data: employees }, { data: reports }, { data: roleRows }] = await Promise.all([
+      const [{ data: employees }, { data: reports }, { data: roleRows }, { data: absences }] = await Promise.all([
         db.from("employees")
           .select("full_name, email, department")
           .eq("status", "active")
@@ -53,6 +53,10 @@ export async function GET(req: NextRequest) {
           .lte("report_date", monthEnd)
           .in("status", ["submitted", "late"]),
         db.from("users").select("email, role"),
+        db.from("report_absences")
+          .select("employee_email, status")
+          .gte("report_date", monthStart)
+          .lte("report_date", monthEnd),
       ]);
 
       const roleByEmail = new Map(
@@ -63,9 +67,11 @@ export async function GET(req: NextRequest) {
       );
 
       const people = expected.map(e => {
+        const email = (e.email ?? "").toLowerCase();
         const mine = (reports ?? []).filter(
-          r => (r.user_email ?? "").toLowerCase() === (e.email ?? "").toLowerCase()
+          r => (r.user_email ?? "").toLowerCase() === email
         );
+        const myAbsences = (absences ?? []).filter(a => (a.employee_email ?? "").toLowerCase() === email);
         const submitted = mine.length;
         const late = mine.filter(r => r.status === "late").length;
         const onTime = submitted - late;
@@ -76,6 +82,8 @@ export async function GET(req: NextRequest) {
           onTime,
           late,
           acknowledged: mine.filter(r => r.acknowledged_by).length,
+          absenceExplained: myAbsences.filter(a => a.status === "explained").length,
+          absenceUnexplained: myAbsences.filter(a => a.status === "closed_unexplained").length,
           onTimeRate: submitted > 0 ? Math.round((onTime / submitted) * 100) : null,
         };
       }).sort((a, b) => b.submitted - a.submitted);

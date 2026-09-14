@@ -4,6 +4,7 @@ import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
 import { isManagerRole } from "@/lib/roles";
 import { parseSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { ABSENCE_GRACE_DAYS } from "@/lib/report-absences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,12 +87,95 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── เคสขาดส่ง: เปิดเคสใหม่ + ปิดเคสเก่าที่จบแล้ว + เตือนพนักงานครั้งที่ 2 ──
+  const missingUnexplained = missing.filter(e =>
+    !(isHoliday || isEmployeeOffDay(dow, e.weekly_off_day, schedule.weekly_off_days)) && !leaveByEmployeeId.has(e.id)
+  );
+
+  // เปิดเคสของเมื่อวาน (กันซ้ำด้วย unique constraint employee_email+report_date)
+  if (missingUnexplained.length > 0) {
+    await db.from("report_absences").upsert(
+      missingUnexplained.map(e => ({
+        employee_id: e.id,
+        employee_email: (e.email ?? "").toLowerCase(),
+        employee_name: e.full_name,
+        department: e.department,
+        report_date: dateStr,
+        status: "open",
+        reminder_count: 1,          // ครั้งที่ 1 = เตือน 18:00 ของเมื่อวาน
+        last_reminded_at: new Date().toISOString(),
+      })),
+      { onConflict: "employee_email,report_date", ignoreDuplicates: true },
+    );
+  }
+
+  // เคสที่ยังค้าง — เอามาปิด/เตือนต่อ
+  const { data: openCases } = await db
+    .from("report_absences")
+    .select("id, employee_email, employee_name, report_date, status, reminder_count")
+    .in("status", ["open", "explained"]);
+
+  const cutoff = thaiDateStr(-ABSENCE_GRACE_DAYS * 24 * 3_600_000);
+  let closedSubmitted = 0;
+  let closedUnexplained = 0;
+  let remindedStaff = 0;
+
+  for (const c of openCases ?? []) {
+    // 1) ส่งย้อนหลังแล้ว → ปิดเอง
+    const { data: nowSubmitted } = await db
+      .from("work_reports")
+      .select("id")
+      .eq("report_type", "daily")
+      .eq("report_date", c.report_date)
+      .ilike("user_email", c.employee_email)
+      .in("status", ["submitted", "late"])
+      .maybeSingle();
+    if (nowSubmitted) {
+      await db.from("report_absences").update({ status: "closed_submitted", updated_at: new Date().toISOString() }).eq("id", c.id);
+      closedSubmitted++;
+      continue;
+    }
+    // 2) เกินกำหนดตาม (7 วัน) และยังไม่ชี้แจง → ปิดเป็น "ขาดส่ง — ไม่ชี้แจง" ติดประวัติ
+    if (c.report_date < cutoff && c.status === "open") {
+      await db.from("report_absences").update({ status: "closed_unexplained", updated_at: new Date().toISOString() }).eq("id", c.id);
+      closedUnexplained++;
+      continue;
+    }
+    // 3) ยังรอชี้แจง + ยังไม่เกิน 3 ครั้ง → เตือนพนักงานคนนั้น (ครั้งที่ 2 ของบันได)
+    if (c.status === "open" && c.reminder_count < 2) {
+      const caseLabel = new Date(c.report_date + "T12:00:00Z")
+        .toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
+      const staffTitle = "📝 ยังไม่ได้ส่งรายงาน";
+      const staffBody = `รายงานวันที่ ${caseLabel} ยังไม่ได้ส่ง — ส่งย้อนหลังได้ที่เมนู "งานรายวัน" หรือชี้แจงเหตุผลในแอป`;
+      await sendPush({ userEmail: c.employee_email }, { title: staffTitle, body: staffBody, url: "/reports", tag: "report-absence" }).catch(() => {});
+      try {
+        const { data: link } = await db.from("line_links").select("line_user_id")
+          .ilike("user_email", c.employee_email).not("linked_at", "is", null).maybeSingle();
+        if (link?.line_user_id) await sendLine(link.line_user_id, `${staffTitle}\n${staffBody}`);
+      } catch { /* best-effort */ }
+      await db.from("report_absences").update({
+        reminder_count: 2, last_reminded_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).eq("id", c.id);
+      remindedStaff++;
+    }
+  }
+
+  const { data: stillPending } = await db
+    .from("report_absences")
+    .select("employee_name, report_date, status")
+    .in("status", ["open", "explained"])
+    .is("acknowledged_at", null);
+  const waitingExplain = (stillPending ?? []).filter(c => c.status === "open").length;
+  const waitingAck = (stillPending ?? []).filter(c => c.status === "explained").length;
+
   const title = `📋 สรุปรายงานทีม — ${dateLabel}`;
   const lines = [
     `ส่งแล้ว ${submitted}/${expected.length} คน${late > 0 ? ` (ล่าช้า ${late})` : ""}`,
     offDay.length > 0 ? `🌴 วันหยุด: ${offDay.join(", ")}` : "",
     onLeave.length > 0 ? `🏥 ลา (อนุมัติแล้ว): ${onLeave.join(", ")}` : "",
     unexplained.length > 0 ? `❗ยังไม่ทราบสาเหตุ (ต้องติดตาม) ${unexplained.length} คน: ${unexplained.join(", ")}` : "✅ ที่เหลือส่งครบ ไม่มีคนขาดโดยไม่ทราบสาเหตุ",
+    waitingExplain > 0 ? `⏳ เคสค้างรอพนักงานชี้แจง ${waitingExplain} เคส` : "",
+    waitingAck > 0 ? `🖐️ ชี้แจงแล้ว รอคุณกดรับทราบ ${waitingAck} เคส` : "",
   ].filter(Boolean);
   const message = lines.join("\n");
 
@@ -128,6 +212,7 @@ export async function GET(req: NextRequest) {
     offDay,
     onLeave,
     unexplained,
+    absenceCases: { opened: missingUnexplained.length, closedSubmitted, closedUnexplained, remindedStaff, waitingExplain, waitingAck },
     lineSent,
   });
 }

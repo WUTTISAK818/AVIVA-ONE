@@ -8,6 +8,7 @@ import {
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import { loadPendingAbsences, acknowledgeAbsence, type ReportAbsence } from "@/lib/report-absences";
 
 interface PersonRow {
   name: string;
@@ -34,6 +35,8 @@ interface MonthPersonRow {
   onTime: number;
   late: number;
   acknowledged: number;
+  absenceExplained: number;
+  absenceUnexplained: number;
   onTimeRate: number | null;
 }
 
@@ -115,6 +118,22 @@ export default function ReportsDigestPage() {
     if (mode === "day") fetchDigest(date);
     else fetchMonth(month);
   }, [canAccess, mode, date, month, fetchDigest, fetchMonth]);
+
+  // เคสขาดส่งที่ยังไม่จบ — รอพนักงานชี้แจง / ชี้แจงแล้วรอผู้บริหารกดรับทราบ
+  const [pendingAbsences, setPendingAbsences] = useState<ReportAbsence[]>([]);
+  const [ackSaving, setAckSaving] = useState<string | null>(null);
+  const reloadAbsences = useCallback(async () => {
+    if (!canAccess) return;
+    setPendingAbsences(await loadPendingAbsences());
+  }, [canAccess]);
+  useEffect(() => { reloadAbsences(); }, [reloadAbsences]);
+
+  const handleAcknowledge = async (a: ReportAbsence) => {
+    setAckSaving(a.id);
+    await acknowledgeAbsence(a.id, user?.full_name ?? user?.email ?? "ผู้บริหาร");
+    setAckSaving(null);
+    reloadAbsences();
+  };
 
   if (user && !canAccess) {
     return (
@@ -224,11 +243,13 @@ export default function ReportsDigestPage() {
                         {p.onTimeRate != null ? `ตรงเวลา ${p.onTimeRate}%` : "ยังไม่มีรายงาน"}
                       </span>
                     </div>
-                    <div className="flex gap-3 text-[10px] text-aviva-secondary">
+                    <div className="flex gap-3 text-[10px] text-aviva-secondary flex-wrap">
                       <span>ส่ง <b className="text-aviva-text">{p.submitted}</b> วัน</span>
                       <span>ตรงเวลา <b className="text-green-400">{p.onTime}</b></span>
                       <span>ล่าช้า <b className={p.late > 0 ? "text-orange-400" : "text-aviva-secondary"}>{p.late}</b></span>
                       <span>รับทราบแล้ว <b className="text-aviva-text">{p.acknowledged}</b></span>
+                      {p.absenceExplained > 0 && <span>ขาดส่ง-ชี้แจง <b className="text-blue-400">{p.absenceExplained}</b></span>}
+                      {p.absenceUnexplained > 0 && <span>ขาดส่ง-ไม่ชี้แจง <b className="text-red-400">{p.absenceUnexplained}</b></span>}
                     </div>
                   </GlassCard>
                 ))}
@@ -281,6 +302,38 @@ export default function ReportsDigestPage() {
               </GlassCard>
             ))}
           </div>
+
+          {/* เคสขาดส่งที่ยังไม่จบ */}
+          {pendingAbsences.length > 0 && (
+            <GlassCard className="p-4 space-y-2 border border-orange-500/25">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle size={14} className="text-orange-400" />
+                <p className="text-sm font-bold text-aviva-text">เคสขาดส่งที่ยังไม่จบ ({pendingAbsences.length})</p>
+              </div>
+              {pendingAbsences.map(a => {
+                const label = new Date(a.report_date + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
+                const explained = a.status === "explained";
+                return (
+                  <div key={a.id} className="flex items-start justify-between gap-2 bg-aviva-bg/50 rounded-xl px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-aviva-text">{a.employee_name} · {label}</p>
+                      {explained ? (
+                        <p className="text-[11px] text-aviva-secondary mt-0.5">ชี้แจง: {a.explanation}</p>
+                      ) : (
+                        <p className="text-[11px] text-orange-400/80 mt-0.5">ยังไม่ชี้แจง · เตือนไปแล้ว {a.reminder_count} ครั้ง</p>
+                      )}
+                    </div>
+                    {explained && (
+                      <button onClick={() => handleAcknowledge(a)} disabled={ackSaving === a.id}
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30 flex-shrink-0 disabled:opacity-40">
+                        {ackSaving === a.id ? "..." : "รับทราบ"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </GlassCard>
+          )}
 
           {/* AI digest */}
           <GlassCard className="p-4 space-y-2">

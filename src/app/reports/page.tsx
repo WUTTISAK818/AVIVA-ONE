@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin, Wifi, WifiOff, RefreshCw, Sparkles } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
@@ -10,6 +10,7 @@ import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
 import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
 import { loadWorkSchedule, isEmployeeOffDay, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { loadMyOpenAbsences, explainAbsence, closeAbsenceOnSubmit, type ReportAbsence } from "@/lib/report-absences";
 import GlassCard from "@/components/GlassCard";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -82,6 +83,18 @@ export default function ReportsPage() {
 
   // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน — เช็กหลัง hooks ครบ (กัน Rules of Hooks / หน้าแครช)
   const isGardener = user?.department === "ฝ่ายสวน";
+
+  // เคสขาดส่งรายงานที่ยังไม่จบ — ส่งย้อนหลัง หรือชี้แจงเหตุผล
+  const [absences, setAbsences] = useState<ReportAbsence[]>([]);
+  const [explainFor, setExplainFor] = useState<ReportAbsence | null>(null);
+  const [explainText, setExplainText] = useState("");
+  const [explainSaving, setExplainSaving] = useState(false);
+
+  const reloadAbsences = useCallback(async () => {
+    if (!user?.email) return;
+    setAbsences(await loadMyOpenAbsences(user.email));
+  }, [user?.email]);
+  useEffect(() => { reloadAbsences(); }, [reloadAbsences]);
 
   // วันหยุดประจำสัปดาห์เฉพาะคน (ตั้งค่าที่ Office → บุคคล) — วันนี้เป็นวันหยุดของตัวเอง ไม่ต้องส่งรายงาน
   const [isOffToday, setIsOffToday] = useState(false);
@@ -448,9 +461,28 @@ export default function ReportsPage() {
         line_to_depts: ["ผู้บริหาร"],
       });
     }
+    // ส่งแล้ว → ปิดเคสขาดส่งของวันนั้นให้อัตโนมัติ (ถ้ามี)
+    if (user?.email) {
+      await closeAbsenceOnSubmit(user.email, reportDate).catch(() => {});
+      reloadAbsences();
+    }
     setSubmitting(false);
     setLateModal(false);
     showToast(status === "late" ? "ส่งรายงานล่าช้า — บันทึกแล้ว" : `ส่งรายงาน${isBackdated ? "ย้อนหลัง" : ""}เรียบร้อย ✓`);
+  }
+
+  async function submitExplanation() {
+    if (!explainFor || !explainText.trim()) return;
+    setExplainSaving(true);
+    const { data: execs } = await supabase.from("users").select("email").in("role", ["admin", "ceo", "coo"]);
+    const execEmails = ((execs ?? []) as { email: string | null }[]).map(e => e.email ?? "").filter(Boolean);
+    const res = await explainAbsence(explainFor, explainText, execEmails);
+    setExplainSaving(false);
+    if (!res.ok) { showToast(res.error ?? "บันทึกไม่สำเร็จ", "error"); return; }
+    setExplainFor(null);
+    setExplainText("");
+    reloadAbsences();
+    showToast("ส่งคำชี้แจงให้ผู้บริหารแล้ว ✓");
   }
 
   function handleSubmit() {
@@ -484,9 +516,67 @@ export default function ReportsPage() {
       </div>
     );
   }
+  // แถบเคสค้าง "ยังไม่ได้ส่งรายงาน" — แสดงทั้งหน้าปกติและหน้าวันหยุด (กันพลาดเวลาเคสค้างข้ามวันหยุด)
+  const absenceBanner = absences.length > 0 && (
+    <div className="space-y-2">
+      {absences.map(a => {
+        const label = new Date(a.report_date + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+        const explained = a.status === "explained";
+        return (
+          <GlassCard key={a.id} className={`p-3 border ${explained ? "border-blue-500/30" : "border-orange-500/40"}`}>
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={15} className={explained ? "text-blue-400 mt-0.5 flex-shrink-0" : "text-orange-400 mt-0.5 flex-shrink-0"} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-aviva-text">ยังไม่ได้ส่งรายงาน — {label}</p>
+                {explained ? (
+                  <p className="text-[11px] text-blue-400 mt-0.5">ชี้แจงแล้ว: {a.explanation} (รอผู้บริหารรับทราบ)</p>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-aviva-secondary mt-0.5">ส่งย้อนหลังได้ หรือชี้แจงเหตุผลว่าทำไมไม่ได้ส่ง</p>
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => { setReportDate(a.report_date); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30">
+                        ส่งย้อนหลังวันนี้
+                      </button>
+                      <button onClick={() => { setExplainFor(a); setExplainText(""); }}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                        ชี้แจงเหตุผล
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+
+  const explainModal = explainFor && (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-24">
+      <div className="w-full max-w-lg bg-aviva-card rounded-3xl p-5 space-y-3 mb-4">
+        <h3 className="text-base font-bold text-aviva-text">ชี้แจงเหตุที่ไม่ได้ส่งรายงาน</h3>
+        <p className="text-xs text-aviva-secondary">
+          วันที่ {new Date(explainFor.report_date + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" })}
+        </p>
+        <textarea value={explainText} onChange={e => setExplainText(e.target.value)} rows={3}
+          placeholder="เช่น ไปไซต์งานต่างจังหวัด สัญญาณอินเทอร์เน็ตไม่ได้ / ป่วยแต่ยังไม่ได้ยื่นใบลา"
+          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+        <div className="flex gap-2">
+          <button onClick={() => setExplainFor(null)} className="flex-1 py-2.5 rounded-xl text-sm text-aviva-secondary border border-aviva-gold/20">ยกเลิก</button>
+          <button onClick={submitExplanation} disabled={!explainText.trim() || explainSaving}
+            className="flex-1 bg-aviva-gold text-aviva-bg font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">
+            {explainSaving ? "กำลังส่ง..." : "ส่งคำชี้แจง"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (isOffToday) {
     return (
-      <div className="min-h-screen bg-aviva-bg flex items-center justify-center px-4 pb-24">
+      <div className="min-h-screen bg-aviva-bg flex flex-col items-center justify-center px-4 pb-24">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🌴</div>
           <h1 className="text-2xl font-bold text-aviva-text mb-2">วันหยุดของคุณวันนี้</h1>
@@ -495,6 +585,8 @@ export default function ReportsPage() {
             ← กลับไปหน้าหลัก
           </a>
         </div>
+        {absences.length > 0 && <div className="w-full max-w-lg mt-8">{absenceBanner}</div>}
+        {explainModal}
       </div>
     );
   }
@@ -527,6 +619,9 @@ export default function ReportsPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
+
+        {absenceBanner}
+        {explainModal}
 
         {/* Date + Status */}
         <GlassCard className="p-4">

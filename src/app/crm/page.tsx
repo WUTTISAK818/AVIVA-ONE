@@ -14,6 +14,7 @@ import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
 import { createNotification, notifyActivityLine, notifyMilestone } from "@/lib/notify";
+import { alertOthersInterestedInPlot } from "@/lib/plot-interest";
 import { useCurrentUser } from "@/lib/user-context";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import { generateDocNumber } from "@/lib/doc-numbers";
@@ -474,8 +475,8 @@ export default function CRMPage() {
       <table>
         <tr><td>โครงการ</td><td>AVIVA Private</td></tr>
         <tr><td>แปลงที่สนใจ</td><td>${escapeHtml(plotStr)}</td></tr>
-        <tr><td>งบประมาณลูกค้า</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
-        <tr class="total-row"><td>ราคาเสนอขาย</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
+        <tr><td>งบประมาณลูกค้า (ที่แจ้งไว้)</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
+        <tr class="total-row"><td>ราคาเสนอขาย</td><td>฿${Number(lead.contract_price ?? lead.budget).toLocaleString()}</td></tr>
       </table>
       ${lead.notes ? `<div class="title">หมายเหตุ</div><p style="padding:8px 12px;background:#f9f7f0;border-radius:4px">${escapeHtml(lead.notes)}</p>` : ""}
       <div class="footer">
@@ -491,7 +492,9 @@ export default function CRMPage() {
   const printBookingLetter = (lead: Lead) => {
     const dateStr = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
     const plotStr = lead.plot_number ? `แปลงที่ ${lead.plot_number}` : "..........";
-    const bookingDeposit = Math.round(Number(lead.budget) * PAYMENT_PLAN.booking);
+    // ใบจองต้องคิดจาก "ราคาขายที่ตกลง" เสมอ — งบประมาณลูกค้าเป็นแค่ตัวเลขคัดกรองตอนแรก
+    const salePrice = Number(lead.contract_price ?? lead.budget ?? 0);
+    const bookingDeposit = Math.round(salePrice * PAYMENT_PLAN.booking);
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
       <title>ใบจอง — ${escapeHtml(lead.customer_name)}</title>
       <style>
@@ -520,7 +523,7 @@ export default function CRMPage() {
       <p>เบอร์โทรศัพท์ <span class="field">${escapeHtml(lead.phone)}</span></p>
       <p>ขอจองซื้อบ้านหมู่บ้านจัดสรร <strong>AVIVA Private</strong> หมายเลขแปลง <span class="field">${escapeHtml(plotStr)}</span></p>
       <div class="highlight">
-        <p><strong>ราคาขาย:</strong> ฿<span class="field" style="min-width:120px">${Number(lead.budget).toLocaleString()}</span> (${numberToThai(Number(lead.budget))})</p>
+        <p><strong>ราคาขาย:</strong> ฿<span class="field" style="min-width:120px">${salePrice.toLocaleString()}</span> (${numberToThai(salePrice)})</p>
         <p><strong>เงินจอง:</strong> ฿<span class="field" style="min-width:120px">${bookingDeposit.toLocaleString()}</span> (${numberToThai(bookingDeposit)})</p>
       </div>
       <div class="clause">
@@ -943,7 +946,9 @@ export default function CRMPage() {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
-            celebrate({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: Number(form.budget) || null, salesPerson: byName });
+            // ยอดที่ใช้ทุกที่ของการจอง = ราคาขายที่ตกลง (ถ้ายังไม่กรอก ตกมาใช้งบประมาณลูกค้าชั่วคราว)
+            const bookAmount = Number(form.contract_price) || Number(form.budget) || null;
+            celebrate({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: bookAmount, salesPerson: byName });
             const docNum = await generateDocNumber("BOOK");
             await supabase.from("approval_logs").insert({
               workflow_type: "Booking_Deposit",
@@ -952,12 +957,14 @@ export default function CRMPage() {
               source_record_id: editingLead.id,
               current_approver_role: "manager",
               action_taken: "Pending",
-              amount: form.budget ? Number(form.budget) : null,
+              amount: bookAmount,
               sla_due_at: calcSlaDueAt("Booking_Deposit"),
               assigned_to_name: "ผู้จัดการ",
             });
-            await submitApprovalQueue({ workflowType: "Booking_Deposit", sourceRecordId: editingLead.id, docIndex: docNum, title: `อนุมัติเงินจอง: ${form.customer_name}`, amount: form.budget ? Number(form.budget) : null, actorName: byName, actorRole: "sales" });
-            await createNotification({ type: "approval", title: `รออนุมัติเงินจอง — ${form.customer_name}`, message: `${docNum} · แปลง ${effectivePlot}${form.budget ? ` · ฿${Number(form.budget).toLocaleString("th-TH")}` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
+            await submitApprovalQueue({ workflowType: "Booking_Deposit", sourceRecordId: editingLead.id, docIndex: docNum, title: `อนุมัติเงินจอง: ${form.customer_name}`, amount: bookAmount, actorName: byName, actorRole: "sales" });
+            await createNotification({ type: "approval", title: `รออนุมัติเงินจอง — ${form.customer_name}`, message: `${docNum} · แปลง ${effectivePlot}${bookAmount ? ` · ฿${bookAmount.toLocaleString("th-TH")}` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
+            // แจ้งพนักงานที่มีลูกค้าสนใจแปลงนี้อยู่ ให้กลับไปเสนอแปลงอื่น (กันลูกค้าลอยหาย)
+            await alertOthersInterestedInPlot({ plotNumber: effectivePlot, bookedLeadId: editingLead.id, bookedCustomerName: form.customer_name, byName }).catch(() => {});
           } else if (editingLead.status === "Booking" && !["Booking", "Contract", "Loan Approved"].includes(form.status)) {
             await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
           }
@@ -1106,7 +1113,11 @@ export default function CRMPage() {
         });
       }
       if (newStatus === "Booking") {
-        celebrate({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
+        celebrate({ event: "booking", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
+        if (lead.plot_number) {
+          // แจ้งพนักงานที่มีลูกค้าสนใจแปลงนี้อยู่ ให้กลับไปเสนอแปลงอื่น (กันลูกค้าลอยหาย)
+          await alertOthersInterestedInPlot({ plotNumber: lead.plot_number, bookedLeadId: lead.id, bookedCustomerName: lead.customer_name, byName }).catch(() => {});
+        }
       }
       if (newStatus === "Contract") {
         celebrate({ event: "contract", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.budget ?? null, salesPerson: byName });
@@ -2152,13 +2163,14 @@ export default function CRMPage() {
                   </div>
                 </div>
                 <div>
-                  <SelectWithOther label="งบประมาณ (ช่วงราคา)" value={form.budget_range} options={OPT_BUDGET} onChange={v => setForm(p => ({ ...p, budget_range: v }))} />
+                  <SelectWithOther label="ช่วงงบประมาณที่ลูกค้าแจ้ง" value={form.budget_range} options={OPT_BUDGET} onChange={v => setForm(p => ({ ...p, budget_range: v }))} />
                 </div>
                 <div>
-                  <label htmlFor="crmform-budget" className="text-xs text-aviva-secondary mb-1 block">งบประมาณ — ระบุราคาที่แน่นอน (บาท, ถ้าทราบ)</label>
+                  <label htmlFor="crmform-budget" className="text-xs text-aviva-secondary mb-1 block">งบประมาณลูกค้า (บาท, ถ้าทราบ)</label>
                   <input id="crmform-budget" type="number" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))}
                     placeholder="เช่น 4500000"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  <p className="text-[10px] text-aviva-secondary/60 mt-1">ตัวเลขที่ลูกค้าบอกว่าจ่ายไหว — ใช้คัดกรอง/จับคู่แปลงเท่านั้น ไม่ใช่ราคาขาย</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 items-start">
                   <SelectWithOther label="สินค้าที่สนใจ" value={form.product_interest} options={OPT_PRODUCT} onChange={v => setForm(p => ({ ...p, product_interest: v }))} />
@@ -2226,10 +2238,11 @@ export default function CRMPage() {
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                   <div>
-                    <label htmlFor="crmform-contract_price" className="text-xs text-aviva-secondary mb-1 block">ราคาสัญญา (บาท)</label>
+                    <label htmlFor="crmform-contract_price" className="text-xs text-aviva-secondary mb-1 block">ราคาขายที่ตกลง (บาท)</label>
                     <input id="crmform-contract_price" type="number" value={form.contract_price} onChange={e => setForm(p => ({ ...p, contract_price: e.target.value }))}
                       placeholder="เช่น 5170000"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                    <p className="text-[10px] text-aviva-secondary/70 mt-1">ราคาที่ใช้จริงในใบเสนอราคา/ใบจอง/สัญญา — ถ้าเว้นว่างระบบจะใช้งบประมาณลูกค้าแทน</p>
                   </div>
                   <div>
                     <label htmlFor="crmform-contract_signed_date" className="text-xs text-aviva-secondary mb-1 block">วันเซ็นสัญญา</label>

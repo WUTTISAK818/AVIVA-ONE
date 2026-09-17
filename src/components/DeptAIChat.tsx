@@ -109,7 +109,7 @@ export default function DeptAIChat({ dept, label }: DeptAIChatProps) {
               placeholder="ถามเกี่ยวกับฝ่ายนี้..."
               className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-2.5 py-1.5 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50"
             />
-            <button
+            <button aria-label="ส่ง"
               onClick={send}
               disabled={!input.trim() || loading}
               className="p-1.5 rounded-xl bg-aviva-gold text-aviva-bg disabled:opacity-40"

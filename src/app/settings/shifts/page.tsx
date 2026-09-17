@@ -140,7 +140,7 @@ export default function WorkScheduleSettingsPage() {
               className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text" />
             <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="ชื่อวันหยุด (ถ้ามี)"
               className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40" />
-            <button onClick={addHoliday} className="px-3 bg-aviva-gold/20 text-aviva-gold rounded-lg border border-aviva-gold/30"><Plus size={16} /></button>
+            <button aria-label="เพิ่มรายการ" onClick={addHoliday} className="px-3 bg-aviva-gold/20 text-aviva-gold rounded-lg border border-aviva-gold/30"><Plus size={16} /></button>
           </div>
           {holidays.length === 0 ? (
             <p className="text-xs text-aviva-secondary/60 text-center py-2">ยังไม่มีวันหยุดบริษัท</p>

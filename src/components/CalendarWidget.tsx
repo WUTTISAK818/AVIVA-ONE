@@ -231,7 +231,7 @@ export default function CalendarWidget() {
     <>
       <GlassCard className="p-4">
         <div className="flex items-center justify-between mb-3">
-          <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
+          <button aria-label="ย้อนกลับ" onClick={prevMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronLeft size={16} className="text-aviva-secondary" />
           </button>
           <div className="flex items-center gap-2">
@@ -247,7 +247,7 @@ export default function CalendarWidget() {
               </button>
             )}
           </div>
-          <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
+          <button aria-label="ถัดไป" onClick={nextMonth} className="p-1 rounded-lg hover:bg-aviva-gold/10 transition-colors">
             <ChevronRight size={16} className="text-aviva-secondary" />
           </button>
         </div>

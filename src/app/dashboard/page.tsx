@@ -539,7 +539,7 @@ export default function DashboardPage() {
                 <BadgeCheck size={18} className="text-aviva-gold" />
               </Link>
             )}
-            <button onClick={handleLogout} className="p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
+            <button aria-label="ออกจากระบบ" onClick={handleLogout} className="p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
               <LogOut size={18} className="text-aviva-secondary" />
             </button>
           </div>
@@ -598,7 +598,7 @@ export default function DashboardPage() {
                   onKeyDown={e => e.key === "Enter" && sendAiMsg()}
                   placeholder="ถามเกี่ยวกับโครงการ AVIVA ONE..."
                   className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/50 placeholder:text-aviva-secondary/40" />
-                <button onClick={sendAiMsg} disabled={!aiInput.trim() || aiLoading}
+                <button aria-label="ส่ง" onClick={sendAiMsg} disabled={!aiInput.trim() || aiLoading}
                   className="p-2 rounded-xl bg-aviva-gold text-aviva-bg disabled:opacity-40 flex-shrink-0">
                   <Send size={13} />
                 </button>

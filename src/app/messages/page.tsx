@@ -236,7 +236,7 @@ export default function MessagesPage() {
                       }}
                       className="flex-1 px-3 py-2 bg-aviva-bg/50 border border-aviva-gold/20 rounded-lg text-aviva-text placeholder-aviva-secondary"
                     />
-                    <button
+                    <button aria-label="ส่ง"
                       onClick={handleSendMessage}
                       className="px-4 py-2 bg-aviva-gold text-aviva-bg rounded-lg hover:bg-yellow-500 transition flex items-center gap-2"
                     >

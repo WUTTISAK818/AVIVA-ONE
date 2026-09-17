@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FileBarChart, ChevronDown, ChevronRight } from "lucide-react";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
+import { thaiMonthStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const baht = (n: number) => `฿${Math.round(n).toLocaleString("th-TH")}`;
@@ -43,7 +44,7 @@ export default function FinancialStatementsPanel() {
     for (const e of (entRes.data as { id: string; jv_date: string }[]) ?? []) dateById.set(e.id, e.jv_date);
 
     const now = new Date(Date.now() + 7 * 3600 * 1000);
-    const ym = now.toISOString().slice(0, 7);
+    const ym = thaiMonthStr();
     const yr = now.toISOString().slice(0, 4);
 
     const agg = new Map<string, AcctAgg>();

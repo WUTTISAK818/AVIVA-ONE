@@ -1415,7 +1415,7 @@ export default function ConstructionPage() {
                 )}
                 <div className="flex gap-2">
                   <input type="text" value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") sendAiMessage(); }} placeholder="ถามเกี่ยวกับงานก่อสร้าง..." className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/50" />
-                  <button onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading} className="px-3 py-2 bg-aviva-gold text-aviva-bg rounded-xl disabled:opacity-40">
+                  <button aria-label="ส่ง" onClick={sendAiMessage} disabled={!aiInput.trim() || aiLoading} className="px-3 py-2 bg-aviva-gold text-aviva-bg rounded-xl disabled:opacity-40">
                     <Send size={13} />
                   </button>
                 </div>

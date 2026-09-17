@@ -264,7 +264,7 @@ export default function HelpAssistant() {
               </div>
               <div className="flex items-center gap-2">
                 {msgs.length > 1 && (
-                  <button onClick={clearHistory} title="ล้างประวัติ" className="text-aviva-secondary hover:text-red-400"><Trash2 size={15} /></button>
+                  <button aria-label="ลบ" onClick={clearHistory} title="ล้างประวัติ" className="text-aviva-secondary hover:text-red-400"><Trash2 size={15} /></button>
                 )}
                 <button onClick={() => setOpen(false)}><X size={18} className="text-aviva-secondary" /></button>
               </div>

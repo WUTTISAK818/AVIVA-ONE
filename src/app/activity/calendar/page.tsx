@@ -197,7 +197,7 @@ export default function ActivityCalendarPage() {
 
         {/* Month Navigation */}
         <div className="flex items-center justify-between mb-6">
-          <button
+          <button aria-label="ย้อนกลับ"
             onClick={handlePrevMonth}
             className="p-2 bg-aviva-bg/50 hover:bg-aviva-bg/70 rounded-lg transition"
           >
@@ -209,7 +209,7 @@ export default function ActivityCalendarPage() {
               year: "numeric",
             })}
           </h2>
-          <button
+          <button aria-label="ถัดไป"
             onClick={handleNextMonth}
             className="p-2 bg-aviva-bg/50 hover:bg-aviva-bg/70 rounded-lg transition"
           >

@@ -11,12 +11,12 @@ import { logAction } from "@/lib/audit";
 import { RECURRING_CATEGORIES, recurringCategory, BANK, WIP, ACCUM_DEPR } from "@/lib/gl-accounts";
 import { thaiDateStr } from "@/lib/thai-date";
 import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
+import { thaiMonthStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const baht = (n: number) => `฿${Math.round(n).toLocaleString("th-TH")}`;
 const fmtM = (n: number) => n >= 1_000_000 ? `฿${(n / 1_000_000).toFixed(2)}M` : baht(n);
-const thaiNow = () => new Date(Date.now() + 7 * 3600 * 1000);
-const curPeriod = () => thaiNow().toISOString().slice(0, 7);           // YYYY-MM
+const curPeriod = () => thaiMonthStr();                                // YYYY-MM (เวลาไทย)
 const todayISO = () => thaiDateStr();
 
 interface RecExp {

@@ -624,7 +624,7 @@ export default function ReportsPage() {
             {!online && <WifiOff size={16} className="text-orange-400" />}
             {online && <Wifi size={16} className="text-green-400" />}
             {online && hasDraftChanges && (
-              <button onClick={syncDraft} disabled={syncing} className="p-1 hover:bg-aviva-gold/20 rounded-lg transition-all disabled:opacity-50">
+              <button aria-label="โหลดใหม่" onClick={syncDraft} disabled={syncing} className="p-1 hover:bg-aviva-gold/20 rounded-lg transition-all disabled:opacity-50">
                 <RefreshCw size={16} className={`text-yellow-400 ${syncing ? "animate-spin" : ""}`} />
               </button>
             )}
@@ -752,7 +752,7 @@ export default function ReportsPage() {
                   onKeyDown={e => e.key === "Enter" && addItem()}
                   placeholder="พิมพ์รายละเอียดกิจกรรม..."
                   className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text focus:outline-none focus:border-aviva-gold/50 placeholder:text-aviva-secondary/30" />
-                <button onClick={addItem} disabled={!newText.trim()}
+                <button aria-label="เพิ่มรายการ" onClick={addItem} disabled={!newText.trim()}
                   className="px-3 bg-aviva-gold text-aviva-bg rounded-xl disabled:opacity-40">
                   <Plus size={14} />
                 </button>

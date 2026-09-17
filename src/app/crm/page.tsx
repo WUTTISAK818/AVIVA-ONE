@@ -1324,7 +1324,7 @@ export default function CRMPage() {
             <div className="flex items-center gap-2 p-2 border-t border-aviva-gold/10">
               <input value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendAiMsg()}
                 placeholder="ถามเกี่ยวกับ CRM..." className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-1.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50 placeholder:text-aviva-secondary/40" />
-              <button onClick={sendAiMsg} disabled={!aiInput.trim() || aiLoading} className="p-1.5 rounded-xl bg-aviva-gold text-aviva-bg disabled:opacity-40">
+              <button aria-label="ส่ง" onClick={sendAiMsg} disabled={!aiInput.trim() || aiLoading} className="p-1.5 rounded-xl bg-aviva-gold text-aviva-bg disabled:opacity-40">
                 <Send size={12} />
               </button>
             </div>

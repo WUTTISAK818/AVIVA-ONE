@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import clsx from "clsx";
+import { thaiDateOf } from "@/lib/thai-date";
 
 export type Period = "all" | "today" | "week" | "month" | "custom";
 
@@ -11,13 +12,13 @@ interface PeriodFilterProps {
 
 function getRange(period: Period): { start: string; end: string } {
   const now = new Date();
-  const end = now.toISOString().split("T")[0];
+  const end = thaiDateOf(now);
   if (period === "all") return { start: "", end: "" };
   if (period === "today") return { start: end, end };
   if (period === "week") {
     const start = new Date(now);
     start.setDate(start.getDate() - 7);
-    return { start: start.toISOString().split("T")[0], end };
+    return { start: thaiDateOf(start), end };
   }
   if (period === "month") {
     return {

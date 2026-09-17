@@ -6,6 +6,7 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ActivityStream from "@/components/ActivityStream";
 import ActivityDetail from "@/components/ActivityDetail";
+import { thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 
 export default function ActivityStreamPage() {
   const user = useCurrentUser();
@@ -24,7 +25,7 @@ export default function ActivityStreamPage() {
       setLoading(true);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
-      const startDateStr = startDate.toISOString().split("T")[0];
+      const startDateStr = thaiDateOf(startDate);
 
       const response = await fetch(
         `/api/activity/by-date?date=${startDateStr}`
@@ -32,7 +33,7 @@ export default function ActivityStreamPage() {
       const result = await response.json();
 
       if (result.success) {
-        const today = new Date().toISOString().split("T")[0];
+        const today = thaiDateStr();
         const { data: todayActivities } = await (
           await fetch(`/api/activity/by-date?date=${today}`)
         ).json();

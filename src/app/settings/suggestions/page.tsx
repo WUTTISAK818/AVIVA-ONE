@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const CATEGORIES = ["ปรับปรุงการทำงาน", "แก้ไขข้อผิดพลาด (บั๊ก)", "ฟีเจอร์ใหม่", "หน้าจอ/การใช้งาน (UI)", "อื่น ๆ"];
@@ -142,7 +143,7 @@ export default function SuggestionsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `AVIVA-approved-suggestions-${new Date().toISOString().split("T")[0]}.txt`;
+    a.download = `AVIVA-approved-suggestions-${thaiDateStr()}.txt`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   };

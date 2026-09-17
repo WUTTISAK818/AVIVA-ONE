@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateOf } from "@/lib/thai-date";
 
 export const dynamic = 'force-dynamic';
 
@@ -144,7 +145,7 @@ export async function GET(request: NextRequest) {
     const risks: CashFlowRisk[] = [];
     let cumulativePosition = 0;
     let minPosition = 0;
-    let minPositionDate = today.toISOString().split("T")[0];
+    let minPositionDate = thaiDateOf(today);
 
     for (let week = 1; week <= 13; week++) {
       const weekStart = new Date(today.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
@@ -193,7 +194,7 @@ export async function GET(request: NextRequest) {
         riskReason = "Negative cash position";
         risks.push({
           type: "negative_cash",
-          date: weekStart.toISOString().split("T")[0],
+          date: thaiDateOf(weekStart),
           impact: cumulativePosition,
           description: `Cumulative cash position turns negative: ${cumulativePosition.toLocaleString()}`,
         });
@@ -207,7 +208,7 @@ export async function GET(request: NextRequest) {
         riskReason = "Large outflow week";
         risks.push({
           type: "large_outflow",
-          date: weekStart.toISOString().split("T")[0],
+          date: thaiDateOf(weekStart),
           impact: weekOutflow,
           description: `Large payment outflow expected: ${weekOutflow.toLocaleString()}`,
         });
@@ -215,12 +216,12 @@ export async function GET(request: NextRequest) {
 
       if (cumulativePosition < minPosition) {
         minPosition = cumulativePosition;
-        minPositionDate = weekStart.toISOString().split("T")[0];
+        minPositionDate = thaiDateOf(weekStart);
       }
 
       forecast.push({
         week_number: week,
-        week_start_date: weekStart.toISOString().split("T")[0],
+        week_start_date: thaiDateOf(weekStart),
         expected_inflow: weekInflow,
         expected_outflow: weekOutflow,
         net_position: netPosition,

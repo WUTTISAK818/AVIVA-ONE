@@ -6,6 +6,8 @@ import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { formatNumber } from "@/lib/thai-baht";
+import { thaiDateStr } from "@/lib/thai-date";
+import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
 
 const BANKS = [
   "ธอส. (อาคารสงเคราะห์)", "ธ.กรุงไทย", "ธ.ออมสิน", "ธ.กรุงเทพ", "ธ.กสิกรไทย",
@@ -46,7 +48,7 @@ export default function LoanApplications({
   const [result, setResult] = useState<{ id: string; type: "approved" | "rejected" } | null>(null);
   const [resultVal, setResultVal] = useState("");
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = thaiDateStr();
 
   const load = async () => {
     const { data } = await supabase.from("loan_applications")
@@ -61,7 +63,7 @@ export default function LoanApplications({
     await supabase.from("loan_applications").insert({
       lead_id: leadId,
       bank_name: form.bank_name,
-      requested_amount: form.requested_amount ? Number(form.requested_amount) : (defaultAmount ?? null),
+      requested_amount: parseAmount(form.requested_amount) ?? defaultAmount ?? null,
       status: "submitted",
       submitted_date: today,
       notes: form.notes || null,

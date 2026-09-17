@@ -17,6 +17,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Download, Calendar, TrendingUp } from "lucide-react";
+import { thaiDateStr } from "@/lib/thai-date";
 
 interface AnalyticsData {
   totalActivities: number;
@@ -125,7 +126,7 @@ export function AnalyticsDashboard() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `analytics-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `analytics-${thaiDateStr()}.csv`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

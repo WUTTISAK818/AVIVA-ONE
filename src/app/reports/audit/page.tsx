@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import Link from "next/link";
+import { thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 
 type AuditTab = "reports" | "construction" | "approvals";
 
@@ -61,7 +62,7 @@ const INST_STATUS_COLOR: Record<string, string> = { pending: "text-aviva-seconda
 function addDays(dateStr: string, n: number) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + n);
-  return d.toISOString().split("T")[0];
+  return thaiDateOf(d);
 }
 
 function formatThaiDate(dateStr: string) {
@@ -76,7 +77,7 @@ export default function AuditPage() {
   const user = useCurrentUser();
   const canAccess = user?.isManager || user?.isAdmin;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = thaiDateStr();
   const oneMonthAgo = addDays(today, -30);
 
   const [tab, setTab] = useState<AuditTab>("reports");

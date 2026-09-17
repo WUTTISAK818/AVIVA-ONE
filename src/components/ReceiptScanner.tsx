@@ -5,6 +5,7 @@ import { ScanLine, X, Loader2, CheckCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { createNotification } from "@/lib/notify";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const CATEGORIES = [
@@ -59,7 +60,7 @@ export default function ReceiptScanner({ onSaved }: { onSaved?: () => void }) {
       setDraft({
         transaction_type: r.transaction_type === "income" ? "income" : "expense",
         amount: String(r.amount ?? ""),
-        date: r.date ?? new Date().toISOString().slice(0, 10),
+        date: r.date ?? thaiDateStr(),
         vendor_name: r.vendor_name ?? "",
         category: CATEGORIES.includes(r.category) ? r.category : "อื่นๆ",
         description: r.description ?? "",

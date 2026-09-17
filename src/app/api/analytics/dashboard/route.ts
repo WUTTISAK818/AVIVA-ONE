@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateOf } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -26,8 +27,8 @@ export async function GET(req: NextRequest) {
       startDate.setFullYear(now.getFullYear() - 1);
     }
 
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = now.toISOString().split("T")[0];
+    const startDateStr = thaiDateOf(startDate);
+    const endDateStr = thaiDateOf(now);
     const dStart = `${startDateStr}T00:00:00`;
     const dEnd = `${endDateStr}T23:59:59`;
 
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
       const date = new Date(log.activity_date);
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
-      const weekKey = weekStart.toISOString().split("T")[0];
+      const weekKey = thaiDateOf(weekStart);
 
       if (!activityMap.has(weekKey)) {
         activityMap.set(weekKey, { count: 0, approved: 0, rejected: 0 });

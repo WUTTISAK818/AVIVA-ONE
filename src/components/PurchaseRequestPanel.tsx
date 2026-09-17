@@ -14,6 +14,8 @@ import { logAction } from "@/lib/audit";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { createPurchaseRequest, PR_CATEGORIES, PR_THRESHOLD as THRESHOLD, PROJECT_ID, baht } from "@/lib/purchase-request";
 import { nudgeApproval, waitDaysFrom } from "@/lib/nudge";
+import { thaiDateStr } from "@/lib/thai-date";
+import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
 
 interface PR {
   id: string;
@@ -113,9 +115,9 @@ export default function PurchaseRequestPanel() {
   };
 
   const submit = async () => {
-    const amt = Number(amount);
+    const amt = parseAmount(amount);
     if (!item.trim()) { setErr("กรุณาระบุรายการที่จะซื้อ"); return; }
-    if (!amt || amt <= 0) { setErr("กรุณาระบุราคาประมาณที่ถูกต้อง"); return; }
+    if (amt === null) { setErr(AMOUNT_ERROR); return; }
     setSaving(true); setErr("");
     try {
       await createPurchaseRequest({
@@ -188,7 +190,7 @@ export default function PurchaseRequestPanel() {
     if (!amt || amt <= 0) { setErr("กรุณาระบุยอดจ่ายที่ถูกต้อง"); return; }
     setSaving(true); setErr("");
     const pr = paying;
-    const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split("T")[0];
+    const today = thaiDateStr();
     // ลงบัญชี: เดบิต ค่าใช้จ่ายสำนักงาน / เครดิต เงินฝากธนาคาร
     await postJv({
       project_id: PROJECT_ID, jv_date: today,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateOf } from "@/lib/thai-date";
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("daily_activity_log")
       .select("activity_date, activity_type, performer_department")
-      .gte("activity_date", startDate.toISOString().split("T")[0]);
+      .gte("activity_date", thaiDateOf(startDate));
 
     if (department) {
       query = query.eq("performer_department", department);

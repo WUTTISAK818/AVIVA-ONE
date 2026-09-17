@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateOf } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
     if (!type || type === "new_reports" || type === "all") {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split("T")[0];
+      const todayStr = thaiDateOf(today);
 
       const { data, count, error } = await supabase
         .from("activity_logs")

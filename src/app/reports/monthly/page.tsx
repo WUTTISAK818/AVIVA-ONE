@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, ShoppingBag, HardHat, Wallet, 
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
+import { thaiDateOf } from "@/lib/thai-date";
 
 type Department = "sales" | "construction" | "finance" | "hr";
 type ViewMode = "month" | "week" | "custom";
@@ -29,7 +30,7 @@ function monthLabel(monthStr: string): string {
 }
 
 function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return thaiDateOf(d);
 }
 
 // จันทร์-อาทิตย์ (เวลาไทย) ของสัปดาห์ที่ห่างจากสัปดาห์นี้ไป weeksAgo สัปดาห์

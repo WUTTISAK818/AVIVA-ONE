@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { MANAGER_ROLES } from "@/lib/roles";
+import { thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 
 export const dynamic = 'force-dynamic';
 
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
         to_account: contractor.bank_account,
         to_bank: contractor.bank_name,
         description: `Payment for ${contractor.contractor_name} - Voucher ${voucher.id}`,
-        scheduled_date: scheduledDate.toISOString().split("T")[0],
+        scheduled_date: thaiDateOf(scheduledDate),
         status: "pending",
         created_by: user.user.id,
       };
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
       .from("daily_activity_log")
       .insert({
         project_id: vouchers[0]?.project_id,
-        activity_date: new Date().toISOString().split("T")[0],
+        activity_date: thaiDateStr(),
         activity_type: "finance_automation",
         category: "payment_scheduling",
         performer_id: user.user.id,

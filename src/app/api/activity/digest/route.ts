@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -14,8 +15,8 @@ export async function GET(req: NextRequest) {
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const today = new Date().toISOString().split("T")[0];
+    const startDateStr = thaiDateOf(startDate);
+    const today = thaiDateStr();
 
     // Get all activities
     const { data: activities, error: activitiesError } = await supabase

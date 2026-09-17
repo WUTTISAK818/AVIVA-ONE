@@ -14,6 +14,8 @@ import { createNotification } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
 import { isManagerRole } from "@/lib/roles";
+import { thaiDateOf } from "@/lib/thai-date";
+import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const LOW_THRESHOLD = 1000; // เตือนเมื่อเงินสดย่อยเหลือน้อยกว่านี้
@@ -48,7 +50,7 @@ const fmtTxnDate = (txn: string | null, createdAt: string) =>
 // วันนี้ในรูปแบบ YYYY-MM-DD ตามเขตเวลาไทย
 const todayISO = () => {
   const d = new Date(Date.now() + 7 * 3600 * 1000);
-  return d.toISOString().split("T")[0];
+  return thaiDateOf(d);
 };
 
 export default function PettyCashPanel() {
@@ -90,8 +92,8 @@ export default function PettyCashPanel() {
   };
 
   const submit = async () => {
-    const amt = Number(amount);
-    if (!amt || amt <= 0) { setErr("กรุณาระบุจำนวนเงินที่ถูกต้อง"); return; }
+    const amt = parseAmount(amount);
+    if (amt === null) { setErr(AMOUNT_ERROR); return; }
     if (!desc.trim()) { setErr("กรุณาระบุรายละเอียด"); return; }
     setSaving(true);
 

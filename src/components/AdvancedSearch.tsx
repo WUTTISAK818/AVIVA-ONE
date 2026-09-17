@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Filter, Download, Calendar, Users, Tag, Clock } from "lucide-react";
 import { PhotoGallery } from "./PhotoGallery";
+import { thaiDateStr } from "@/lib/thai-date";
 
 interface SearchResult {
   id: string;
@@ -133,7 +134,7 @@ export function AdvancedSearch() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `search-results-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `search-results-${thaiDateStr()}.csv`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -171,7 +172,7 @@ ${i + 1}. ${r.title}
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `search-results-${new Date().toISOString().split("T")[0]}.txt`;
+    a.download = `search-results-${thaiDateStr()}.txt`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

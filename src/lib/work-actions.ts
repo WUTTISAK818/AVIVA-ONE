@@ -6,11 +6,12 @@ import { supabase } from "./supabase";
 import { generateDocNumber } from "./doc-numbers";
 import { createNotification } from "./notify";
 import { calcSlaDueAt } from "./approval-matrix";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 // วันที่วันนี้ (เวลาไทย UTC+7) รูปแบบ YYYY-MM-DD
-const todayTh = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().split("T")[0];
+const todayTh = () => thaiDateStr();
 
 /* ───────────────────────── แจ้งซ่อม / Warranty Claim ───────────────────────── */
 

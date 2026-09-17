@@ -3,8 +3,9 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
 import { isManagerRole } from "@/lib/roles";
 import { callClaudeText } from "@/lib/claude";
-import { parseSchedule, thaiDateStr } from "@/lib/work-schedule";
+import { parseSchedule } from "@/lib/work-schedule";
 import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
+import { thaiDateOf, thaiDateStr, dowOfDateStr } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +40,7 @@ export async function GET(req: NextRequest) {
     // ── โหมดรายเดือน: สถิติการส่งต่อคน (ส่งกี่วัน/ตรงเวลา/ล่าช้า/อัตราตรงเวลา) ──
     if (month && /^\d{4}-\d{2}$/.test(month)) {
       const monthStart = `${month}-01`;
-      const monthEnd = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
-        .toISOString().slice(0, 10);
+      const monthEnd = thaiDateOf(new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0));
 
       const [{ data: employees }, { data: reports }, { data: roleRows }, { data: absences }] = await Promise.all([
         db.from("employees")

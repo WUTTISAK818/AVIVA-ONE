@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
+import { thaiDateOf } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ function weekRange(weeksAgo: number): { start: string; end: string } {
   monday.setUTCDate(nowTh.getUTCDate() - mondayOffset - weeksAgo * 7);
   const sunday = new Date(monday);
   sunday.setUTCDate(monday.getUTCDate() + 6);
-  return { start: monday.toISOString().slice(0, 10), end: sunday.toISOString().slice(0, 10) };
+  return { start: thaiDateOf(monday), end: thaiDateOf(sunday) };
 }
 
 // วันที่ (เวลาไทย) ที่ lead ถูกสร้าง — ใช้ created_at_default ก่อน (timestamptz) ไม่มีค่อยใช้ created_at

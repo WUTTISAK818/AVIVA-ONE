@@ -9,10 +9,11 @@ import { compressImage } from "@/lib/image-compress";
 import { createNotification } from "@/lib/notify";
 import { saveDraftLocally, loadDraftLocally, clearDraftLocally, isOnline, useOnlineStatus } from "@/lib/offline-sync";
 import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
-import { loadWorkSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
+import { loadWorkSchedule } from "@/lib/work-schedule";
 import { loadApprovedSwaps, resolveOffDay } from "@/lib/off-day-swaps";
 import { loadMyOpenAbsences, explainAbsence, closeAbsenceOnSubmit, type ReportAbsence } from "@/lib/report-absences";
 import GlassCard from "@/components/GlassCard";
+import { thaiDateOf, thaiDateStr, dowOfDateStr } from "@/lib/thai-date";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
@@ -119,13 +120,13 @@ export default function ReportsPage() {
     })();
   }, [user?.email]);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = thaiDateStr();
   // วันที่แบบเวลาไทย (UTC+7) — ใช้เทียบ activity_logs.activity_date ที่ฝั่ง activity บันทึกเป็นวันที่ไทย
-  const todayBkk = new Date(Date.now() + 7 * 3600_000).toISOString().split("T")[0];
+  const todayBkk = thaiDateStr();
   // วันที่ของรายงานที่กำลังทำ (ย้อนหลังได้ถึง 7 วัน — แก้ปัญหาลืมส่งเมื่อวาน)
   const [reportDate, setReportDate] = useState(today);
   const isBackdated = reportDate !== today;
-  const minDate = new Date(Date.now() - 7 * 86400_000).toISOString().split("T")[0];
+  const minDate = thaiDateOf(new Date(Date.now() - 7 * 86400_000));
   const reportDateThai = new Date(reportDate + "T12:00:00").toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const [editMode, setEditMode] = useState(false); // แก้รายงานที่ส่งแล้ว (ก่อนผู้บริหารรับทราบ)
 

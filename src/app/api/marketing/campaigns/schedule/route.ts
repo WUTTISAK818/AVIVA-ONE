@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateStr } from "@/lib/thai-date";
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
       .from("daily_activity_log")
       .insert({
         project_id: projectId,
-        activity_date: new Date().toISOString().split("T")[0],
+        activity_date: thaiDateStr(),
         activity_type: "marketing_automation",
         category: "campaign_scheduling",
         performer_id: user.user.id,

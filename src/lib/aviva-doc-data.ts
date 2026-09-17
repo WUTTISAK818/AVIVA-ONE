@@ -1,3 +1,4 @@
+import { thaiDateStr } from "@/lib/thai-date";
 // ข้อมูลกลางสำหรับเอกสาร: ใบเสนอราคา / ใบจอง / สัญญาจะซื้อจะขาย
 // โครงการ AVIVA Private — บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด
 // ที่มา: ตัวอย่างเอกสารจริง + ตารางราคา (ราคา ณ พ.ย. 2568)
@@ -152,7 +153,7 @@ export function thaiDate(d: string | Date | null | undefined): string {
 
 /** วันนี้ในรูปแบบ input[type=date] (yyyy-mm-dd) */
 export function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
+  return thaiDateStr();
 }
 
 /** สร้างเลขที่สัญญา เช่น 0569/1 (เดือนปี/ลำดับ) */

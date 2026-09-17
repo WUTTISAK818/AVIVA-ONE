@@ -6,6 +6,7 @@ import { ChevronLeft, CalendarRange, TrendingUp, AlertTriangle, Check } from "lu
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
+import { thaiDateStr } from "@/lib/thai-date";
 
 interface PlanRow {
   id: string; house_id: string; plan_date: string; seq: number;
@@ -52,7 +53,7 @@ export default function ConstructionPlanPage() {
 
   // สรุปตามแผน/ล่าช้า (นับเฉพาะงานที่มี %แผน และถึง/เลยวันแล้ว)
   const summary = useMemo(() => {
-    const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+    const today = thaiDateStr();
     let onTrack = 0, behind = 0, pending = 0;
     unitRows.forEach(r => {
       if (r.plan_percent == null) return;

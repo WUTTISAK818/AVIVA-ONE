@@ -13,6 +13,7 @@ import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
 import { toSignedUrl, toSignedUrls } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
+import { thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
@@ -107,12 +108,12 @@ const STATUS_BG: Record<string, string> = {
 function addDays(dateStr: string, n: number) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + n);
-  return d.toISOString().split("T")[0];
+  return thaiDateOf(d);
 }
 
 export default function ReportsReviewPage() {
   const user = useCurrentUser();
-  const today = new Date().toISOString().split("T")[0];
+  const today = thaiDateStr();
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [reports, setReports]           = useState<WReport[]>([]);

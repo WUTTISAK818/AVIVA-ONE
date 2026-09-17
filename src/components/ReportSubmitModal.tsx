@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Send, CheckCircle, Plus, Trash2, MapPin, ClipboardList } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
+import { thaiDateStr } from "@/lib/thai-date";
 
 export interface AutoReportItem {
   category: "activity" | "achievement" | "issue" | "plan";
@@ -34,7 +35,7 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 export default function ReportSubmitModal({ open, onClose, department, autoItems, onSubmitted }: Props) {
   const user = useCurrentUser();
-  const today = new Date().toISOString().split("T")[0];
+  const today = thaiDateStr();
 
   const [items, setItems] = useState<AutoReportItem[]>([]);
   const [summary, setSummary] = useState("");

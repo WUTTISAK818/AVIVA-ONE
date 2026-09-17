@@ -32,6 +32,7 @@ import { uploadPhotos, uploadFailText } from "@/lib/upload-photos";
 import { attachDocumentToEntity } from "@/lib/doc-attach";
 import { MATERIAL_CATEGORIES, DEFAULT_MATERIAL_CATEGORY } from "@/lib/material-categories";
 import MultiPhotoInput from "@/components/MultiPhotoInput";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -473,7 +474,7 @@ export default function ConstructionPage() {
 
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
   const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
-  const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [rptEnd, setRptEnd] = useState(() => thaiDateStr());
   const [rptLimit, setRptLimit] = useState(50);
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -1212,7 +1213,7 @@ export default function ConstructionPage() {
 
   const openSummaryModal = async () => {
     setLoadingSummary(true);
-    const today = new Date().toISOString().split("T")[0];
+    const today = thaiDateStr();
     const { data: todayRpts } = await supabase
       .from("construction_reports")
       .select("*")
@@ -1271,7 +1272,7 @@ export default function ConstructionPage() {
       setUploadingSummaryPhoto(false);
     }
     // Persist summary report to construction_reports table — 1 แถว/วัน (กดส่งซ้ำ = อัปเดตแถวเดิม ไม่สร้างซ้ำ)
-    const sumDay = summaryForm.date || new Date().toISOString().split("T")[0];
+    const sumDay = summaryForm.date || thaiDateStr();
     const payload = {
       work_type: "สรุปประจำวัน",
       work_detail: `[สรุป] ${summaryForm.contractor_summary}\n[รายวัน] ${summaryForm.daily_summary}${summaryForm.problems ? `\n[ปัญหา] ${summaryForm.problems}` : ""}`,

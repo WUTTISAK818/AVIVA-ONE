@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { useCurrentUser } from "@/lib/user-context";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const CATEGORIES = ["ลูกค้า/ขาย", "ก่อสร้าง", "บัญชี", "การเงิน", "การตลาด", "บุคคล", "ประชุม", "เอกสาร", "อื่นๆ"];
@@ -35,7 +36,7 @@ interface ActivityLog {
   photo_urls?: string[] | null;
 }
 
-const todayBkk = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+const todayBkk = () => thaiDateStr();
 
 export default function ActivityPage() {
   const user = useCurrentUser();

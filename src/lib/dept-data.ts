@@ -11,6 +11,7 @@ import {
   type DeptBriefing,
   type CouncilBriefing,
 } from "@/lib/ai-experts";
+import { thaiDateOf } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const thb = (n: number) => `฿${Math.round(n).toLocaleString("th-TH")}`;
@@ -98,7 +99,7 @@ export async function gatherDeptContext(admin: SupabaseClient, dept: string): Pr
       admin.from("vat_register").select("vat_amount").eq("project_id", PROJECT_ID).eq("etax_status", "pending"),
       admin.from("wht_certificates").select("wht_amount").eq("project_id", PROJECT_ID).is("period", null),
     ]);
-    const today = now.toISOString().split("T")[0];
+    const today = thaiDateOf(now);
     const arOut = (ar ?? []).reduce((s, r) => s + (Number(r.total_amount) - Number(r.paid_amount)), 0);
     const apOvd = (ap ?? []).filter(b => b.due_date < today);
     return [

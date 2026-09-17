@@ -11,6 +11,7 @@ import SectionHeader from "@/components/SectionHeader";
 import Toast, { type ToastType } from "@/components/Toast";
 import DeptAIChat from "@/components/DeptAIChat";
 import Link from "next/link";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -32,7 +33,7 @@ interface Claim {
 }
 
 // วันที่วันนี้ (เวลาไทย UTC+7) รูปแบบ YYYY-MM-DD
-const todayTh = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().split("T")[0];
+const todayTh = () => thaiDateStr();
 const fmtThaiDate = (s: string) => new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 const ISSUE_TYPES = ["โครงสร้าง", "ระบบไฟฟ้า", "ระบบประปา", "หลังคา/รางน้ำ", "ประตู/หน้าต่าง", "พื้น/กระเบื้อง", "สี/ผนัง", "อื่นๆ"];

@@ -5,6 +5,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { sendDirective, updateDirectiveStatus, type Directive, type DirectiveStatus } from "@/lib/directives";
 import GlassCard from "@/components/GlassCard";
+import { thaiDateStr } from "@/lib/thai-date";
 
 type Tab = "received" | "sent";
 
@@ -41,7 +42,7 @@ export default function DirectivesPage() {
   const [sending, setSending] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [closeErrors, setCloseErrors] = useState<Record<string, string>>({});
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = thaiDateStr();
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -261,7 +262,7 @@ export default function DirectivesPage() {
                   <input
                     type="date"
                     value={dueDate}
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={thaiDateStr()}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
                   />

@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { postJv } from "./jv";
 import { BANK, SALES_REVENUE, COGS, WIP } from "./gl-accounts";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -38,7 +39,7 @@ export async function finalizeSale(
   const amount = l.contract_price ?? l.budget ?? null;
   if (l.status === "Closed Deal") return { ok: true, customerName, plot, amount };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = thaiDateStr();
   const cv = amount && amount > 0 ? Number(amount) : 0;
   if (plot) await supabase.from("houses").update({ status: "sold" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
   await supabase.from("revenue_recognition").insert({

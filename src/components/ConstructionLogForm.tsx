@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Save, Send, ImagePlus, X, Loader2, CheckCircle2 } from 'lucide-react'
+import { thaiDateStr } from "@/lib/thai-date";
 
 interface ProjectOpt {
   id: string
@@ -10,9 +11,7 @@ interface ProjectOpt {
 }
 
 function todayISO() {
-  const d = new Date()
-  const tz = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - tz).toISOString().slice(0, 10)
+  return thaiDateStr()
 }
 
 export default function ConstructionLogForm({ projects }: { projects: ProjectOpt[] }) {

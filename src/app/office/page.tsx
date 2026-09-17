@@ -50,6 +50,7 @@ import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import RecurringExpensePanel from "@/components/RecurringExpensePanel";
 import FinancialStatementsPanel from "@/components/FinancialStatementsPanel";
 import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, WIP, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
+import { thaiDateStr } from "@/lib/thai-date";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "commands" | "audit";
 
@@ -61,7 +62,7 @@ function leaveDays(from: string, to: string) {
   const d = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
   return d > 0 ? d : 1;
 }
-const today = new Date().toISOString().split("T")[0];
+const today = thaiDateStr();
 
 // ─── Shared formatters ──────────────────────────────────────────────────────────────────────────────────
 
@@ -166,13 +167,13 @@ function FinanceContent() {
   const [activeTab, setActiveTab] = useState<"txn" | "approval" | "construction">("txn");
   const [period, setPeriod] = useState<Period>("month");
   const [dateStart, setDateStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
-  const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [dateEnd, setDateEnd] = useState(() => thaiDateStr());
   const [finLimit, setFinLimit] = useState(50);
   const [kpiModal, setKpiModal] = useState<"income" | "expense" | "cashflow" | "pending" | null>(null);
   const [approvedInsts, setApprovedInsts] = useState<ContractorInstallmentPay[]>([]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [payingInst, setPayingInst] = useState<ContractorInstallmentPay | null>(null);
-  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION, vat_included: false });
+  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: thaiDateStr(), notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION, vat_included: false });
   const [finToast, setFinToast] = useState<{ msg: string; type: ToastType } | null>(null);
   useFormDraft("office-draft-finance", form, setForm, showModal);
 
@@ -274,7 +275,7 @@ function FinanceContent() {
     setSaving(false);
     setShowPayModal(false);
     setPayingInst(null);
-    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION, vat_included: false });
+    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: thaiDateStr(), notes: "", wht_rate: DEFAULT_CONTRACTOR_WHT, retention_rate: DEFAULT_RETENTION, vat_included: false });
     fetchApprovedInsts();
   };
 
@@ -365,7 +366,7 @@ function FinanceContent() {
 
       // Auto-create JV entry — map หมวด -> บัญชี GL ที่ถูกต้อง (ไม่ hardcode 5000/1100)
       // วันที่แบบเวลาไทย (UTC+7) — กันรายการช่วง 00:00-07:00 น. ตกวันผิด
-      const jvDate = new Date(Date.now() + 7 * 3_600_000).toISOString().split("T")[0];
+      const jvDate = thaiDateStr();
       if (isIncome) {
         const rev = revenueAccountFor(form.category);
         await postJv({
@@ -448,7 +449,7 @@ function FinanceContent() {
       const exp = expenseAccountFor(categoryFromDescription(approval.description));
       await postJv({
         project_id: PROJECT_ID,
-        jv_date: new Date(Date.now() + 7 * 3_600_000).toISOString().split("T")[0],
+        jv_date: thaiDateStr(),
         description: `[อนุมัติแล้ว] ${approval.description}`,
         lines: [
           { account_code: exp.code, account_name: exp.name, debit: approval.amount, credit: 0 },
@@ -535,7 +536,7 @@ function FinanceContent() {
       <div className="flex items-center gap-2">
         <div className="flex-1"><PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} /></div>
         <button
-          onClick={() => downloadCsv(`finance-transactions-${new Date().toISOString().slice(0, 10)}`,
+          onClick={() => downloadCsv(`finance-transactions-${thaiDateStr()}`,
             ["วันที่", "ประเภท", "จำนวนเงิน", "รายละเอียด"],
             transactions.map(t => [t.created_at ? new Date(t.created_at).toLocaleDateString("th-TH") : "", t.transaction_type === "income" ? "รายรับ" : "รายจ่าย", t.amount ?? 0, t.description ?? ""]))}
           className="flex items-center gap-1 text-[11px] font-semibold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-2.5 py-1.5 rounded-xl flex-shrink-0"
@@ -794,7 +795,7 @@ function FinanceContent() {
                   onChange={e => setForm({ ...form, amount: e.target.value })}
                   placeholder="0"
                   className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
-                {Number(form.amount) >= 50000 && (
+                {(parseAmount(form.amount) ?? 0) >= 50000 && (
                   <p className="text-[11px] text-yellow-400 mt-1 flex items-center gap-1">
                     <Clock size={10} /> ≥ ฿50,000 จะเข้าระบบอนุมัติก่อน
                   </p>
@@ -857,7 +858,7 @@ function FinanceContent() {
               )}
             </div>
 
-            {Number(form.amount) >= 50000 && (
+            {(parseAmount(form.amount) ?? 0) >= 50000 && (
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">แนบใบเสร็จ / สลิป (ให้ผู้อนุมัติตรวจสอบ · เลือกได้หลายไฟล์)</label>
                 <MultiPhotoInput value={receiptFiles} onChange={setReceiptFiles} accept="image/*,application/pdf" label="แตะเพื่อแนบรูป/ไฟล์ PDF" />
@@ -866,7 +867,7 @@ function FinanceContent() {
 
             <button onClick={handleSave} disabled={saving || !form.amount || !form.description}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : Number(form.amount) >= 50000 ? "ส่งขออนุมัติ" : "บันทึก"}
+              {saving ? "กำลังบันทึก..." : (parseAmount(form.amount) ?? 0) >= 50000 ? "ส่งขออนุมัติ" : "บันทึก"}
             </button>
           </div>
         </div>
@@ -1042,7 +1043,7 @@ function AccountingContent() {
   const [filterType, setFilterType] = useState<"all" | "expense" | "income">("all");
   const [acctPeriod, setAcctPeriod] = useState<Period>("month");
   const [acctStart, setAcctStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
-  const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [acctEnd, setAcctEnd] = useState(() => thaiDateStr());
   const [acctLimit, setAcctLimit] = useState(50);
   const [kpiModalAcct, setKpiModalAcct] = useState<"all" | "income" | "expense" | null>(null);
   const [acctEntries, setAcctEntries] = useState<ConstructionJv[]>([]);
@@ -1209,7 +1210,7 @@ function AccountingContent() {
       <div className="flex items-center gap-2">
         <div className="flex-1"><PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} /></div>
         <button
-          onClick={() => downloadCsv(`accounting-receipts-${new Date().toISOString().slice(0, 10)}`,
+          onClick={() => downloadCsv(`accounting-receipts-${thaiDateStr()}`,
             ["วันที่", "เลขที่บิล", "ผู้ขาย/แหล่งที่มา", "ประเภท", "หมวด", "จำนวนเงิน", "รายละเอียด"],
             receipts.map(r => [r.receipt_date ?? "", r.receipt_number ?? "", r.vendor_name ?? "", r.receipt_type === "income" ? "รายรับ" : "รายจ่าย", r.category ?? "", r.amount ?? 0, r.description ?? ""]))}
           className="flex items-center gap-1 text-[11px] font-semibold text-aviva-gold bg-aviva-gold/10 border border-aviva-gold/30 px-2.5 py-1.5 rounded-xl flex-shrink-0"
@@ -1537,7 +1538,7 @@ function MarketingContent() {
   const [editCampForm, setEditCampForm] = useState({ spent: "", leads_generated: "", impressions: "", clicks: "", conversions: "", status: "active" });
   const [mktPeriod, setMktPeriod] = useState<Period>("month");
   const [mktStart, setMktStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
-  const [mktEnd, setMktEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [mktEnd, setMktEnd] = useState(() => thaiDateStr());
   const [showMktPRModal, setShowMktPRModal] = useState(false);
   const [mktPRForm, setMktPRForm] = useState({ supplier_name: "", description: "", amount: "", notes: "" });
   const [mktPRSaving, setMktPRSaving] = useState(false);
@@ -1595,7 +1596,7 @@ function MarketingContent() {
       project_id: PROJECT_ID,
       name: form.name,
       platform: form.platform,
-      budget: Number(form.budget) || 0,
+      budget: parseAmountOrZero(form.budget) ?? 0,
       spent: 0,
       leads_generated: 0,
       impressions: 0,
@@ -2424,8 +2425,8 @@ function HRContent() {
         email: form.email,
         department: form.department,
         position: form.position,
-        base_salary: Number(form.base_salary) || 0,
-        commission_rate: Number(form.commission_rate) || 0,
+        base_salary: parseAmountOrZero(form.base_salary) ?? 0,
+        commission_rate: parseAmountOrZero(form.commission_rate) ?? 0,
         weekly_off_day: form.weekly_off_day === "" ? null : Number(form.weekly_off_day),
       }).eq("id", editingEmployee.id);
       await logAction("hr", "edit_employee", `แก้ไขข้อมูลพนักงาน ${form.full_name}`);
@@ -2438,8 +2439,8 @@ function HRContent() {
         email: form.email,
         department: form.department,
         position: form.position,
-        base_salary: Number(form.base_salary) || 0,
-        commission_rate: Number(form.commission_rate) || 0,
+        base_salary: parseAmountOrZero(form.base_salary) ?? 0,
+        commission_rate: parseAmountOrZero(form.commission_rate) ?? 0,
         start_date: form.start_date,
         employee_code: empCode,
         status: "active",
@@ -2459,7 +2460,7 @@ function HRContent() {
   const offboardEmployee = async (emp: Employee) => {
     const reason = window.prompt(`บันทึกการพ้นสภาพของ ${emp.full_name}\nระบุเหตุผล (ลาออก / เลิกจ้าง / เกษียณ / อื่นๆ):`, "ลาออก");
     if (reason === null) return;
-    const today = new Date().toISOString().split("T")[0];
+    const today = thaiDateStr();
     setSaving(true);
     const { error } = await supabase.from("employees").update({
       status: "resigned", end_date: today, exit_reason: reason || null,
@@ -2756,7 +2757,7 @@ function HRContent() {
           <div className="flex items-center justify-between">
             <SectionHeader title="ประวัติคำขอลา" />
             {leaveList.length > 0 && (
-              <button onClick={() => downloadCsv(`leave-requests-${new Date().toISOString().slice(0, 10)}`,
+              <button onClick={() => downloadCsv(`leave-requests-${thaiDateStr()}`,
                 ["พนักงาน", "ประเภทลา", "ตั้งแต่", "ถึง", "เหตุผล", "สถานะ", "วันที่ยื่น"],
                 leaveList.map(l => [l.employee_name, l.leave_type, l.date_from, l.date_to, l.reason, l.status, l.created_at ? new Date(l.created_at).toLocaleDateString("th-TH") : ""]))}
                 className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0">
@@ -3432,7 +3433,7 @@ function AfterSalesContent() {
           <Plus size={16} /> แจ้งซ่อม
         </button>
         <button
-          onClick={() => downloadCsv(`warranty-claims-${new Date().toISOString().slice(0, 10)}`,
+          onClick={() => downloadCsv(`warranty-claims-${thaiDateStr()}`,
             ["ลูกค้า", "บ้านเลขที่", "ประเภท", "รายละเอียด", "สถานะ", "ผู้รับผิดชอบ", "นัดวันที่", "คะแนนพอใจ", "วันที่แจ้ง"],
             claims.map(c => [c.customer_name, c.house_number, c.issue_type, c.description, c.status, c.assigned_to, c.scheduled_date, c.satisfaction_score, c.created_at ? new Date(c.created_at).toLocaleDateString("th-TH") : ""]))}
           className="px-4 bg-aviva-card border border-aviva-gold/20 text-aviva-secondary font-bold rounded-2xl text-xs"
@@ -4169,7 +4170,7 @@ function MaterialsContent() {
     await supabase.from("goods_receipts").insert({
       grn_number: `GRN-${Date.now().toString().slice(-8)}`, po_id: po.id,
       received_by: user?.full_name ?? user?.email ?? null,
-      received_date: new Date().toISOString().split("T")[0],
+      received_date: thaiDateStr(),
       items: po.items, status: "received", project_id: PROJECT_ID,
     });
     await supabase.from("purchase_orders").update({ status: "received" }).eq("id", po.id);
@@ -4679,8 +4680,8 @@ function CommunityContent() {
       house_id: form.house_id || null,
       owner_name: form.owner_name,
       owner_phone: form.owner_phone,
-      area_sqw: Number(form.area_sqw),
-      annual_fee: Number(form.area_sqw) * 30,
+      area_sqw: parseAmountOrZero(form.area_sqw) ?? 0,
+      annual_fee: (parseAmountOrZero(form.area_sqw) ?? 0) * 30,
       fee_status: "Unpaid",
     });
     setSaving(false);
@@ -4706,7 +4707,7 @@ function CommunityContent() {
           {loading ? "กำลังโหลด..." : `${members.length} สมาชิก · รวม ${fmtFee(totalFee)}`}
         </p>
         <div className="flex items-center gap-2">
-          <button onClick={() => downloadCsv(`community-members-${new Date().toISOString().slice(0, 10)}`,
+          <button onClick={() => downloadCsv(`community-members-${thaiDateStr()}`,
             ["เจ้าของ", "เบอร์โทร", "พื้นที่(ตร.ว.)", "ค่าส่วนกลาง", "สถานะ", "วันที่ชำระ"],
             members.map(m => [m.owner_name, m.owner_phone, m.area_sqw, m.annual_fee, m.fee_status === "Paid" ? "ชำระแล้ว" : "ค้างชำระ", m.transferred_at ? new Date(m.transferred_at).toLocaleDateString("th-TH") : ""]))}
             className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-xs font-bold px-3 py-2 rounded-xl">
@@ -5414,7 +5415,7 @@ function AuditLogContent() {
       <div className="flex items-center justify-between">
         <SectionHeader title="Audit Log" subtitle="ประวัติการดำเนินงานในระบบ" />
         {logs.length > 0 && (
-          <button onClick={() => downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}`,
+          <button onClick={() => downloadCsv(`audit-log-${thaiDateStr()}`,
             ["โมดูล", "การกระทำ", "รายละเอียด", "ผู้ดำเนินการ", "บทบาท", "ฝ่าย", "เวลา"],
             logs.map(l => [l.module, l.action, l.description, l.performed_by, l.performed_by_role, l.performed_by_dept, l.created_at ? new Date(l.created_at).toLocaleString("th-TH") : ""]))}
             className="bg-aviva-card border border-aviva-gold/20 text-aviva-secondary text-[11px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0">

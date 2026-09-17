@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { callClaudeText, anthropicEnabled } from "@/lib/claude";
 import { serverDb } from "@/lib/server-db";
+import { thaiDateStr } from "@/lib/thai-date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ interface ActionResult {
 
 const NONE: ActionResult = { intent: "none", ready: false, reply: "" };
 
-const todayTh = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().split("T")[0];
+const todayTh = () => thaiDateStr();
 
 // heuristic สำรอง (เมื่อยังไม่ตั้ง Claude key) — รองรับเฉพาะ create_pr แบบง่าย
 function heuristic(message: string): ActionResult {

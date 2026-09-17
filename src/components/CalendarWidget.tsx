@@ -7,6 +7,7 @@ import { ClipboardList } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import GlassCard from "./GlassCard";
+import { thaiDateStr } from "@/lib/thai-date";
 
 interface CalEvent {
   id: string;
@@ -108,7 +109,7 @@ const WF_LABEL: Record<string, string> = {
 const DAYS_TH   = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 const MONTHS_TH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
-const today = new Date().toISOString().split("T")[0];
+const today = thaiDateStr();
 
 export default function CalendarWidget() {
   const user = useCurrentUser();

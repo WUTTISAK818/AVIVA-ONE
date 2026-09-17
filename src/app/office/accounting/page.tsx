@@ -17,6 +17,8 @@ import ReceiptScanner from "@/components/ReceiptScanner";
 import clsx from "clsx";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/lib/user-context";
+import { thaiDateStr } from "@/lib/thai-date";
+import { parseAmount, AMOUNT_ERROR } from "@/lib/money";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 // C6 — รวมอัตราภาษีไว้ที่เดียว (เลิก hardcode กระจาย)
@@ -32,7 +34,7 @@ const fmt = (n: number) =>
   (n ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtM = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : fmt(n);
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => thaiDateStr();
 
 type AccTab = "dashboard" | "journal" | "ar" | "ap" | "tax" | "lot-cost" | "tfrs15" | "scanner" | "matching" | "bankrec" | "reports";
 type TaxSubTab = "transfer" | "vat" | "wht" | "sbt" | "lbt";
@@ -484,8 +486,9 @@ function ARTab() {
 
   const handleSave = async () => {
     if (!form.customer_name || !form.base_amount || !form.due_date) return;
+    const base = parseAmount(form.base_amount);
+    if (base === null) { alert(AMOUNT_ERROR); return; }
     setSaving(true);
-    const base = Number(form.base_amount);
     const vat = Math.round(base * TAX_CONFIG.VAT_RATE * 100) / 100;
     const total = base + vat;
     const d = new Date();

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { thaiDateOf } from "@/lib/thai-date";
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,8 +11,8 @@ export async function GET(req: NextRequest) {
 
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const startDate = thirtyDaysAgo.toISOString().split("T")[0];
-    const endDate = now.toISOString().split("T")[0];
+    const startDate = thaiDateOf(thirtyDaysAgo);
+    const endDate = thaiDateOf(now);
     const dStart = `${startDate}T00:00:00`;
     const dEnd = `${endDate}T23:59:59`;
 

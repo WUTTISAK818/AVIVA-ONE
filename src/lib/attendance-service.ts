@@ -2,6 +2,7 @@
 // คำนวณ: ประกันสังคม 5% (เพดาน 750) · หักมาสาย/ขาดงานตามเวลาทำงาน+วันหยุดที่ผู้บริหารตั้ง · idempotent ต่อ พนักงาน+เดือน
 import { getSupabaseAdmin } from "./supabase";
 import { parseSchedule, workdaysInMonth, isLateCheckIn, ssoDeduction } from "./work-schedule";
+import { thaiDateStr } from "@/lib/thai-date";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -23,7 +24,7 @@ export async function recordCheckIn(employeeId: string, note?: string) {
     const db = getSupabaseAdmin();
     const { data, error } = await db.from("attendance").insert({
       employee_id: employeeId,
-      work_date: new Date().toISOString().split("T")[0],
+      work_date: thaiDateStr(),
       check_in: new Date().toISOString(),
       status: "present",
       note: note ?? null,
@@ -188,7 +189,7 @@ export async function markPayrollAsPaid(payrollId: string, paymentReference: str
 
     const jvId = await postJv({
       project_id: PROJECT_ID,
-      jv_date: new Date().toISOString().split("T")[0],
+      jv_date: thaiDateStr(),
       description: `จ่ายเงินเดือน: งวด ${pr.month} (${paymentReference})`,
       ref_number: paymentReference || null,
       lines,

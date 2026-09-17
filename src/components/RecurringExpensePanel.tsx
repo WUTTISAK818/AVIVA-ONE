@@ -9,13 +9,15 @@ import { useCurrentUser } from "@/lib/user-context";
 import { postJv } from "@/lib/jv";
 import { logAction } from "@/lib/audit";
 import { RECURRING_CATEGORIES, recurringCategory, BANK, WIP, ACCUM_DEPR } from "@/lib/gl-accounts";
+import { thaiDateStr } from "@/lib/thai-date";
+import { parseAmount, parseAmountOrZero, AMOUNT_ERROR } from "@/lib/money";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const baht = (n: number) => `฿${Math.round(n).toLocaleString("th-TH")}`;
 const fmtM = (n: number) => n >= 1_000_000 ? `฿${(n / 1_000_000).toFixed(2)}M` : baht(n);
 const thaiNow = () => new Date(Date.now() + 7 * 3600 * 1000);
 const curPeriod = () => thaiNow().toISOString().slice(0, 7);           // YYYY-MM
-const todayISO = () => thaiNow().toISOString().split("T")[0];
+const todayISO = () => thaiDateStr();
 
 interface RecExp {
   id: string;
@@ -64,9 +66,9 @@ export default function RecurringExpensePanel() {
   };
 
   const save = async () => {
-    const amt = Number(form.amount);
+    const amt = parseAmount(form.amount);
     if (!form.name.trim()) { setErr("กรุณาระบุชื่อรายการ"); return; }
-    if (!amt || amt <= 0) { setErr("กรุณาระบุจำนวนเงินที่ถูกต้อง"); return; }
+    if (amt === null) { setErr(AMOUNT_ERROR); return; }
     setSaving(true); setErr("");
     const payload = {
       project_id: PROJECT_ID, name: form.name.trim(), category: form.category, amount: amt,

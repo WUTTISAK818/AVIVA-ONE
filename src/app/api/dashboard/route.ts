@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
+import { thaiDateOf } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -67,14 +68,14 @@ export async function GET(req: NextRequest) {
       const dayOfWeek = date.getDay();
       const sunday = new Date(date);
       sunday.setDate(date.getDate() - dayOfWeek);
-      startDate = sunday.toISOString().split("T")[0];
+      startDate = thaiDateOf(sunday);
       const saturday = new Date(sunday);
       saturday.setDate(sunday.getDate() + 6);
-      endDate = saturday.toISOString().split("T")[0];
+      endDate = thaiDateOf(saturday);
     } else if (rangeType === "month") {
       const date = new Date(dateStr);
       startDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
-      endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split("T")[0];
+      endDate = thaiDateOf(new Date(date.getFullYear(), date.getMonth() + 1, 0));
     }
 
     // ขอบเขต timestamp ของช่วงวัน "ตามเวลาไทย" สำหรับคอลัมน์ TIMESTAMP

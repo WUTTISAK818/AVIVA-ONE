@@ -82,7 +82,7 @@ export default function AfterSalesPage() {
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .then(({ data }) => { setClaims((data as Claim[]) ?? []); setLoading(false); });
   };
 

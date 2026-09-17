@@ -6,7 +6,6 @@ import { Home, Users, Package, LogOut, Receipt, ShieldAlert, BadgeCheck, Setting
 import NotificationBell from "@/components/NotificationBell";
 import Link from "next/link";
 import { useCurrentUser } from "@/lib/user-context";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -16,6 +15,13 @@ import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import { supabase } from "@/lib/supabase";
 import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+// โหลดกราฟ (recharts) เมื่อถึงเวลาใช้จริง — ลด JS ชุดแรกของหน้าหลัก
+const FinanceTrendChart = dynamic(() => import("@/components/FinanceTrendChart"), {
+  ssr: false,
+  loading: () => <div className="h-full flex items-center justify-center text-[10px] text-aviva-secondary/60">กำลังโหลดกราฟ…</div>,
+});
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -203,7 +209,7 @@ export default function DashboardPage() {
     setKpiError(false);
     try {
       if (type === "units") {
-        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("plot_number");
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).order("plot_number").limit(300);
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "sold") {
@@ -211,7 +217,7 @@ export default function DashboardPage() {
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "available") {
-        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("plot_number");
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).neq("status", "complete").order("plot_number").limit(300);
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "revenue") {
@@ -219,11 +225,11 @@ export default function DashboardPage() {
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "completed") {
-        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).eq("progress", 100).order("plot_number");
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).eq("progress", 100).order("plot_number").limit(300);
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "in_progress") {
-        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).gt("progress", 0).lt("progress", 100).order("plot_number");
+        const { data, error } = await supabase.from("houses").select("house_number,status,progress").eq("project_id", PROJECT_ID).gt("progress", 0).lt("progress", 100).order("plot_number").limit(300);
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       }
@@ -308,7 +314,7 @@ export default function DashboardPage() {
       .select("house_number, delayed_days, plot_number")
       .eq("project_id", PROJECT_ID)
       .eq("status", "delayed")
-      .order("delayed_days", { ascending: false })
+      .order("delayed_days", { ascending: false }).limit(300)
       .limit(20)
       .then(({ data }) => {
         const delayed = (data ?? []) as { house_number: string; delayed_days: number }[];
@@ -414,7 +420,7 @@ export default function DashboardPage() {
       .select("house_number,plot_number,progress,status,contractor,house_model,land_size")
       .eq("project_id", PROJECT_ID)
       .neq("status", "complete")
-      .order("plot_number")
+      .order("plot_number").limit(300)
       .limit(15)
       .then(({ data, error }) => {
         if (!mounted || error) return;
@@ -1000,29 +1006,7 @@ export default function DashboardPage() {
                 <span className="text-[9px] text-aviva-secondary/50 ml-auto">ล้านบาท / เดือน</span>
               </div>
               <div className="h-36">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4ADE80" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#4ADE80" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#F87171" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#F87171" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="month" tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#D1D5DB", fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#17332D", border: "1px solid #D4AF37", borderRadius: "8px", color: "#fff", fontSize: "11px" }}
-                      formatter={(val, name) => [`฿${val}M`, name === "revenue" ? "รายรับ" : name === "expense" ? "รายจ่าย" : "กำไรสุทธิ"]}
-                    />
-                    <Area type="monotone" dataKey="revenue" stroke="#4ADE80" strokeWidth={2} fill="url(#greenGrad)" dot={false} />
-                    <Area type="monotone" dataKey="expense" stroke="#F87171" strokeWidth={1.5} fill="url(#redGrad)" dot={false} />
-                    <Area type="monotone" dataKey="profit" stroke="#D4AF37" strokeWidth={1.5} fill="none" dot={false} strokeDasharray="4 2" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <FinanceTrendChart data={chartData} />
               </div>
               <div className="mt-3 bg-aviva-bg/50 rounded-xl p-3">
                 <p className="text-[10px] text-aviva-secondary font-semibold uppercase tracking-wide mb-2">กระแสเงินสด &amp; ภาระผูกพัน</p>

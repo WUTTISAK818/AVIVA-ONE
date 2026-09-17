@@ -7,9 +7,12 @@ import { useTheme } from "@/lib/theme-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import PushSetupCard from "@/components/PushSetupCard";
-import LineLinkCard from "@/components/LineLinkCard";
 import LineConfigCard from "@/components/LineConfigCard";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+// การ์ดผูก LINE ลากไลบรารีสแกน/สร้าง QR มาด้วย — โหลดเมื่อเลื่อนถึงจริง
+const LineLinkCard = dynamic(() => import("@/components/LineLinkCard"), { ssr: false });
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 

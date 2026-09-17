@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { compressImage } from "./image-compress";
+import { checkUploadFile } from "@/lib/upload-photos";
 
 export type EntityType = 'approval_log' | 'accounting_entry' | 'jv_entry' | 'lead' | 'contractor_installment' | 'customer_installment' | 'leave_request' | 'receipt' | 'purchase_order';
 
@@ -25,6 +26,8 @@ export async function uploadEntityFile(
   entityId: string,
   file: File
 ): Promise<{ url: string | null; error: Error | null }> {
+  const bad = checkUploadFile(file);
+  if (bad) return { url: null, error: new Error(bad) };
   file = await compressImage(file); // ย่อรูปก่อนอัป (ไฟล์อื่นปล่อยผ่าน)
   const ext = file.name.split(".").pop() ?? "bin";
   const path = `entity-docs/${entityType}/${entityId}/${Date.now()}.${ext}`;

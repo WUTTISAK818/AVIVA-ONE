@@ -425,7 +425,7 @@ function JournalTab({ accounts }: { accounts: ChartAccount[] }) {
 function JvLinesView({ jvId }: { jvId: string }) {
   const [lines, setLines] = useState<{ account_code: string; account_name: string; debit: number; credit: number }[]>([]);
   useEffect(() => {
-    supabase.from("jv_lines").select("account_code,account_name,debit,credit").eq("jv_id", jvId).order("line_order")
+    supabase.from("jv_lines").select("account_code,account_name,debit,credit").eq("jv_id", jvId).order("line_order").limit(300)
       .then(({ data }) => setLines(data ?? []));
   }, [jvId]);
   return (
@@ -1164,7 +1164,7 @@ function LotCostTab() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
+      supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(300),
       loadHouses(),
     ]).then(([ic]) => { setInfra((ic.data??[]) as InfraCost[]); setLoading(false); });
   }, [loadHouses]);
@@ -1189,7 +1189,7 @@ function LotCostTab() {
     await supabase.from("infrastructure_costs").insert({ cost_type: form.cost_type, total_cost: Number(form.total_cost), phase: form.phase, description: form.description || null, allocation_method: "by_size", is_allocated: false, project_id: PROJECT_ID });
     setSaving(false); setShowModal(false);
     setForm({ cost_type: "", total_cost: "", phase: "Phase 1", description: "" });
-    supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).then(({data})=>setInfra((data??[]) as InfraCost[]));
+    supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at",{ascending:false}).limit(300).then(({data})=>setInfra((data??[]) as InfraCost[]));
   };
 
   // ปันส่วนต้นทุนโครงสร้างพื้นฐานเฉลี่ยต่อแปลง → เขียนเข้า houses.infra_cost (เข้ากำไรรายหลัง)
@@ -1201,7 +1201,7 @@ function LotCostTab() {
     await supabase.from("infrastructure_costs").update({ is_allocated: true }).eq("project_id", PROJECT_ID).eq("is_allocated", false);
     await Promise.all([
       loadHouses(),
-      supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).then(({ data }) => setInfra((data ?? []) as InfraCost[])),
+      supabase.from("infrastructure_costs").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(300).then(({ data }) => setInfra((data ?? []) as InfraCost[])),
     ]);
     setAllocating(false);
   };
@@ -1751,7 +1751,7 @@ export default function AccountingPage() {
   }, [user, router]);
 
   useEffect(() => {
-    supabase.from("chart_of_accounts").select("code,name_th,account_type").eq("is_active", true).order("code")
+    supabase.from("chart_of_accounts").select("code,name_th,account_type").eq("is_active", true).order("code").limit(300)
       .then(({ data }) => setAccounts((data ?? []) as ChartAccount[]));
   }, []);
 

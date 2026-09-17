@@ -311,7 +311,7 @@ function ApprovalsContent() {
     const { data } = await supabase
       .from("approval_logs")
       .select("*")
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .limit(PAGE_SIZE);
     // ตาราง approval_logs ใช้ PK ชื่อ approval_id (ไม่มีคอลัมน์ id) — map ให้โค้ดที่อ้าง id ทำงานต่อได้
     const newLogs = ((data ?? []) as ApprovalLog[]).map(l => ({ ...l, id: l.approval_id }));
@@ -325,7 +325,7 @@ function ApprovalsContent() {
     const { data } = await supabase
       .from("approval_logs")
       .select("*")
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .range(logs.length, logs.length + PAGE_SIZE - 1);
     const more = ((data ?? []) as ApprovalLog[]).map(l => ({ ...l, id: l.approval_id }));
     setLogs(prev => [...prev, ...more]);
@@ -1109,7 +1109,7 @@ function RegistryContent() {
     supabase.from("leads")
       .select("id, customer_name, house_slot:houses(house_number)")
       .eq("project_id", PROJECT_ID)
-      .order("customer_name")
+      .order("customer_name").limit(2000)
       .then(({ data }) => {
         setLeads((data as unknown as typeof leads) ?? []);
         setLoading(false);
@@ -1165,7 +1165,7 @@ function InstallmentViewer({ leadId }: { leadId: string }) {
     supabase.from("customer_installments")
       .select("*")
       .eq("lead_id", leadId)
-      .order("installment_no")
+      .order("installment_no").limit(300)
       .then(({ data }) => {
         setInstallments((data as CustomerInstallment[]) ?? []);
         setLoading(false);

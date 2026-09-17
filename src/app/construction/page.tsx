@@ -511,7 +511,7 @@ export default function ConstructionPage() {
     if (rptStart) rptQ = rptQ.gte("created_at", rptStart);
     if (rptEnd) rptQ = rptQ.lte("created_at", rptEnd + "T23:59:59");
     Promise.all([
-      supabase.from("houses").select("*,plot_code,construction_status").eq("project_id", PROJECT_ID).order("plot_number"),
+      supabase.from("houses").select("*,plot_code,construction_status").eq("project_id", PROJECT_ID).order("plot_number").limit(300),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
       supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
@@ -545,7 +545,7 @@ export default function ConstructionPage() {
   useEffect(() => {
     supabase.from("purchase_orders").select("*")
       .eq("project_id", PROJECT_ID)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .limit(100)
       .then(({ data }) => setPurchaseOrders((data as PurchaseOrder[]) ?? []));
   }, []);
@@ -571,7 +571,7 @@ export default function ConstructionPage() {
     const { data: templates } = await supabase.from("installment_templates")
       .select("id,installment_number,name,description")
       .eq("project_id", PROJECT_ID)
-      .order("installment_number");
+      .order("installment_number").limit(300);
     const tmplList = (templates as InstTemplate[]) ?? [];
     setInstTemplates(tmplList);
 
@@ -581,13 +581,13 @@ export default function ConstructionPage() {
       const { data: wis } = await supabase.from("installment_work_items")
         .select("id,template_id,item_name,seq_order,category,criteria")
         .in("template_id", tmplIds)
-        .order("seq_order");
+        .order("seq_order").limit(300);
       wiList = (wis as WorkItem[]) ?? [];
     }
     setInstWorkItems(wiList);
 
     const { data: existing, error: fetchErr } = await supabase.from("contractor_installments")
-      .select("*").eq("house_id", house.id).order("installment_no");
+      .select("*").eq("house_id", house.id).order("installment_no").limit(300);
     let insts = (existing as Installment[]) ?? [];
     if (!fetchErr && insts.length === 0 && tmplList.length > 0) {
       const rows = tmplList.map(t => ({ house_id: house.id, installment_no: t.installment_number, name: t.name, status: "pending", amount: 0 }));
@@ -609,7 +609,7 @@ export default function ConstructionPage() {
     }
 
     const { data: tasks } = await supabase.from("installment_tasks")
-      .select("*").in("installment_id", insts.map(i => i.id)).order("task_no");
+      .select("*").in("installment_id", insts.map(i => i.id)).order("task_no").limit(300);
     if (fetchGenRef.current !== gen) return;
     setInstTasks((tasks as InstTask[]) ?? []);
 
@@ -1220,7 +1220,7 @@ export default function ConstructionPage() {
       .gte("created_at", `${today}T00:00:00`)
       .lte("created_at", `${today}T23:59:59`)
       .neq("work_type", "สรุปประจำวัน")
-      .order("created_at");
+      .order("created_at").limit(300);
     const rpts = (todayRpts as Report[]) ?? [];
     const dailyText = rpts.length > 0
       ? rpts.map(r => {
@@ -1288,7 +1288,7 @@ export default function ConstructionPage() {
       .eq("work_type", "สรุปประจำวัน")
       .gte("created_at", `${sumDay}T00:00:00`)
       .lte("created_at", `${sumDay}T23:59:59`)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .limit(1)
       .maybeSingle();
     if (existingSummary?.id) {

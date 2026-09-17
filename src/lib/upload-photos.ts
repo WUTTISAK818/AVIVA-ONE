@@ -8,6 +8,16 @@ import { compressImage } from "./image-compress";
 const MAX_SIZE_MB = 10;
 const ALLOWED = (f: File) => f.type.startsWith("image/") || f.type === "application/pdf";
 
+export const MAX_UPLOAD_MB = MAX_SIZE_MB;
+
+/** ตรวจไฟล์ก่อนอัปโหลด — คืนข้อความผิดพลาดภาษาไทย หรือ null ถ้าผ่าน
+ *  ใช้ที่จุดอัปโหลดตรงที่ไม่ได้เรียก uploadPhotos() เพื่อให้เกณฑ์เดียวกันทั้งแอป */
+export function checkUploadFile(file: File): string | null {
+  if (!ALLOWED(file)) return `"${file.name}" อัปโหลดไม่ได้ — รองรับเฉพาะรูปภาพหรือ PDF`;
+  if (file.size > MAX_SIZE_MB * 1024 * 1024) return `"${file.name}" ใหญ่เกิน ${MAX_SIZE_MB}MB — ย่อไฟล์ก่อนอัปโหลด`;
+  return null;
+}
+
 export interface UploadOpts {
   compress?: boolean;
   /** เรียกเมื่อมีไฟล์ไม่ผ่าน (ชนิดผิด/ใหญ่เกิน/อัปโหลดพลาด) — ส่งรายชื่อ+เหตุผลให้แจ้งผู้ใช้ */

@@ -9,6 +9,8 @@ import { attachDocumentToEntity, getEntityDocuments } from "@/lib/doc-attach";
 import { toSignedUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import { formatNumber } from "@/lib/thai-baht";
+import { checkUploadFile } from "@/lib/upload-photos";
+import { thaiDbError } from "@/lib/db-errors";
 
 const isImg = (u: string | null) => !!u && /\.(jpg|jpeg|png|gif|webp)$/i.test(u.split("?")[0]);
 
@@ -36,6 +38,7 @@ export default function ApprovalVerifyModal({
   const [comment, setComment] = useState("");
   const [attachments, setAttachments] = useState<{ id: string; file_url: string | null; file_name: string | null; signed?: string | null }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadAttachments = async (id: string) => {
@@ -63,11 +66,14 @@ export default function ApprovalVerifyModal({
 
   const uploadReceipt = async (file: File) => {
     if (!logId) return;
-    setUploading(true);
+    const bad = checkUploadFile(file);
+    if (bad) { setUploadErr(bad); return; }
+    setUploading(true); setUploadErr("");
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `entity-docs/approval_log/${logId}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("document-attachments").upload(path, file, { upsert: true });
-    if (!error) {
+    if (error) { setUploadErr(thaiDbError(error, "แนบไฟล์")); setUploading(false); return; }
+    {
       const { data: { publicUrl } } = supabase.storage.from("document-attachments").getPublicUrl(path);
       await attachDocumentToEntity("approval_log", logId, publicUrl, file.name, attachedBy);
       await loadAttachments(logId);
@@ -173,6 +179,7 @@ export default function ApprovalVerifyModal({
                       onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); }} />
                   </label>
                 </div>
+                {uploadErr && <p className="text-[11px] text-red-400">{uploadErr}</p>}
                 {attachments.length === 0 ? (
                   <p className="text-[11px] text-aviva-secondary/60">ยังไม่มีไฟล์แนบ — แตะ &ldquo;แนบไฟล์&rdquo; เพื่ออัปโหลด</p>
                 ) : (

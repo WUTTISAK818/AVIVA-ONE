@@ -14,6 +14,8 @@ import { loadApprovedSwaps, resolveOffDay } from "@/lib/off-day-swaps";
 import { loadMyOpenAbsences, explainAbsence, closeAbsenceOnSubmit, type ReportAbsence } from "@/lib/report-absences";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateOf, thaiDateStr, dowOfDateStr } from "@/lib/thai-date";
+import { checkUploadFile } from "@/lib/upload-photos";
+import { thaiDbError } from "@/lib/db-errors";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
@@ -358,11 +360,14 @@ export default function ReportsPage() {
 
   async function uploadPhoto(file: File, idx = 0) {
     if (!report) return;
+    const bad = checkUploadFile(file);
+    if (bad) { showToast(bad, "error"); return; }
     const compressed = await compressImage(file);
     const ext = compressed.name.split(".").pop() ?? "jpg";
     const path = `rpt-${report.id}-${Date.now()}-${idx}.${ext}`;
     const { error } = await supabase.storage.from("document-attachments").upload(path, compressed, { upsert: true });
-    if (!error) {
+    if (error) { showToast(thaiDbError(error, "อัปโหลดรูป"), "error"); return; }
+    {
       const { data: urlData } = supabase.storage.from("document-attachments").getPublicUrl(path);
       const att = { report_id: report.id, file_url: urlData.publicUrl, file_name: compressed.name };
       const { data } = await supabase.from("work_report_attachments").insert(att).select().single();

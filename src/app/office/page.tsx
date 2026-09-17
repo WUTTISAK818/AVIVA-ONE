@@ -45,12 +45,16 @@ import ApprovalRouteBar from "@/components/ApprovalRouteBar";
 import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerifyModal";
 import PettyCashPanel from "@/components/PettyCashPanel";
 import PurchaseRequestPanel from "@/components/PurchaseRequestPanel";
-import ProfitabilityPanel from "@/components/ProfitabilityPanel";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import RecurringExpensePanel from "@/components/RecurringExpensePanel";
-import FinancialStatementsPanel from "@/components/FinancialStatementsPanel";
 import { expenseAccountFor, revenueAccountFor, categoryFromDescription, calcTax, calcContractorPay, CASH, BANK, INPUT_VAT, WHT_PAYABLE, RETENTION_PAYABLE, WIP, DEFAULT_CONTRACTOR_WHT, DEFAULT_RETENTION } from "@/lib/gl-accounts";
 import { thaiDateStr } from "@/lib/thai-date";
+import dynamic from "next/dynamic";
+
+// แผงการเงินสองตัวนี้ใช้ recharts และอยู่ในแท็บเฉพาะ — โหลดตอนเปิดแท็บจริงเท่านั้น
+const loadingPanel = () => <p className="text-xs text-aviva-secondary/60 py-6 text-center">กำลังโหลด…</p>;
+const ProfitabilityPanel = dynamic(() => import("@/components/ProfitabilityPanel"), { ssr: false, loading: loadingPanel });
+const FinancialStatementsPanel = dynamic(() => import("@/components/FinancialStatementsPanel"), { ssr: false, loading: loadingPanel });
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "commands" | "audit";
 
@@ -184,7 +188,7 @@ function FinanceContent() {
     Promise.all([
       txnQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("approvals").select("*").eq("module", "finance")
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false }).limit(300),
       supabase.from("approval_logs").select("approval_id", { count: "exact", head: true })
         .eq("workflow_type", "Material_Purchase").eq("action_taken", "Pending").eq("project_id", PROJECT_ID),
     ]).then(([txnRes, apprRes, matRes]) => {
@@ -199,7 +203,7 @@ function FinanceContent() {
     const { data } = await supabase.from("contractor_installments")
       .select("id,installment_no,name,amount,status,house_id,contractor_ack_name,labor_cost,material_cost,houses(house_number)")
       .eq("status", "approved")
-      .order("installment_no");
+      .order("installment_no").limit(300);
     const rows = ((data ?? []) as Record<string, unknown>[]).map(r => ({
       id: r.id as string,
       installment_no: r.installment_no as number,
@@ -1067,7 +1071,7 @@ function AccountingContent() {
       .select("id,jv_number,jv_date,description,ref_number,total_debit")
       .eq("project_id", PROJECT_ID)
       .like("description", "จ่ายงวดก่อสร้าง%")
-      .order("jv_date", { ascending: false })
+      .order("jv_date", { ascending: false }).limit(300)
       .limit(50);
     const entries = (data as ConstructionJv[]) ?? [];
     // ดึงบรรทัดบัญชีจริง (jv_lines) มาแนบ เพื่อให้ใบสำคัญลงบัญชีแสดงครบทุกบรรทัด (WHT/ประกันผลงาน/ธนาคาร)
@@ -1547,13 +1551,13 @@ function MarketingContent() {
     let q = supabase.from("campaigns").select("*").eq("project_id", PROJECT_ID);
     if (mktStart) q = q.gte("created_at", mktStart);
     if (mktEnd) q = q.lte("created_at", mktEnd + "T23:59:59");
-    q.order("created_at", { ascending: false })
+    q.order("created_at", { ascending: false }).limit(300)
       .then(({ data }) => { setCampaigns((data as Campaign[]) ?? []); setLoading(false); });
   };
 
   const fetchBudgets = () => {
     supabase.from("marketing_budgets").select("*").eq("project_id", PROJECT_ID)
-      .order("year", { ascending: false }).order("month", { ascending: false })
+      .order("year", { ascending: false }).order("month", { ascending: false }).limit(300)
       .then(({ data }) => setBudgets((data as MarketingBudget[]) ?? []));
   };
 
@@ -2195,7 +2199,7 @@ function HRContent() {
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .then(({ data }) => {
         setEmployees((data as Employee[]) ?? []);
         setLoading(false);
@@ -3298,7 +3302,7 @@ function AfterSalesContent() {
 
   const fetchClaims = () => {
     supabase.from("warranty_claims").select("*").eq("project_id", PROJECT_ID)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .then(({ data }) => { setClaims((data as Claim[]) ?? []); setLoading(false); });
   };
 
@@ -3317,7 +3321,7 @@ function AfterSalesContent() {
   // ผูกกับแปลงจริง (เลิก free-text) เพื่อวิเคราะห์ defect/เคลมต่อแปลงได้
   const [houseOpts, setHouseOpts] = useState<{ plot_number: number | null; house_number: string }[]>([]);
   useEffect(() => {
-    supabase.from("houses").select("plot_number,house_number").eq("project_id", PROJECT_ID).order("plot_number")
+    supabase.from("houses").select("plot_number,house_number").eq("project_id", PROJECT_ID).order("plot_number").limit(300)
       .then(({ data }) => setHouseOpts((data ?? []) as { plot_number: number | null; house_number: string }[]));
   }, []);
 
@@ -3708,7 +3712,7 @@ function ApprovalsContent() {
   const fetchLogs = () => {
     supabase.from("approval_logs").select("*")
       .eq("project_id", PROJECT_ID)
-      .order("action_timestamp", { ascending: false, nullsFirst: true })
+      .order("action_timestamp", { ascending: false, nullsFirst: true }).limit(300)
       .limit(100)
       .then(({ data }) => { setLogs((data as ApprovalLog[]) ?? []); setLoading(false); });
   };
@@ -4037,9 +4041,9 @@ function MaterialsContent() {
 
   const fetchMaterialsData = () => {
     Promise.all([
-      supabase.from("materials").select("*").eq("project_id", PROJECT_ID).order("name"),
-      supabase.from("purchase_orders").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
-      supabase.from("houses").select("id, house_number").eq("project_id", PROJECT_ID).order("house_number"),
+      supabase.from("materials").select("*").eq("project_id", PROJECT_ID).order("name").limit(300),
+      supabase.from("purchase_orders").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }).limit(300),
+      supabase.from("houses").select("id, house_number").eq("project_id", PROJECT_ID).order("house_number").limit(300),
     ]).then(([mRes, pRes, hRes]) => {
       setMaterials((mRes.data as Material[]) ?? []);
       setPos((pRes.data as PurchaseOrder[]) ?? []);
@@ -4415,7 +4419,7 @@ function PayrollContent() {
 
   useEffect(() => {
     supabase.from("employees").select("*").eq("status", "active")
-      .order("department")
+      .order("department").limit(300)
       .then(({ data }) => { setEmployees((data as Employee[]) ?? []); setLoading(false); });
   }, []);
 
@@ -4657,7 +4661,7 @@ function CommunityContent() {
   const [filterStatus, setFilterStatus] = useState<"all" | "Paid" | "Unpaid">("all");
 
   const fetchMembers = () => {
-    supabase.from("community_members").select("*").order("owner_name")
+    supabase.from("community_members").select("*").order("owner_name").limit(300)
       .then(({ data }) => { setMembers((data as CommunityMember[]) ?? []); setLoading(false); });
   };
 
@@ -4904,7 +4908,7 @@ function DocumentsContent() {
 
   const fetchDocs = () => {
     supabase.from("documents").select("*").eq("project_id", PROJECT_ID).limit(300)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).limit(300)
       .then(({ data }) => { setDocs((data as OfficeDocument[]) ?? []); setLoading(false); });
   };
 

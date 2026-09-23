@@ -41,7 +41,11 @@ export interface CreatePRInput {
   reason?: string | null;
   amount: number;
   quoteUrl?: string | null;
+  /** บ้าน/หน้างานที่ของชิ้นนี้จะถูกใช้ (ฝ่ายก่อสร้างต้องระบุ) — ว่างได้สำหรับของส่วนกลาง */
+  siteRef?: string | null;
   requester: string;
+  /** อีเมลผู้ขอ — ใช้ส่งผลอนุมัติ/ตีกลับกลับถึงตัวคน */
+  requesterEmail?: string | null;
   requesterDept?: string | null;
   requesterRole?: string | null;
   requesterUserId?: string | null;
@@ -65,6 +69,7 @@ export async function createPurchaseRequest(input: CreatePRInput): Promise<Creat
   const reason = (input.reason ?? "").trim() || null;
   const dept = input.requesterDept || null;
   const who = input.requester;
+  const siteRef = (input.siteRef ?? "").trim();
   const needsApproval = amt >= PR_THRESHOLD;
   const prNo = await generateDocNumber("PR");
 
@@ -78,7 +83,9 @@ export async function createPurchaseRequest(input: CreatePRInput): Promise<Creat
       reason,
       estimated_amount: amt,
       quote_url: (input.quoteUrl ?? "").trim() || null,
+      site_ref: (input.siteRef ?? "").trim() || null,
       requester: who,
+      requester_email: (input.requesterEmail ?? "").trim() || null,
       requester_dept: dept,
       requester_user_id: input.requesterUserId ?? null,
       needs_approval: needsApproval,
@@ -104,7 +111,7 @@ export async function createPurchaseRequest(input: CreatePRInput): Promise<Creat
     await createNotification({
       type: "approval",
       title: "ขออนุมัติก่อนซื้อ",
-      message: `${prNo} · ${item} ${baht(amt)} — รออนุมัติ`,
+      message: `${prNo} · ${item} ${baht(amt)}${siteRef ? ` — ใช้ที่ ${siteRef}` : ""} — รออนุมัติ`,
       from_dept: dept || undefined,
       to_dept: "ฝ่ายบริหาร",
       record_id: inserted.id,

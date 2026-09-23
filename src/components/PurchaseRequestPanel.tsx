@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { postJv } from "@/lib/jv";
 import { resolveApprovalQueue } from "@/lib/workflow-events";
-import { createNotification } from "@/lib/notify";
+import { createNotification, notifyPersonalLine } from "@/lib/notify";
 import { logAction } from "@/lib/audit";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { createPurchaseRequest, PR_CATEGORIES, PR_THRESHOLD as THRESHOLD, PROJECT_ID, baht } from "@/lib/purchase-request";
@@ -29,6 +29,8 @@ interface PR {
   requester: string | null;
   requester_dept: string | null;
   requester_user_id: string | null;
+  requester_email: string | null;
+  site_ref: string | null;
   approver: string | null;
   reject_reason: string | null;
   paid_amount: number | null;
@@ -60,6 +62,7 @@ export default function PurchaseRequestPanel() {
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState("");
   const [quoteUrl, setQuoteUrl] = useState("");
+  const [siteRef, setSiteRef] = useState("");   // บ้าน/หน้างานที่ใช้ของ (ฝ่ายก่อสร้างต้องระบุ)
 
   // จ่ายเงิน / ปฏิเสธ
   const [paying, setPaying] = useState<PR | null>(null);
@@ -93,7 +96,7 @@ export default function PurchaseRequestPanel() {
   useFocusHighlight();
 
   const openForm = () => {
-    setCategory(PR_CATEGORIES[0]); setItem(""); setReason(""); setAmount(""); setQuoteUrl("");
+    setCategory(PR_CATEGORIES[0]); setItem(""); setReason(""); setAmount(""); setQuoteUrl(""); setSiteRef("");
     setErr(""); setShowForm(true);
   };
 
@@ -121,9 +124,9 @@ export default function PurchaseRequestPanel() {
     setSaving(true); setErr("");
     try {
       await createPurchaseRequest({
-        category, item, reason, amount: amt, quoteUrl,
+        category, item, reason, amount: amt, quoteUrl, siteRef,
         requester: who, requesterDept: dept || null, requesterRole: user?.role ?? null,
-        requesterUserId: user?.id ?? null,
+        requesterUserId: user?.id ?? null, requesterEmail: user?.email ?? null,
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ"); setSaving(false); return;
@@ -133,6 +136,17 @@ export default function PurchaseRequestPanel() {
 
   // Maker-Checker: ผู้ยื่นคำขอเองอนุมัติ/ปฏิเสธไม่ได้ (DB trigger บังคับซ้ำอีกชั้น)
   const isOwnRequest = (pr: PR) => !!(pr.requester_user_id && user?.id && pr.requester_user_id === user.id);
+
+  // แจ้งผลคำขอถึงผู้ขอเป็นรายคน (กระดิ่ง + LINE ส่วนตัว) — best-effort ไม่ให้กระทบการบันทึกผล
+  const notifyRequester = async (pr: PR, title: string, message: string) => {
+    if (!pr.requester_email) return;   // คำขอเก่าก่อนเก็บอีเมล — ยังมีแจ้งเข้าแผนกตามเดิม
+    await createNotification({
+      type: "activity", title, message,
+      from_dept: "ฝ่ายบริหาร", to_user_email: pr.requester_email,
+      record_id: pr.id, link: "/office?tab=finance",
+    }).catch(() => {});
+    await notifyPersonalLine(title, message, "/office?tab=finance", [pr.requester_email]).catch(() => {});
+  };
 
   const approve = async (pr: PR) => {
     if (isOwnRequest(pr)) { setErr(`${pr.pr_number} — อนุมัติคำขอที่ท่านยื่นเองไม่ได้ (Maker-Checker)`); return; }
@@ -152,6 +166,9 @@ export default function PurchaseRequestPanel() {
       from_dept: "ฝ่ายบริหาร", to_dept: "ฝ่ายการเงิน", record_id: pr.id, link: "/office?tab=finance",
       line_to_depts: ["ฝ่ายการเงิน", pr.requester_dept ?? ""].filter(Boolean),
     });
+    // แจ้งผลถึงตัวผู้ขอโดยตรง (ชุดงาน #7 ข้อ 4) — เดิมแจ้งทั้งแผนก ผู้ขอจริงอาจไม่ทันเห็น
+    await notifyRequester(pr, `✅ คำขอซื้อของคุณได้รับอนุมัติแล้ว`,
+      `${pr.pr_number} · ${pr.item} ${baht(pr.estimated_amount)}${pr.site_ref ? ` — ใช้ที่ ${pr.site_ref}` : ""}\nอนุมัติโดย ${who} — รอฝ่ายการเงินบันทึกจ่าย`);
     await logAction("office", "pr_approve", `อนุมัติคำขอซื้อ ${pr.pr_number} — ${pr.item}`, pr.id);
     setSaving(false); load();
   };
@@ -178,6 +195,8 @@ export default function PurchaseRequestPanel() {
       from_dept: "ฝ่ายบริหาร", to_dept: pr.requester_dept ?? undefined, record_id: pr.id, link: "/office?tab=finance",
       line_to_depts: [pr.requester_dept ?? ""].filter(Boolean),
     });
+    await notifyRequester(pr, `❌ คำขอซื้อของคุณไม่ได้รับอนุมัติ`,
+      `${pr.pr_number} · ${pr.item} ${baht(pr.estimated_amount)}\nเหตุผล: ${rejectReason.trim() || "ไม่ได้ระบุ"}\nโดย ${who}`);
     await logAction("office", "pr_reject", `ไม่อนุมัติคำขอซื้อ ${pr.pr_number} — ${pr.item}`, pr.id);
     setSaving(false); setRejecting(null); setRejectReason(""); load();
   };
@@ -371,6 +390,13 @@ export default function PurchaseRequestPanel() {
                       : `ต่ำกว่า ${baht(THRESHOLD)} → อนุมัติอัตโนมัติ พร้อมจ่ายได้เลย`}
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="text-[11px] text-aviva-secondary">ใช้ที่บ้าน/หน้างานไหน (ถ้ามี)</label>
+                <input type="text" value={siteRef} onChange={(e) => setSiteRef(e.target.value)}
+                  placeholder="เช่น แปลง 12 · สำนักงานขาย · ส่วนกลาง"
+                  className="w-full mt-1 bg-aviva-card border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text" />
+                <p className="text-[10px] text-aviva-secondary/60 mt-1">ระบุไว้เพื่อให้ผู้อนุมัติรู้ว่าของชิ้นนี้ลงที่งานไหน และคิดต้นทุนเข้าแปลงได้ถูก</p>
               </div>
               <div>
                 <label className="text-[11px] text-aviva-secondary">ลิงก์ใบเสนอราคา (ถ้ามี)</label>

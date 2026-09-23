@@ -16,6 +16,7 @@ import ChipCardReader from "@/components/ChipCardReader";
 import PresenceCapture, { type PresenceProof } from "@/components/PresenceCapture";
 import LineVerifyModal from "@/components/LineVerifyModal";
 import WinAnalysis from "@/components/WinAnalysis";
+import MemberAdmin from "@/components/MemberAdmin";
 import { type ChipIdFields } from "@/lib/thai-id-reader";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -28,7 +29,7 @@ import {
 } from "@/lib/winvote";
 import ElectionResults from "@/components/ElectionResults";
 
-type Tab = "overview" | "polling" | "results" | "report" | "analysis";
+type Tab = "overview" | "polling" | "results" | "report" | "analysis" | "members";
 
 const emptyResident = {
   national_id: "", full_name: "", date_of_birth: "", gender: "" as string,
@@ -130,19 +131,22 @@ export default function WinVotePage() {
               <span className="truncate">{user.full_name}</span>
             </div>
           )}
-          <div className="flex gap-1 bg-aviva-card rounded-2xl p-1">
+          <div className="flex gap-1 bg-aviva-card rounded-2xl p-1 overflow-x-auto">
             {(([
               ["overview", "ภาพรวม", Building2],
               ["polling", "หน่วยเลือกตั้ง", Vote],
               ["results", "ผลเลือกตั้ง", Target],
+              ["members", "สมาชิก", Users],
               ["analysis", "วิเคราะห์", TrendingUp],
               ["report", "รายงาน", BarChart3],
             ] as [Tab, string, typeof Building2][]).filter(
-              ([key]) => key !== "report" || user?.canExport
+              ([key]) =>
+                (key !== "report" || user?.canExport) &&
+                (key !== "members" || user?.canApprove)
             )).map(([key, label, Icon]) => (
               <button key={key} onClick={() => setTab(key)}
                 className={clsx(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all",
+                  "shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all",
                   tab === key ? "bg-aviva-gold text-aviva-bg" : "text-aviva-secondary"
                 )}>
                 <Icon size={14} /> {label}
@@ -195,6 +199,10 @@ export default function WinVotePage() {
 
         {tab === "results" && (
           <ElectionResults />
+        )}
+
+        {tab === "members" && user?.canApprove && (
+          <MemberAdmin user={user} showToast={showToast} />
         )}
 
         {tab === "analysis" && (

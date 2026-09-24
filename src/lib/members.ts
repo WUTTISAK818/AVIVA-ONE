@@ -127,15 +127,27 @@ export function memberTrust(m: Pick<CpnMember,
   return Math.min(100, s);
 }
 
-// ---- Hash เลขบัตร (ทำที่เครื่องผู้ใช้ — เลขบัตรดิบไม่ออกจากเครื่อง) ----
-// ใช้ pepper ระดับแอปเพื่อกัน rainbow table ทั่วไป (ข้อจำกัด: pepper อยู่ใน client JS
-// จึงไม่กันกรณีผู้มีสิทธิ์เข้าถึงทั้งโค้ดและ DB — โปรดักชันควรย้าย pepper ไป server secret)
-const ID_PEPPER = "cpn-winvote-2568-korat";
-export async function hashNationalId(id: string): Promise<string> {
-  const clean = id.replace(/\D/g, "");
-  const data = new TextEncoder().encode(`${ID_PEPPER}:${clean}`);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+// ---- Hash เลขบัตร (ทำฝั่งเซิร์ฟเวอร์ — pepper เป็นความลับ ไม่หลุดไปเบราว์เซอร์) ----
+// เรียก /api/winvote/hash-id ซึ่งตรวจสิทธิ์ (รหัสเชิญ หรือ ล็อกอินเจ้าหน้าที่) ก่อนคืนค่า hash
+async function serverHashId(
+  national_id: string,
+  opts: { inviteCode?: string; accessToken?: string }
+): Promise<{ hash: string; last4: string } | null> {
+  const clean = national_id.replace(/\D/g, "");
+  try {
+    const res = await fetch("/api/winvote/hash-id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.accessToken ? { Authorization: `Bearer ${opts.accessToken}` } : {}),
+      },
+      body: JSON.stringify({ national_id: clean, invite_code: opts.inviteCode }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { hash: string; last4: string };
+  } catch {
+    return null;
+  }
 }
 
 // =====================================================================
@@ -161,13 +173,12 @@ export interface RegisterInput {
 }
 export interface RegisterResult { ok: boolean; member_code?: string; reason?: string; duplicate?: boolean }
 export async function registerMember(input: RegisterInput): Promise<RegisterResult> {
-  const clean = input.national_id.replace(/\D/g, "");
-  const hash = await hashNationalId(clean);
-  const last4 = clean.slice(-4);
+  const h = await serverHashId(input.national_id, { inviteCode: input.code });
+  if (!h) return { ok: false, reason: "ตรวจสอบข้อมูลบัตรไม่สำเร็จ กรุณาลองใหม่" };
   const { data, error } = await wv().rpc("register_member", {
     p_code: input.code.trim(),
-    p_national_id_hash: hash,
-    p_last4: last4,
+    p_national_id_hash: h.hash,
+    p_last4: h.last4,
     p_full_name: input.full_name.trim(),
     p_birth_year: input.birth_year ?? null,
     p_phone: input.phone?.trim() || null,
@@ -264,8 +275,9 @@ export interface StaffRegisterInput {
   id_verify_method: CpnMember["id_verify_method"]; verified: boolean; by: string;
 }
 export async function staffRegisterMember(input: StaffRegisterInput): Promise<{ ok: boolean; member_code?: string; reason?: string }> {
-  const clean = input.national_id.replace(/\D/g, "");
-  const hash = await hashNationalId(clean);
+  const { data: { session } } = await supabase.auth.getSession();
+  const h = await serverHashId(input.national_id, { accessToken: session?.access_token });
+  if (!h) return { ok: false, reason: "ตรวจสอบข้อมูลบัตรไม่สำเร็จ กรุณาลองใหม่" };
   const code = `CPN${input.area_code ?? 0}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   const trust = memberTrust({
     consent_pdpa: true, phone_verified: false, id_verify_method: input.id_verify_method,
@@ -274,8 +286,8 @@ export async function staffRegisterMember(input: StaffRegisterInput): Promise<{ 
   const { error } = await wv().from("cpn_members").insert({
     member_code: code,
     full_name: input.full_name.trim(),
-    national_id_hash: hash,
-    national_id_last4: clean.slice(-4),
+    national_id_hash: h.hash,
+    national_id_last4: h.last4,
     phone: input.phone?.trim() || null,
     birth_year: input.birth_year ?? null,
     area_code: input.area_code,

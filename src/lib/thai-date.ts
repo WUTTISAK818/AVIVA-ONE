@@ -42,3 +42,21 @@ export function addDaysStr(dateStr: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+/** แปลงค่าจากช่องกรอกวันที่ให้เป็น ค.ศ. เสมอ
+ *
+ *  ปัญหาจริงที่พบ (2026-09-27): มือถือที่ตั้งปฏิทินเป็นพุทธศักราชส่งค่าปี พ.ศ. กลับมา
+ *  เช่น "2569-09-26" ซึ่งฐานข้อมูลเก็บเป็นปี ค.ศ. 2569 = อีก 543 ปีข้างหน้า
+ *  ทำให้ลูกค้า 45 รายหายไปจากรายงานที่กรองด้วยวันที่ โดยไม่มีใครรู้
+ *
+ *  คืน null เมื่อว่าง · คืนค่าเดิมถ้ารูปแบบไม่ใช่ YYYY-MM-DD (ให้ฝั่ง DB ปฏิเสธเองตามปกติ)
+ */
+export function normalizeDateInput(value: string | null | undefined): string | null {
+  const v = (value ?? "").trim();
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return v;
+  const year = Number(m[1]);
+  // ปี พ.ศ. ปัจจุบันอยู่ราว 2560-2600 — ถ้าเกิน 2400 ถือว่าเป็น พ.ศ. แน่นอน (ค.ศ. 2400 คืออีก ~370 ปี)
+  return year > 2400 ? `${year - 543}-${m[2]}-${m[3]}` : v;
+}

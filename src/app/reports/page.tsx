@@ -16,6 +16,7 @@ import GlassCard from "@/components/GlassCard";
 import { thaiDateOf, thaiDateStr, dowOfDateStr } from "@/lib/thai-date";
 import { checkUploadFile } from "@/lib/upload-photos";
 import { thaiDbError } from "@/lib/db-errors";
+import { checkUnrecordedBooking } from "@/lib/sales-report-check";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
@@ -145,6 +146,7 @@ export default function ReportsPage() {
   const [lateModal, setLateModal]     = useState(false);
   const [lateReason, setLateReason]   = useState("");
   const [noPhotoModal, setNoPhotoModal] = useState(false);
+  const [bookingWarn, setBookingWarn] = useState<{ keyword: string } | null>(null);  // รายงานว่าจอง แต่ไม่มีใน CRM
   const [showHistory, setShowHistory] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<HistoryReport | null>(null);
   const [historyItems, setHistoryItems] = useState<WItem[]>([]);
@@ -500,10 +502,22 @@ export default function ReportsPage() {
     showToast("ส่งคำชี้แจงให้ผู้บริหารแล้ว ✓");
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const firstSubmit = report?.status === "draft";
     // เตือนถ้าไม่มีรูปแนบ — เฉพาะตอนส่งครั้งแรก (ไม่กวนตอนแก้)
     if (firstSubmit && attachments.length === 0) { setNoPhotoModal(true); return; }
+    // เขียนว่ารับจองแต่ยังไม่ได้บันทึกใน CRM → เตือนก่อน (ไม่ขวาง ส่งต่อได้ถ้ายืนยัน)
+    if (firstSubmit && user?.email) {
+      const chk = await checkUnrecordedBooking({
+        userEmail: user.email,
+        reportDate,
+        texts: [...items.map(i => i.description ?? ""), summary],
+      });
+      if (chk.mentioned && chk.recordedCount === 0) {
+        setBookingWarn({ keyword: chk.keyword ?? "จอง" });
+        return;
+      }
+    }
     proceedSubmit();
   }
 
@@ -966,6 +980,35 @@ export default function ReportsPage() {
       )}
 
       {/* No-photo warning modal — soft warning, can proceed */}
+      {bookingWarn && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={16} className="text-amber-400" />
+              <h2 className="text-base font-bold text-aviva-text">รายงานบอกว่ามีการจอง แต่ยังไม่ได้บันทึกในระบบ</h2>
+            </div>
+            <p className="text-sm text-aviva-secondary leading-relaxed mb-4">
+              พบคำว่า <span className="text-aviva-gold font-semibold">&ldquo;{bookingWarn.keyword}&rdquo;</span> ในรายงานวันนี้
+              แต่ยังไม่มีลูกค้าของคุณที่เปลี่ยนสถานะเป็น &ldquo;จอง/ทำสัญญา&rdquo; ในระบบ CRM วันนี้
+            </p>
+            <p className="text-xs text-aviva-secondary/80 leading-relaxed mb-5">
+              ถ้าไม่บันทึกใน CRM ระบบจะไม่รู้ว่าแปลงนี้ถูกจองแล้ว — ผังโครงการยังขึ้นว่าว่าง ·
+              ไม่มีใบจอง/คำขออนุมัติเงินจอง · และแปลงเดียวกันยังถูกเสนอให้ลูกค้ารายอื่นได้
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => router.push("/crm")}
+                className="py-3 rounded-xl bg-aviva-gold text-aviva-bg font-bold text-sm">
+                ไปบันทึกใน CRM
+              </button>
+              <button onClick={() => { setBookingWarn(null); proceedSubmit(); }}
+                className="py-3 rounded-xl bg-aviva-bg border border-aviva-gold/20 text-aviva-secondary font-semibold text-sm">
+                บันทึกทีหลัง · ส่งรายงานเลย
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {noPhotoModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10">

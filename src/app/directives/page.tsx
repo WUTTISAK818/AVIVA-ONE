@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw } from "lucide-react";
+import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, type Directive, type DirectiveStatus } from "@/lib/directives";
@@ -24,7 +24,36 @@ const STATUS_META: Record<DirectiveStatus, { label: string; cls: string }> = {
 };
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/** ระยะห่างจากเวลาหนึ่งถึงตอนนี้ (หรือถึงอีกเวลาหนึ่ง) แบบอ่านง่าย */
+function elapsed(fromIso: string, toIso?: string | null): string {
+  const ms = (toIso ? new Date(toIso).getTime() : Date.now()) - new Date(fromIso).getTime();
+  const mins = Math.max(0, Math.round(ms / 60000));
+  if (mins < 60) return `${mins} นาที`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return `${hrs} ชั่วโมง`;
+  return `${Math.round(hrs / 24)} วัน`;
+}
+
+/** แถวไทม์ไลน์ 1 ขั้น */
+function Step({ label, at, note, tone = "normal" }: { label: string; at?: string | null; note?: string | null; tone?: "normal" | "pending" | "warn" | "ok" }) {
+  const dot = tone === "ok" ? "bg-green-400" : tone === "warn" ? "bg-amber-400" : at ? "bg-aviva-gold" : "bg-aviva-secondary/30";
+  return (
+    <div className="flex gap-2.5">
+      <div className="flex flex-col items-center pt-1">
+        <span className={`w-2 h-2 rounded-full ${dot}`} />
+        <span className="flex-1 w-px bg-aviva-gold/10 mt-1" />
+      </div>
+      <div className="pb-3 min-w-0 flex-1">
+        <p className={`text-[11px] font-semibold ${at ? "text-aviva-text" : "text-aviva-secondary/60"}`}>{label}</p>
+        {at ? <p className="text-[10px] text-aviva-secondary">{formatDateTime(at)}</p>
+            : <p className="text-[10px] text-aviva-secondary/50">ยังไม่ถึงขั้นนี้</p>}
+        {note && <p className="text-[11px] text-aviva-secondary mt-0.5 break-words">{note}</p>}
+      </div>
+    </div>
+  );
 }
 
 export default function DirectivesPage() {
@@ -46,6 +75,7 @@ export default function DirectivesPage() {
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});   // ความเห็นผู้สั่งตอนตรวจรับ
   const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});   // เปิดดูรายละเอียด/ไทม์ไลน์
   const todayStr = thaiDateStr();
 
   const load = useCallback(async () => {
@@ -201,14 +231,54 @@ export default function DirectivesPage() {
                 </div>
                 <p className="text-sm text-aviva-text leading-relaxed">{d.message}</p>
                 {d.reference_note && <p className="text-xs text-aviva-gold mt-1">อ้างอิง: {d.reference_note}</p>}
-                <div className="flex items-center gap-2 mt-2">
-                  <p className="text-[10px] text-aviva-secondary">{formatDateTime(d.created_at)}</p>
-                  {d.due_date && (
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <p className="text-[10px] text-aviva-secondary">สั่งเมื่อ {formatDateTime(d.created_at)}</p>
+                  {d.due_date ? (
                     <p className={`text-[10px] ${overdue ? "text-red-400 font-semibold" : "text-aviva-secondary"}`}>
                       · กำหนดเสร็จ {new Date(d.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
+                      {overdue ? ` (เลยมา ${Math.max(1, Math.round((Date.now() - new Date(d.due_date + "T23:59:59+07:00").getTime()) / 86400000))} วัน)` : ""}
                     </p>
+                  ) : (
+                    <p className="text-[10px] text-amber-400/80">· ไม่ได้กำหนดวันเสร็จ</p>
+                  )}
+                  {d.status === "sent" && (
+                    <p className="text-[10px] text-amber-400">· ยังไม่กดรับทราบ ({elapsed(d.created_at)})</p>
                   )}
                 </div>
+
+                <button
+                  onClick={() => setExpanded((p) => ({ ...p, [d.id]: !p[d.id] }))}
+                  className="mt-2 flex items-center gap-1 text-[11px] text-aviva-gold font-semibold"
+                >
+                  {expanded[d.id] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  {expanded[d.id] ? "ซ่อนรายละเอียด" : "ดูรายละเอียด / ความเคลื่อนไหว"}
+                </button>
+
+                {expanded[d.id] && (
+                  <div className="mt-3 pt-3 border-t border-aviva-gold/10">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3">
+                      <p className="text-[10px] text-aviva-secondary">ผู้สั่งงาน</p>
+                      <p className="text-[10px] text-aviva-text text-right">{d.created_by_name || d.created_by}</p>
+                      <p className="text-[10px] text-aviva-secondary">ผู้รับคำสั่ง</p>
+                      <p className="text-[10px] text-aviva-text text-right">{d.assigned_to_name || d.assigned_to}</p>
+                      {d.department && (<><p className="text-[10px] text-aviva-secondary">แผนก</p><p className="text-[10px] text-aviva-text text-right">{d.department}</p></>)}
+                      {d.reference_note && (<><p className="text-[10px] text-aviva-secondary">อ้างอิงถึง</p><p className="text-[10px] text-aviva-text text-right">{d.reference_note}</p></>)}
+                      <p className="text-[10px] text-aviva-secondary">ใช้เวลาไปแล้ว</p>
+                      <p className="text-[10px] text-aviva-text text-right">
+                        {elapsed(d.created_at, d.closed_at)}{d.closed_at ? " (จนปิดจ็อบ)" : " (นับถึงตอนนี้)"}
+                      </p>
+                      {d.return_count > 0 && (<><p className="text-[10px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[10px] text-amber-400 text-right font-semibold">{d.return_count} ครั้ง</p></>)}
+                    </div>
+
+                    <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wide mb-2">ความเคลื่อนไหว</p>
+                    <Step label="ผู้สั่งงานส่งคำสั่ง" at={d.created_at} note={d.message} />
+                    <Step label="ผู้รับกดรับทราบ" at={d.acknowledged_at} tone={d.status === "sent" ? "warn" : "normal"} />
+                    <Step label="เริ่มลงมือทำ" at={d.status === "in_progress" || d.done_at || d.closed_at ? (d.acknowledged_at ?? d.created_at) : null} />
+                    <Step label="รายงานผล · ส่งให้ตรวจรับ" at={d.done_at} note={d.response_note} />
+                    {d.returned_at && <Step label="ผู้สั่งตีกลับให้แก้" at={d.returned_at} note={d.return_note} tone="warn" />}
+                    <Step label="ผู้สั่งตรวจรับ · ปิดจ็อบ" at={d.closed_at} note={d.close_note} tone={d.closed_at ? "ok" : "normal"} />
+                  </div>
+                )}
                 {d.response_note && (
                   <div className="mt-2 pt-2 border-t border-aviva-gold/10">
                     <p className="text-xs text-aviva-secondary">

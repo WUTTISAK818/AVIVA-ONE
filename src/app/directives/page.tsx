@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
-import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, type Directive, type DirectiveStatus } from "@/lib/directives";
+import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, type Directive, type DirectiveStatus } from "@/lib/directives";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 import { loadWorkSchedule, loadHolidays, dueDateFromWorkingDays, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
@@ -23,6 +23,7 @@ const STATUS_META: Record<DirectiveStatus, { label: string; cls: string }> = {
   in_progress: { label: "กำลังดำเนินการ", cls: "bg-purple-500/10 text-purple-400 border-purple-500/30" },
   done: { label: "รอผู้สั่งตรวจรับ", cls: "bg-amber-500/10 text-amber-400 border-amber-500/30" },
   closed: { label: "ปิดจ็อบแล้ว", cls: "bg-green-500/10 text-green-400 border-green-500/30" },
+  cancelled: { label: "ยกเลิกแล้ว", cls: "bg-aviva-secondary/10 text-aviva-secondary border-aviva-secondary/30" },
 };
 
 function formatDateTime(iso: string): string {
@@ -82,6 +83,9 @@ export default function DirectivesPage() {
   const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});   // เปิดดูรายละเอียด/ไทม์ไลน์
+  const [cancelFor, setCancelFor] = useState<Directive | null>(null);      // งานที่กำลังจะยกเลิก
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelErr, setCancelErr] = useState("");
   const todayStr = thaiDateStr();
 
   const load = useCallback(async () => {
@@ -186,6 +190,15 @@ export default function DirectivesPage() {
     load();
   };
 
+  // ยกเลิกคำสั่งงาน — เฉพาะผู้สั่ง และต้องมีเหตุผล
+  const doCancel = async () => {
+    if (!user || !cancelFor) return;
+    const r = await cancelDirective(cancelFor, user.email, cancelReason);
+    if (!r.ok) { setCancelErr(r.error ?? "ยกเลิกไม่สำเร็จ"); return; }
+    setCancelFor(null); setCancelReason(""); setCancelErr("");
+    load();
+  };
+
   const pendingReview = items.filter((d) => d.status === "done").length;
 
   if (!user) return null;
@@ -237,7 +250,7 @@ export default function DirectivesPage() {
         ) : (
           items.map((d) => {
             const meta = STATUS_META[d.status];
-            const overdue = !!d.due_date && d.due_date < todayStr && d.status !== "done" && d.status !== "closed";
+            const overdue = !!d.due_date && d.due_date < todayStr && !["done", "closed", "cancelled"].includes(d.status);
             return (
               <GlassCard key={d.id} className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -303,7 +316,9 @@ export default function DirectivesPage() {
                     <Step label="เริ่มลงมือทำ" at={d.status === "in_progress" || d.done_at || d.closed_at ? (d.acknowledged_at ?? d.created_at) : null} />
                     <Step label="รายงานผล · ส่งให้ตรวจรับ" at={d.done_at} note={d.response_note} />
                     {d.returned_at && <Step label="ผู้สั่งตีกลับให้แก้" at={d.returned_at} note={d.return_note} tone="warn" />}
-                    <Step label="ผู้สั่งตรวจรับ · ปิดจ็อบ" at={d.closed_at} note={d.close_note} tone={d.closed_at ? "ok" : "normal"} />
+                    {d.cancelled_at
+                      ? <Step label="ผู้สั่งงานยกเลิกคำสั่ง" at={d.cancelled_at} note={d.cancel_reason} tone="warn" />
+                      : <Step label="ผู้สั่งตรวจรับ · ปิดจ็อบ" at={d.closed_at} note={d.close_note} tone={d.closed_at ? "ok" : "normal"} />}
                   </div>
                 )}
                 {d.response_note && (
@@ -320,6 +335,15 @@ export default function DirectivesPage() {
                     </p>
                   </div>
                 )}
+                {d.status === "cancelled" && (
+                  <div className="mt-2 pt-2 border-t border-aviva-secondary/20">
+                    <p className="text-[14px] text-aviva-secondary">
+                      🚫 ผู้สั่งงานยกเลิกคำสั่งนี้แล้ว{d.cancelled_at ? ` · ${formatDateTime(d.cancelled_at)}` : ""}
+                    </p>
+                    {d.cancel_reason && <p className="text-[14px] text-aviva-secondary mt-1">เหตุผล: {d.cancel_reason}</p>}
+                  </div>
+                )}
+
                 {d.status === "closed" && (
                   <div className="mt-2 pt-2 border-t border-green-500/20">
                     <p className="text-[14px] text-green-400">
@@ -370,7 +394,16 @@ export default function DirectivesPage() {
                   </div>
                 )}
 
-                {tab === "received" && d.status !== "done" && d.status !== "closed" && (
+                {tab === "sent" && !["closed", "cancelled"].includes(d.status) && (
+                  <button
+                    onClick={() => { setCancelFor(d); setCancelReason(""); setCancelErr(""); }}
+                    className="mt-2 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold border border-red-500/25 text-red-400/90 bg-red-500/5"
+                  >
+                    <Ban size={14} /> ยกเลิกคำสั่งงานนี้
+                  </button>
+                )}
+
+                {tab === "received" && !["done", "closed", "cancelled"].includes(d.status) && (
                   <div className="mt-3 pt-3 border-t border-aviva-gold/10 space-y-2">
                     <input
                       type="text"
@@ -411,6 +444,43 @@ export default function DirectivesPage() {
           })
         )}
       </div>
+
+      {cancelFor && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
+          <GlassCard className="w-full max-w-md p-5 bg-aviva-bg">
+            <div className="flex items-center gap-2 mb-3">
+              <Ban size={18} className="text-red-400" />
+              <h2 className="text-base font-bold text-aviva-text">ยกเลิกคำสั่งงาน</h2>
+            </div>
+            <p className="text-[14px] text-aviva-secondary leading-relaxed mb-3">
+              ถึง <span className="text-aviva-text font-semibold">{cancelFor.assigned_to_name || cancelFor.assigned_to}</span>
+              <br />&ldquo;{cancelFor.message.slice(0, 80)}{cancelFor.message.length > 80 ? "…" : ""}&rdquo;
+            </p>
+            <label className="text-[13px] text-aviva-secondary mb-1.5 block">เหตุผลที่ยกเลิก (บังคับ)</label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              placeholder="เช่น ลูกค้ายกเลิกแล้ว · มอบให้คนอื่นทำแทน · สั่งผิดคน"
+              className="w-full bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2.5 text-[14px] text-aviva-text resize-none"
+            />
+            {cancelErr && <p className="text-[13px] text-red-400 mt-1.5">{cancelErr}</p>}
+            <p className="text-[13px] text-aviva-secondary/70 mt-2 mb-4">
+              ผู้รับงานจะได้รับแจ้งเตือนพร้อมเหตุผล และงานจะหยุดนับกำหนดเสร็จทันที
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setCancelFor(null)}
+                className="py-3 rounded-xl bg-aviva-card border border-aviva-gold/20 text-aviva-secondary font-bold text-[14px]">
+                ไม่ยกเลิก
+              </button>
+              <button onClick={doCancel} disabled={!cancelReason.trim()}
+                className="py-3 rounded-xl bg-red-500/90 text-white font-bold text-[14px] disabled:opacity-40">
+                ยืนยันยกเลิกงาน
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
 
       {showCompose && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">

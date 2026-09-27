@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 import { createNotification, notifyPersonalLine } from "./notify";
 
 // สายสถานะคำสั่งงาน — "done" คือพนักงานรายงานว่าเสร็จ (ยังไม่จบ) · "closed" คือผู้สั่งตรวจรับแล้วปิดจ็อบ (จบจริง)
-export type DirectiveStatus = "sent" | "acknowledged" | "in_progress" | "done" | "closed";
+export type DirectiveStatus = "sent" | "acknowledged" | "in_progress" | "done" | "closed" | "cancelled";
 
 export interface Directive {
   id: string;
@@ -26,6 +26,9 @@ export interface Directive {
   returned_at: string | null;
   return_note: string | null;
   return_count: number;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
 }
 
 // สั่งงานตรงถึงพนักงาน 1 คนเสมอ (ไม่ใช่ทั้งแผนก) — บันทึกลง DB + แจ้งเตือนกระดิ่งในแอป (เฉพาะคนนี้) + LINE ส่วนตัว (best-effort)
@@ -81,9 +84,9 @@ export async function updateDirectiveStatus(
 
   // ปิดจ็อบแล้วห้ามย้อนสถานะ — พนักงานแก้ได้เฉพาะงานที่ยังไม่ถูกผู้สั่งปิดรับ
   const { data: changed, error } = await supabase.from("directives")
-    .update(patch).eq("id", directive.id).neq("status", "closed").select("id");
+    .update(patch).eq("id", directive.id).not("status", "in", '("closed","cancelled")').select("id");
   if (error) return { ok: false, error: error.message };
-  if (!changed || changed.length === 0) return { ok: false, error: "งานนี้ถูกผู้สั่งงานปิดจ็อบแล้ว — แก้สถานะไม่ได้" };
+  if (!changed || changed.length === 0) return { ok: false, error: "งานนี้ถูกปิดจ็อบหรือยกเลิกไปแล้ว — แก้สถานะไม่ได้" };
 
   if (status === "done") {
     const title = `${directive.assigned_to_name || "พนักงาน"} รายงานว่าทำเสร็จแล้ว — รอคุณตรวจรับ`;
@@ -171,4 +174,37 @@ export async function countPendingReview(createdByEmail: string): Promise<number
     .eq("created_by", createdByEmail)
     .eq("status", "done");
   return count ?? 0;
+}
+
+
+/** ผู้สั่งงานยกเลิกคำสั่งงาน — ต้องมีเหตุผลเสมอ เพื่อให้ผู้รับรู้ว่าทำไมไม่ต้องทำแล้ว
+ *  ยกเลิกได้ทุกสถานะยกเว้นงานที่ปิดจ็อบไปแล้ว (งานนั้นจบสมบูรณ์แล้ว ย้อนไม่ได้) */
+export async function cancelDirective(
+  directive: Pick<Directive, "id" | "assigned_to" | "created_by_name" | "message">,
+  cancelledByEmail: string,
+  reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const why = reason.trim();
+  if (!why) return { ok: false, error: "กรุณาเขียนเหตุผลที่ยกเลิก เพื่อให้ผู้รับงานเข้าใจ" };
+
+  const { data, error } = await supabase
+    .from("directives")
+    .update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: cancelledByEmail,
+      cancel_reason: why,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", directive.id)
+    .not("status", "in", '("closed","cancelled")')
+    .select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "งานนี้ปิดจ็อบหรือยกเลิกไปแล้ว — รีเฟรชหน้าอีกครั้ง" };
+
+  const title = `🚫 ${directive.created_by_name || "ผู้สั่งงาน"} ยกเลิกคำสั่งงานนี้แล้ว`;
+  const body = `${directive.message}\n\nเหตุผล: ${why}\n\nไม่ต้องดำเนินการต่อแล้วครับ`;
+  await createNotification({ type: "activity", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  return { ok: true };
 }

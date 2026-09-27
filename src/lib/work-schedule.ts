@@ -1,6 +1,7 @@
 // เวลาทำงาน & วันหยุดบริษัท — ผู้บริหารกำหนดในแอป (app_settings key='work_schedule' + ตาราง company_holidays)
 // ใช้คำนวณ "มาสาย" และ "วันทำงานจริงในเดือน" ของระบบเงินเดือน
 import { supabase } from "@/lib/supabase";
+import { addDaysStr, dowOfDateStr } from "@/lib/thai-date";
 
 export interface WorkSchedule {
   work_start: string;              // "08:00"
@@ -86,4 +87,37 @@ export async function saveWorkSchedule(s: WorkSchedule) {
 export async function loadHolidays(): Promise<{ holiday_date: string; name: string | null }[]> {
   const { data } = await supabase.from("company_holidays").select("holiday_date, name").order("holiday_date");
   return (data as { holiday_date: string; name: string | null }[]) ?? [];
+}
+
+
+/** หาวันครบกำหนดจาก "จำนวนวันทำงาน" — ข้ามวันหยุดประจำสัปดาห์ของผู้รับงาน + วันหยุดบริษัท
+ *
+ *  ใช้กับคำสั่งงาน: สั่งวันศุกร์ให้เสร็จใน 2 วันทำงาน ถ้าผู้รับหยุดเสาร์-อาทิตย์
+ *  กำหนดเสร็จต้องเป็นวันอังคาร ไม่ใช่วันอาทิตย์
+ *
+ *  @param startDateStr วันที่เริ่มนับ "YYYY-MM-DD" (เวลาไทย)
+ *  @param workingDays  จำนวนวันทำงานที่ให้ (0 = ภายในวันนี้)
+ *  @param employeeOffDay วันหยุดประจำสัปดาห์ของผู้รับ (0=อา..6=ส) · null = ใช้ค่ากลางบริษัท
+ *  @param companyWeeklyOff วันหยุดประจำสัปดาห์ของบริษัท
+ *  @param holidays วันหยุดบริษัทแบบระบุวัน ["YYYY-MM-DD", ...]
+ */
+export function dueDateFromWorkingDays(
+  startDateStr: string,
+  workingDays: number,
+  employeeOffDay: number | null | undefined,
+  companyWeeklyOff: number[],
+  holidays: string[],
+): string {
+  if (workingDays <= 0) return startDateStr;
+  const holidaySet = new Set(holidays);
+  let cursor = startDateStr;
+  let remaining = workingDays;
+  // กันวนไม่รู้จบถ้าตั้งค่าวันหยุดผิดจนไม่เหลือวันทำงานเลย
+  for (let guard = 0; guard < 365 && remaining > 0; guard++) {
+    cursor = addDaysStr(cursor, 1);
+    const dow = dowOfDateStr(cursor);
+    const isOff = isEmployeeOffDay(dow, employeeOffDay, companyWeeklyOff) || holidaySet.has(cursor);
+    if (!isOff) remaining--;
+  }
+  return cursor;
 }

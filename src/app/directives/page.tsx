@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, type Directive, type DirectiveStatus } from "@/lib/directives";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
+import { loadWorkSchedule, loadHolidays, dueDateFromWorkingDays, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
 
 type Tab = "received" | "sent";
 
@@ -13,6 +14,7 @@ interface EmployeeOption {
   email: string;
   full_name: string;
   department: string | null;
+  weekly_off_day: number | null;
 }
 
 const STATUS_META: Record<DirectiveStatus, { label: string; cls: string }> = {
@@ -69,6 +71,10 @@ export default function DirectivesPage() {
   const [message, setMessage] = useState("");
   const [referenceNote, setReferenceNote] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [dueDays, setDueDays] = useState<number | null>(null);      // จำนวนวันทำงานที่เลือกไว้ (null = เลือกวันเอง)
+  const [skipOffDays, setSkipOffDays] = useState(true);             // ข้ามวันหยุดของผู้รับงาน
+  const [holidays, setHolidays] = useState<string[]>([]);
+  const [schedule, setSchedule] = useState<WorkSchedule>(DEFAULT_SCHEDULE);
   const [sending, setSending] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [closeErrors, setCloseErrors] = useState<Record<string, string>>({});
@@ -97,11 +103,28 @@ export default function DirectivesPage() {
     if (!user?.isManager) return;
     supabase
       .from("employees")
-      .select("email, full_name, department")
+      .select("email, full_name, department, weekly_off_day")
       .eq("status", "active")
       .order("full_name")
       .then(({ data }) => setEmployees((data ?? []).filter((e) => e.email) as EmployeeOption[]));
   }, [user]);
+
+  // โหลดวันหยุดบริษัท + ตารางงาน เพื่อคำนวณ "กี่วันทำงาน" ให้ตรงความจริง
+  useEffect(() => {
+    if (!user?.isManager) return;
+    loadWorkSchedule().then(setSchedule).catch(() => {});
+    loadHolidays().then((h) => setHolidays(h.map((x) => x.holiday_date))).catch(() => {});
+  }, [user]);
+
+  // เลือก "เสร็จใน N วันทำงาน" → คำนวณวันที่จริง โดยข้ามวันหยุดของผู้รับงานคนนั้น
+  const pickDueDays = (days: number) => {
+    setDueDays(days);
+    const emp = employees.find((e) => e.email === assignedTo);
+    const off = skipOffDays ? (emp?.weekly_off_day ?? null) : null;
+    const companyOff = skipOffDays ? schedule.weekly_off_days : [];
+    const hol = skipOffDays ? holidays : [];
+    setDueDate(dueDateFromWorkingDays(thaiDateStr(), days, off, companyOff, hol));
+  };
 
   const handleSend = async () => {
     if (!user || !assignedTo || !message.trim()) return;
@@ -120,7 +143,7 @@ export default function DirectivesPage() {
     setSending(false);
     if (r.ok) {
       setShowCompose(false);
-      setAssignedTo(""); setDepartment(""); setMessage(""); setReferenceNote(""); setDueDate("");
+      setAssignedTo(""); setDepartment(""); setMessage(""); setReferenceNote(""); setDueDate(""); setDueDays(null);
       if (tab === "sent") load();
     }
   };
@@ -397,7 +420,7 @@ export default function DirectivesPage() {
                 <label className="text-xs text-aviva-secondary mb-1 block">ถึง</label>
                 <select
                   value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
+                  onChange={(e) => { setAssignedTo(e.target.value); if (dueDays !== null) setTimeout(() => pickDueDays(dueDays), 0); }}
                   className="w-full bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
                 >
                   <option value="">— เลือกพนักงาน —</option>
@@ -417,16 +440,59 @@ export default function DirectivesPage() {
                     className="w-full bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">กำหนดเสร็จ (ไม่บังคับ)</label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    min={thaiDateStr()}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
-                  />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ต้องเสร็จภายใน</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { d: 0, label: "ภายในวันนี้" },
+                    { d: 1, label: "1 วัน" },
+                    { d: 2, label: "2 วัน" },
+                    { d: 3, label: "3 วัน" },
+                    { d: 5, label: "5 วัน" },
+                    { d: 7, label: "1 สัปดาห์" },
+                  ].map((o) => (
+                    <button key={o.d} type="button" onClick={() => pickDueDays(o.d)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border ${
+                        dueDays === o.d
+                          ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                          : "bg-aviva-card text-aviva-secondary border-aviva-gold/15"}`}>
+                      {o.label}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => { setDueDays(null); setDueDate(""); }}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border ${
+                      dueDays === null && !dueDate
+                        ? "bg-aviva-card text-aviva-secondary border-aviva-gold/40"
+                        : "bg-aviva-card text-aviva-secondary/70 border-aviva-gold/15"}`}>
+                    เลือกวันเอง
+                  </button>
                 </div>
+
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input type="checkbox" checked={skipOffDays}
+                    onChange={(e) => { setSkipOffDays(e.target.checked); if (dueDays !== null) setTimeout(() => pickDueDays(dueDays), 0); }}
+                    className="accent-aviva-gold" />
+                  <span className="text-[11px] text-aviva-secondary">
+                    นับเฉพาะวันทำงาน — ข้ามวันหยุดประจำสัปดาห์ของผู้รับงานและวันหยุดบริษัท
+                  </span>
+                </label>
+
+                <input
+                  type="date"
+                  value={dueDate}
+                  min={thaiDateStr()}
+                  onChange={(e) => { setDueDate(e.target.value); setDueDays(null); }}
+                  className="w-full mt-2 bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
+                />
+                {dueDate ? (
+                  <p className="text-[10px] text-aviva-gold mt-1">
+                    ครบกำหนด {new Date(dueDate + "T12:00:00Z").toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                    {dueDays !== null && skipOffDays ? " (คำนวณข้ามวันหยุดของผู้รับแล้ว)" : ""}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-amber-400/80 mt-1">ยังไม่กำหนดวันเสร็จ — งานที่ไม่มีเส้นตายมักค้างโดยไม่มีใครตาม</p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">ข้อความสั่งงาน</label>

@@ -50,9 +50,9 @@ function Step({ label, at, note, tone = "normal" }: { label: string; at?: string
       </div>
       <div className="pb-3 min-w-0 flex-1">
         <p className={`text-[13px] font-bold ${at ? "text-aviva-text" : "text-aviva-secondary/50"}`}>{label}</p>
-        {at ? <p className="text-[11px] text-aviva-secondary mt-0.5">{formatDateTime(at)}</p>
-            : <p className="text-[11px] text-aviva-secondary/50 mt-0.5">ยังไม่ถึงขั้นนี้</p>}
-        {note && <p className="text-[12px] text-aviva-text/90 mt-1 leading-relaxed break-words">{note}</p>}
+        {at ? <p className="text-[13px] text-aviva-secondary mt-0.5">{formatDateTime(at)}</p>
+            : <p className="text-[13px] text-aviva-secondary/50 mt-0.5">ยังไม่ถึงขั้นนี้</p>}
+        {note && <p className="text-[13px] text-aviva-text/90 mt-1 leading-relaxed break-words">{note}</p>}
       </div>
     </div>
   );
@@ -201,7 +201,7 @@ export default function DirectivesPage() {
           {user.isManager && (
             <button
               onClick={() => setShowCompose(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-aviva-gold text-aviva-bg text-xs font-semibold"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-aviva-gold text-aviva-bg text-[14px] font-bold"
             >
               <Plus size={14} /> สั่งงาน
             </button>
@@ -210,14 +210,14 @@ export default function DirectivesPage() {
         <div className="flex gap-1.5">
           <button
             onClick={() => setTab("received")}
-            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${tab === "received" ? "bg-aviva-gold text-aviva-bg" : "bg-aviva-card text-aviva-secondary border border-aviva-gold/10"}`}
+            className={`flex-1 py-2.5 rounded-xl text-[14px] font-bold ${tab === "received" ? "bg-aviva-gold text-aviva-bg" : "bg-aviva-card text-aviva-secondary border border-aviva-gold/10"}`}
           >
             ที่ได้รับ
           </button>
           {user.isManager && (
             <button
               onClick={() => setTab("sent")}
-              className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${tab === "sent" ? "bg-aviva-gold text-aviva-bg" : "bg-aviva-card text-aviva-secondary border border-aviva-gold/10"}`}
+              className={`flex-1 py-2.5 rounded-xl text-[14px] font-bold ${tab === "sent" ? "bg-aviva-gold text-aviva-bg" : "bg-aviva-card text-aviva-secondary border border-aviva-gold/10"}`}
             >
               ที่ฉันสั่ง{tab === "sent" && pendingReview > 0 ? ` · รอตรวจรับ ${pendingReview}` : ""}
             </button>
@@ -241,31 +241,31 @@ export default function DirectivesPage() {
             return (
               <GlassCard key={d.id} className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-aviva-secondary">
+                  <span className="text-[13px] text-aviva-secondary font-medium">
                     {tab === "received" ? `จาก ${d.created_by_name || d.created_by}` : `ถึง ${d.assigned_to_name || d.assigned_to}`}
                     {d.department && ` · ${d.department}`}
                   </span>
                   <div className="flex items-center gap-1.5">
                     {overdue && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold bg-red-500/10 text-red-400 border-red-500/30">เกินกำหนด</span>
+                      <span className="text-[12px] px-2 py-0.5 rounded-full border font-bold bg-red-500/10 text-red-400 border-red-500/30">เกินกำหนด</span>
                     )}
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${meta.cls}`}>{meta.label}</span>
+                    <span className={`text-[12px] px-2.5 py-1 rounded-full border font-bold ${meta.cls}`}>{meta.label}</span>
                   </div>
                 </div>
-                <p className="text-sm text-aviva-text leading-relaxed">{d.message}</p>
-                {d.reference_note && <p className="text-xs text-aviva-gold mt-1">อ้างอิง: {d.reference_note}</p>}
+                <p className="text-[15px] text-aviva-text leading-relaxed whitespace-pre-line">{d.message}</p>
+                {d.reference_note && <p className="text-[13px] text-aviva-gold mt-1.5 font-medium">อ้างอิง: {d.reference_note}</p>}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <p className="text-[10px] text-aviva-secondary">สั่งเมื่อ {formatDateTime(d.created_at)}</p>
+                  <p className="text-[13px] text-aviva-secondary">สั่งเมื่อ {formatDateTime(d.created_at)}</p>
                   {d.due_date ? (
-                    <p className={`text-[10px] ${overdue ? "text-red-400 font-semibold" : "text-aviva-secondary"}`}>
+                    <p className={`text-[13px] ${overdue ? "text-red-400 font-semibold" : "text-aviva-secondary"}`}>
                       · กำหนดเสร็จ {new Date(d.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
                       {overdue ? ` (เลยมา ${Math.max(1, Math.round((Date.now() - new Date(d.due_date + "T23:59:59+07:00").getTime()) / 86400000))} วัน)` : ""}
                     </p>
                   ) : (
-                    <p className="text-[10px] text-amber-400/80">· ไม่ได้กำหนดวันเสร็จ</p>
+                    <p className="text-[13px] text-amber-400/80">· ไม่ได้กำหนดวันเสร็จ</p>
                   )}
                   {d.status === "sent" && (
-                    <p className="text-[10px] text-amber-400">· ยังไม่กดรับทราบ ({elapsed(d.created_at)})</p>
+                    <p className="text-[13px] text-amber-400">· ยังไม่กดรับทราบ ({elapsed(d.created_at)})</p>
                   )}
                 </div>
 
@@ -284,20 +284,20 @@ export default function DirectivesPage() {
                 {expanded[d.id] && (
                   <div className="mt-3 pt-3 border-t border-aviva-gold/10">
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-4">
-                      <p className="text-[12px] text-aviva-secondary">ผู้สั่งงาน</p>
-                      <p className="text-[12px] text-aviva-text text-right font-medium">{d.created_by_name || d.created_by}</p>
-                      <p className="text-[12px] text-aviva-secondary">ผู้รับคำสั่ง</p>
-                      <p className="text-[12px] text-aviva-text text-right font-medium">{d.assigned_to_name || d.assigned_to}</p>
-                      {d.department && (<><p className="text-[12px] text-aviva-secondary">แผนก</p><p className="text-[12px] text-aviva-text text-right font-medium">{d.department}</p></>)}
-                      {d.reference_note && (<><p className="text-[12px] text-aviva-secondary">อ้างอิงถึง</p><p className="text-[12px] text-aviva-text text-right font-medium">{d.reference_note}</p></>)}
-                      <p className="text-[12px] text-aviva-secondary">ใช้เวลาไปแล้ว</p>
-                      <p className="text-[12px] text-aviva-text text-right font-medium">
+                      <p className="text-[13px] text-aviva-secondary">ผู้สั่งงาน</p>
+                      <p className="text-[13px] text-aviva-text text-right font-medium">{d.created_by_name || d.created_by}</p>
+                      <p className="text-[13px] text-aviva-secondary">ผู้รับคำสั่ง</p>
+                      <p className="text-[13px] text-aviva-text text-right font-medium">{d.assigned_to_name || d.assigned_to}</p>
+                      {d.department && (<><p className="text-[13px] text-aviva-secondary">แผนก</p><p className="text-[13px] text-aviva-text text-right font-medium">{d.department}</p></>)}
+                      {d.reference_note && (<><p className="text-[13px] text-aviva-secondary">อ้างอิงถึง</p><p className="text-[13px] text-aviva-text text-right font-medium">{d.reference_note}</p></>)}
+                      <p className="text-[13px] text-aviva-secondary">ใช้เวลาไปแล้ว</p>
+                      <p className="text-[13px] text-aviva-text text-right font-medium">
                         {elapsed(d.created_at, d.closed_at)}{d.closed_at ? " (จนปิดจ็อบ)" : " (นับถึงตอนนี้)"}
                       </p>
-                      {d.return_count > 0 && (<><p className="text-[12px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[12px] text-amber-400 text-right font-bold">{d.return_count} ครั้ง</p></>)}
+                      {d.return_count > 0 && (<><p className="text-[13px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[13px] text-amber-400 text-right font-bold">{d.return_count} ครั้ง</p></>)}
                     </div>
 
-                    <p className="text-[12px] font-bold text-aviva-gold mb-3">ความเคลื่อนไหวของงาน</p>
+                    <p className="text-[13px] font-bold text-aviva-gold mb-3">ความเคลื่อนไหวของงาน</p>
                     <Step label="ผู้สั่งงานส่งคำสั่ง" at={d.created_at} note={d.message} />
                     <Step label="ผู้รับกดรับทราบ" at={d.acknowledged_at} tone={d.status === "sent" ? "warn" : "normal"} />
                     <Step label="เริ่มลงมือทำ" at={d.status === "in_progress" || d.done_at || d.closed_at ? (d.acknowledged_at ?? d.created_at) : null} />
@@ -308,31 +308,31 @@ export default function DirectivesPage() {
                 )}
                 {d.response_note && (
                   <div className="mt-2 pt-2 border-t border-aviva-gold/10">
-                    <p className="text-xs text-aviva-secondary">
+                    <p className="text-[14px] text-aviva-secondary">
                       {d.status === "done" || d.status === "closed" ? "รายงานผลงานจากพนักงาน" : "ความคืบหน้า"}: {d.response_note}
                     </p>
                   </div>
                 )}
                 {d.return_note && d.status !== "closed" && (
                   <div className="mt-2 pt-2 border-t border-aviva-gold/10">
-                    <p className="text-xs text-amber-400">
+                    <p className="text-[14px] text-amber-400">
                       🔁 ผู้สั่งงานตีกลับให้แก้{d.return_count > 1 ? ` (ครั้งที่ ${d.return_count})` : ""}: {d.return_note}
                     </p>
                   </div>
                 )}
                 {d.status === "closed" && (
                   <div className="mt-2 pt-2 border-t border-green-500/20">
-                    <p className="text-xs text-green-400">
+                    <p className="text-[14px] text-green-400">
                       ✅ ผู้สั่งงานตรวจรับและปิดจ็อบแล้ว{d.closed_at ? ` · ${formatDateTime(d.closed_at)}` : ""}
                       {d.return_count > 0 ? ` · ตีกลับให้แก้ ${d.return_count} ครั้งก่อนผ่าน` : ""}
                     </p>
-                    {d.close_note && <p className="text-xs text-aviva-secondary mt-0.5">ความเห็นผู้สั่งงาน: {d.close_note}</p>}
+                    {d.close_note && <p className="text-[14px] text-aviva-secondary mt-1">ความเห็นผู้สั่งงาน: {d.close_note}</p>}
                   </div>
                 )}
 
                 {tab === "sent" && d.status === "done" && (
                   <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-2">
-                    <p className="text-[11px] text-amber-400 font-semibold">
+                    <p className="text-[13px] text-amber-400 font-semibold">
                       พนักงานรายงานว่าทำเสร็จแล้ว — กรุณาตรวจรับ
                     </p>
                     <input
@@ -340,21 +340,21 @@ export default function DirectivesPage() {
                       placeholder="ความเห็น (ไม่บังคับตอนปิดจ็อบ · บังคับตอนตีกลับ)"
                       value={reviewDrafts[d.id] ?? ""}
                       onChange={(e) => setReviewDrafts((p) => ({ ...p, [d.id]: e.target.value }))}
-                      className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-1.5 text-xs text-aviva-text"
+                      className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-2.5 text-[14px] text-aviva-text"
                     />
-                    {reviewErrors[d.id] && <p className="text-[11px] text-red-400">{reviewErrors[d.id]}</p>}
+                    {reviewErrors[d.id] && <p className="text-[13px] text-red-400">{reviewErrors[d.id]}</p>}
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => handleClose(d)}
                         disabled={reviewing === d.id}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[11px] font-semibold disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[13px] font-semibold disabled:opacity-50"
                       >
                         <BadgeCheck size={11} /> {reviewing === d.id ? "กำลังบันทึก…" : "ตรวจรับ · ปิดจ็อบ"}
                       </button>
                       <button
                         onClick={() => handleReturn(d)}
                         disabled={reviewing === d.id}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[11px] font-semibold disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[13px] font-semibold disabled:opacity-50"
                       >
                         <RotateCcw size={11} /> ตีกลับให้แก้
                       </button>
@@ -364,7 +364,7 @@ export default function DirectivesPage() {
 
                 {tab === "received" && d.status === "done" && (
                   <div className="mt-3 pt-3 border-t border-amber-500/20">
-                    <p className="text-[11px] text-amber-400">
+                    <p className="text-[13px] text-amber-400">
                       รายงานผลไปแล้ว — รอ {d.created_by_name || "ผู้สั่งงาน"} ตรวจรับและปิดจ็อบ
                     </p>
                   </div>
@@ -377,14 +377,14 @@ export default function DirectivesPage() {
                       placeholder="เขียนรายงานผลงาน (บังคับตอนส่งให้ตรวจรับ)"
                       value={responseDrafts[d.id] ?? ""}
                       onChange={(e) => setResponseDrafts((p) => ({ ...p, [d.id]: e.target.value }))}
-                      className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-1.5 text-xs text-aviva-text"
+                      className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-2.5 text-[14px] text-aviva-text"
                     />
-                    {closeErrors[d.id] && <p className="text-[11px] text-red-400">{closeErrors[d.id]}</p>}
+                    {closeErrors[d.id] && <p className="text-[13px] text-red-400">{closeErrors[d.id]}</p>}
                     <div className="flex gap-1.5">
                       {d.status === "sent" && (
                         <button
                           onClick={() => handleStatusUpdate(d, "acknowledged")}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[11px] font-semibold"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[13px] font-bold"
                         >
                           <Clock size={11} /> รับทราบ
                         </button>
@@ -392,14 +392,14 @@ export default function DirectivesPage() {
                       {(d.status === "sent" || d.status === "acknowledged") && (
                         <button
                           onClick={() => handleStatusUpdate(d, "in_progress")}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[11px] font-semibold"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[13px] font-bold"
                         >
                           <PlayCircle size={11} /> กำลังทำ
                         </button>
                       )}
                       <button
                         onClick={() => handleStatusUpdate(d, "done")}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[11px] font-semibold"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[13px] font-semibold"
                       >
                         <CheckCircle2 size={11} /> ทำเสร็จแล้ว · ส่งให้ตรวจรับ
                       </button>
@@ -421,7 +421,7 @@ export default function DirectivesPage() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ถึง</label>
+                <label className="text-[13px] text-aviva-secondary mb-1.5 block">ถึง</label>
                 <select
                   value={assignedTo}
                   onChange={(e) => { setAssignedTo(e.target.value); if (dueDays !== null) setTimeout(() => pickDueDays(dueDays), 0); }}
@@ -435,7 +435,7 @@ export default function DirectivesPage() {
               </div>
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="text-xs text-aviva-secondary mb-1 block">อ้างอิงถึง (ไม่บังคับ)</label>
+                  <label className="text-[13px] text-aviva-secondary mb-1.5 block">อ้างอิงถึง (ไม่บังคับ)</label>
                   <input
                     type="text"
                     value={referenceNote}
@@ -446,7 +446,7 @@ export default function DirectivesPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ต้องเสร็จภายใน</label>
+                <label className="text-[13px] text-aviva-secondary mb-1.5 block">ต้องเสร็จภายใน</label>
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { d: 0, label: "ภายในวันนี้" },
@@ -457,7 +457,7 @@ export default function DirectivesPage() {
                     { d: 7, label: "1 สัปดาห์" },
                   ].map((o) => (
                     <button key={o.d} type="button" onClick={() => pickDueDays(o.d)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border ${
+                      className={`px-2.5 py-1.5 rounded-lg text-[13px] font-semibold border ${
                         dueDays === o.d
                           ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
                           : "bg-aviva-card text-aviva-secondary border-aviva-gold/15"}`}>
@@ -465,7 +465,7 @@ export default function DirectivesPage() {
                     </button>
                   ))}
                   <button type="button" onClick={() => { setDueDays(null); setDueDate(""); }}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border ${
+                    className={`px-2.5 py-1.5 rounded-lg text-[13px] font-semibold border ${
                       dueDays === null && !dueDate
                         ? "bg-aviva-card text-aviva-secondary border-aviva-gold/40"
                         : "bg-aviva-card text-aviva-secondary/70 border-aviva-gold/15"}`}>
@@ -477,7 +477,7 @@ export default function DirectivesPage() {
                   <input type="checkbox" checked={skipOffDays}
                     onChange={(e) => { setSkipOffDays(e.target.checked); if (dueDays !== null) setTimeout(() => pickDueDays(dueDays), 0); }}
                     className="accent-aviva-gold" />
-                  <span className="text-[11px] text-aviva-secondary">
+                  <span className="text-[13px] text-aviva-secondary">
                     นับเฉพาะวันทำงาน — ข้ามวันหยุดประจำสัปดาห์ของผู้รับงานและวันหยุดบริษัท
                   </span>
                 </label>
@@ -490,16 +490,16 @@ export default function DirectivesPage() {
                   className="w-full mt-2 bg-aviva-card border border-aviva-gold/15 rounded-xl px-3 py-2 text-sm text-aviva-text"
                 />
                 {dueDate ? (
-                  <p className="text-[10px] text-aviva-gold mt-1">
+                  <p className="text-[13px] text-aviva-gold mt-1">
                     ครบกำหนด {new Date(dueDate + "T12:00:00Z").toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                     {dueDays !== null && skipOffDays ? " (คำนวณข้ามวันหยุดของผู้รับแล้ว)" : ""}
                   </p>
                 ) : (
-                  <p className="text-[10px] text-amber-400/80 mt-1">ยังไม่กำหนดวันเสร็จ — งานที่ไม่มีเส้นตายมักค้างโดยไม่มีใครตาม</p>
+                  <p className="text-[13px] text-amber-400/80 mt-1">ยังไม่กำหนดวันเสร็จ — งานที่ไม่มีเส้นตายมักค้างโดยไม่มีใครตาม</p>
                 )}
               </div>
               <div>
-                <label className="text-xs text-aviva-secondary mb-1 block">ข้อความสั่งงาน</label>
+                <label className="text-[13px] text-aviva-secondary mb-1.5 block">ข้อความสั่งงาน</label>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}

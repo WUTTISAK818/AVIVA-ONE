@@ -45,14 +45,14 @@ function Step({ label, at, note, tone = "normal" }: { label: string; at?: string
   return (
     <div className="flex gap-2.5">
       <div className="flex flex-col items-center pt-1">
-        <span className={`w-2 h-2 rounded-full ${dot}`} />
+        <span className={`w-2.5 h-2.5 rounded-full ${dot}`} />
         <span className="flex-1 w-px bg-aviva-gold/10 mt-1" />
       </div>
       <div className="pb-3 min-w-0 flex-1">
-        <p className={`text-[11px] font-semibold ${at ? "text-aviva-text" : "text-aviva-secondary/60"}`}>{label}</p>
-        {at ? <p className="text-[10px] text-aviva-secondary">{formatDateTime(at)}</p>
-            : <p className="text-[10px] text-aviva-secondary/50">ยังไม่ถึงขั้นนี้</p>}
-        {note && <p className="text-[11px] text-aviva-secondary mt-0.5 break-words">{note}</p>}
+        <p className={`text-[13px] font-bold ${at ? "text-aviva-text" : "text-aviva-secondary/50"}`}>{label}</p>
+        {at ? <p className="text-[11px] text-aviva-secondary mt-0.5">{formatDateTime(at)}</p>
+            : <p className="text-[11px] text-aviva-secondary/50 mt-0.5">ยังไม่ถึงขั้นนี้</p>}
+        {note && <p className="text-[12px] text-aviva-text/90 mt-1 leading-relaxed break-words">{note}</p>}
       </div>
     </div>
   );
@@ -271,29 +271,33 @@ export default function DirectivesPage() {
 
                 <button
                   onClick={() => setExpanded((p) => ({ ...p, [d.id]: !p[d.id] }))}
-                  className="mt-2 flex items-center gap-1 text-[11px] text-aviva-gold font-semibold"
+                  className={`mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border transition-colors ${
+                    expanded[d.id]
+                      ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                      : "bg-aviva-gold/15 text-aviva-gold border-aviva-gold/40"
+                  }`}
                 >
-                  {expanded[d.id] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                  {expanded[d.id] ? "ซ่อนรายละเอียด" : "ดูรายละเอียด / ความเคลื่อนไหว"}
+                  {expanded[d.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  {expanded[d.id] ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}
                 </button>
 
                 {expanded[d.id] && (
                   <div className="mt-3 pt-3 border-t border-aviva-gold/10">
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3">
-                      <p className="text-[10px] text-aviva-secondary">ผู้สั่งงาน</p>
-                      <p className="text-[10px] text-aviva-text text-right">{d.created_by_name || d.created_by}</p>
-                      <p className="text-[10px] text-aviva-secondary">ผู้รับคำสั่ง</p>
-                      <p className="text-[10px] text-aviva-text text-right">{d.assigned_to_name || d.assigned_to}</p>
-                      {d.department && (<><p className="text-[10px] text-aviva-secondary">แผนก</p><p className="text-[10px] text-aviva-text text-right">{d.department}</p></>)}
-                      {d.reference_note && (<><p className="text-[10px] text-aviva-secondary">อ้างอิงถึง</p><p className="text-[10px] text-aviva-text text-right">{d.reference_note}</p></>)}
-                      <p className="text-[10px] text-aviva-secondary">ใช้เวลาไปแล้ว</p>
-                      <p className="text-[10px] text-aviva-text text-right">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-4">
+                      <p className="text-[12px] text-aviva-secondary">ผู้สั่งงาน</p>
+                      <p className="text-[12px] text-aviva-text text-right font-medium">{d.created_by_name || d.created_by}</p>
+                      <p className="text-[12px] text-aviva-secondary">ผู้รับคำสั่ง</p>
+                      <p className="text-[12px] text-aviva-text text-right font-medium">{d.assigned_to_name || d.assigned_to}</p>
+                      {d.department && (<><p className="text-[12px] text-aviva-secondary">แผนก</p><p className="text-[12px] text-aviva-text text-right font-medium">{d.department}</p></>)}
+                      {d.reference_note && (<><p className="text-[12px] text-aviva-secondary">อ้างอิงถึง</p><p className="text-[12px] text-aviva-text text-right font-medium">{d.reference_note}</p></>)}
+                      <p className="text-[12px] text-aviva-secondary">ใช้เวลาไปแล้ว</p>
+                      <p className="text-[12px] text-aviva-text text-right font-medium">
                         {elapsed(d.created_at, d.closed_at)}{d.closed_at ? " (จนปิดจ็อบ)" : " (นับถึงตอนนี้)"}
                       </p>
-                      {d.return_count > 0 && (<><p className="text-[10px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[10px] text-amber-400 text-right font-semibold">{d.return_count} ครั้ง</p></>)}
+                      {d.return_count > 0 && (<><p className="text-[12px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[12px] text-amber-400 text-right font-bold">{d.return_count} ครั้ง</p></>)}
                     </div>
 
-                    <p className="text-[10px] font-bold text-aviva-secondary/70 uppercase tracking-wide mb-2">ความเคลื่อนไหว</p>
+                    <p className="text-[12px] font-bold text-aviva-gold mb-3">ความเคลื่อนไหวของงาน</p>
                     <Step label="ผู้สั่งงานส่งคำสั่ง" at={d.created_at} note={d.message} />
                     <Step label="ผู้รับกดรับทราบ" at={d.acknowledged_at} tone={d.status === "sent" ? "warn" : "normal"} />
                     <Step label="เริ่มลงมือทำ" at={d.status === "in_progress" || d.done_at || d.closed_at ? (d.acknowledged_at ?? d.created_at) : null} />

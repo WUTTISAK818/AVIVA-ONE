@@ -1,7 +1,8 @@
 import { supabase } from "./supabase";
 import { createNotification, notifyPersonalLine } from "./notify";
 
-export type DirectiveStatus = "sent" | "acknowledged" | "in_progress" | "done";
+// สายสถานะคำสั่งงาน — "done" คือพนักงานรายงานว่าเสร็จ (ยังไม่จบ) · "closed" คือผู้สั่งตรวจรับแล้วปิดจ็อบ (จบจริง)
+export type DirectiveStatus = "sent" | "acknowledged" | "in_progress" | "done" | "closed";
 
 export interface Directive {
   id: string;
@@ -19,6 +20,12 @@ export interface Directive {
   updated_at: string;
   acknowledged_at: string | null;
   done_at: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  close_note: string | null;
+  returned_at: string | null;
+  return_note: string | null;
+  return_count: number;
 }
 
 // สั่งงานตรงถึงพนักงาน 1 คนเสมอ (ไม่ใช่ทั้งแผนก) — บันทึกลง DB + แจ้งเตือนกระดิ่งในแอป (เฉพาะคนนี้) + LINE ส่วนตัว (best-effort)
@@ -72,12 +79,16 @@ export async function updateDirectiveStatus(
   if (status === "acknowledged") patch.acknowledged_at = new Date().toISOString();
   if (status === "done") patch.done_at = new Date().toISOString();
 
-  const { error } = await supabase.from("directives").update(patch).eq("id", directive.id);
+  // ปิดจ็อบแล้วห้ามย้อนสถานะ — พนักงานแก้ได้เฉพาะงานที่ยังไม่ถูกผู้สั่งปิดรับ
+  const { data: changed, error } = await supabase.from("directives")
+    .update(patch).eq("id", directive.id).neq("status", "closed").select("id");
   if (error) return { ok: false, error: error.message };
+  if (!changed || changed.length === 0) return { ok: false, error: "งานนี้ถูกผู้สั่งงานปิดจ็อบแล้ว — แก้สถานะไม่ได้" };
 
   if (status === "done") {
-    const title = `${directive.assigned_to_name || "พนักงาน"} ปิดงานแล้ว`;
-    const body = responseNote ? `${directive.message}\n\nรายงานปิดงาน: ${responseNote}` : directive.message;
+    const title = `${directive.assigned_to_name || "พนักงาน"} รายงานว่าทำเสร็จแล้ว — รอคุณตรวจรับ`;
+    const body = (responseNote ? `${directive.message}\n\nรายงานผลงาน: ${responseNote}` : directive.message)
+      + "\n\nเปิดหน้าคำสั่งงาน → แท็บ \"ที่ฉันสั่ง\" เพื่อตรวจรับและปิดจ็อบ (หรือตีกลับให้แก้)";
     await createNotification({
       type: "info",
       title,
@@ -89,4 +100,75 @@ export async function updateDirectiveStatus(
   }
 
   return { ok: true };
+}
+
+
+type ReviewTarget = Pick<Directive, "id" | "assigned_to" | "assigned_to_name" | "created_by_name" | "message" | "return_count">;
+
+/** ผู้สั่งงานตรวจรับแล้ว "ปิดจ็อบ" — ปิดได้เฉพาะงานที่พนักงานรายงานเสร็จแล้ว (status = done)
+ *  ใช้เงื่อนไขสถานะเดิมใน update กันกดซ้ำ/กดพร้อมกัน 2 หน้าต่าง (QA-STANDARD ส่วน D) */
+export async function closeDirective(
+  directive: ReviewTarget,
+  closedByEmail: string,
+  closeNote?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase
+    .from("directives")
+    .update({
+      status: "closed",
+      closed_at: new Date().toISOString(),
+      closed_by: closedByEmail,
+      close_note: (closeNote ?? "").trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", directive.id).eq("status", "done").select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "งานนี้ถูกปิดจ็อบไปแล้ว หรือสถานะเปลี่ยนไปแล้ว — รีเฟรชหน้าอีกครั้ง" };
+
+  const title = `✅ ${directive.created_by_name || "ผู้สั่งงาน"} ตรวจรับและปิดจ็อบแล้ว`;
+  const body = (closeNote ?? "").trim()
+    ? `${directive.message}\n\nความเห็นผู้สั่งงาน: ${closeNote!.trim()}`
+    : `${directive.message}\n\nงานนี้ปิดเรียบร้อย ขอบคุณครับ`;
+  await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  return { ok: true };
+}
+
+/** ผู้สั่งงานตรวจแล้วยังไม่ผ่าน — ตีกลับให้แก้ พร้อมเหตุผล (บังคับ) แล้วงานกลับไปสถานะ "กำลังทำ" */
+export async function returnDirective(
+  directive: ReviewTarget,
+  returnNote: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const reason = returnNote.trim();
+  if (!reason) return { ok: false, error: "กรุณาเขียนเหตุผลที่ตีกลับ เพื่อให้พนักงานรู้ว่าต้องแก้อะไร" };
+
+  const { data, error } = await supabase
+    .from("directives")
+    .update({
+      status: "in_progress",
+      returned_at: new Date().toISOString(),
+      return_note: reason,
+      return_count: (directive.return_count ?? 0) + 1,
+      done_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", directive.id).eq("status", "done").select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "สถานะงานเปลี่ยนไปแล้ว — รีเฟรชหน้าอีกครั้ง" };
+
+  const title = `🔁 ${directive.created_by_name || "ผู้สั่งงาน"} ตีกลับให้แก้`;
+  const body = `${directive.message}\n\nสิ่งที่ต้องแก้: ${reason}`;
+  await createNotification({ type: "activity", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  return { ok: true };
+}
+
+/** จำนวนงานที่พนักงานรายงานเสร็จแล้วและรอผู้สั่งตรวจรับ — ใช้ขึ้นป้ายเตือนบนหน้าหลัก/หน้าคำสั่งงาน */
+export async function countPendingReview(createdByEmail: string): Promise<number> {
+  const { count } = await supabase
+    .from("directives")
+    .select("id", { count: "exact", head: true })
+    .eq("created_by", createdByEmail)
+    .eq("status", "done");
+  return count ?? 0;
 }

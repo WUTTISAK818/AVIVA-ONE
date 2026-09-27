@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle } from "lucide-react";
+import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
-import { sendDirective, updateDirectiveStatus, type Directive, type DirectiveStatus } from "@/lib/directives";
+import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, type Directive, type DirectiveStatus } from "@/lib/directives";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 
@@ -19,7 +19,8 @@ const STATUS_META: Record<DirectiveStatus, { label: string; cls: string }> = {
   sent: { label: "ส่งแล้ว", cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" },
   acknowledged: { label: "รับทราบแล้ว", cls: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
   in_progress: { label: "กำลังดำเนินการ", cls: "bg-purple-500/10 text-purple-400 border-purple-500/30" },
-  done: { label: "เสร็จแล้ว", cls: "bg-green-500/10 text-green-400 border-green-500/30" },
+  done: { label: "รอผู้สั่งตรวจรับ", cls: "bg-amber-500/10 text-amber-400 border-amber-500/30" },
+  closed: { label: "ปิดจ็อบแล้ว", cls: "bg-green-500/10 text-green-400 border-green-500/30" },
 };
 
 function formatDateTime(iso: string): string {
@@ -42,6 +43,9 @@ export default function DirectivesPage() {
   const [sending, setSending] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [closeErrors, setCloseErrors] = useState<Record<string, string>>({});
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});   // ความเห็นผู้สั่งตอนตรวจรับ
+  const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const todayStr = thaiDateStr();
 
   const load = useCallback(async () => {
@@ -95,13 +99,41 @@ export default function DirectivesPage() {
   const handleStatusUpdate = async (d: Directive, status: DirectiveStatus) => {
     const note = responseDrafts[d.id]?.trim() ?? "";
     if (status === "done" && !note) {
-      setCloseErrors((p) => ({ ...p, [d.id]: "กรุณาเขียนรายงานปิดงานก่อนกดเสร็จแล้ว" }));
+      setCloseErrors((p) => ({ ...p, [d.id]: "กรุณาเขียนรายงานผลงานก่อนส่งให้ผู้สั่งตรวจรับ" }));
       return;
     }
     setCloseErrors((p) => ({ ...p, [d.id]: "" }));
     await updateDirectiveStatus(d, status, note || undefined);
     load();
   };
+
+  // ผู้สั่งงานตรวจรับแล้วปิดจ็อบ — ความเห็นไม่บังคับ
+  const handleClose = async (d: Directive) => {
+    if (!user) return;
+    setReviewing(d.id); setReviewErrors((p) => ({ ...p, [d.id]: "" }));
+    const r = await closeDirective(d, user.email, reviewDrafts[d.id] ?? "");
+    setReviewing(null);
+    if (!r.ok) { setReviewErrors((p) => ({ ...p, [d.id]: r.error ?? "ปิดจ็อบไม่สำเร็จ" })); return; }
+    setReviewDrafts((p) => ({ ...p, [d.id]: "" }));
+    load();
+  };
+
+  // ตีกลับให้แก้ — ต้องเขียนเหตุผลเสมอ เพื่อให้พนักงานรู้ว่าต้องแก้อะไร
+  const handleReturn = async (d: Directive) => {
+    const reason = (reviewDrafts[d.id] ?? "").trim();
+    if (!reason) {
+      setReviewErrors((p) => ({ ...p, [d.id]: "กรุณาเขียนสิ่งที่ต้องแก้ก่อนตีกลับ" }));
+      return;
+    }
+    setReviewing(d.id); setReviewErrors((p) => ({ ...p, [d.id]: "" }));
+    const r = await returnDirective(d, reason);
+    setReviewing(null);
+    if (!r.ok) { setReviewErrors((p) => ({ ...p, [d.id]: r.error ?? "ตีกลับไม่สำเร็จ" })); return; }
+    setReviewDrafts((p) => ({ ...p, [d.id]: "" }));
+    load();
+  };
+
+  const pendingReview = items.filter((d) => d.status === "done").length;
 
   if (!user) return null;
 
@@ -134,7 +166,7 @@ export default function DirectivesPage() {
               onClick={() => setTab("sent")}
               className={`flex-1 py-1.5 rounded-xl text-xs font-semibold ${tab === "sent" ? "bg-aviva-gold text-aviva-bg" : "bg-aviva-card text-aviva-secondary border border-aviva-gold/10"}`}
             >
-              ที่ฉันสั่ง
+              ที่ฉันสั่ง{tab === "sent" && pendingReview > 0 ? ` · รอตรวจรับ ${pendingReview}` : ""}
             </button>
           )}
         </div>
@@ -152,7 +184,7 @@ export default function DirectivesPage() {
         ) : (
           items.map((d) => {
             const meta = STATUS_META[d.status];
-            const overdue = !!d.due_date && d.due_date < todayStr && d.status !== "done";
+            const overdue = !!d.due_date && d.due_date < todayStr && d.status !== "done" && d.status !== "closed";
             return (
               <GlassCard key={d.id} className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -179,15 +211,73 @@ export default function DirectivesPage() {
                 </div>
                 {d.response_note && (
                   <div className="mt-2 pt-2 border-t border-aviva-gold/10">
-                    <p className="text-xs text-aviva-secondary">{d.status === "done" ? "รายงานปิดงาน" : "ตอบกลับ"}: {d.response_note}</p>
+                    <p className="text-xs text-aviva-secondary">
+                      {d.status === "done" || d.status === "closed" ? "รายงานผลงานจากพนักงาน" : "ความคืบหน้า"}: {d.response_note}
+                    </p>
+                  </div>
+                )}
+                {d.return_note && d.status !== "closed" && (
+                  <div className="mt-2 pt-2 border-t border-aviva-gold/10">
+                    <p className="text-xs text-amber-400">
+                      🔁 ผู้สั่งงานตีกลับให้แก้{d.return_count > 1 ? ` (ครั้งที่ ${d.return_count})` : ""}: {d.return_note}
+                    </p>
+                  </div>
+                )}
+                {d.status === "closed" && (
+                  <div className="mt-2 pt-2 border-t border-green-500/20">
+                    <p className="text-xs text-green-400">
+                      ✅ ผู้สั่งงานตรวจรับและปิดจ็อบแล้ว{d.closed_at ? ` · ${formatDateTime(d.closed_at)}` : ""}
+                      {d.return_count > 0 ? ` · ตีกลับให้แก้ ${d.return_count} ครั้งก่อนผ่าน` : ""}
+                    </p>
+                    {d.close_note && <p className="text-xs text-aviva-secondary mt-0.5">ความเห็นผู้สั่งงาน: {d.close_note}</p>}
                   </div>
                 )}
 
-                {tab === "received" && d.status !== "done" && (
+                {tab === "sent" && d.status === "done" && (
+                  <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-2">
+                    <p className="text-[11px] text-amber-400 font-semibold">
+                      พนักงานรายงานว่าทำเสร็จแล้ว — กรุณาตรวจรับ
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="ความเห็น (ไม่บังคับตอนปิดจ็อบ · บังคับตอนตีกลับ)"
+                      value={reviewDrafts[d.id] ?? ""}
+                      onChange={(e) => setReviewDrafts((p) => ({ ...p, [d.id]: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-1.5 text-xs text-aviva-text"
+                    />
+                    {reviewErrors[d.id] && <p className="text-[11px] text-red-400">{reviewErrors[d.id]}</p>}
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleClose(d)}
+                        disabled={reviewing === d.id}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[11px] font-semibold disabled:opacity-50"
+                      >
+                        <BadgeCheck size={11} /> {reviewing === d.id ? "กำลังบันทึก…" : "ตรวจรับ · ปิดจ็อบ"}
+                      </button>
+                      <button
+                        onClick={() => handleReturn(d)}
+                        disabled={reviewing === d.id}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[11px] font-semibold disabled:opacity-50"
+                      >
+                        <RotateCcw size={11} /> ตีกลับให้แก้
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {tab === "received" && d.status === "done" && (
+                  <div className="mt-3 pt-3 border-t border-amber-500/20">
+                    <p className="text-[11px] text-amber-400">
+                      รายงานผลไปแล้ว — รอ {d.created_by_name || "ผู้สั่งงาน"} ตรวจรับและปิดจ็อบ
+                    </p>
+                  </div>
+                )}
+
+                {tab === "received" && d.status !== "done" && d.status !== "closed" && (
                   <div className="mt-3 pt-3 border-t border-aviva-gold/10 space-y-2">
                     <input
                       type="text"
-                      placeholder="เขียนความคืบหน้า (บังคับตอนกดเสร็จแล้ว)"
+                      placeholder="เขียนรายงานผลงาน (บังคับตอนส่งให้ตรวจรับ)"
                       value={responseDrafts[d.id] ?? ""}
                       onChange={(e) => setResponseDrafts((p) => ({ ...p, [d.id]: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-1.5 text-xs text-aviva-text"
@@ -214,7 +304,7 @@ export default function DirectivesPage() {
                         onClick={() => handleStatusUpdate(d, "done")}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[11px] font-semibold"
                       >
-                        <CheckCircle2 size={11} /> เสร็จแล้ว (ปิดงาน)
+                        <CheckCircle2 size={11} /> ทำเสร็จแล้ว · ส่งให้ตรวจรับ
                       </button>
                     </div>
                   </div>

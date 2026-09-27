@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 import { rolesForUser } from "@/lib/workflow-events";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { countPendingReview } from "@/lib/directives";
 
 // โหลดกราฟ (recharts) เมื่อถึงเวลาใช้จริง — ลด JS ชุดแรกของหน้าหลัก
 const FinanceTrendChart = dynamic(() => import("@/components/FinanceTrendChart"), {
@@ -145,12 +146,20 @@ export default function DashboardPage() {
   const [pendingPayouts, setPendingPayouts] = useState(0);
   const [salesFunnelRange, setSalesFunnelRange] = useState<{ from: string; to: string } | null>(null);
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([{ role: "assistant", text: "สวัสดีค่ะ AVIVA AI พร้อมช่วยตอบคำถามเกี่ยวกับโครงการ AVIVA ONE ถามได้เลยค่ะ" }]);
+  const [directivesPendingReview, setDirectivesPendingReview] = useState(0);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const aiMsgsRef = useRef<AiMsg[]>(aiMsgs);
   const aiAbortRef = useRef<AbortController | null>(null);
   const router = useRouter();
+
+  // จำนวนคำสั่งงานที่พนักงานรายงานเสร็จแล้ว รอผู้สั่งตรวจรับ (เฉพาะผู้บริหาร/ผู้จัดการ)
+  useEffect(() => {
+    if (!ctxUser?.isManager || !ctxUser.email) return;
+    countPendingReview(ctxUser.email).then(setDirectivesPendingReview).catch(() => {});
+  }, [ctxUser]);
+
 
   useEffect(() => { aiMsgsRef.current = aiMsgs; }, [aiMsgs]);
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMsgs]);
@@ -614,8 +623,16 @@ export default function DashboardPage() {
                 <MessageSquareText size={15} className="text-aviva-gold" />
                 <span className="text-sm font-semibold text-aviva-text">คำสั่งงาน</span>
               </div>
-              <span className="text-[11px] text-aviva-gold font-medium">
-                {ctxUser.isManager ? "สั่งงาน/ติดตามความคืบหน้า →" : "ดูงานที่ได้รับมอบหมาย →"}
+              <span className="text-[11px] font-medium flex items-center gap-1.5">
+                {/* ผู้สั่งงานต้องเห็นทันทีว่ามีงานที่พนักงานรายงานเสร็จแล้วรอตรวจรับกี่ชิ้น */}
+                {ctxUser.isManager && directivesPendingReview > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">
+                    รอตรวจรับ {directivesPendingReview}
+                  </span>
+                )}
+                <span className="text-aviva-gold">
+                  {ctxUser.isManager ? "สั่งงาน/ตรวจรับ →" : "ดูงานที่ได้รับมอบหมาย →"}
+                </span>
               </span>
             </GlassCard>
           </Link>

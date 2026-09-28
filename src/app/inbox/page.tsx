@@ -30,6 +30,11 @@ const TYPE_LABEL: Record<string, string> = {
   Leave_Request: "อนุมัติใบลา (ผู้บริหาร)",
   Warranty_Claim: "เคลมประกัน (หลังการขาย)",
   Purchase_Request: "ขออนุมัติก่อนซื้อ (ผู้บริหาร)",
+  // งานรับจอง 7 ขั้น — เด้งถึงคนถัดไปทุกขั้น (ไม่ใช่แค่ขั้นอนุมัติเหมือนเดิม)
+  Booking_Collect_Deposit: "เก็บเงินจอง + แนบสลิป (ขาย)",
+  Booking_Issue_Doc: "ออกใบจองให้ลูกค้า (ขาย)",
+  Booking_Post_Payment: "ลงบัญชีเงินจอง (การเงิน)",
+  Booking_Set_Contract: "นัดวันทำสัญญา (ขาย)",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -55,6 +60,10 @@ function linkFor(it: WorkQueueItem): string {
   const rid = it.source_record_id;
   switch (it.workflow_type) {
     case "Lead_Followup":
+    case "Booking_Collect_Deposit":
+    case "Booking_Issue_Doc":
+    case "Booking_Post_Payment":
+    case "Booking_Set_Contract":
       return `/crm?lead=${rid}`;
     case "Installment_Review":   // อนุมัติงวดงาน → /approvals (ปุ่มอนุมัติ/ปฏิเสธชัด ไม่ต้องเลือกบ้านก่อน)
       return `/approvals?focus=${rid}`;

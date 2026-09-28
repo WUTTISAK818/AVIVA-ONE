@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
 import clsx from "clsx";
+import { defaultInstallments } from "@/lib/payment-plan";
 import { useCurrentUser } from "@/lib/user-context";
 import { useFocusHighlight } from "@/lib/use-focus-highlight";
 import { createNotification } from "@/lib/notify";
@@ -656,6 +657,22 @@ function ApprovalsContent() {
       }
       if (log.source_record_id) {
         await closeWorkQueue(log.source_record_id, "manager", byName);
+      }
+      // อนุมัติแล้ว + ฝ่ายขายรับเงินจองแล้ว → สร้างตารางผ่อนให้ทันที (ขั้นที่ 5 ของงานรับจอง)
+      // ไม่ต้องรอให้ใครกดปุ่ม — เดิมลูกค้า 14 รายที่จอง/ขายแล้ว มีตารางผ่อนแค่ 1 ราย
+      if (approved && log.source_record_id) {
+        const { data: lead } = await supabase.from("leads")
+          .select("id, contract_price, budget, booking_deposit, deposit_received_at").eq("id", log.source_record_id).maybeSingle();
+        const l = lead as { contract_price?: number | null; budget?: number | null; booking_deposit?: number | null; deposit_received_at?: string | null } | null;
+        if (l?.deposit_received_at) {
+          const { count } = await supabase.from("customer_installments")
+            .select("id", { count: "exact", head: true }).eq("lead_id", log.source_record_id);
+          if ((count ?? 0) === 0) {
+            const rows = defaultInstallments(Number(l.contract_price ?? l.budget ?? 0), l.booking_deposit)
+              .map(r => ({ ...r, lead_id: log.source_record_id, house_id: null, status: "pending" as const }));
+            await supabase.from("customer_installments").insert(rows);
+          }
+        }
       }
       await logWorkflowEvent({
         workflowType: "Booking_Deposit",

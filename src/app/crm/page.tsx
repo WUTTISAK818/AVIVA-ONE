@@ -18,6 +18,7 @@ import { alertOthersInterestedInPlot } from "@/lib/plot-interest";
 import { useCurrentUser } from "@/lib/user-context";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import FollowupQueueCard from "@/components/FollowupQueueCard";
+import BookingFlowCard from "@/components/BookingFlowCard";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
@@ -1718,6 +1719,16 @@ export default function CRMPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
+              {/* ขั้นตอนงานรับจอง 7 ขั้น — โชว์เมื่อลูกค้าจองแล้ว เพื่อให้รู้ว่าต้องทำอะไรต่อ */}
+              {BOOKING_STATUSES.includes(selectedLead.status as LeadStatus) && (
+                <BookingFlowCard
+                  leadId={selectedLead.id}
+                  customerName={selectedLead.customer_name}
+                  salePrice={Number(selectedLead.contract_price ?? selectedLead.budget ?? 0)}
+                  onPrintBooking={() => printBookingLetter(selectedLead)}
+                  onChanged={() => fetchLeads(dateStart, dateEnd, leadsLimit)}
+                />
+              )}
               {(selectedLead.visit_date || selectedLead.created_at) && (
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 col-span-2">
                   <p className="text-blue-400 text-[10px] font-semibold">📅 วันที่เยี่ยมชม / ติดต่อ</p>

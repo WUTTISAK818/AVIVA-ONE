@@ -12,6 +12,21 @@ interface DeptCard {
   responsibilities: string[];
 }
 
+// ใครดูแลฝ่ายไหนจริง ๆ ตอนนี้ — Pom มอบฝ่ายที่ยังไม่มีคนให้ ONE ดูแลฝั่งระบบ (28 ก.ย. 69)
+// ข้อตกลงฉบับเต็มอยู่ใน CLAUDE.md หัวข้อ "ONE รับผิดชอบฝ่ายที่ยังไม่มีคน"
+const responsibleBy: { dept: string; who: string; note?: string }[] = [
+  { dept: "ผู้บริหาร", who: "Pom (CEO) · พี่อ้อน (COO)" },
+  { dept: "ฝ่ายขาย", who: "ฟ้า · เดียร์" },
+  { dept: "ฝ่ายก่อสร้าง", who: "พีท (วิศวกร)" },
+  { dept: "ฝ่ายสวน", who: "รุ่ง" },
+  { dept: "ฝ่ายการเงิน", who: "พี่อ้อน + ONE (ผู้ช่วยระบบ)", note: "ONE ตรวจยอด · เตือนบิลครบกำหนด · ตรวจว่าลงบัญชีครบ — พี่อ้อนยืนยันเงินเข้าจริงและอนุมัติ" },
+  { dept: "ฝ่ายบัญชี", who: "ONE (ผู้ช่วยระบบ)", note: "ออกเลขเอกสาร · กระทบยอด · ปิดรายงานรายเดือน · ไล่จับยอดผิดปกติ" },
+  { dept: "สำนักงาน / ธุรการเอกสาร", who: "ONE (ผู้ช่วยระบบ)", note: "ร่างเอกสาร · สรุปรายงาน · ไล่งานค้าง · เตือนตามกำหนด" },
+  { dept: "ฝ่ายบุคคล (HR)", who: "ONE (ผู้ช่วยระบบ)", note: "คำนวณเงินเดือน/ขาด-ลา-สาย · ตรวจกฎ · ออกรายงาน — เรื่องตัวบุคคลเป็นของผู้บริหาร" },
+  { dept: "ฝ่ายการตลาด", who: "ONE (ผู้ช่วยระบบ)", note: "วิเคราะห์ช่องทางลูกค้า · ร่างคอนเทนต์ · สรุปผลแคมเปญ" },
+  { dept: "ฝ่ายหลังการขาย", who: "ONE (ผู้ช่วยระบบ)", note: "ตามเคลม/งานซ่อมที่ค้าง · เตือนเมื่อเกินกำหนด" },
+];
+
 const departments: DeptCard[] = [
   {
     icon: Crown,
@@ -195,6 +210,36 @@ export default function OrgChartPage() {
             {departments.map((dept, i) => (
               <DepartmentCard key={i} dept={dept} />
             ))}
+          </div>
+        </div>
+
+        {/* ใครดูแลฝ่ายไหนจริง ๆ ตอนนี้ (Pom มอบหมาย 28 ก.ย. 69) */}
+        <div>
+          <p className="text-xs font-semibold text-aviva-secondary/70 uppercase tracking-wider mb-3">ผู้รับผิดชอบปัจจุบัน</p>
+          <GlassCard className="overflow-hidden">
+            <div className="divide-y divide-aviva-gold/10">
+              <div className="grid grid-cols-[1fr_1.3fr] gap-2 px-4 py-2 bg-aviva-gold/5">
+                <p className="text-[11px] font-bold text-aviva-gold">ฝ่าย</p>
+                <p className="text-[11px] font-bold text-aviva-gold">ผู้รับผิดชอบ</p>
+              </div>
+              {responsibleBy.map((row, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1.3fr] gap-2 px-4 py-2.5">
+                  <p className="text-xs text-aviva-text font-medium">{row.dept}</p>
+                  <div>
+                    <p className="text-xs text-aviva-text">{row.who}</p>
+                    {row.note && <p className="text-[11px] text-aviva-secondary mt-0.5 leading-relaxed">{row.note}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+          <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5">
+            <p className="text-[11px] font-bold text-amber-300 mb-1">ขอบเขตของ &ldquo;ONE (ผู้ช่วยระบบ)&rdquo;</p>
+            <p className="text-[11px] text-aviva-secondary leading-relaxed">
+              ONE ดูแลงานฝั่งเอกสาร ตัวเลข การตรวจสอบ และรายงานของฝ่ายที่ยังไม่มีคน — แต่ทุกงานที่ต้อง
+              <b className="text-aviva-text"> ตัดสินใจ ลงนาม หรือยืนยันของจริง</b> (เงินเข้าบัญชีจริง · งานหน้าไซต์จริง · ติดต่อลูกค้า/ผู้รับเหมา)
+              ต้องส่งถึง Pom หรือพี่อ้อนเสมอ ห้ามจบที่ ONE คนเดียว ตามหลัก Maker-Checker
+            </p>
           </div>
         </div>
 

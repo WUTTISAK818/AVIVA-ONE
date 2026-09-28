@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { formatNumber } from "./thai-baht";
+import { PAYMENT_PLAN } from "./payment-plan";
 
 // ── ดึงเอกสารต้นเรื่องของคำขออนุมัติ ตามประเภท workflow ──
 const SOURCE: Record<string, { table: string; select: string }> = {
@@ -53,18 +54,38 @@ export function buildVerification(
 
   switch (workflowType) {
     case "Booking_Deposit": {
+      // เอกสารนี้คือ "อนุมัติเงินจอง" — ตัวเลขเด่นต้องเป็นยอดเงินจองที่ลูกค้าต้องชำระ
+      // ไม่ใช่ "งบประมาณลูกค้า" (ตัวเลขที่ลูกค้าบอกว่าจ่ายไหว ใช้คัดกรอง/จับคู่แปลงเท่านั้น)
       const warnings: string[] = [];
+      const contractPrice = Number(row.contract_price) || 0;
+      const customerBudget = Number(row.budget) || 0;
+      const salePrice = contractPrice || customerBudget;          // ยังไม่กรอกราคาขาย → ใช้งบลูกค้าชั่วคราว
+      const deposit = Math.round(salePrice * PAYMENT_PLAN.booking); // เงินจอง = 1% ตามแผนชำระเงินมาตรฐาน
+      const pct = `${(PAYMENT_PLAN.booking * 100).toFixed(0)}%`;
+
       if (!row.plot_number) warnings.push("ยังไม่ได้ระบุแปลงในเอกสาร");
+      if (salePrice === 0)
+        warnings.push("ยังไม่มีราคาขายและงบประมาณลูกค้า — คำนวณยอดเงินจองไม่ได้ ให้ฝ่ายขายกรอก 'ราคาขายที่ตกลง' ก่อนอนุมัติ");
+      else if (!contractPrice)
+        warnings.push(`ยังไม่ได้กรอก "ราคาขายที่ตกลง" — ยอดเงินจองคำนวณจากงบประมาณลูกค้า (${baht(customerBudget)}) ชั่วคราว`);
+      if (expectedAmount != null && deposit > 0 && Number(expectedAmount) !== deposit)
+        warnings.push(`ยอดที่ขออนุมัติ (${baht(expectedAmount)}) ไม่ตรงกับเงินจอง ${pct} ของราคาขาย (${baht(deposit)})`);
+
+      const rows: VerifyRow[] = [
+        { label: "ลูกค้า", value: txt(row.customer_name) },
+        { label: "เบอร์โทร", value: txt(row.phone) },
+        { label: "แปลง", value: txt(row.plot_number) },
+        { label: `ยอดเงินจอง (${pct} ของราคาขาย)`, value: baht(deposit), strong: true },
+        { label: "ราคาขายที่ตกลง", value: contractPrice ? baht(contractPrice) : "ยังไม่ระบุ" },
+      ];
+      // งบประมาณลูกค้าเป็นข้อมูลอ้างอิง แสดงเมื่อมีค่าจริงเท่านั้น (ศูนย์ = ยังไม่ได้ถาม ไม่ใช่ "งบศูนย์บาท")
+      if (customerBudget > 0) rows.push({ label: "งบประมาณลูกค้า (อ้างอิง)", value: baht(customerBudget) });
+      rows.push({ label: "วันจอง", value: thDate(row.booking_date) });
+
       return {
-        rows: [
-          { label: "ลูกค้า", value: txt(row.customer_name) },
-          { label: "เบอร์โทร", value: txt(row.phone) },
-          { label: "แปลง", value: txt(row.plot_number) },
-          { label: "งบประมาณ", value: baht(row.budget), strong: true },
-          { label: "วันจอง", value: thDate(row.booking_date) },
-        ],
+        rows,
         warnings,
-        checklist: ["ยอดเงินจองถูกต้อง", "ข้อมูลลูกค้า/แปลงถูกต้อง"],
+        checklist: [`ยอดเงินจองถูกต้อง (${baht(deposit)})`, "ข้อมูลลูกค้า/แปลงถูกต้อง"],
         fullDocHref: `/documents/generate?lead=${row.id}&type=booking${row.plot_number ? `&plot=${row.plot_number}` : ""}`,
       };
     }
@@ -76,7 +97,8 @@ export function buildVerification(
         rows: [
           { label: "ลูกค้า", value: txt(row.customer_name) },
           { label: "แปลง", value: txt(row.plot_number) },
-          { label: "ราคาสัญญา", value: baht(row.contract_price ?? row.budget), strong: true },
+          // เดิมตกมาใช้ "งบประมาณลูกค้า" เงียบ ๆ ทำให้ผู้อนุมัติเข้าใจว่าเป็นราคาสัญญาจริง
+          { label: "ราคาสัญญา", value: row.contract_price ? baht(row.contract_price) : "ยังไม่ระบุ", strong: true },
           { label: "วันทำสัญญา", value: thDate(row.contract_signed_date) },
           { label: "กำหนดโอน", value: thDate(row.delivery_date) },
         ],

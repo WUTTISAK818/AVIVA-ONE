@@ -952,8 +952,10 @@ export default function CRMPage() {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
-            // ยอดที่ใช้ทุกที่ของการจอง = ราคาขายที่ตกลง (ถ้ายังไม่กรอก ตกมาใช้งบประมาณลูกค้าชั่วคราว)
+            // แยกให้ชัด 2 ตัวเลข: "ราคาขายที่ตกลง" = มูลค่าดีล (ใช้ฉลอง/รายงานยอดขาย)
+            //                      "เงินจอง" = เงินที่ลูกค้าจ่ายจริงวันจอง = 1% ของราคาขาย (ใช้ในใบขออนุมัติเงินจอง)
             const bookAmount = parseAmount(form.contract_price) ?? parseAmount(form.budget);
+            const depositAmount = bookAmount ? Math.round(bookAmount * PAYMENT_PLAN.booking) : null;
             celebrate({ event: "booking", customerName: form.customer_name, plotNumber: effectivePlot, amount: bookAmount, salesPerson: byName });
             const docNum = await generateDocNumber("BOOK");
             await supabase.from("approval_logs").insert({
@@ -963,12 +965,12 @@ export default function CRMPage() {
               source_record_id: editingLead.id,
               current_approver_role: "manager",
               action_taken: "Pending",
-              amount: bookAmount,
+              amount: depositAmount,
               sla_due_at: calcSlaDueAt("Booking_Deposit"),
               assigned_to_name: "ผู้จัดการ",
             });
-            await submitApprovalQueue({ workflowType: "Booking_Deposit", sourceRecordId: editingLead.id, docIndex: docNum, title: `อนุมัติเงินจอง: ${form.customer_name}`, amount: bookAmount, actorName: byName, actorRole: "sales" });
-            await createNotification({ type: "approval", title: `รออนุมัติเงินจอง — ${form.customer_name}`, message: `${docNum} · แปลง ${effectivePlot}${bookAmount ? ` · ฿${bookAmount.toLocaleString("th-TH")}` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
+            await submitApprovalQueue({ workflowType: "Booking_Deposit", sourceRecordId: editingLead.id, docIndex: docNum, title: `อนุมัติเงินจอง: ${form.customer_name}`, amount: depositAmount, actorName: byName, actorRole: "sales" });
+            await createNotification({ type: "approval", title: `รออนุมัติเงินจอง — ${form.customer_name}`, message: `${docNum} · แปลง ${effectivePlot}${depositAmount ? ` · เงินจอง ฿${depositAmount.toLocaleString("th-TH")}` : ""}${bookAmount ? ` (ราคาขาย ฿${bookAmount.toLocaleString("th-TH")})` : ""}`, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: editingLead.id });
             // แจ้งพนักงานที่มีลูกค้าสนใจแปลงนี้อยู่ ให้กลับไปเสนอแปลงอื่น (กันลูกค้าลอยหาย)
             await alertOthersInterestedInPlot({ plotNumber: effectivePlot, bookedLeadId: editingLead.id, bookedCustomerName: form.customer_name, byName }).catch(() => {});
           } else if (editingLead.status === "Booking" && !["Booking", "Contract", "Loan Approved"].includes(form.status)) {

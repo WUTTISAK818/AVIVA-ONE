@@ -279,7 +279,9 @@ function SourceDetail({ log }: { log: ApprovalLog }) {
         <DetailRow label="ลูกค้า" value={str(row.customer_name)} />
         <DetailRow label="แปลง" value={str(row.plot_number)} />
         <DetailRow label="เบอร์โทร" value={str(row.phone)} />
-        <DetailRow label="งบ/ราคา" value={baht(row.contract_price ?? row.budget)} />
+        {/* "งบ/ราคา" เดิมกำกวม — แยกเป็นราคาขายจริง กับงบลูกค้าที่เป็นแค่ข้อมูลคัดกรอง */}
+        <DetailRow label="ราคาขายที่ตกลง" value={row.contract_price ? baht(row.contract_price) : "ยังไม่ระบุ"} />
+        {Number(row.budget) > 0 && <DetailRow label="งบประมาณลูกค้า (อ้างอิง)" value={baht(row.budget)} />}
         <DetailRow label="สถานะ" value={str(row.status)} />
       </>}
     </div>

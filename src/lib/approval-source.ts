@@ -1,10 +1,10 @@
 import { supabase } from "./supabase";
 import { formatNumber } from "./thai-baht";
-import { PAYMENT_PLAN } from "./payment-plan";
+import { DEFAULT_BOOKING_DEPOSIT, bookingDepositOf } from "./payment-plan";
 
 // ── ดึงเอกสารต้นเรื่องของคำขออนุมัติ ตามประเภท workflow ──
 const SOURCE: Record<string, { table: string; select: string }> = {
-  Booking_Deposit:    { table: "leads",                  select: "id,customer_name,phone,plot_number,budget,booking_date,financing_type" },
+  Booking_Deposit:    { table: "leads",                  select: "id,customer_name,phone,plot_number,budget,contract_price,booking_deposit,booking_date,financing_type" },
   Contract_Approval:  { table: "leads",                  select: "id,customer_name,phone,plot_number,budget,contract_price,contract_signed_date,delivery_date" },
   Finance_Approval:   { table: "approvals",              select: "id,description,amount,requested_by,note,reference_type,created_at" },
   Marketing_Budget:   { table: "approvals",              select: "id,description,amount,requested_by,note,reference_type,created_at" },
@@ -59,23 +59,24 @@ export function buildVerification(
       const warnings: string[] = [];
       const contractPrice = Number(row.contract_price) || 0;
       const customerBudget = Number(row.budget) || 0;
-      const salePrice = contractPrice || customerBudget;          // ยังไม่กรอกราคาขาย → ใช้งบลูกค้าชั่วคราว
-      const deposit = Math.round(salePrice * PAYMENT_PLAN.booking); // เงินจอง = 1% ตามแผนชำระเงินมาตรฐาน
-      const pct = `${(PAYMENT_PLAN.booking * 100).toFixed(0)}%`;
+      const deposit = bookingDepositOf(row.booking_deposit);      // ยอดที่ผู้บันทึกกรอก ถ้าไม่มีใช้ค่าตั้งต้น 10,000
+      const isDefault = !(Number(row.booking_deposit) > 0);
 
       if (!row.plot_number) warnings.push("ยังไม่ได้ระบุแปลงในเอกสาร");
-      if (salePrice === 0)
-        warnings.push("ยังไม่มีราคาขายและงบประมาณลูกค้า — คำนวณยอดเงินจองไม่ได้ ให้ฝ่ายขายกรอก 'ราคาขายที่ตกลง' ก่อนอนุมัติ");
-      else if (!contractPrice)
-        warnings.push(`ยังไม่ได้กรอก "ราคาขายที่ตกลง" — ยอดเงินจองคำนวณจากงบประมาณลูกค้า (${baht(customerBudget)}) ชั่วคราว`);
-      if (expectedAmount != null && deposit > 0 && Number(expectedAmount) !== deposit)
-        warnings.push(`ยอดที่ขออนุมัติ (${baht(expectedAmount)}) ไม่ตรงกับเงินจอง ${pct} ของราคาขาย (${baht(deposit)})`);
+      if (isDefault)
+        warnings.push(`ฝ่ายขายไม่ได้ระบุยอดเงินจอง — แสดงเป็นค่าตั้งต้น ${baht(DEFAULT_BOOKING_DEPOSIT)} · ถ้ารับจริงไม่เท่านี้ ให้ตีกลับไปแก้ก่อนอนุมัติ`);
+      if (!contractPrice)
+        warnings.push(customerBudget > 0
+          ? `ยังไม่ได้กรอก "ราคาขายที่ตกลง" — มีแต่งบประมาณลูกค้า (${baht(customerBudget)}) ซึ่งไม่ใช่ราคาขาย`
+          : 'ยังไม่ได้กรอก "ราคาขายที่ตกลง" — ควรให้ฝ่ายขายกรอกก่อนอนุมัติ');
+      if (expectedAmount != null && Number(expectedAmount) !== deposit)
+        warnings.push(`ยอดที่ขออนุมัติตอนส่งเรื่อง (${baht(expectedAmount)}) ไม่ตรงกับยอดเงินจองปัจจุบัน (${baht(deposit)}) — มีการแก้ไขหลังส่ง`);
 
       const rows: VerifyRow[] = [
         { label: "ลูกค้า", value: txt(row.customer_name) },
         { label: "เบอร์โทร", value: txt(row.phone) },
         { label: "แปลง", value: txt(row.plot_number) },
-        { label: `ยอดเงินจอง (${pct} ของราคาขาย)`, value: baht(deposit), strong: true },
+        { label: isDefault ? "ยอดเงินจอง (ค่าตั้งต้น)" : "ยอดเงินจองที่รับจริง", value: baht(deposit), strong: true },
         { label: "ราคาขายที่ตกลง", value: contractPrice ? baht(contractPrice) : "ยังไม่ระบุ" },
       ];
       // งบประมาณลูกค้าเป็นข้อมูลอ้างอิง แสดงเมื่อมีค่าจริงเท่านั้น (ศูนย์ = ยังไม่ได้ถาม ไม่ใช่ "งบศูนย์บาท")

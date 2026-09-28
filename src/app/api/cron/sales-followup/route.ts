@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLine } from "@/lib/line";
-import { thaiDateStr } from "@/lib/work-schedule";
+import { thaiDateStr } from "@/lib/thai-date";
+import {
+  FOLLOWUP_BATCH_SIZE, FOLLOWUP_DONE_STATUSES,
+  rankFollowupLeads, splitIntoBatches, type PriorityLead,
+} from "@/lib/lead-priority";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
-const TAKEN_STATUSES = ["Booking", "Contract", "Loan Approved", "Closed Deal"];
 
 function admin() {
   return createClient(
@@ -25,17 +28,9 @@ function authorized(req: NextRequest): boolean {
   return req.nextUrl.searchParams.get("secret") === secret;
 }
 
-interface LeadRow {
-  customer_name: string;
-  phone: string | null;
-  assigned_to: string | null;
-  plot_number: number | null;
-  next_follow_up_date: string | null;
-  status: string;
-}
-
 // สรุปงานติดตามลูกค้าประจำวัน ส่งถึงพนักงานขายแต่ละคนตอนเช้า (Vercel Cron 08:00 น. ไทย = 01:00 UTC)
-// นับเฉพาะลูกค้าที่ยังไม่ปิดการขาย — แยก "เลยนัดแล้ว" / "นัดวันนี้" ให้เห็นชัดว่าต้องโทรใครก่อน
+// ส่งเป็น "ชุดวันนี้ 10 ราย" เรียงตามความสำคัญ ไม่ใช่รายชื่อค้างทั้งกอง
+// (Pom 28 ก.ย. 69: ส่งทีเดียวหมด พนักงานทำไม่ทันและไม่รู้จะเริ่มที่ใคร)
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const db = admin();
@@ -43,8 +38,8 @@ export async function GET(req: NextRequest) {
 
   const [{ data: leadRows }, { data: dir }] = await Promise.all([
     db.from("leads")
-      .select("customer_name, phone, assigned_to, plot_number, next_follow_up_date, status")
-      .not("status", "in", `(${TAKEN_STATUSES.map(s => `"${s}"`).join(",")})`),
+      .select("id, customer_name, phone, status, budget, ai_score, urgency, probability, plot_number, next_follow_up_date, last_contact_date, visit_date, assigned_to, created_at_default")
+      .not("status", "in", `(${FOLLOWUP_DONE_STATUSES.map(s => `"${s}"`).join(",")})`),
     db.from("employees_directory").select("full_name, nickname, email"),
   ]);
 
@@ -55,42 +50,49 @@ export async function GET(req: NextRequest) {
     if (e.full_name) emailByName.set(e.full_name.trim().toLowerCase(), e.email);
   }
 
-  const byOwner = new Map<string, LeadRow[]>();
-  for (const l of (leadRows ?? []) as LeadRow[]) {
+  const byOwner = new Map<string, PriorityLead[]>();
+  for (const l of (leadRows ?? []) as PriorityLead[]) {
     const key = (l.assigned_to ?? "").trim() || "(ไม่มีผู้ดูแล)";
     byOwner.set(key, [...(byOwner.get(key) ?? []), l]);
   }
 
-  const results: { owner: string; overdue: number; dueToday: number; noDate: number; sent: boolean }[] = [];
+  const results: { owner: string; todo: number; batchSize: number; batches: number; sent: boolean }[] = [];
   let unassignedTotal = 0;
+  let grandTodo = 0;
 
   for (const [owner, list] of byOwner) {
-    const overdue = list.filter(l => l.next_follow_up_date && l.next_follow_up_date < today);
-    const dueToday = list.filter(l => l.next_follow_up_date === today);
-    const noDate = list.filter(l => !l.next_follow_up_date);
+    const ranked = rankFollowupLeads(list, today);
+    const batches = splitIntoBatches(ranked, FOLLOWUP_BATCH_SIZE);
+    const batch = batches[0] ?? [];
+    grandTodo += ranked.length;
 
     if (owner === "(ไม่มีผู้ดูแล)") {
       unassignedTotal = list.length;
-      results.push({ owner, overdue: overdue.length, dueToday: dueToday.length, noDate: noDate.length, sent: false });
+      results.push({ owner, todo: ranked.length, batchSize: batch.length, batches: batches.length, sent: false });
       continue;
     }
-    if (overdue.length === 0 && dueToday.length === 0) {
-      results.push({ owner, overdue: 0, dueToday: 0, noDate: noDate.length, sent: false });
-      continue; // ไม่มีงานเร่ง — ไม่กวน
+    if (batch.length === 0) {
+      results.push({ owner, todo: 0, batchSize: 0, batches: 0, sent: false });
+      continue; // ไม่มีงานติดตาม — ไม่กวน
     }
 
-    const line = (l: LeadRow) => `• ${l.customer_name}${l.phone ? ` ${l.phone}` : ""}${l.plot_number ? ` · แปลง ${l.plot_number}` : ""}`;
-    const parts = [
-      overdue.length > 0 ? `⚠️ เลยนัดแล้ว ${overdue.length} ราย:\n${overdue.slice(0, 8).map(line).join("\n")}${overdue.length > 8 ? `\n… และอีก ${overdue.length - 8} ราย` : ""}` : "",
-      dueToday.length > 0 ? `🔔 นัดวันนี้ ${dueToday.length} ราย:\n${dueToday.slice(0, 8).map(line).join("\n")}${dueToday.length > 8 ? `\n… และอีก ${dueToday.length - 8} ราย` : ""}` : "",
-      noDate.length > 0 ? `📋 ยังไม่ได้ตั้งวันนัดติดตาม ${noDate.length} ราย` : "",
-    ].filter(Boolean);
+    const lines = batch.map((r, i) => {
+      const head = `${i + 1}. ${r.lead.customer_name}${r.lead.phone ? ` ${r.lead.phone}` : ""}`;
+      return r.reasons.length ? `${head}\n    (${r.reasons.slice(0, 3).join(" · ")})` : head;
+    });
+    const remaining = ranked.length - batch.length;
 
-    const title = `📞 งานติดตามลูกค้าวันนี้ — ${overdue.length + dueToday.length} ราย`;
-    const body = parts.join("\n\n");
+    const title = `📞 ชุดติดตามวันนี้ ${batch.length} ราย (เรียงคนสำคัญก่อน)`;
+    const body = [
+      lines.join("\n"),
+      remaining > 0
+        ? `เหลืออีก ${remaining} ราย (อีก ${Math.max(batches.length - 1, 0)} ชุด) — เคลียร์ชุดนี้ก่อน เดี๋ยวชุดถัดไปขึ้นมาเอง`
+        : "นี่คือชุดสุดท้ายแล้ว เคลียร์ครบวันนี้ได้เลย",
+      "เปิดเมนู CRM → การ์ด \"คิวติดตามลูกค้า\" กดโทรและตั้งวันนัดถัดไปได้ในที่เดียว",
+    ].join("\n\n");
+
     const email = emailByName.get(owner.toLowerCase());
     let sent = false;
-
     if (email) {
       await db.from("notifications").insert({
         project_id: PROJECT_ID, type: "info", to_user_email: email, from_dept: "ระบบขาย",
@@ -104,25 +106,24 @@ export async function GET(req: NextRequest) {
       } catch { /* best-effort */ }
       sent = true;
     }
-    results.push({ owner, overdue: overdue.length, dueToday: dueToday.length, noDate: noDate.length, sent });
+    results.push({ owner, todo: ranked.length, batchSize: batch.length, batches: batches.length, sent });
   }
 
   // สรุปภาพรวมถึงผู้บริหาร — เห็นยอดค้างติดตามรวมและลูกค้าที่ยังไม่มีเจ้าของ
-  const totalOverdue = results.reduce((s, r) => s + r.overdue, 0);
-  const totalNoDate = results.reduce((s, r) => s + r.noDate, 0);
-  if (totalOverdue > 0 || unassignedTotal > 0) {
-    const perOwner = results.filter(r => r.overdue > 0).map(r => `${r.owner}: เลยนัด ${r.overdue}`).join(" · ");
+  if (grandTodo > 0 || unassignedTotal > 0) {
+    const perOwner = results.filter(r => r.todo > 0)
+      .map(r => `${r.owner}: ต้องติดตาม ${r.todo} ราย (${r.batches} ชุด)`).join("\n");
     await db.from("notifications").insert({
       project_id: PROJECT_ID, type: "info", to_dept: "ผู้บริหาร", from_dept: "ระบบขาย",
-      title: `📞 ภาพรวมงานติดตามลูกค้า — เลยนัด ${totalOverdue} ราย`,
+      title: `📞 ภาพรวมงานติดตามลูกค้า — ค้าง ${grandTodo} ราย`,
       message: [
-        perOwner || "ไม่มีรายการเลยนัด",
+        perOwner || "ไม่มีรายการค้างติดตาม",
         unassignedTotal > 0 ? `❗ลูกค้ายังไม่มีผู้ดูแล ${unassignedTotal} ราย — ต้องมอบหมายเจ้าของ` : "",
-        totalNoDate > 0 ? `📋 ยังไม่ได้ตั้งวันนัดติดตามรวม ${totalNoDate} ราย` : "",
+        `ระบบส่งให้พนักงานวันละ ${FOLLOWUP_BATCH_SIZE} รายแรกที่สำคัญที่สุด`,
       ].filter(Boolean).join("\n"),
       is_read: false, link: "/crm",
     });
   }
 
-  return NextResponse.json({ ok: true, date: today, unassignedTotal, totalOverdue, totalNoDate, results });
+  return NextResponse.json({ ok: true, date: today, batchSize: FOLLOWUP_BATCH_SIZE, unassignedTotal, grandTodo, results });
 }

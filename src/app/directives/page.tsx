@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
-import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, type Directive, type DirectiveStatus } from "@/lib/directives";
+import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, REMINDER_STAGE_LABEL, type Directive, type DirectiveStatus } from "@/lib/directives";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 import { loadWorkSchedule, loadHolidays, dueDateFromWorkingDays, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
@@ -308,6 +308,7 @@ export default function DirectivesPage() {
                         {elapsed(d.created_at, d.closed_at)}{d.closed_at ? " (จนปิดจ็อบ)" : " (นับถึงตอนนี้)"}
                       </p>
                       {d.return_count > 0 && (<><p className="text-[13px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[13px] text-amber-400 text-right font-bold">{d.return_count} ครั้ง</p></>)}
+                      {!!d.reminder_stage && d.reminder_stage > 0 && (<><p className="text-[13px] text-aviva-secondary">ระบบเตือนอัตโนมัติ</p><p className="text-[13px] text-amber-400 text-right font-medium">{REMINDER_STAGE_LABEL[d.reminder_stage] ?? `ขั้นที่ ${d.reminder_stage}`}</p></>)}
                     </div>
 
                     <p className="text-[13px] font-bold text-aviva-gold mb-3">ความเคลื่อนไหวของงาน</p>

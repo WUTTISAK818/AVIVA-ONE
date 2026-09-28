@@ -17,6 +17,7 @@ import { createNotification, notifyActivityLine, notifyMilestone } from "@/lib/n
 import { alertOthersInterestedInPlot } from "@/lib/plot-interest";
 import { useCurrentUser } from "@/lib/user-context";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
+import FollowupQueueCard from "@/components/FollowupQueueCard";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
@@ -1333,6 +1334,8 @@ export default function CRMPage() {
       )}
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {/* คิวติดตามลูกค้าทีละชุด 10 ราย เรียงตามความสำคัญ — งานที่ต้องทำก่อนอย่างอื่นของวัน */}
+        <FollowupQueueCard />
         <DeptBriefingPanel dept="sales" label="ฝ่ายขาย" />
         <DeptAIChat dept="sales" label="AI ผู้จัดการฝ่ายขาย" />
         {/* KPI row */}

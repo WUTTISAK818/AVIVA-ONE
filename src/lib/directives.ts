@@ -29,7 +29,18 @@ export interface Directive {
   cancelled_at: string | null;
   cancelled_by: string | null;
   cancel_reason: string | null;
+  /** ขั้นบันไดเตือนอัตโนมัติที่ส่งไปแล้ว (0 = ยังไม่เคยเตือน) — cron เขียนฝั่งเดียว */
+  reminder_stage?: number | null;
+  last_reminder_at?: string | null;
 }
+
+/** คำอธิบายบันไดเตือนอัตโนมัติ ใช้แสดงในไทม์ไลน์ให้ผู้ใช้รู้ว่าระบบเตือนไปกี่ครั้งแล้ว */
+export const REMINDER_STAGE_LABEL: Record<number, string> = {
+  1: "เตือนผู้รับ: ยังไม่กดรับทราบ",
+  2: "เตือนผู้รับ: ครบกำหนดวันนี้",
+  3: "เตือนครั้งสุดท้าย: เลยกำหนด 1 วัน (แจ้งผู้สั่งด้วย)",
+  4: "แจ้งผู้สั่ง: งานค้างและไม่ได้กำหนดวันเสร็จ",
+};
 
 // สั่งงานตรงถึงพนักงาน 1 คนเสมอ (ไม่ใช่ทั้งแผนก) — บันทึกลง DB + แจ้งเตือนกระดิ่งในแอป (เฉพาะคนนี้) + LINE ส่วนตัว (best-effort)
 export async function sendDirective(opts: {

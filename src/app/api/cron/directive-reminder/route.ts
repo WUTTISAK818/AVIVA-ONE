@@ -1,0 +1,148 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { sendPush } from "@/lib/push-notify";
+import { sendLine } from "@/lib/line";
+import { addDaysStr, thaiDateOf, thaiDateStr } from "@/lib/thai-date";
+import { daysBetweenStr } from "@/lib/lead-priority";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+function admin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
+
+function authorized(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const header = req.headers.get("authorization") ?? "";
+  if (header === `Bearer ${secret}`) return true;
+  return req.nextUrl.searchParams.get("secret") === secret;
+}
+
+interface DirectiveRow {
+  id: string;
+  created_by: string;
+  created_by_name: string | null;
+  assigned_to: string;
+  assigned_to_name: string | null;
+  message: string;
+  status: string;
+  due_date: string | null;
+  created_at: string;
+  acknowledged_at: string | null;
+  reminder_stage: number | null;
+}
+
+/** ส่งถึงคนเดียว: กระดิ่งในแอป + push + LINE ส่วนตัว (LINE/push เป็น best-effort) */
+async function notifyOne(db: SupabaseClient, email: string, title: string, body: string) {
+  await db.from("notifications").insert({
+    project_id: PROJECT_ID, type: "info", to_user_email: email, from_dept: "ระบบคำสั่งงาน",
+    title, message: body, is_read: false, link: "/directives",
+  });
+  await sendPush({ userEmail: email }, { title, body, url: "/directives", tag: "directive-reminder" }).catch(() => {});
+  try {
+    const { data: link } = await db.from("line_links").select("line_user_id")
+      .ilike("user_email", email).not("linked_at", "is", null).maybeSingle();
+    if (link?.line_user_id) await sendLine(link.line_user_id, `${title}\n\n${body}`);
+  } catch { /* best-effort */ }
+}
+
+// บันไดเตือนคำสั่งงาน — เตือนสูงสุด 3 ครั้งต่อ 1 คำสั่ง แล้วหยุด (Pom อนุมัติ 28 ก.ย. 69)
+//   ขั้น 1 = สั่งไปแล้วเกิน 1 วันยังไม่กดรับทราบ → เตือนผู้รับ
+//   ขั้น 2 = ครบกำหนดวันนี้                      → เตือนผู้รับ
+//   ขั้น 3 = เลยกำหนดแล้ว 1 วัน                  → เตือนผู้รับ + รายงานผู้สั่ง แล้วหยุดเตือน
+//   ขั้น 4 = ค้างเกิน 3 วันโดยไม่ได้กำหนดวันเสร็จ  → บอกผู้สั่งให้กำหนดวันเสร็จหรือยกเลิก แล้วหยุด
+// กันเตือนซ้ำด้วย reminder_stage (ส่งเฉพาะขั้นที่สูงกว่าที่เคยส่งแล้ว)
+export async function GET(req: NextRequest) {
+  if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const db = admin();
+  const today = thaiDateStr();
+  const yesterday = addDaysStr(today, -1);
+
+  const { data, error } = await db.from("directives")
+    .select("id, created_by, created_by_name, assigned_to, assigned_to_name, message, status, due_date, created_at, acknowledged_at, reminder_stage")
+    .not("status", "in", '("closed","cancelled")');
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const rows = (data ?? []) as DirectiveRow[];
+  const sentLog: { id: string; stage: number; to: string[] }[] = [];
+  let unacknowledged = 0, overdue = 0, pendingReview = 0;
+
+  for (const d of rows) {
+    const acked = !!d.acknowledged_at;
+    const ageDays = daysBetweenStr(thaiDateOf(new Date(d.created_at)), today);
+    const short = d.message.length > 120 ? `${d.message.slice(0, 120)}…` : d.message;
+
+    if (!acked) unacknowledged++;
+    if (d.status === "done") pendingReview++;
+    if (d.due_date && d.due_date < today) overdue++;
+
+    // งานที่พนักงานส่งมาให้ตรวจรับแล้ว ไม่ต้องไปจี้พนักงานอีก (ค้างที่ผู้สั่ง)
+    if (d.status === "done") continue;
+
+    const stage = Math.max(
+      !acked && ageDays >= 1 ? 1 : 0,
+      d.due_date === today ? 2 : 0,
+      d.due_date === yesterday ? 3 : 0,
+      !d.due_date && !acked && ageDays >= 3 ? 4 : 0,
+    );
+    if (stage === 0 || stage <= (d.reminder_stage ?? 0)) continue;
+
+    const to: string[] = [];
+    if (stage === 1) {
+      await notifyOne(db, d.assigned_to,
+        `⏰ ยังไม่ได้กดรับทราบคำสั่งงาน (สั่งมา ${ageDays} วัน)`,
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nเปิดหน้าคำสั่งงาน → กด "รับทราบ" ให้ผู้สั่งรู้ว่าเห็นแล้ว`);
+      to.push(d.assigned_to);
+    } else if (stage === 2) {
+      await notifyOne(db, d.assigned_to,
+        "📅 คำสั่งงานนี้ครบกำหนดวันนี้",
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nทำเสร็จแล้วกด "ทำเสร็จแล้ว · ส่งให้ตรวจรับ" พร้อมเขียนรายงานผลงาน`);
+      to.push(d.assigned_to);
+    } else if (stage === 3) {
+      await notifyOne(db, d.assigned_to,
+        "🔴 คำสั่งงานเลยกำหนดแล้ว 1 วัน",
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nระบบแจ้งผู้สั่งงานแล้ว และนี่เป็นการเตือนอัตโนมัติครั้งสุดท้าย`);
+      await notifyOne(db, d.created_by,
+        `🔴 งานที่สั่ง ${d.assigned_to_name ?? "พนักงาน"} เลยกำหนดแล้ว 1 วัน`,
+        `${short}\n\nกำหนดเสร็จ: ${d.due_date}\nสถานะล่าสุด: ${acked ? "รับทราบแล้ว" : "ยังไม่กดรับทราบ"}\n\nระบบจะไม่เตือนซ้ำอีก — ติดตามเองหรือยกเลิกคำสั่งได้ในแท็บ "ที่ฉันสั่ง"`);
+      to.push(d.assigned_to, d.created_by);
+    } else {
+      await notifyOne(db, d.created_by,
+        `⏳ คำสั่งงานค้าง ${ageDays} วัน ยังไม่มีใครกดรับทราบ`,
+        `${short}\n\nผู้รับ: ${d.assigned_to_name ?? d.assigned_to}\nงานนี้ไม่ได้กำหนดวันเสร็จ ระบบจึงเตือนตามกำหนดให้ไม่ได้\n\nแนะนำ: เปิดแท็บ "ที่ฉันสั่ง" → สั่งใหม่พร้อมกำหนดวันเสร็จ หรือกดยกเลิกคำสั่งนี้`);
+      to.push(d.created_by);
+    }
+
+    await db.from("directives")
+      .update({ reminder_stage: stage, last_reminder_at: new Date().toISOString() })
+      .eq("id", d.id).lt("reminder_stage", stage);
+    sentLog.push({ id: d.id, stage, to });
+  }
+
+  // สรุปเช้าถึงผู้บริหาร — เห็นยอดคำสั่งงานค้างทั้งองค์กรในที่เดียว
+  if (rows.length > 0) {
+    await db.from("notifications").insert({
+      project_id: PROJECT_ID, type: "info", to_dept: "ผู้บริหาร", from_dept: "ระบบคำสั่งงาน",
+      title: `📋 คำสั่งงานที่ยังไม่จบ ${rows.length} ชิ้น`,
+      message: [
+        `ยังไม่กดรับทราบ ${unacknowledged} ชิ้น`,
+        `เลยกำหนดแล้ว ${overdue} ชิ้น`,
+        `รอผู้สั่งตรวจรับ ${pendingReview} ชิ้น`,
+        sentLog.length > 0 ? `วันนี้ระบบเตือนอัตโนมัติไป ${sentLog.length} ชิ้น` : "วันนี้ไม่มีรายการถึงรอบเตือน",
+      ].join("\n"),
+      is_read: false, link: "/directives",
+    });
+  }
+
+  return NextResponse.json({
+    ok: true, date: today, open: rows.length,
+    unacknowledged, overdue, pendingReview, reminded: sentLog.length, sentLog,
+  });
+}

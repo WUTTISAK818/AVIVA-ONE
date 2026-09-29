@@ -5,7 +5,7 @@ import { thaiDateStr } from "@/lib/thai-date";
 import { daysBetweenStr } from "@/lib/lead-priority";
 import { defaultInstallments } from "@/lib/payment-plan";
 import {
-  BOOKED_STATUSES, OWNER_LABEL, deriveBookingSteps, currentBookingStep,
+  BOOKING_FLOW_STATUSES, NUDGE_MAX_AGE_DAYS, OWNER_LABEL, deriveBookingSteps, currentBookingStep,
   type BookingFlowFacts,
 } from "@/lib/booking-flow";
 
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
   const { data: leadRows, error } = await db.from("leads")
     .select("id, customer_name, status, assigned_to, booking_date, booking_deposit, contract_price, budget, deposit_slip_url, deposit_received_at, deposit_received_by, booking_doc_at, contract_appointment_date")
-    .in("status", BOOKED_STATUSES);
+    .in("status", BOOKING_FLOW_STATUSES);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const leads = (leadRows ?? []) as LeadRow[];
@@ -142,6 +142,8 @@ export async function GET(req: NextRequest) {
     if (!cur || !lead.booking_date) continue;
     const days = daysBetweenStr(lead.booking_date, today);
     if (days < NUDGE_AFTER_DAYS) continue;
+    // ของเก่าเกิน 30 วัน = ข้อมูลย้อนหลัง ปล่อยไว้ในกล่องงาน แต่ไม่ต้องเตือนทุกเช้า
+    if (days > NUDGE_MAX_AGE_DAYS) continue;
     stuck.push({ lead: lead.customer_name, step: cur.title, owner: OWNER_LABEL[cur.owner], days });
 
     const title = `📌 งานรับจองค้าง ${days} วัน — ${lead.customer_name}`;

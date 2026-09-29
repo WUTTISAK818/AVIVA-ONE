@@ -44,8 +44,16 @@ export const OWNER_LABEL: Record<StepOwner, string> = {
   system: "ระบบทำให้เอง",
 };
 
-/** สถานะที่ถือว่า "จองแล้ว" ขึ้นไป — งานรับจองเริ่มนับจากตรงนี้ */
+/** สถานะที่ถือว่า "จองแล้ว" ขึ้นไป — ใช้เช็คว่าขั้นที่ 1 (บันทึกจอง) ผ่านแล้วหรือยัง */
 export const BOOKED_STATUSES = ["Booking", "Contract", "Loan Approved", "Transfer", "Closed Deal"];
+
+/** ดีลที่ยัง "เดินอยู่" เท่านั้นที่ต้องไล่ขั้นตอนรับจอง
+ *  โอนกรรมสิทธิ์/ปิดการขายไปแล้ว = จบแล้ว ไม่ต้องไปตามเก็บเงินจองย้อนหลัง
+ *  (29 ก.ย. 69: cron ส่งงาน "เก็บเงินจอง" ของบ้านที่โอนไปแล้ว 112 วันให้ฟ้า — เป็นสัญญาณรบกวน) */
+export const BOOKING_FLOW_STATUSES = ["Booking", "Contract", "Loan Approved"];
+
+/** งานรับจองที่เก่าเกินเท่านี้ = ข้อมูลย้อนหลัง ไม่ต้องเตือนรายวัน (ยังค้างในกล่องงานตามเดิม) */
+export const NUDGE_MAX_AGE_DAYS = 30;
 
 const thDate = (v: string | null | undefined) =>
   v ? new Date(v).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "";
@@ -95,7 +103,8 @@ export function deriveBookingSteps(f: BookingFlowFacts): BookingStep[] {
     },
     {
       key: "posted", no: 6, title: "ตรวจยอดเข้าบัญชี + ลงบัญชีรับเงินจอง", owner: "finance",
-      state: st(posted, hasInstallments),
+      // ต้องรับเงินจริง + อนุมัติแล้วเท่านั้น — ห้ามส่งงานลงบัญชีให้การเงินก่อนเงินเข้า
+      state: st(posted, hasInstallments && bothDone),
       detail: posted ? "ลงบัญชีแล้ว" : undefined,
     },
     {

@@ -19,6 +19,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import FollowupQueueCard from "@/components/FollowupQueueCard";
 import BookingFlowCard from "@/components/BookingFlowCard";
+import { BOOKING_FLOW_STATUSES } from "@/lib/booking-flow";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
 import AttachDocButton from "@/components/AttachDocButton";
@@ -1720,7 +1721,7 @@ export default function CRMPage() {
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               {/* ขั้นตอนงานรับจอง 7 ขั้น — โชว์เมื่อลูกค้าจองแล้ว เพื่อให้รู้ว่าต้องทำอะไรต่อ */}
-              {BOOKING_STATUSES.includes(selectedLead.status as LeadStatus) && (
+              {BOOKING_FLOW_STATUSES.includes(selectedLead.status) && (
                 <BookingFlowCard
                   leadId={selectedLead.id}
                   customerName={selectedLead.customer_name}

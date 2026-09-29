@@ -107,9 +107,9 @@ export async function GET(req: NextRequest) {
     let steps = deriveBookingSteps(facts);
 
     // 1) ตารางผ่อน — งานของระบบ ไม่ต้องรอใครกด
-    if (facts.installmentCount === 0 && steps.find(s => s.key === "installments")?.state === "current") {
-      const price = Number(lead.contract_price ?? lead.budget ?? 0);
-      const plan = defaultInstallments(price, lead.booking_deposit)
+    const salePrice = Number(lead.contract_price ?? lead.budget ?? 0);
+    if (facts.installmentCount === 0 && salePrice > 0 && steps.find(s => s.key === "installments")?.state === "current") {
+      const plan = defaultInstallments(salePrice, lead.booking_deposit)
         .map(r => ({ ...r, lead_id: lead.id, house_id: null, status: "pending" as const }));
       const { error: insErr } = await db.from("customer_installments").insert(plan);
       if (!insErr) {

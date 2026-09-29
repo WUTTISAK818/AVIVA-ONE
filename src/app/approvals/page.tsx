@@ -667,8 +667,9 @@ function ApprovalsContent() {
         if (l?.deposit_received_at) {
           const { count } = await supabase.from("customer_installments")
             .select("id", { count: "exact", head: true }).eq("lead_id", log.source_record_id);
-          if ((count ?? 0) === 0) {
-            const rows = defaultInstallments(Number(l.contract_price ?? l.budget ?? 0), l.booking_deposit)
+          const price = Number(l.contract_price ?? l.budget ?? 0);
+          if ((count ?? 0) === 0 && price > 0) {
+            const rows = defaultInstallments(price, l.booking_deposit)
               .map(r => ({ ...r, lead_id: log.source_record_id, house_id: null, status: "pending" as const }));
             await supabase.from("customer_installments").insert(rows);
           }

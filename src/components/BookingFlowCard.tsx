@@ -37,8 +37,10 @@ export default function BookingFlowCard({
     if (!res) { setSteps(null); setFacts(null); return; }
 
     // ขั้นที่ 5 เป็นงานของระบบ: อนุมัติแล้ว + รับเงินแล้ว แต่ยังไม่มีตารางผ่อน → สร้างให้เลย
+    // ยังไม่มีราคาขาย = สร้างตารางผ่อนยอด 0 ซึ่งไม่มีประโยชน์ และจะบล็อกตารางที่ถูกต้องภายหลัง
     const needInstallments = autoCreateInstallments
       && res.facts.installmentCount === 0
+      && salePrice > 0
       && res.steps.find(s => s.key === "installments")?.state === "current";
     if (needInstallments) {
       const rows = defaultInstallments(salePrice, res.facts.lead.booking_deposit)

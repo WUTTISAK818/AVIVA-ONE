@@ -177,7 +177,14 @@ const statusColor: Record<LeadStatus, string> = {
 };
 
 const SOURCES = ["Facebook", "TikTok", "Google", "Instagram", "LINE OA", "Call in", "Referral", "Walk-in", "อื่นๆ"];
-const CALL_STATUSES = ["โทรติด-สนใจ", "โทรติด-ไม่สนใจ", "โทรไม่ติด", "นัดหมายแล้ว", "ส่ง LINE แล้ว"];
+// ผลการติดต่อลูกค้า — 5 ข้อแรกคือผลการติดต่อ · 4 ข้อท้ายคือ "เหตุผลที่ลูกค้าไม่ไปต่อ"
+// (ข้อเสนอแนะของเดียร์ ฝ่ายขาย · Pom อนุมัติ 1 ต.ค. 69)
+const CALL_STATUSES = [
+  "โทรติด-สนใจ", "โทรติด-ไม่สนใจ", "โทรไม่ติด", "นัดหมายแล้ว", "ส่ง LINE แล้ว",
+  "ได้บ้านแล้ว", "เกินงบประมาณ", "ไม่สนใจ", "ชะลอการตัดสินใจ",
+];
+/** ผลการติดต่อที่แปลว่าลูกค้าไม่ไปต่อในรอบนี้ — ใช้เตือนให้จัดการวันนัดติดตามให้ถูก */
+const CLOSING_CALL_STATUSES = ["ได้บ้านแล้ว", "เกินงบประมาณ", "ไม่สนใจ", "ชะลอการตัดสินใจ"];
 
 function scoreColor(score: number) {
   if (score >= 80) return "text-green-400";
@@ -1684,6 +1691,12 @@ export default function CRMPage() {
                       )}>{s}</button>
                   ))}
                 </div>
+                {CLOSING_CALL_STATUSES.includes(crmLogForm.callStatus) && (
+                  <p className="mt-2 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                    ผลแบบนี้แปลว่าลูกค้ายังไม่ไปต่อในรอบนี้ — อย่าลืมตั้ง &ldquo;นัดติดตามครั้งถัดไป&rdquo; ให้ไกลขึ้น
+                    {crmLogForm.callStatus === "ชะลอการตัดสินใจ" ? " (เช่น ปีหน้า)" : ""} หรือเคลียร์ออกจากคิวติดตาม
+                  </p>
+                )}
               </div>
               <div>
                 <label htmlFor="crmform-log_note" className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>

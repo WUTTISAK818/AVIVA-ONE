@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { replyLine } from "@/lib/line";
 import { verifyLineSignature } from "@/lib/api-auth";
+import { handleDirectiveReply } from "@/lib/line-directive-reply";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,24 @@ export async function POST(req: NextRequest) {
     const userId = src.userId;
     if (!userId) continue;
 
+    // ── ตอบคำสั่งงานผ่าน LINE (รับทราบ / เสร็จแล้ว / ดูรายการ) ──
+    // ทำก่อนตรวจรหัสผูกบัญชี เฉพาะคนที่ผูกบัญชีแล้วเท่านั้น
+    const { data: known } = await db.from("line_links").select("user_email")
+      .eq("line_user_id", userId).not("linked_at", "is", null).maybeSingle();
+    const knownEmail = (known?.user_email as string) ?? null;
+    if (knownEmail) {
+      let answer: string | null = null;
+      try {
+        answer = await handleDirectiveReply(db, knownEmail, text);
+      } catch {
+        answer = "ระบบขัดข้องชั่วคราว ลองใหม่อีกครั้งครับ";
+      }
+      if (answer) {
+        if (ev.replyToken) await replyLine(ev.replyToken, answer);
+        continue;
+      }
+    }
+
     const m = text.match(/\b(\d{6})\b/);
     if (m) {
       const code = m[1];
@@ -72,7 +91,9 @@ export async function POST(req: NextRequest) {
         await replyLine(ev.replyToken, "รหัสไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่ในแอป");
       }
     } else if (ev.replyToken) {
-      await replyLine(ev.replyToken, "พิมพ์รหัส 6 หลักจากหน้าตั้งค่าในแอป AVIVA ONE เพื่อผูกบัญชี");
+      await replyLine(ev.replyToken, knownEmail
+        ? 'พิมพ์ "งาน" เพื่อดูคำสั่งงานค้าง · ตอบ "รับทราบ" เพื่อยืนยัน · ตอบ "เสร็จแล้ว <รายงานผล>" เมื่อทำเสร็จ'
+        : "พิมพ์รหัส 6 หลักจากหน้าตั้งค่าในแอป AVIVA ONE เพื่อผูกบัญชี");
     }
   }
   return NextResponse.json({ ok: true });

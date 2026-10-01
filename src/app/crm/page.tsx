@@ -19,6 +19,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import FollowupQueueCard from "@/components/FollowupQueueCard";
 import BookingFlowCard from "@/components/BookingFlowCard";
+import ChannelConversionCard from "@/components/ChannelConversionCard";
 import { BOOKING_FLOW_STATUSES } from "@/lib/booking-flow";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
@@ -1496,6 +1497,8 @@ export default function CRMPage() {
                 <Plus size={13} /> บันทึกกิจกรรม
               </button>
             </div>
+            {/* ช่องทางไหนทำให้ลูกค้ามาจองได้ — ข้อมูลไว้ตัดสินใจเรื่องงบ/ช่องทางสื่อสาร */}
+            <ChannelConversionCard />
             {teamStats.length > 0 && (
               <GlassCard gold className="p-4">
                 <p className="text-xs font-semibold text-aviva-gold mb-3">ภาพรวมทีม (KPI)</p>

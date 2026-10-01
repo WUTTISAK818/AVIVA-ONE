@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail } from "@/lib/line-log";
 import { addDaysStr, thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 import { daysBetweenStr } from "@/lib/lead-priority";
 
@@ -39,18 +39,22 @@ interface DirectiveRow {
   reminder_stage: number | null;
 }
 
-/** ส่งถึงคนเดียว: กระดิ่งในแอป + push + LINE ส่วนตัว (LINE/push เป็น best-effort) */
-async function notifyOne(db: SupabaseClient, email: string, title: string, body: string) {
+/** ส่งถึงคนเดียว: กระดิ่งในแอป + push + LINE ส่วนตัว (บันทึกผลการส่ง LINE ไว้ตรวจย้อนหลังเสมอ) */
+async function notifyOne(
+  db: SupabaseClient, email: string, title: string, body: string,
+  directiveId?: string, askReply = false,
+) {
   await db.from("notifications").insert({
     project_id: PROJECT_ID, type: "info", to_user_email: email, from_dept: "ระบบคำสั่งงาน",
     title, message: body, is_read: false, link: "/directives",
   });
   await sendPush({ userEmail: email }, { title, body, url: "/directives", tag: "directive-reminder" }).catch(() => {});
-  try {
-    const { data: link } = await db.from("line_links").select("line_user_id")
-      .ilike("user_email", email).not("linked_at", "is", null).maybeSingle();
-    if (link?.line_user_id) await sendLine(link.line_user_id, `${title}\n\n${body}`);
-  } catch { /* best-effort */ }
+
+  // ตอบกลับใน LINE ว่า "รับทราบ" ได้เลย ไม่ต้องเปิดแอปไปหาปุ่ม (Pom 30 ก.ย. 69)
+  const text = `${title}\n\n${body}` + (askReply ? '\n\n— ตอบกลับข้อความนี้ว่า "รับทราบ" เพื่อยืนยันได้เลย' : "");
+  await sendLineToEmail(db, email, text, {
+    kind: "directive_reminder", toEmail: email, refType: "directive", refId: directiveId ?? null, title,
+  });
 }
 
 // บันไดเตือนคำสั่งงาน — เตือนสูงสุด 3 ครั้งต่อ 1 คำสั่ง แล้วหยุด (Pom อนุมัติ 28 ก.ย. 69)
@@ -98,25 +102,25 @@ export async function GET(req: NextRequest) {
     if (stage === 1) {
       await notifyOne(db, d.assigned_to,
         `⏰ ยังไม่ได้กดรับทราบคำสั่งงาน (สั่งมา ${ageDays} วัน)`,
-        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nเปิดหน้าคำสั่งงาน → กด "รับทราบ" ให้ผู้สั่งรู้ว่าเห็นแล้ว`);
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}`, d.id, true);
       to.push(d.assigned_to);
     } else if (stage === 2) {
       await notifyOne(db, d.assigned_to,
         "📅 คำสั่งงานนี้ครบกำหนดวันนี้",
-        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nทำเสร็จแล้วกด "ทำเสร็จแล้ว · ส่งให้ตรวจรับ" พร้อมเขียนรายงานผลงาน`);
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nทำเสร็จแล้วตอบกลับว่า "เสร็จแล้ว" ตามด้วยรายงานผลงานสั้น ๆ ได้เลย`, d.id, !acked);
       to.push(d.assigned_to);
     } else if (stage === 3) {
       await notifyOne(db, d.assigned_to,
         "🔴 คำสั่งงานเลยกำหนดแล้ว 1 วัน",
-        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nระบบแจ้งผู้สั่งงานแล้ว และนี่เป็นการเตือนอัตโนมัติครั้งสุดท้าย`);
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\nระบบแจ้งผู้สั่งงานแล้ว และนี่เป็นการเตือนอัตโนมัติครั้งสุดท้าย`, d.id, !acked);
       await notifyOne(db, d.created_by,
         `🔴 งานที่สั่ง ${d.assigned_to_name ?? "พนักงาน"} เลยกำหนดแล้ว 1 วัน`,
-        `${short}\n\nกำหนดเสร็จ: ${d.due_date}\nสถานะล่าสุด: ${acked ? "รับทราบแล้ว" : "ยังไม่กดรับทราบ"}\n\nระบบจะไม่เตือนซ้ำอีก — ติดตามเองหรือยกเลิกคำสั่งได้ในแท็บ "ที่ฉันสั่ง"`);
+        `${short}\n\nกำหนดเสร็จ: ${d.due_date}\nสถานะล่าสุด: ${acked ? "รับทราบแล้ว" : "ยังไม่กดรับทราบ"}\n\nระบบจะไม่เตือนซ้ำอีก — ติดตามเองหรือยกเลิกคำสั่งได้ในแท็บ "ที่ฉันสั่ง"`, d.id);
       to.push(d.assigned_to, d.created_by);
     } else {
       await notifyOne(db, d.created_by,
         `⏳ คำสั่งงานค้าง ${ageDays} วัน ยังไม่มีใครกดรับทราบ`,
-        `${short}\n\nผู้รับ: ${d.assigned_to_name ?? d.assigned_to}\nงานนี้ไม่ได้กำหนดวันเสร็จ ระบบจึงเตือนตามกำหนดให้ไม่ได้\n\nแนะนำ: เปิดแท็บ "ที่ฉันสั่ง" → สั่งใหม่พร้อมกำหนดวันเสร็จ หรือกดยกเลิกคำสั่งนี้`);
+        `${short}\n\nผู้รับ: ${d.assigned_to_name ?? d.assigned_to}\nงานนี้ไม่ได้กำหนดวันเสร็จ ระบบจึงเตือนตามกำหนดให้ไม่ได้\n\nแนะนำ: เปิดแท็บ "ที่ฉันสั่ง" → สั่งใหม่พร้อมกำหนดวันเสร็จ หรือกดยกเลิกคำสั่งนี้`, d.id);
       to.push(d.created_by);
     }
 

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, REMINDER_STAGE_LABEL, type Directive, type DirectiveStatus } from "@/lib/directives";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
+import { lineErrorTh } from "@/lib/line-log-th";
 import { loadWorkSchedule, loadHolidays, dueDateFromWorkingDays, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
 
 type Tab = "received" | "sent";
@@ -83,6 +84,7 @@ export default function DirectivesPage() {
   const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});   // เปิดดูรายละเอียด/ไทม์ไลน์
+  const [lineLog, setLineLog] = useState<Record<string, { ok: boolean; error: string | null; created_at: string }>>({});
   const [cancelFor, setCancelFor] = useState<Directive | null>(null);      // งานที่กำลังจะยกเลิก
   const [cancelReason, setCancelReason] = useState("");
   const [cancelErr, setCancelErr] = useState("");
@@ -101,7 +103,36 @@ export default function DirectivesPage() {
     setLoading(false);
   }, [user, tab]);
 
+  // เปิดอ่านรายละเอียด = รับทราบอัตโนมัติ (Pom เคาะ 30 ก.ย. 69)
+  // เหตุผล: การอ่านคือการรับทราบอยู่แล้ว ไม่ควรบังคับให้พนักงานทำ 2 จังหวะ
+  // ปุ่ม "รับทราบ" ยังอยู่สำหรับคนที่อยากกดเอง
+  const openDetail = (d: Directive) => {
+    const willOpen = !expanded[d.id];
+    setExpanded((p) => ({ ...p, [d.id]: !p[d.id] }));
+    if (!willOpen) return;
+    if (tab !== "received" || d.status !== "sent") return;
+    setItems((prev) => prev.map((x) => (x.id === d.id ? { ...x, status: "acknowledged", acknowledged_at: new Date().toISOString() } : x)));
+    updateDirectiveStatus(d, "acknowledged").then(() => load(), () => load());
+  };
+
   useEffect(() => { load(); }, [load]);
+
+  // ผลการส่ง LINE ล่าสุดต่อคำสั่งงาน — ใช้ตอบคำถาม "ข้อความถึงเขาจริงไหม" ก่อนไปโทษว่าเพิกเฉย
+  useEffect(() => {
+    if (items.length === 0) { setLineLog({}); return; }
+    supabase.from("line_message_log")
+      .select("ref_id, ok, error, created_at")
+      .eq("ref_type", "directive")
+      .in("ref_id", items.map((d) => d.id))
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        const map: Record<string, { ok: boolean; error: string | null; created_at: string }> = {};
+        for (const r of (data ?? []) as { ref_id: string; ok: boolean; error: string | null; created_at: string }[]) {
+          if (!map[r.ref_id]) map[r.ref_id] = { ok: r.ok, error: r.error, created_at: r.created_at };
+        }
+        setLineLog(map);
+      });
+  }, [items]);
 
   useEffect(() => {
     if (!user?.isManager) return;
@@ -283,7 +314,7 @@ export default function DirectivesPage() {
                 </div>
 
                 <button
-                  onClick={() => setExpanded((p) => ({ ...p, [d.id]: !p[d.id] }))}
+                  onClick={() => { openDetail(d); }}
                   className={`mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border transition-colors ${
                     expanded[d.id]
                       ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
@@ -309,6 +340,10 @@ export default function DirectivesPage() {
                       </p>
                       {d.return_count > 0 && (<><p className="text-[13px] text-aviva-secondary">ตีกลับให้แก้</p><p className="text-[13px] text-amber-400 text-right font-bold">{d.return_count} ครั้ง</p></>)}
                       {!!d.reminder_stage && d.reminder_stage > 0 && (<><p className="text-[13px] text-aviva-secondary">ระบบเตือนอัตโนมัติ</p><p className="text-[13px] text-amber-400 text-right font-medium">{REMINDER_STAGE_LABEL[d.reminder_stage] ?? `ขั้นที่ ${d.reminder_stage}`}</p></>)}
+                      {lineLog[d.id] && (<><p className="text-[13px] text-aviva-secondary">แจ้งเตือนทาง LINE</p><p className={`text-[13px] text-right font-medium ${lineLog[d.id].ok ? "text-green-400" : "text-red-400"}`}>
+                        {lineLog[d.id].ok ? "ส่งถึงแล้ว" : `ส่งไม่สำเร็จ — ${lineErrorTh(lineLog[d.id].error)}`}
+                        {" "}({new Date(lineLog[d.id].created_at).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})
+                      </p></>)}
                     </div>
 
                     <p className="text-[13px] font-bold text-aviva-gold mb-3">ความเคลื่อนไหวของงาน</p>

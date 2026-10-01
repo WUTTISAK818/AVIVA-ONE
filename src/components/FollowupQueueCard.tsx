@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { Target, Phone, CalendarPlus, ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
-import { addDaysStr, thaiDateStr } from "@/lib/thai-date";
+import { addDaysStr, normalizeDateInput, thaiDateStr } from "@/lib/thai-date";
 import { thaiDbError } from "@/lib/db-errors";
 import {
   FOLLOWUP_BATCH_SIZE, FOLLOWUP_DONE_STATUSES, TIER_LABEL,
@@ -193,7 +193,8 @@ export default function FollowupQueueCard() {
                       </div>
                       <div className="flex items-center gap-2 mt-2">
                         <input type="date" defaultValue={today} min={today}
-                          onChange={e => { if (e.target.value) void setFollowup(r.lead.id, e.target.value); }}
+                          // แปลงปี พ.ศ. → ค.ศ. ก่อนบันทึก (ปฏิทินพุทธศักราชบนมือถือส่งปี 2569 มา)
+                          onChange={e => { const d = normalizeDateInput(e.target.value); if (d) void setFollowup(r.lead.id, d); }}
                           className="flex-1 bg-aviva-card border border-aviva-gold/20 rounded-lg px-2.5 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/50" />
                         {savingId === r.lead.id
                           ? <Loader2 size={15} className="text-aviva-gold animate-spin" />

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { CheckCircle2, Circle, Loader2, Paperclip, Printer, CalendarPlus, ExternalLink, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
-import { thaiDateStr } from "@/lib/thai-date";
+import { normalizeDateInput, thaiDateStr } from "@/lib/thai-date";
 import { thaiDbError } from "@/lib/db-errors";
 import { checkUploadFile } from "@/lib/upload-photos";
 import { defaultInstallments } from "@/lib/payment-plan";
@@ -161,7 +161,8 @@ export default function BookingFlowCard({
                     <input type="date" value={appointDate} min={thaiDateStr()} onChange={e => setAppointDate(e.target.value)}
                       className="flex-1 bg-aviva-card border border-aviva-gold/25 rounded-xl px-2.5 py-2 text-xs text-aviva-text outline-none focus:border-aviva-gold/50" />
                     <button type="button" disabled={!appointDate || busy === "บันทึกวันนัดทำสัญญา"}
-                      onClick={() => patchLead({ contract_appointment_date: appointDate, next_follow_up_date: appointDate }, "บันทึกวันนัดทำสัญญา")}
+                      // มือถือที่ตั้งปฏิทินพุทธศักราชส่งปี 2569 มา — ต้องแปลงเป็น ค.ศ. ก่อนเก็บเสมอ
+                      onClick={() => { const d = normalizeDateInput(appointDate); return patchLead({ contract_appointment_date: d, next_follow_up_date: d }, "บันทึกวันนัดทำสัญญา"); }}
                       className="px-3 py-2 rounded-xl bg-aviva-gold text-aviva-bg text-xs font-bold disabled:opacity-40 inline-flex items-center gap-1.5">
                       {busy === "บันทึกวันนัดทำสัญญา" ? <Loader2 size={13} className="animate-spin" /> : <CalendarPlus size={13} />} บันทึก
                     </button>

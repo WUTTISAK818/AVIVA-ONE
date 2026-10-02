@@ -134,7 +134,10 @@
 - ✓ Communication ไม่มีปัญหา
 
 **ข้อมูลที่เกี่ยวข้อง:**
-- Pom email: `joyus818@gmail.com`
+- **บัญชีหลักของ Pom ในแอป AVIVA ONE: `wuttisak_p@hotmail.com`** (ยืนยัน 1 ต.ค. 69) — ชื่อที่แสดง **"Wuttisak (CEO)"**
+  → การแจ้งเตือนรายบุคคล/คำสั่งงาน/การอนุมัติทั้งหมดต้องวิ่งไปที่บัญชีนี้
+- `joyus818@gmail.com` = บัญชี Google ของ Pom (ใช้กับ Google Drive + session Claude Code) **ไม่ใช่บัญชีที่ใช้งานแอปประจำ**
+- `ceo@alisa.com` = บัญชีเก่า (ถูกแบนไว้แล้ว ไม่ใช้งาน)
 - ONE (Claude Code): ทำงานใน session นี้ (code.claude.com)
 - Vee (Claude Cowork): ทำงานใน Cowork system (ระบบ collaboration แยก)
 

@@ -10,6 +10,9 @@ export type LineKind =
   | "directive_sent"
   | "sales_followup"
   | "booking_flow"
+  | "lead_digest_daily"
+  | "lead_digest_weekly"
+  | "lead_digest_monthly"
   | "other";
 
 export interface LineLogRef {

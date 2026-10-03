@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail, type LineKind } from "@/lib/line-log";
 import { isManagerRole } from "@/lib/roles";
 import { channelBucket } from "@/lib/lead-channel";
+import { monthlyDigestTarget } from "@/lib/lead-digest-schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,12 +80,22 @@ function channelBreakdownLines(byChannel: Map<string, number>): string[] {
   return lines;
 }
 
-async function fetchLeadsSince(db: SupabaseClient, sinceIso: string): Promise<LeadRow[]> {
+/**
+ * ลูกค้าที่รับเข้ามาในช่วงเวลาที่กำหนด — ใช้ `created_at_default` (วันที่รับลูกค้าที่พนักงานกรอก)
+ * ถ้าไม่มีค่าจึงถอยไปใช้ `created_at` (วันที่บันทึกเข้าระบบ)
+ * `untilIso` = ขอบบน (ไม่รวมตัวมันเอง) — ต้องมีตอนสรุปย้อนหลังของเดือนที่แล้ว ไม่งั้นจะนับเดือนปัจจุบันปนมาด้วย
+ */
+async function fetchLeads(db: SupabaseClient, sinceIso: string, untilIso?: string): Promise<LeadRow[]> {
+  const upperDefault = untilIso ? `,created_at_default.lt.${untilIso}` : "";
+  const upperFallback = untilIso ? `,created_at.lt.${untilIso}` : "";
   const { data, error } = await db
     .from("leads")
     .select("customer_name, assigned_to, source, budget, urgency, probability, financing_type, plot_number, created_at, created_at_default")
     .eq("project_id", PROJECT_ID)
-    .or(`created_at_default.gte.${sinceIso},and(created_at_default.is.null,created_at.gte.${sinceIso})`);
+    .or(
+      `and(created_at_default.gte.${sinceIso}${upperDefault}),` +
+      `and(created_at_default.is.null,created_at.gte.${sinceIso}${upperFallback})`,
+    );
   if (error) throw new Error(error.message);
   return (data ?? []) as LeadRow[];
 }
@@ -147,7 +158,7 @@ function composeRangeMessage(withTier: RankedLead[]): string {
   return `รับลูกค้าใหม่รวม ${withTier.length} ราย (🔥 ${hot} · 🟡 ${warm} · ⚪ ${cold})\n\nแยกตามช่องทาง:\n${channelLines.join("\n")}\n\nแยกตามผู้ดูแล:\n${ownerLines.join("\n")}${hotSection}`;
 }
 
-async function deliver(db: SupabaseClient, title: string, message: string) {
+async function deliver(db: SupabaseClient, title: string, message: string, kind: LineKind) {
   // 1) กระดิ่งในแอป — ฝ่ายขาย + ผู้บริหาร
   await db.from("notifications").insert([
     { project_id: PROJECT_ID, type: "info", to_dept: "ฝ่ายขาย", from_dept: "ระบบรายงาน", title, message, is_read: false, link: "/crm" },
@@ -159,23 +170,27 @@ async function deliver(db: SupabaseClient, title: string, message: string) {
   await sendPush({ department: "ฝ่ายบริหาร" }, { title, body: message, url: "/crm", tag: "sales-lead-digest" }).catch(() => {});
 
   // 3) LINE ส่วนตัว — เฉพาะฝ่ายขาย + ผู้บริหาร ที่ผูกบัญชีไว้ (ให้ตรงกับผู้รับตามข้อ 1-2 ไม่ใช่ทุกคนที่ผูก LINE)
+  //    ส่งผ่าน sendLineToEmail เพื่อให้ทุกครั้งมีบันทึกใน line_message_log ว่าถึงใคร สำเร็จหรือล้มเหลวเพราะอะไร
+  //    (Pom ถาม 3 ต.ค. 69 ว่าสรุปรายเดือนของกันยาส่งเข้า LINE จริงไหม — เดิมตอบไม่ได้เพราะไม่มีบันทึกการส่ง)
   let lineSent = 0;
   try {
     const [{ data: links }, { data: roleRows }] = await Promise.all([
-      db.from("line_links").select("line_user_id, user_email").not("linked_at", "is", null),
+      db.from("line_links").select("user_email").not("linked_at", "is", null),
       db.from("users").select("email, role"),
     ]);
     const roleByEmail = new Map((roleRows ?? []).map((u) => [(u.email ?? "").toLowerCase(), u.role as string | null]));
-    const ids = (links ?? [])
-      .filter((l) => {
-        const role = roleByEmail.get((l.user_email ?? "").toLowerCase());
+    const emails = (links ?? [])
+      .map((l) => (l.user_email ?? "").toLowerCase())
+      .filter(Boolean)
+      .filter((email) => {
+        const role = roleByEmail.get(email);
         return role === "sales" || isManagerRole(role);
-      })
-      .map((l) => l.line_user_id as string)
-      .filter(Boolean);
+      });
     const text = `${title}\n${message}\nเปิดดู: /crm`;
-    const res = await Promise.allSettled(ids.map((id) => sendLine(id, text)));
-    lineSent = res.reduce((n, r) => n + (r.status === "fulfilled" && r.value.ok ? 1 : 0), 0);
+    for (const email of emails) {
+      const res = await sendLineToEmail(db, email, text, { kind, title });
+      if (res.ok) lineSent++;
+    }
   } catch { /* best-effort */ }
 
   return lineSent;
@@ -196,10 +211,10 @@ export async function GET(req: NextRequest) {
 
   // 1) รายวัน — ส่งทุกวัน
   try {
-    const dailyLeads = rankLeads(await fetchLeadsSince(db, new Date(startOfTodayUtcMs).toISOString()));
+    const dailyLeads = rankLeads(await fetchLeads(db, new Date(startOfTodayUtcMs).toISOString()));
     const title = `📋 สรุปลูกค้าใหม่วันนี้ — ${dateLabel}`;
     const message = composeDailyMessage(dailyLeads);
-    const lineSent = await deliver(db, title, message);
+    const lineSent = await deliver(db, title, message, "lead_digest_daily");
     result.daily = { totalLeads: dailyLeads.length, lineSent };
   } catch (e) {
     result.daily = { error: (e as Error).message };
@@ -211,28 +226,33 @@ export async function GET(req: NextRequest) {
     try {
       const mondayUtcMs = startOfTodayUtcMs - 6 * 86_400_000;
       const weekStartLabel = new Date(mondayUtcMs + 7 * 3_600_000).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-      const weekLeads = rankLeads(await fetchLeadsSince(db, new Date(mondayUtcMs).toISOString()));
+      const weekLeads = rankLeads(await fetchLeads(db, new Date(mondayUtcMs).toISOString()));
       const title = `📅 สรุปลูกค้าใหม่รายสัปดาห์ — ${weekStartLabel} ถึง ${dateLabel}`;
       const message = composeRangeMessage(weekLeads);
-      const lineSent = await deliver(db, title, message);
+      const lineSent = await deliver(db, title, message, "lead_digest_weekly");
       result.weekly = { totalLeads: weekLeads.length, lineSent };
     } catch (e) {
       result.weekly = { error: (e as Error).message };
     }
   }
 
-  // 3) รายเดือน — เฉพาะวันสุดท้ายของเดือน (ตามเวลาไทย)
-  const nextDayMonthThai = new Date(Date.UTC(thaiNow.getUTCFullYear(), thaiNow.getUTCMonth(), thaiNow.getUTCDate() + 1)).getUTCMonth();
-  const isLastDayOfMonthThai = nextDayMonthThai !== thaiNow.getUTCMonth();
-  if (isLastDayOfMonthThai) {
+  // 3) รายเดือน — วันสุดท้ายของเดือน และตามเก็บให้ภายใน 5 วันแรกของเดือนถัดไป (ตามเวลาไทย)
+  //    เดิมยิงได้แค่วันสุดท้ายของเดือนครั้งเดียว ถ้าวันนั้น cron ไม่ทำงาน สรุปของเดือนนั้นจะหายไปเลยไม่มีใครรู้
+  //    ตอนนี้จึงเช็คก่อนส่งว่าเดือนนั้นส่งไปแล้วหรือยัง (ดูจากกระดิ่งที่มีหัวข้อเดียวกัน) แล้วส่งเฉพาะที่ยังไม่ได้ส่ง
+  const monthlyTarget = monthlyDigestTarget(thaiNow);
+  if (monthlyTarget) {
     try {
-      const monthStartUtcMs = Date.UTC(thaiNow.getUTCFullYear(), thaiNow.getUTCMonth(), 1) - 7 * 3_600_000;
-      const monthLabel = thaiNow.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
-      const monthLeads = rankLeads(await fetchLeadsSince(db, new Date(monthStartUtcMs).toISOString()));
-      const title = `🗓️ สรุปลูกค้าใหม่ประจำเดือน — ${monthLabel}`;
-      const message = composeRangeMessage(monthLeads);
-      const lineSent = await deliver(db, title, message);
-      result.monthly = { totalLeads: monthLeads.length, lineSent };
+      const { since, until, label } = monthlyTarget;
+      const title = `🗓️ สรุปลูกค้าใหม่ประจำเดือน — ${label}`;
+      const { data: already } = await db.from("notifications").select("id").eq("title", title).limit(1);
+      if (already && already.length > 0) {
+        result.monthly = { skipped: "already-delivered", label };
+      } else {
+        const monthLeads = rankLeads(await fetchLeads(db, since, until));
+        const message = composeRangeMessage(monthLeads);
+        const lineSent = await deliver(db, title, message, "lead_digest_monthly");
+        result.monthly = { label, totalLeads: monthLeads.length, lineSent };
+      }
     } catch (e) {
       result.monthly = { error: (e as Error).message };
     }

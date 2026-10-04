@@ -13,6 +13,11 @@ export type LineKind =
   | "lead_digest_daily"
   | "lead_digest_weekly"
   | "lead_digest_monthly"
+  | "report_acknowledged"
+  | "report_returned"
+  | "report_reminder"
+  | "report_absence"
+  | "report_digest"
   | "other";
 
 export interface LineLogRef {

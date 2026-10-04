@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail } from "@/lib/line-log";
 import { isManagerRole } from "@/lib/roles";
 import { parseSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
@@ -94,20 +94,14 @@ export async function GET(req: NextRequest) {
     const push = await sendPush({ userEmail: email }, { title, body, url: "/reports", tag: "report-reminder" }).catch(() => ({ sent: 0 }));
     pushSent += push.sent;
 
-    // LINE ส่วนตัว (เฉพาะคนที่ผูกบัญชีแล้ว)
-    try {
-      const { data: link } = await db
-        .from("line_links")
-        .select("line_user_id")
-        .eq("user_email", email)
-        .not("linked_at", "is", null)
-        .maybeSingle();
-      if (link?.line_user_id) {
-        const name = emp.nickname || emp.full_name || "";
-        const res = await sendLine(link.line_user_id, `${title}\nคุณ${name} ${body}\nส่งได้ที่เมนู "งานรายวัน" ในแอป`);
-        if (res.ok) lineSent++;
-      }
-    } catch { /* best-effort */ }
+    // LINE ส่วนตัว (เฉพาะคนที่ผูกบัญชีแล้ว) — ส่งผ่านตัวที่บันทึกผลทุกครั้ง
+    const name = emp.nickname || emp.full_name || "";
+    const lineRes = await sendLineToEmail(
+      db, email,
+      `${title}\nคุณ${name} ${body}\nส่งได้ที่เมนู "งานรายวัน" ในแอป`,
+      { kind: "report_reminder", title },
+    );
+    if (lineRes.ok) lineSent++;
   }
 
   // ── เตือนครั้งที่ 3 (ครั้งสุดท้าย) สำหรับเคสขาดส่งที่ยังไม่ชี้แจง + แจ้งผู้บริหารให้ทราบด้วย ──
@@ -124,11 +118,9 @@ export async function GET(req: NextRequest) {
     const fTitle = "⚠️ เตือนครั้งสุดท้าย — รายงานค้างส่ง";
     const fBody = `รายงานวันที่ ${caseLabel} ยังไม่ได้ส่งและยังไม่ได้ชี้แจง — กรุณาส่งย้อนหลังหรือชี้แจงเหตุผลในแอป (แจ้งผู้บริหารรับทราบแล้ว)`;
     await sendPush({ userEmail: c.employee_email }, { title: fTitle, body: fBody, url: "/reports", tag: "report-absence-final" }).catch(() => {});
-    try {
-      const { data: link } = await db.from("line_links").select("line_user_id")
-        .ilike("user_email", c.employee_email).not("linked_at", "is", null).maybeSingle();
-      if (link?.line_user_id) await sendLine(link.line_user_id, `${fTitle}\n${fBody}`);
-    } catch { /* best-effort */ }
+    await sendLineToEmail(db, c.employee_email, `${fTitle}\n${fBody}`, {
+      kind: "report_absence", refType: "report_absence", refId: c.id, title: fTitle,
+    });
     await db.from("report_absences").update({
       reminder_count: 3, last_reminded_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq("id", c.id);
@@ -145,9 +137,13 @@ export async function GET(req: NextRequest) {
     });
     await sendPush({ department: "ฝ่ายบริหาร" }, { title: eTitle, body: eBody, url: "/reports/digest", tag: "report-absence-escalate" }).catch(() => {});
     try {
-      const { data: links } = await db.from("line_links").select("line_user_id, user_email").not("linked_at", "is", null);
-      const managerLinks = (links ?? []).filter(l => isManagerRole(roleByEmail.get((l.user_email ?? "").toLowerCase())));
-      await Promise.allSettled(managerLinks.map(l => sendLine(l.line_user_id, `${eTitle}\n${eBody}`)));
+      const { data: links } = await db.from("line_links").select("user_email").not("linked_at", "is", null);
+      const managerEmails = (links ?? [])
+        .map(l => (l.user_email ?? "").toLowerCase())
+        .filter(email => email && isManagerRole(roleByEmail.get(email)));
+      for (const email of managerEmails) {
+        await sendLineToEmail(db, email, `${eTitle}\n${eBody}`, { kind: "report_absence", title: eTitle });
+      }
     } catch { /* best-effort */ }
   }
 

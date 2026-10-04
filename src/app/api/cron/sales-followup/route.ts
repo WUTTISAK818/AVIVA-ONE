@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail } from "@/lib/line-log";
 import { thaiDateStr } from "@/lib/thai-date";
 import {
   FOLLOWUP_BATCH_SIZE, FOLLOWUP_DONE_STATUSES,
@@ -99,11 +99,7 @@ export async function GET(req: NextRequest) {
         title, message: body, is_read: false, link: "/crm",
       });
       await sendPush({ userEmail: email }, { title, body, url: "/crm", tag: "sales-followup" }).catch(() => {});
-      try {
-        const { data: link } = await db.from("line_links").select("line_user_id")
-          .ilike("user_email", email).not("linked_at", "is", null).maybeSingle();
-        if (link?.line_user_id) await sendLine(link.line_user_id, `${title}\n\n${body}`);
-      } catch { /* best-effort */ }
+      await sendLineToEmail(db, email, `${title}\n\n${body}`, { kind: "sales_followup", title });
       sent = true;
     }
     results.push({ owner, todo: ranked.length, batchSize: batch.length, batches: batches.length, sent });

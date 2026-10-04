@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail } from "@/lib/line-log";
 import { isManagerRole } from "@/lib/roles";
 import { parseSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 import { ABSENCE_GRACE_DAYS } from "@/lib/report-absences";
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       .eq("status", "active")
       .neq("department", "ฝ่ายสวน"),
     db.from("work_reports")
-      .select("user_email, status")
+      .select("user_email, status, acknowledged_by")
       .eq("report_type", "daily")
       .eq("report_date", dateStr)
       .in("status", ["submitted", "late"]),
@@ -157,11 +157,9 @@ export async function GET(req: NextRequest) {
       const staffTitle = "📝 ยังไม่ได้ส่งรายงาน";
       const staffBody = `รายงานวันที่ ${caseLabel} ยังไม่ได้ส่ง — ส่งย้อนหลังได้ที่เมนู "งานรายวัน" หรือชี้แจงเหตุผลในแอป`;
       await sendPush({ userEmail: c.employee_email }, { title: staffTitle, body: staffBody, url: "/reports", tag: "report-absence" }).catch(() => {});
-      try {
-        const { data: link } = await db.from("line_links").select("line_user_id")
-          .ilike("user_email", c.employee_email).not("linked_at", "is", null).maybeSingle();
-        if (link?.line_user_id) await sendLine(link.line_user_id, `${staffTitle}\n${staffBody}`);
-      } catch { /* best-effort */ }
+      await sendLineToEmail(db, c.employee_email, `${staffTitle}\n${staffBody}`, {
+        kind: "report_absence", refType: "report_absence", refId: c.id, title: staffTitle,
+      });
       await db.from("report_absences").update({
         reminder_count: 2, last_reminded_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).eq("id", c.id);
@@ -177,6 +175,8 @@ export async function GET(req: NextRequest) {
   const waitingExplain = (stillPending ?? []).filter(c => c.status === "open").length;
   const waitingAck = (stillPending ?? []).filter(c => c.status === "explained").length;
 
+  const pendingAck = (reports ?? []).filter(r => !r.acknowledged_by).length;
+
   const title = `📋 สรุปรายงานทีม — ${dateLabel}`;
   const lines = [
     `ส่งแล้ว ${submitted}/${expected.length} คน${late > 0 ? ` (ล่าช้า ${late})` : ""}`,
@@ -185,6 +185,9 @@ export async function GET(req: NextRequest) {
     unexplained.length > 0 ? `❗ยังไม่ทราบสาเหตุ (ต้องติดตาม) ${unexplained.length} คน: ${unexplained.join(", ")}` : "✅ ที่เหลือส่งครบ ไม่มีคนขาดโดยไม่ทราบสาเหตุ",
     waitingExplain > 0 ? `⏳ เคสค้างรอพนักงานชี้แจง ${waitingExplain} เคส` : "",
     waitingAck > 0 ? `🖐️ ชี้แจงแล้ว รอคุณกดรับทราบ ${waitingAck} เคส` : "",
+    // Pom ถาม 4 ต.ค. 69 ว่าถ้าไม่กดรับทราบรายงานจะเป็นอย่างไร — ปัญหาคือไม่มีใครบอกว่าค้างอยู่เท่าไหร่
+    // ของเดิมบอกแค่ว่าใครส่ง/ไม่ส่ง · เคยค้างสะสมถึง 191 ฉบับโดยไม่มีสัญญาณเตือนเลย
+    pendingAck > 0 ? `📖 รายงานรออ่าน ${pendingAck} ฉบับ — เปิดหน้ารายงานทีมแล้วกด "บันทึกผลการตรวจ" ครั้งเดียวจบ` : "",
   ].filter(Boolean);
   const message = lines.join("\n");
 
@@ -202,14 +205,16 @@ export async function GET(req: NextRequest) {
   try {
     const { data: links } = await db
       .from("line_links")
-      .select("line_user_id, user_email")
+      .select("user_email")
       .not("linked_at", "is", null);
-    const managerLinks = (links ?? []).filter(l =>
-      isManagerRole(roleByEmail.get((l.user_email ?? "").toLowerCase()))
-    );
+    const managerEmails = (links ?? [])
+      .map(l => (l.user_email ?? "").toLowerCase())
+      .filter(email => email && isManagerRole(roleByEmail.get(email)));
     const text = `${title}\n${message}\nดูรายละเอียด: เมนูหน้าหลัก → รายงานทีมวันนี้`;
-    const res = await Promise.allSettled(managerLinks.map(l => sendLine(l.line_user_id, text)));
-    lineSent = res.reduce((n, r) => n + (r.status === "fulfilled" && r.value.ok ? 1 : 0), 0);
+    for (const email of managerEmails) {
+      const res = await sendLineToEmail(db, email, text, { kind: "report_digest", title });
+      if (res.ok) lineSent++;
+    }
   } catch { /* best-effort */ }
 
   return NextResponse.json({

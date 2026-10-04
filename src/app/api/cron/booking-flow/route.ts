@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail } from "@/lib/line-log";
 import { thaiDateStr } from "@/lib/thai-date";
 import { daysBetweenStr } from "@/lib/lead-priority";
 import { defaultInstallments } from "@/lib/payment-plan";
@@ -160,11 +160,9 @@ export async function GET(req: NextRequest) {
           project_id: PROJECT_ID, type: "info", to_user_email: email, from_dept: "ระบบขาย",
           title, message: body, is_read: false, link: `/crm?lead=${lead.id}`,
         });
-        try {
-          const { data: link } = await db.from("line_links").select("line_user_id")
-            .ilike("user_email", email).not("linked_at", "is", null).maybeSingle();
-          if (link?.line_user_id) await sendLine(link.line_user_id, `${title}\n\n${body}`);
-        } catch { /* best-effort */ }
+        await sendLineToEmail(db, email, `${title}\n\n${body}`, {
+          kind: "booking_flow", refType: "lead", refId: lead.id, title,
+        });
         nudged++;
       }
     } else {

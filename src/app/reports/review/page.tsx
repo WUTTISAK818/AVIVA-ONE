@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
-import { createNotification } from "@/lib/notify";
 import { loadWorkSchedule, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
 import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
 import { toSignedUrl, toSignedUrls } from "@/lib/storage";
@@ -40,6 +39,33 @@ interface WReport {
   last_edited_at?: string | null;
   returned_at?: string | null;
   return_reason?: string | null;
+}
+
+interface ReviewFlag {
+  key: string;
+  icon: string;
+  label: string;
+  tone: "warn" | "info";
+}
+
+/** การ์ดสรุปรายคนของวันที่เลือก — มาจาก /api/reports/review-summary */
+interface ReviewCard {
+  id: string;
+  userEmail: string;
+  employeeName: string;
+  department: string;
+  reportDate: string;
+  status: string;
+  submittedAt: string | null;
+  acknowledgedBy: string | null;
+  ackMethod: string | null;
+  returnedAt: string | null;
+  returnReason: string | null;
+  items: number;
+  photos: number;
+  summary: string;
+  flags: ReviewFlag[];
+  noteworthy: boolean;
 }
 
 interface WeekStat {
@@ -139,6 +165,14 @@ export default function ReportsReviewPage() {
   const [searchQ, setSearchQ]           = useState("");
   const [searching, setSearching]       = useState(false);
   const [searchResults, setSearchResults] = useState<{ id: string; reportDate: string; employeeName: string; department: string; status: string; snippet: string }[] | null>(null);
+  // ── ภาพรวมรายคน + รับทราบรวม (Pom สั่ง 4 ต.ค. 69) ──
+  const [cards, setCards]           = useState<ReviewCard[]>([]);
+  const [ackIds, setAckIds]         = useState<Set<string>>(new Set());   // ติ๊กไว้ = จะรับทราบ
+  const [backIds, setBackIds]       = useState<Set<string>>(new Set());   // เลือกไว้ = จะตีกลับ
+  const [backReasons, setBackReasons] = useState<Record<string, string>>({});
+  const [bulkComment, setBulkComment] = useState("");
+  const [bulkSaving, setBulkSaving]   = useState(false);
+  const [bulkResult, setBulkResult]   = useState<string | null>(null);
 
   async function runSearch() {
     const q = searchQ.trim();
@@ -248,6 +282,8 @@ export default function ReportsReviewPage() {
         setReports((data ?? []) as WReport[]);
         setLoading(false);
       });
+    loadCards(selectedDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, selectedDate]);
 
   useEffect(() => {
@@ -276,6 +312,107 @@ export default function ReportsReviewPage() {
         setWeekStats(result);
       });
   }, [canAccess, selectedDate]);
+
+  // โหลดการ์ดสรุปรายคนของวันที่เลือก และติ๊ก "รับทราบ" มาให้ล่วงหน้าทุกฉบับที่ยังไม่รับทราบ
+  // (ผู้บริหารเอาติ๊กออกเฉพาะฉบับที่จะตีกลับ — กดครั้งเดียวจบทั้งวัน)
+  async function loadCards(dateStr: string) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/reports/review-summary?date=${dateStr}`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const json = await res.json();
+      const list: ReviewCard[] = res.ok ? (json.cards ?? []) : [];
+      setCards(list);
+      setAckIds(new Set(list.filter(c => !c.acknowledgedBy).map(c => c.id)));
+      setBackIds(new Set());
+      setBackReasons({});
+      setBulkComment("");
+      setBulkResult(null);
+    } catch {
+      setCards([]);
+    }
+  }
+
+  async function reloadDay() {
+    const { data } = await supabase
+      .from("work_reports").select("*")
+      .eq("report_date", selectedDate).eq("report_type", "daily")
+      .order("department").order("employee_name");
+    setReports((data ?? []) as WReport[]);
+    await loadCards(selectedDate);
+  }
+
+  function toggleAck(id: string) {
+    setAckIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setBackIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleBack(id: string) {
+    setBackIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setAckIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  /** ส่งผลการตรวจทั้งวันในการกดครั้งเดียว — รับทราบที่ติ๊กไว้ + ตีกลับที่เลือกไว้ */
+  async function submitReview(
+    method: "bulk" | "individual",
+    override?: { acknowledge?: string[]; sendBack?: { id: string; reason: string }[]; comment?: string },
+  ) {
+    const acknowledge = override?.acknowledge ?? [...ackIds];
+    const sendBack = override?.sendBack ?? [...backIds].map(id => ({ id, reason: (backReasons[id] ?? "").trim() }));
+    if (acknowledge.length === 0 && sendBack.length === 0) return;
+    if (sendBack.some(b => !b.reason)) {
+      setBulkResult("ตีกลับต้องเขียนเหตุผลให้ครบทุกฉบับ");
+      return;
+    }
+    setBulkSaving(true);
+    setBulkResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/reports/review-actions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          acknowledge, sendBack, method,
+          comment: (override?.comment ?? bulkComment).trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setBulkResult(json?.error ?? "บันทึกไม่สำเร็จ");
+      } else {
+        const parts = [
+          json.acknowledged > 0 ? `รับทราบ ${json.acknowledged} ฉบับ` : "",
+          json.sentBack > 0 ? `ตีกลับ ${json.sentBack} ฉบับ` : "",
+          json.lineSent > 0 ? `แจ้งทาง LINE ${json.lineSent} คน` : "",
+        ].filter(Boolean);
+        setBulkResult(`✅ ${parts.join(" · ")}`);
+        await reloadDay();
+      }
+    } catch {
+      setBulkResult("เชื่อมต่อไม่สำเร็จ");
+    }
+    setBulkSaving(false);
+  }
 
   async function openReport(r: WReport) {
     setSelected(r);
@@ -330,68 +467,29 @@ export default function ReportsReviewPage() {
     }
   }
 
+  /**
+   * รับทราบรายงานฉบับที่เปิดอ่านอยู่ — ไปทาง API เดียวกับการรับทราบรวม
+   * เพื่อให้แจ้งถึง "ตัวพนักงานคนนั้น" (กระดิ่งรายบุคคล + LINE ส่วนตัว) และบันทึกว่ารับทราบแบบอ่านรายฉบับ
+   * ของเดิมอัปเดตตรงจาก client แล้วแจ้งแบบ to_dept = ทั้งแผนก — ฝ่ายขาย 2 คนได้แจ้งเตือนของกันและกัน
+   */
   async function acknowledge() {
-    if (!selected || !user) return;
+    if (!selected) return;
     setAcknowledging(true);
-    const { data } = await supabase
-      .from("work_reports")
-      .update({
-        acknowledged_by: user.full_name ?? user.email,
-        acknowledged_at: new Date().toISOString(),
-        manager_comment: commentText.trim() || null,
-        // รับทราบแล้ว = จบ → ล้างสถานะ "ตีกลับ" ที่อาจค้าง (กันป้ายขัดกัน)
-        returned_at: null,
-        return_reason: null,
-      })
-      .eq("id", selected.id)
-      .select()
-      .single();
-    if (data) {
-      setSelected(data as WReport);
-      setReports(prev => prev.map(r => r.id === selected.id ? data as WReport : r));
-
-      // Send feedback notification to employee
-      const managerName = user.full_name ?? user.email;
-      const feedback = commentText.trim()
-        ? `${managerName}: ${commentText}`
-        : `${managerName} รับทราบรายงานแล้ว`;
-
-      await createNotification({
-        type: "info",
-        title: "ผู้จัดการรับทราบรายงานของคุณแล้ว",
-        message: feedback,
-        from_dept: "ผู้บริหาร",
-        to_dept: selected.department,
-        record_id: selected.id,
-        link: "/reports/my-reports",
-      }).catch(err => console.error("[acknowledge] Notification failed:", err));
-    }
+    await submitReview("individual", {
+      acknowledge: [selected.id], sendBack: [], comment: commentText.trim(),
+    });
+    const { data } = await supabase.from("work_reports").select("*").eq("id", selected.id).maybeSingle();
+    if (data) setSelected(data as WReport);
     setAcknowledging(false);
   }
 
   // ผู้นำ "ตีกลับให้แก้" — ไม่แก้เนื้อหาเอง (รักษา audit) แต่ส่งคืนพนักงานพร้อมเหตุผล
   async function sendBack() {
-    if (!selected || !user || !returnReason.trim()) return;
+    if (!selected || !returnReason.trim()) return;
     setReturning(true);
-    const { data } = await supabase
-      .from("work_reports")
-      .update({ returned_at: new Date().toISOString(), return_reason: returnReason.trim() })
-      .eq("id", selected.id)
-      .select()
-      .single();
-    if (data) {
-      setSelected(data as WReport);
-      setReports(prev => prev.map(r => r.id === selected.id ? data as WReport : r));
-      await createNotification({
-        type: "info",
-        title: "รายงานถูกตีกลับให้แก้ไข",
-        message: `${user.full_name ?? user.email}: ${returnReason.trim()}`,
-        from_dept: "ผู้บริหาร",
-        to_dept: selected.department,
-        record_id: selected.id,
-        link: "/reports",
-      }).catch(err => console.error("[sendBack] Notification failed:", err));
-    }
+    await submitReview("individual", { acknowledge: [], sendBack: [{ id: selected.id, reason: returnReason.trim() }] });
+    const { data } = await supabase.from("work_reports").select("*").eq("id", selected.id).maybeSingle();
+    if (data) setSelected(data as WReport);
     setReturnReason("");
     setReturnMode(false);
     setReturning(false);
@@ -410,9 +508,10 @@ export default function ReportsReviewPage() {
     return !submittedEmails.has(e.email) && !(isHoliday || isOff) && !onLeaveIds.has(e.id);
   });
   const departments = ["ทั้งหมด", ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))];
-  const filteredReports = selectedDept === "ทั้งหมด"
-    ? reports
-    : reports.filter(r => r.department === selectedDept);
+  const visibleCards = selectedDept === "ทั้งหมด"
+    ? cards
+    : cards.filter(c => c.department === selectedDept);
+  const pendingCards = visibleCards.filter(c => !c.acknowledgedBy);
 
   const submitted   = reports.filter(r => r.status === "submitted" || r.status === "late");
   const late        = reports.filter(r => r.status === "late");
@@ -859,42 +958,129 @@ export default function ReportsReviewPage() {
 
         {loading ? (
           [1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card animate-pulse" />)
-        ) : filteredReports.length === 0 ? (
+        ) : visibleCards.length === 0 ? (
           <GlassCard className="p-8 text-center">
             <ClipboardList size={24} className="text-aviva-secondary/30 mx-auto mb-2" />
             <p className="text-sm text-aviva-secondary">ยังไม่มีรายงานในวันที่เลือก</p>
           </GlassCard>
         ) : (
           <div className="space-y-2">
-            {filteredReports.map(r => (
-              <button key={r.id} onClick={() => openReport(r)}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border hover:border-aviva-gold/30 transition-all active:scale-[0.98] text-left ${STATUS_BG[r.status] ?? "bg-aviva-card border-aviva-gold/10"}`}>
-                <div className="w-9 h-9 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-aviva-gold">{(r.employee_name ?? "?").charAt(0)}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-aviva-text truncate">{r.employee_name}</p>
-                  <p className="text-[10px] text-aviva-secondary">{r.department}</p>
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <p className={`text-xs font-bold ${STATUS_COLOR[r.status] ?? "text-aviva-secondary"}`}>
-                    {STATUS_LABEL[r.status] ?? r.status}
-                  </p>
-                  {r.submitted_at && (
-                    <p className="text-[10px] text-aviva-secondary/60">
-                      {new Date(r.submitted_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
-                    </p>
+            {visibleCards.map(c => {
+              const willAck  = ackIds.has(c.id);
+              const willBack = backIds.has(c.id);
+              const done     = !!c.acknowledgedBy;
+              return (
+                <div key={c.id}
+                  className={`rounded-2xl border overflow-hidden ${
+                    done ? "bg-aviva-bg/40 border-aviva-gold/10"
+                    : willBack ? "bg-orange-500/10 border-orange-500/30"
+                    : c.noteworthy ? "bg-aviva-card border-red-500/25"
+                    : "bg-aviva-card border-aviva-gold/15"}`}>
+
+                  {/* หัวการ์ด — แตะเพื่อเปิดอ่านฉบับเต็ม */}
+                  <button onClick={() => { const r = reports.find(x => x.id === c.id); if (r) openReport(r); }}
+                    className="w-full flex items-start gap-3 p-3.5 text-left active:scale-[0.99] transition-transform">
+                    <div className="w-9 h-9 rounded-full bg-aviva-gold/10 border border-aviva-gold/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-aviva-gold">{(c.employeeName ?? "?").charAt(0)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-aviva-text">{c.employeeName}</p>
+                        <span className="text-[10px] text-aviva-secondary">{c.department}</span>
+                        {c.submittedAt && (
+                          <span className="text-[10px] text-aviva-secondary/60">
+                            {new Date(c.submittedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
+                          </span>
+                        )}
+                      </div>
+
+                      {/* เนื้อหาย่อ — ของเดิมไม่โชว์เลย ต้องกดเปิดทีละคนจึงรู้ว่าเขียนอะไร */}
+                      <p className="text-xs text-aviva-text/90 mt-1.5 leading-relaxed line-clamp-3">{c.summary}</p>
+
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-aviva-secondary">
+                        <span>📋 {c.items} รายการ</span>
+                        <span>📷 {c.photos} รูป</span>
+                        {done && (
+                          <span className="text-green-400">
+                            ✓ รับทราบแล้ว{c.ackMethod === "backfill" ? " (ย้อนหลังรวมชุด)" : c.ackMethod === "bulk" ? " (รวมทั้งวัน)" : ""}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* ป้ายเตือน — เทียบกับค่าปกติของคนนั้นเอง ไม่ใช่เกณฑ์กลาง */}
+                      {c.flags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {c.flags.map(f => (
+                            <span key={f.key}
+                              className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                                f.tone === "warn"
+                                  ? "bg-red-500/10 border-red-500/25 text-red-300"
+                                  : "bg-aviva-bg/60 border-aviva-gold/15 text-aviva-secondary"}`}>
+                              {f.icon} {f.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Eye size={14} className="text-aviva-secondary/30 flex-shrink-0 mt-1" />
+                  </button>
+
+                  {/* แถวเลือกผลการตรวจ — ซ่อนถ้ารับทราบไปแล้ว */}
+                  {!done && (
+                    <div className="border-t border-aviva-gold/10 px-3 py-2 flex items-center gap-2">
+                      <button onClick={() => toggleAck(c.id)}
+                        className={`flex-1 text-[11px] font-semibold py-1.5 rounded-lg border transition-all ${
+                          willAck ? "bg-green-500/15 border-green-500/40 text-green-300"
+                                  : "bg-aviva-bg/50 border-aviva-gold/15 text-aviva-secondary"}`}>
+                        {willAck ? "✓ จะรับทราบ" : "รับทราบ"}
+                      </button>
+                      <button onClick={() => toggleBack(c.id)}
+                        className={`flex-1 text-[11px] font-semibold py-1.5 rounded-lg border transition-all ${
+                          willBack ? "bg-orange-500/20 border-orange-500/40 text-orange-300"
+                                   : "bg-aviva-bg/50 border-aviva-gold/15 text-aviva-secondary"}`}>
+                        {willBack ? "↩️ จะตีกลับ" : "ตีกลับให้แก้"}
+                      </button>
+                    </div>
                   )}
-                  {r.acknowledged_by && (
-                    <p className="text-[9px] text-green-400/70">✓ รับทราบ</p>
+
+                  {/* ตีกลับต้องเขียนเหตุผล — ไม่งั้นพนักงานไม่รู้ว่าต้องแก้อะไร */}
+                  {willBack && (
+                    <div className="px-3 pb-3">
+                      <textarea value={backReasons[c.id] ?? ""}
+                        onChange={e => setBackReasons(prev => ({ ...prev, [c.id]: e.target.value }))}
+                        placeholder="เหตุผลที่ตีกลับ (จำเป็น) — เช่น ขอรูปงานแปลง V28 เพิ่ม"
+                        rows={2}
+                        className="w-full bg-aviva-bg border border-orange-500/25 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/50 focus:outline-none focus:border-orange-500/50" />
+                    </div>
                   )}
                 </div>
-                <Eye size={14} className="text-aviva-secondary/30 flex-shrink-0" />
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
+
+        {pendingCards.length > 0 && <div className="h-36" aria-hidden />}
       </div>
+
+      {/* แถบล่างติดหน้าจอ — กดครั้งเดียวจบทั้งวัน (เห็นการ์ดสรุป + ป้ายเตือนแล้ว) */}
+      {pendingCards.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-card/95 backdrop-blur border-t border-aviva-gold/25 px-4 pt-3 pb-5 space-y-2">
+          {bulkResult && (
+            <p className={`text-xs text-center ${bulkResult.startsWith("✅") ? "text-green-400" : "text-red-400"}`}>{bulkResult}</p>
+          )}
+          <input value={bulkComment} onChange={e => setBulkComment(e.target.value)}
+            placeholder="ความเห็นถึงทีม (ไม่บังคับ) — ส่งไปกับทุกฉบับที่รับทราบ"
+            className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-xs text-aviva-text placeholder:text-aviva-secondary/50 focus:outline-none focus:border-aviva-gold/40" />
+          <button onClick={() => submitReview("bulk")} disabled={bulkSaving || (ackIds.size === 0 && backIds.size === 0)}
+            className="w-full bg-aviva-gold text-aviva-bg font-bold text-sm py-3 rounded-xl disabled:opacity-40 active:scale-[0.98] transition-transform">
+            {bulkSaving ? "กำลังบันทึก..."
+              : `บันทึกผลการตรวจ — รับทราบ ${ackIds.size} ฉบับ${backIds.size > 0 ? ` · ตีกลับ ${backIds.size} ฉบับ` : ""}`}
+          </button>
+          <p className="text-[10px] text-aviva-secondary/60 text-center">
+            พนักงานจะได้รับแจ้งเตือนในแอป + LINE ส่วนตัวทันที · ฉบับที่รับทราบแล้วจะล็อกแก้ไม่ได้
+          </p>
+        </div>
+      )}
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">

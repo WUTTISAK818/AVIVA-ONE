@@ -36,7 +36,13 @@ export async function POST(req: NextRequest) {
   if (!isManagerRole(dbUser?.role)) {
     return NextResponse.json({ error: "เฉพาะผู้บริหาร/ผู้จัดการเท่านั้น" }, { status: 403 });
   }
-  const managerName = (dbUser?.full_name as string | null) || user.email || "ผู้บริหาร";
+  // ชื่อที่จะบันทึกว่า "รับทราบโดยใคร" — เอาจาก user_metadata ก่อน เพราะเป็นชื่อเดียวกับที่แอปแสดง
+  // (Pom เปลี่ยนชื่อแสดงเป็น "Wuttisak (CEO)" ไว้ที่ user_metadata · ตาราง users อาจยังเป็นชื่อเดิม)
+  const managerName =
+    ((user.user_metadata?.full_name as string | undefined) || "").trim() ||
+    (dbUser?.full_name as string | null) ||
+    user.email ||
+    "ผู้บริหาร";
 
   let body: { acknowledge?: string[]; sendBack?: SendBackItem[]; comment?: string; method?: string };
   try {

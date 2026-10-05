@@ -1001,8 +1001,10 @@ export default function ReportsReviewPage() {
                         <span>📋 {c.items} รายการ</span>
                         <span>📷 {c.photos} รูป</span>
                         {done && (
+                          // บอกชื่อผู้รับทราบด้วย — Pom กดเองเป็นส่วนใหญ่ แต่พี่อ้อน (COO) อาจช่วยกดบางครั้ง
                           <span className="text-green-400">
-                            ✓ รับทราบแล้ว{c.ackMethod === "backfill" ? " (ย้อนหลังรวมชุด)" : c.ackMethod === "bulk" ? " (รวมทั้งวัน)" : ""}
+                            ✓ รับทราบโดย {c.acknowledgedBy}
+                            {c.ackMethod === "backfill" ? " (ย้อนหลังรวมชุด)" : c.ackMethod === "bulk" ? " (รวมทั้งวัน)" : ""}
                           </span>
                         )}
                       </div>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Users, ClipboardList, CheckCircle, AlertTriangle, Clock, Eye, X,
   ChevronLeft, ChevronRight, MapPin, UserX, Printer, ChevronDown, ChevronUp,
@@ -173,6 +173,14 @@ export default function ReportsReviewPage() {
   const [bulkComment, setBulkComment] = useState("");
   const [bulkSaving, setBulkSaving]   = useState(false);
   const [bulkResult, setBulkResult]   = useState<string | null>(null);
+  // วันไหนบ้างที่ยังไม่ได้ตรวจรับ — Pom ขอ 6 ต.ค. 69 จะได้เข้าไปอ่านวันที่ถูกต้องโดยไม่ต้องไล่กดหา
+  const [pendingDays, setPendingDays] = useState<{ date: string; count: number }[]>([]);
+  // มาจากลิงก์ที่ระบุวันมาแล้ว (?date=) → ห้ามเด้งไปวันล่าสุดทับ
+  const [dateFromLink] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const d = new URLSearchParams(window.location.search).get("date") ?? "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "";
+  });
 
   async function runSearch() {
     const q = searchQ.trim();
@@ -220,6 +228,7 @@ export default function ReportsReviewPage() {
 
   useEffect(() => {
     if (!canAccess) return;
+    if (dateFromLink) { setSelectedDate(dateFromLink); return; }   // มาจากลิงก์ระบุวัน — ใช้วันนั้น
     supabase
       .from("work_reports")
       .select("report_date")
@@ -230,7 +239,27 @@ export default function ReportsReviewPage() {
       .then(({ data }) => {
         if (data && data.length > 0) setSelectedDate(data[0].report_date);
       });
-  }, [canAccess]);
+  }, [canAccess, dateFromLink]);
+
+  // รายการวันที่ยังมีรายงานค้างตรวจรับ (ทุกวันรวมกัน) — โหลดใหม่ทุกครั้งที่บันทึกผลการตรวจ
+  const loadPendingDays = useCallback(async () => {
+    const { data } = await supabase
+      .from("work_reports")
+      .select("report_date")
+      .eq("report_type", "daily")
+      .in("status", ["submitted", "late"])
+      .is("acknowledged_by", null)
+      .order("report_date", { ascending: false });
+    const byDate = new Map<string, number>();
+    for (const r of (data ?? []) as { report_date: string }[]) {
+      byDate.set(r.report_date, (byDate.get(r.report_date) ?? 0) + 1);
+    }
+    setPendingDays([...byDate.entries()]
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => (a.date < b.date ? 1 : -1)));
+  }, []);
+
+  useEffect(() => { if (canAccess) loadPendingDays(); }, [canAccess, loadPendingDays]);
 
   const [schedule, setSchedule] = useState<WorkSchedule>(DEFAULT_SCHEDULE);
   useEffect(() => {
@@ -407,6 +436,7 @@ export default function ReportsReviewPage() {
         ].filter(Boolean);
         setBulkResult(`✅ ${parts.join(" · ")}`);
         await reloadDay();
+        await loadPendingDays();
       }
     } catch {
       setBulkResult("เชื่อมต่อไม่สำเร็จ");
@@ -866,6 +896,33 @@ export default function ReportsReviewPage() {
               <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /><span className="text-[9px] text-aviva-secondary/50">มีล่าช้า</span></div>
               <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" /><span className="text-[9px] text-aviva-secondary/50">ยังไม่ส่ง</span></div>
             </div>
+          </GlassCard>
+        )}
+
+        {/* วันไหนบ้างที่ยังไม่ได้ตรวจรับ — แตะแล้วกระโดดไปวันนั้นเลย ไม่ต้องไล่กดลูกศรหา (Pom ขอ 6 ต.ค. 69) */}
+        {pendingDays.length > 0 && (
+          <GlassCard className="p-3 border-aviva-gold/30">
+            <p className="text-xs font-bold text-aviva-gold">
+              📖 ยังไม่ได้ตรวจรับ {pendingDays.reduce((n, d) => n + d.count, 0)} ฉบับ · {pendingDays.length} วัน
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {pendingDays.map(d => {
+                const active = d.date === selectedDate;
+                return (
+                  <button key={d.date} onClick={() => setSelectedDate(d.date)}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all active:scale-95 ${
+                      active
+                        ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                        : "bg-aviva-gold/10 text-aviva-gold border-aviva-gold/30"}`}>
+                    {new Date(d.date + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" })}
+                    {" · "}{d.count} ฉบับ
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-aviva-secondary/70 mt-2">
+              แตะวันที่เพื่อดูรายงานของวันนั้น — วันที่หายไปจากแถบนี้คือตรวจรับครบแล้ว
+            </p>
           </GlassCard>
         )}
 

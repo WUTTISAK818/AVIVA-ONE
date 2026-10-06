@@ -58,7 +58,30 @@ export async function GET(req: NextRequest) {
     const submitted = reports?.length ?? 0;
     const late = reports?.filter(r => r.status === "late").length ?? 0;
 
-    return NextResponse.json({ total: expected, submitted, late, date: todayThai });
+    // วันไหนบ้างที่ยังไม่ได้ตรวจรับ — Pom ขอ 6 ต.ค. 69 "ให้แจ้งด้วยว่าวันไหนที่ยังไม่ตรวจรับรายงาน
+    // เพื่อที่ผมจะได้เข้าไปตรวจอ่านได้ถูกต้อง" (หน้าตรวจเป็นรายวัน ถ้าไม่บอกวันต้องไล่กดหาเอง)
+    const { data: pendingRows } = await db
+      .from("work_reports")
+      .select("report_date")
+      .eq("report_type", "daily")
+      .in("status", ["submitted", "late"])
+      .is("acknowledged_by", null)
+      .order("report_date", { ascending: false });
+
+    const byDate = new Map<string, number>();
+    for (const r of pendingRows ?? []) {
+      const d = r.report_date as string;
+      byDate.set(d, (byDate.get(d) ?? 0) + 1);
+    }
+    const pendingDays = [...byDate.entries()]
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+    return NextResponse.json({
+      total: expected, submitted, late, date: todayThai,
+      pendingTotal: pendingRows?.length ?? 0,
+      pendingDays,
+    });
   } catch (err) {
     console.error("Error fetching report summary:", err);
     return NextResponse.json({ error: "Failed to fetch report summary" }, { status: 500 });

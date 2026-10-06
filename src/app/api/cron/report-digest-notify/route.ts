@@ -175,7 +175,25 @@ export async function GET(req: NextRequest) {
   const waitingExplain = (stillPending ?? []).filter(c => c.status === "open").length;
   const waitingAck = (stillPending ?? []).filter(c => c.status === "explained").length;
 
-  const pendingAck = (reports ?? []).filter(r => !r.acknowledged_by).length;
+  // รายงานที่ยังไม่ได้ตรวจรับ — นับ "ทุกวันที่ค้าง" ไม่ใช่เฉพาะเมื่อวาน แล้วบอกเป็นรายวัน
+  // (Pom ขอ 6 ต.ค. 69: "ให้แจ้งด้วยว่าวันไหนที่ยังไม่ตรวจรับรายงาน เพื่อที่ผมจะได้เข้าไปตรวจอ่านได้ถูกต้อง")
+  const { data: pendingRows } = await db
+    .from("work_reports")
+    .select("report_date")
+    .eq("report_type", "daily")
+    .in("status", ["submitted", "late"])
+    .is("acknowledged_by", null);
+
+  const pendingByDate = new Map<string, number>();
+  for (const r of pendingRows ?? []) {
+    const d = r.report_date as string;
+    pendingByDate.set(d, (pendingByDate.get(d) ?? 0) + 1);
+  }
+  const pendingAck = pendingRows?.length ?? 0;
+  const pendingDayList = [...pendingByDate.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([d, n]) => `${new Date(d + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" })} (${n})`)
+    .join(" · ");
 
   const title = `📋 สรุปรายงานทีม — ${dateLabel}`;
   const lines = [
@@ -187,7 +205,9 @@ export async function GET(req: NextRequest) {
     waitingAck > 0 ? `🖐️ ชี้แจงแล้ว รอคุณกดรับทราบ ${waitingAck} เคส` : "",
     // Pom ถาม 4 ต.ค. 69 ว่าถ้าไม่กดรับทราบรายงานจะเป็นอย่างไร — ปัญหาคือไม่มีใครบอกว่าค้างอยู่เท่าไหร่
     // ของเดิมบอกแค่ว่าใครส่ง/ไม่ส่ง · เคยค้างสะสมถึง 191 ฉบับโดยไม่มีสัญญาณเตือนเลย
-    pendingAck > 0 ? `📖 รายงานรออ่าน ${pendingAck} ฉบับ — เปิดหน้ารายงานทีมแล้วกด "บันทึกผลการตรวจ" ครั้งเดียวจบ` : "",
+    pendingAck > 0
+      ? `📖 รายงานรอคุณตรวจรับ ${pendingAck} ฉบับ · ${pendingByDate.size} วัน\n   วันที่ค้าง: ${pendingDayList}\n   เปิดหน้ารายงานทีม → แตะวันที่ต้องการ → กด "บันทึกผลการตรวจ" ครั้งเดียวจบทั้งวัน`
+      : "",
   ].filter(Boolean);
   const message = lines.join("\n");
 

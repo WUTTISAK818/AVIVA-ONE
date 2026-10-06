@@ -4,11 +4,22 @@ import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
+interface PendingDay {
+  date: string;   // YYYY-MM-DD
+  count: number;
+}
+
 interface ReportStats {
   total: number;      // พนักงานที่ต้องส่งวันนี้
   submitted: number;  // ส่งแล้ว (รวมล่าช้า)
   late: number;       // ส่งล่าช้า
+  pendingTotal?: number;      // รายงานที่ยังไม่ได้ตรวจรับ (ทุกวันรวมกัน)
+  pendingDays?: PendingDay[]; // แยกเป็นรายวัน ให้กดไปวันนั้นได้เลย
 }
+
+/** 5 ต.ค. — สั้นพอให้วางเรียงกันได้หลายวันบนมือถือ */
+const shortThai = (d: string) =>
+  new Date(d + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
 
 export default function TeamReportsSummaryWidget() {
   const [stats, setStats] = useState<ReportStats>({ total: 0, submitted: 0, late: 0 });
@@ -51,7 +62,11 @@ export default function TeamReportsSummaryWidget() {
     day: "numeric",
   });
 
+  const pendingDays = stats.pendingDays ?? [];
+  const pendingTotal = stats.pendingTotal ?? 0;
+
   return (
+    <>
     <Link href="/reports/digest">
       <div className="bg-aviva-card border border-aviva-gold/20 rounded-lg p-3 hover:border-aviva-gold/40 transition-all active:scale-[0.98] cursor-pointer mb-3">
         <div className="flex items-center justify-between gap-3 mb-2">
@@ -86,5 +101,26 @@ export default function TeamReportsSummaryWidget() {
         </div>
       </div>
     </Link>
+
+    {/* วันไหนบ้างที่ยังไม่ได้ตรวจรับ — กดวันไหนก็เข้าไปอ่านวันนั้นได้ตรง ๆ (Pom ขอ 6 ต.ค. 69) */}
+    {pendingTotal > 0 && (
+      <div className="bg-aviva-card border border-aviva-gold/25 rounded-lg p-3 mb-3">
+        <p className="text-[12px] font-bold text-aviva-gold">
+          📖 รายงานรอคุณตรวจรับ {pendingTotal} ฉบับ · {pendingDays.length} วัน
+        </p>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {pendingDays.map(d => (
+            <Link key={d.date} href={`/reports/review?date=${d.date}`}
+              className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-aviva-gold/10 border border-aviva-gold/30 text-aviva-gold active:scale-95 transition-transform">
+              {shortThai(d.date)} · {d.count} ฉบับ
+            </Link>
+          ))}
+        </div>
+        <p className="text-[10px] text-aviva-secondary/70 mt-2">
+          แตะวันที่เพื่อเปิดอ่านรายงานของวันนั้น แล้วกด &ldquo;บันทึกผลการตรวจ&rdquo; ครั้งเดียวจบทั้งวัน
+        </p>
+      </div>
+    )}
+    </>
   );
 }

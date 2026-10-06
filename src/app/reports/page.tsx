@@ -13,6 +13,7 @@ import { loadWorkSchedule } from "@/lib/work-schedule";
 import { loadApprovedSwaps, resolveOffDay } from "@/lib/off-day-swaps";
 import { loadMyOpenAbsences, explainAbsence, closeAbsenceOnSubmit, type ReportAbsence } from "@/lib/report-absences";
 import GlassCard from "@/components/GlassCard";
+import UnitProgressCard from "@/components/UnitProgressCard";
 import { thaiDateOf, thaiDateStr, dowOfDateStr } from "@/lib/thai-date";
 import { checkUploadFile } from "@/lib/upload-photos";
 import { thaiDbError } from "@/lib/db-errors";
@@ -88,6 +89,7 @@ export default function ReportsPage() {
 
   // คนสวน (ฝ่ายสวน) ไม่ต้องส่งรายงาน — เช็กหลัง hooks ครบ (กัน Rules of Hooks / หน้าแครช)
   const isGardener = user?.department === "ฝ่ายสวน";
+  const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
 
   // เคสขาดส่งรายงานที่ยังไม่จบ — ส่งย้อนหลัง หรือชี้แจงเหตุผล
   const [absences, setAbsences] = useState<ReportAbsence[]>([]);
@@ -774,6 +776,14 @@ export default function ReportsPage() {
             </div>
           )}
         </GlassCard>
+
+        {/* ฝ่ายก่อสร้าง: เชื่อมรายงานหน้างานเข้ากับผังฝ่ายก่อสร้าง (Pom แจ้ง 6 ต.ค. 69 ว่าสองส่วนนี้ไม่สัมพันธ์กัน) */}
+        {isConstruction && (
+          <UnitProgressCard
+            texts={[...items.map(i => i.description ?? ""), summary]}
+            disabled={formLocked}
+          />
+        )}
 
         {/* Attachments */}
         <GlassCard className="p-4">

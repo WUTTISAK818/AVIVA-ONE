@@ -6,6 +6,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
+import ConstructionSyncAlert from "@/components/ConstructionSyncAlert";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import DeptBriefingPanel from "@/components/DeptBriefingPanel";
@@ -1368,6 +1369,8 @@ export default function ConstructionPage() {
             <AIInsightPanel type="warning" priority="medium" title={`Defect เปิดอยู่ ${openDefects} รายการ`} message="กดเพื่อดูรายการ — ต้องดำเนินการแก้ไขก่อนส่งมอบบ้านให้ลูกค้า" />
           </button>
         )}
+
+        <ConstructionSyncAlert projectId={PROJECT_ID} />
 
         <GlassCard gold className="p-4">
           <SectionHeader title="ภาพรวมการก่อสร้าง" />

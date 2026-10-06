@@ -4,6 +4,7 @@ import { sendPush } from "@/lib/push-notify";
 import { sendLineToEmail } from "@/lib/line-log";
 import { addDaysStr, thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 import { daysBetweenStr } from "@/lib/lead-priority";
+import { CLOSE_INSTRUCTION } from "@/lib/directive-next-step";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,9 @@ async function notifyOne(
 //   ขั้น 2 = ครบกำหนดวันนี้                      → เตือนผู้รับ
 //   ขั้น 3 = เลยกำหนดแล้ว 1 วัน                  → เตือนผู้รับ + รายงานผู้สั่ง แล้วหยุดเตือน
 //   ขั้น 4 = ค้างเกิน 3 วันโดยไม่ได้กำหนดวันเสร็จ  → บอกผู้สั่งให้กำหนดวันเสร็จหรือยกเลิก แล้วหยุด
+//   ขั้น 5 = รับทราบแล้วเกิน 2 วันแต่ยังไม่กดปิดงาน → บอกผู้รับว่าต้องกดปุ่มไหน + บอกผู้สั่งว่างานอาจเสร็จแล้วแต่ไม่มีใครกดปิด
+//            (Pom สั่ง 6 ต.ค. 69 — เคสแปลง V29: ฟ้าทำเสร็จจริง 3 ต.ค. แต่คำสั่งงานค้างขึ้น "เลยกำหนด 7 วัน"
+//             เพราะไม่มีใครกด "ทำเสร็จแล้ว · ส่งให้ตรวจรับ" และระบบไม่เคยบอกว่าต้องกดอะไร)
 // กันเตือนซ้ำด้วย reminder_stage (ส่งเฉพาะขั้นที่สูงกว่าที่เคยส่งแล้ว)
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -90,11 +94,17 @@ export async function GET(req: NextRequest) {
     // งานที่พนักงานส่งมาให้ตรวจรับแล้ว ไม่ต้องไปจี้พนักงานอีก (ค้างที่ผู้สั่ง)
     if (d.status === "done") continue;
 
+    // รับทราบแล้วแต่ยังไม่ปิดงาน — นับจากวันที่กดรับทราบ
+    const ackedDays = d.acknowledged_at
+      ? daysBetweenStr(thaiDateOf(new Date(d.acknowledged_at)), today)
+      : 0;
+
     const stage = Math.max(
       !acked && ageDays >= 1 ? 1 : 0,
       d.due_date === today ? 2 : 0,
       d.due_date === yesterday ? 3 : 0,
       !d.due_date && !acked && ageDays >= 3 ? 4 : 0,
+      acked && ackedDays >= 2 ? 5 : 0,
     );
     if (stage === 0 || stage <= (d.reminder_stage ?? 0)) continue;
 
@@ -116,6 +126,17 @@ export async function GET(req: NextRequest) {
       await notifyOne(db, d.created_by,
         `🔴 งานที่สั่ง ${d.assigned_to_name ?? "พนักงาน"} เลยกำหนดแล้ว 1 วัน`,
         `${short}\n\nกำหนดเสร็จ: ${d.due_date}\nสถานะล่าสุด: ${acked ? "รับทราบแล้ว" : "ยังไม่กดรับทราบ"}\n\nระบบจะไม่เตือนซ้ำอีก — ติดตามเองหรือยกเลิกคำสั่งได้ในแท็บ "ที่ฉันสั่ง"`, d.id);
+      to.push(d.assigned_to, d.created_by);
+    } else if (stage === 5) {
+      // ตัวนี้ไม่ได้จี้ว่า "ทำไมยังไม่ทำ" แต่บอกว่า "ถ้าทำเสร็จแล้วต้องกดอะไร"
+      await notifyOne(db, d.assigned_to,
+        "📌 งานนี้ทำเสร็จแล้วหรือยัง? อย่าลืมกดปิดงาน",
+        `${short}\n\nจาก: ${d.created_by_name ?? "ผู้สั่งงาน"}\n\n${CLOSE_INSTRUCTION}`, d.id);
+      await notifyOne(db, d.created_by,
+        `📌 งานที่สั่ง ${d.assigned_to_name ?? "พนักงาน"} อาจเสร็จแล้วแต่ยังไม่ได้กดปิด`,
+        `${short}\n\nรับทราบตั้งแต่ ${ackedDays} วันก่อน แต่ยังไม่ได้กด "ทำเสร็จแล้ว · ส่งให้ตรวจรับ"\n` +
+        `ปุ่ม "ตรวจรับ · ปิดจ็อบ" ของคุณจะขึ้นก็ต่อเมื่อผู้รับกดส่งมาก่อน\n\n` +
+        `ระบบแจ้งวิธีกดให้ ${d.assigned_to_name ?? "ผู้รับงาน"} แล้ว และจะไม่เตือนซ้ำอีก`, d.id);
       to.push(d.assigned_to, d.created_by);
     } else {
       await notifyOne(db, d.created_by,

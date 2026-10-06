@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { createNotification, notifyPersonalLine } from "./notify";
+import { CLOSE_INSTRUCTION } from "./directive-next-step";
 
 // สายสถานะคำสั่งงาน — "done" คือพนักงานรายงานว่าเสร็จ (ยังไม่จบ) · "closed" คือผู้สั่งตรวจรับแล้วปิดจ็อบ (จบจริง)
 export type DirectiveStatus = "sent" | "acknowledged" | "in_progress" | "done" | "closed" | "cancelled";
@@ -40,6 +41,7 @@ export const REMINDER_STAGE_LABEL: Record<number, string> = {
   2: "เตือนผู้รับ: ครบกำหนดวันนี้",
   3: "เตือนครั้งสุดท้าย: เลยกำหนด 1 วัน (แจ้งผู้สั่งด้วย)",
   4: "แจ้งผู้สั่ง: งานค้างและไม่ได้กำหนดวันเสร็จ",
+  5: "เตือนผู้รับ: รับทราบแล้วแต่ยังไม่กดปิดงาน (แจ้งผู้สั่งด้วย)",
 };
 
 // สั่งงานตรงถึงพนักงาน 1 คนเสมอ (ไม่ใช่ทั้งแผนก) — บันทึกลง DB + แจ้งเตือนกระดิ่งในแอป (เฉพาะคนนี้) + LINE ส่วนตัว (best-effort)
@@ -67,7 +69,9 @@ export async function sendDirective(opts: {
 
   const title = `คำสั่งงานจาก ${opts.createdByName}`;
   const dueLine = opts.dueDate ? ` · กำหนดเสร็จ ${new Date(opts.dueDate).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}` : "";
-  const body = (opts.referenceNote ? `${opts.message} (${opts.referenceNote})` : opts.message) + dueLine;
+  // บอกวิธีปิดงานไปตั้งแต่ข้อความแรก — ไม่ให้พนักงานต้องเดาว่าทำเสร็จแล้วต้องกดอะไร
+  const body = (opts.referenceNote ? `${opts.message} (${opts.referenceNote})` : opts.message) + dueLine
+    + `\n\n${CLOSE_INSTRUCTION}`;
 
   await createNotification({
     type: "info",

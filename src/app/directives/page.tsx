@@ -4,6 +4,7 @@ import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, Badg
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, REMINDER_STAGE_LABEL, type Directive, type DirectiveStatus } from "@/lib/directives";
+import { nextStepFor } from "@/lib/directive-next-step";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 import { lineErrorTh } from "@/lib/line-log-th";
@@ -422,13 +423,25 @@ export default function DirectivesPage() {
                   </div>
                 )}
 
-                {tab === "received" && d.status === "done" && (
-                  <div className="mt-3 pt-3 border-t border-amber-500/20">
-                    <p className="text-[13px] text-amber-400">
-                      รายงานผลไปแล้ว — รอ {d.created_by_name || "ผู้สั่งงาน"} ตรวจรับและปิดจ็อบ
-                    </p>
-                  </div>
-                )}
+                {/* ขั้นต่อไปต้องกดอะไร — ระบบบอกให้ชัด ไม่ต้องให้คนเดาเอง (Pom สั่ง 6 ต.ค. 69) */}
+                {!["closed", "cancelled"].includes(d.status) && (() => {
+                  const step = nextStepFor(d.status, tab === "received" ? "assignee" : "commander", {
+                    commanderName: d.created_by_name,
+                    assigneeName: d.assigned_to_name,
+                    returned: !!d.returned_at && d.status !== "done",
+                  });
+                  return (
+                    <div className={`mt-3 rounded-xl border px-3 py-2.5 ${
+                      step.tone === "todo"
+                        ? "bg-aviva-gold/10 border-aviva-gold/35"
+                        : "bg-aviva-bg/60 border-aviva-gold/15"}`}>
+                      <p className={`text-[13px] font-bold ${step.tone === "todo" ? "text-aviva-gold" : "text-aviva-secondary"}`}>
+                        {step.headline}
+                      </p>
+                      <p className="text-[12px] text-aviva-text/85 leading-relaxed mt-1 whitespace-pre-line">{step.detail}</p>
+                    </div>
+                  );
+                })()}
 
                 {tab === "sent" && !["closed", "cancelled"].includes(d.status) && (
                   <button

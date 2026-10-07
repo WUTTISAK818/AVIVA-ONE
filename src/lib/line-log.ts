@@ -18,6 +18,7 @@ export type LineKind =
   | "report_reminder"
   | "report_absence"
   | "report_digest"
+  | "construction_progress"
   | "other";
 
 export interface LineLogRef {

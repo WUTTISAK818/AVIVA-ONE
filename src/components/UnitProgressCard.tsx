@@ -77,7 +77,8 @@ export default function UnitProgressCard({
         }),
       });
       const json = await res.json();
-      if (!res.ok) { setResult(json?.error ?? "บันทึกไม่สำเร็จ"); }
+      // ยึดผลจาก server เสมอ — เคยมีกรณีขึ้นว่าสำเร็จทั้งที่ผังไม่เปลี่ยน (6 ต.ค. 69)
+      if (!res.ok || json?.ok === false) { setResult(json?.error ?? "บันทึกไม่สำเร็จ"); }
       else {
         setResult(`✅ อัปเดตผังก่อสร้างแล้ว ${json.changed?.length ?? 0} แปลง`);
         setHouses(prev => (prev ?? []).map(h =>

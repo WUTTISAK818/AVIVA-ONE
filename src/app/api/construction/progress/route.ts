@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
 
   const changed: { plotCode: string; from: number; to: number; status: string }[] = [];
   const notFound: string[] = [];
+  const failed: { plotCode: string; reason: string }[] = [];
   const now = new Date().toISOString();
 
   for (const u of updates) {
@@ -69,9 +70,17 @@ export async function POST(req: NextRequest) {
     const status = statusFor(to);
     if (to === from && status === house.construction_status) continue;   // ไม่มีอะไรเปลี่ยน ไม่ต้องเขียน
 
-    await db.from("houses").update({
+    // ต้องเช็คผลจริงก่อนบอกว่าสำเร็จ — 6 ต.ค. 69 พีทกดบันทึกแล้วระบบขึ้นว่าสำเร็จ
+    // แต่ผังไม่เปลี่ยนเลย เพราะ trigger log_construction_progress ของฐานข้อมูล error
+    // แล้ว rollback ทั้งคำสั่ง ส่วนโค้ดตรงนี้ไม่ได้อ่านค่าที่คืนกลับมา จึงรายงานผลผิด
+    const { data: updated, error: upErr } = await db.from("houses").update({
       progress: to, construction_status: status, updated_by: byName, updated_at: now,
-    }).eq("id", house.id);
+    }).eq("id", house.id).select("id");
+
+    if (upErr || !updated || updated.length === 0) {
+      failed.push({ plotCode: code, reason: upErr?.message ?? "ฐานข้อมูลไม่รับการแก้ไข" });
+      continue;
+    }
 
     // เก็บประวัติไว้ด้วย — ผังบอกแค่สถานะล่าสุด ส่วนตารางนี้บอกว่าใครอัปเดตเมื่อไหร่จากงานอะไร
     await db.from("construction_reports").insert({
@@ -92,6 +101,15 @@ export async function POST(req: NextRequest) {
       message: `${byName} อัปเดตจากรายงานหน้างาน${note ? `\n\n${note}` : ""}`,
       is_read: false, link: "/construction",
     }).then(() => {}, () => {});
+  }
+
+  // มีแปลงที่เขียนไม่สำเร็จ = ต้องบอกผู้ใช้ตรง ๆ ไม่ใช่ขึ้นว่าสำเร็จแล้วปล่อยให้เข้าใจผิด
+  if (failed.length > 0) {
+    return NextResponse.json({
+      ok: false,
+      error: `บันทึกไม่สำเร็จ ${failed.length} แปลง: ${failed.map(f => f.plotCode).join(", ")} — แจ้งผู้ดูแลระบบ`,
+      changed, notFound, failed,
+    }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, changed, notFound });

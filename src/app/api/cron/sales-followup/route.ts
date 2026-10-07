@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
 import { sendLineToEmail } from "@/lib/line-log";
-import { thaiDateStr } from "@/lib/thai-date";
+import { addDaysStr, thaiDateStr } from "@/lib/thai-date";
 import {
   FOLLOWUP_BATCH_SIZE, FOLLOWUP_DONE_STATUSES,
   rankFollowupLeads, splitIntoBatches, type PriorityLead,
@@ -121,5 +121,96 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ ok: true, date: today, batchSize: FOLLOWUP_BATCH_SIZE, unassignedTotal, grandTodo, results });
+  // ── เตือนนัดหมายสำคัญล่วงหน้า (Pom แจ้ง 7 ต.ค. 69 ว่านัดโอนบ้าน A7 ไม่มีใครเตือนเลย) ──
+  // เตือน 2 จังหวะ: ล่วงหน้า 3 วัน (เตรียมเอกสาร/นัดคน) และเช้าวันนัดเอง
+  const apptSent = await remindAppointments(db, today);
+
+  return NextResponse.json({ ok: true, date: today, batchSize: FOLLOWUP_BATCH_SIZE, unassignedTotal, grandTodo, results, apptSent });
+}
+
+interface ApptLead {
+  id: string; customer_name: string; plot_number: number | null; assigned_to: string | null;
+  transfer_appointment_date: string | null; contract_appointment_date: string | null; delivery_date: string | null;
+}
+
+const APPT_LABEL: Record<string, string> = {
+  transfer_appointment_date: "🔑 นัดโอนกรรมสิทธิ์",
+  contract_appointment_date: "📝 นัดทำสัญญา",
+  delivery_date: "🏠 นัดส่งมอบบ้าน",
+};
+
+/** เตือนนัดโอน/นัดทำสัญญา/นัดส่งมอบ — ถึงพนักงานเจ้าของลูกค้าและผู้บริหาร */
+async function remindAppointments(db: SupabaseClient, today: string): Promise<number> {
+  const in3 = addDaysStr(today, 3);
+
+  const { data } = await db.from("leads")
+    .select("id, customer_name, plot_number, assigned_to, transfer_appointment_date, contract_appointment_date, delivery_date")
+    .eq("project_id", PROJECT_ID)
+    .or(
+      `transfer_appointment_date.in.(${today},${in3}),` +
+      `contract_appointment_date.in.(${today},${in3}),` +
+      `delivery_date.in.(${today},${in3})`,
+    );
+  const rows = (data ?? []) as ApptLead[];
+  if (rows.length === 0) return 0;
+
+  const hits: { lead: ApptLead; field: keyof typeof APPT_LABEL; date: string }[] = [];
+  for (const l of rows) {
+    for (const f of Object.keys(APPT_LABEL) as (keyof typeof APPT_LABEL)[]) {
+      const d = l[f as keyof ApptLead] as string | null;
+      if (d === today || d === in3) hits.push({ lead: l, field: f, date: d });
+    }
+  }
+  if (hits.length === 0) return 0;
+
+  const emailByName = await ownerEmails(db);
+  const line = (h: typeof hits[number]) =>
+    `${APPT_LABEL[h.field]} — ${h.lead.customer_name}` +
+    (h.lead.plot_number ? ` · แปลง ${h.lead.plot_number}` : "") +
+    (h.date === today ? " · **วันนี้**" : " · อีก 3 วัน");
+
+  let sent = 0;
+
+  // 1) ถึงพนักงานเจ้าของลูกค้า
+  const byOwner = new Map<string, typeof hits>();
+  for (const h of hits) {
+    const owner = (h.lead.assigned_to ?? "").trim();
+    if (!owner) continue;
+    byOwner.set(owner, [...(byOwner.get(owner) ?? []), h]);
+  }
+  for (const [owner, list] of byOwner) {
+    const email = emailByName.get(owner.toLowerCase());
+    if (!email) continue;
+    const title = `📅 นัดหมายที่ต้องเตรียม ${list.length} รายการ`;
+    const body = `${list.map(line).join("\n")}\n\nตรวจความพร้อม: เอกสาร · ลูกค้ายืนยัน · ทีมที่เกี่ยวข้อง`;
+    await db.from("notifications").insert({
+      project_id: PROJECT_ID, type: "info", to_user_email: email, from_dept: "ระบบขาย",
+      title, message: body, is_read: false, link: "/crm",
+    }).then(() => {}, () => {});
+    await sendLineToEmail(db, email, `${title}\n\n${body}`, { kind: "appointment_reminder", title });
+    sent++;
+  }
+
+  // 2) ถึงผู้บริหาร — นัดโอน/สัญญา/ส่งมอบเป็นเรื่องที่ผู้บริหารต้องรู้ล่วงหน้าเสมอ
+  const eTitle = `📅 นัดหมายสำคัญ ${hits.length} รายการ`;
+  await db.from("notifications").insert({
+    project_id: PROJECT_ID, type: "info", to_dept: "ผู้บริหาร", from_dept: "ระบบขาย",
+    title: eTitle, message: hits.map(line).join("\n"), is_read: false, link: "/crm",
+  }).then(() => {}, () => {});
+
+  return sent;
+}
+
+/** จับคู่ชื่อพนักงานขาย → อีเมล (leads เก็บเป็นชื่อเล่น) */
+async function ownerEmails(db: SupabaseClient): Promise<Map<string, string>> {
+  const { data } = await db.from("employees").select("email, full_name, nickname").eq("status", "active");
+  const map = new Map<string, string>();
+  for (const e of data ?? []) {
+    const email = (e.email ?? "").toLowerCase();
+    if (!email) continue;
+    for (const n of [e.full_name, e.nickname]) {
+      if (n) map.set(String(n).trim().toLowerCase(), email);
+    }
+  }
+  return map;
 }

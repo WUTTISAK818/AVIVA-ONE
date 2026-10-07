@@ -10,6 +10,7 @@ import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
+import UpcomingAppointmentsCard from "@/components/UpcomingAppointmentsCard";
 import TeamReportsSummaryWidget from "@/components/TeamReportsSummaryWidget";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import { supabase } from "@/lib/supabase";
@@ -707,6 +708,9 @@ export default function DashboardPage() {
             )}
           </GlassCard>
         )}
+
+        {/* นัดหมายข้างหน้า — ปฏิทินด้านล่างเป็นกิจกรรมย้อนหลัง ไม่แสดงนัดในอนาคต (Pom แจ้ง 7 ต.ค. 69) */}
+        <UpcomingAppointmentsCard />
 
         {/* Daily Activity Calendar - ปฏิทินกิจกรรมขยับขึ้นบน */}
         {canSeeAll && (

@@ -207,7 +207,7 @@ async function addPastItems(db: ReturnType<typeof getSupabaseAdmin>, ctx: PastCt
   const isMine = (owner: string | null | undefined) =>
     manager || (!!owner && myNames.includes(owner.trim().toLowerCase()));
 
-  const [repRes, siteRes, leadRes, payRes] = await Promise.all([
+  const [repRes, siteRes, leadRes, payRes, contrRes, poRes, jvRes, actRes, logRes] = await Promise.all([
     db.from("work_reports")
       .select("id, employee_name, department, report_date, status")
       .eq("report_type", "daily").in("status", ["submitted", "late"])
@@ -221,6 +221,22 @@ async function addPastItems(db: ReturnType<typeof getSupabaseAdmin>, ctx: PastCt
     db.from("customer_installments")
       .select("id, lead_id, name, amount, paid_date")
       .not("paid_date", "is", null).gte("paid_date", from).lte("paid_date", to),
+    // ส่วนที่เหลือของ "ปฏิทินกิจกรรมประจำวัน" เดิม — ย้ายมารวมที่นี่ตามที่ Pom ขอ 8 ต.ค. 69
+    db.from("contractor_installments")
+      .select("id, house_id, name, amount, status, approved_at, paid_at")
+      .or(`and(approved_at.gte.${from}T00:00:00,approved_at.lte.${to}T23:59:59),and(paid_at.gte.${from}T00:00:00,paid_at.lte.${to}T23:59:59)`),
+    db.from("purchase_orders")
+      .select("id, po_number, supplier_name, total_amount, status, created_at")
+      .gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
+    db.from("jv_entries")
+      .select("id, jv_number, description, total_debit, jv_date")
+      .gte("jv_date", from).lte("jv_date", to),
+    db.from("sales_activities")
+      .select("id, activity_type, note, created_by_name, activity_date")
+      .gte("activity_date", from + "T00:00:00").lte("activity_date", to + "T23:59:59"),
+    db.from("daily_activity_log")
+      .select("id, activity_type, description, performer_name, activity_date")
+      .gte("activity_date", from).lte("activity_date", to),
   ]);
 
   for (const r of repRes.data ?? []) {
@@ -269,6 +285,60 @@ async function addPastItems(db: ReturnType<typeof getSupabaseAdmin>, ctx: PastCt
     push("done_booking", dateOnly(l.booking_date as string | null));
     push("done_contract", dateOnly(l.contract_signed_date as string | null));
     push("done_transfer", dateOnly(l.transfer_date as string | null));
+  }
+
+  // ── ส่วนของทั้งโครงการ: เห็นเฉพาะผู้บริหาร (เป็นข้อมูลระดับบริษัท ไม่ใช่งานรายคน) ──
+  if (manager) {
+    const plotByHouse2 = new Map<string, string>();
+    const hIds = [...new Set((contrRes.data ?? []).map(r => r.house_id as string).filter(Boolean))];
+    if (hIds.length > 0) {
+      const { data: hs } = await db.from("houses").select("id, plot_code").in("id", hIds);
+      for (const h of hs ?? []) plotByHouse2.set(h.id as string, h.plot_code as string);
+    }
+    for (const c of contrRes.data ?? []) {
+      const when = dateOnly((c.paid_at as string | null) ?? (c.approved_at as string | null));
+      if (!when) continue;
+      add({
+        id: `contr-${c.id}`, kind: "done_contractor", date: when,
+        title: plotByHouse2.get(c.house_id as string) ?? "แปลง",
+        detail: `${c.name as string} · ${baht(Number(c.amount ?? 0))} · ${c.paid_at ? "จ่ายแล้ว" : "อนุมัติแล้ว"}`,
+        owner: null, link: "/construction",
+      });
+    }
+    for (const o of poRes.data ?? []) {
+      add({
+        id: `po-${o.id}`, kind: "done_purchase",
+        date: dateOnly((o.created_at as string).replace(" ", "T"))!,
+        title: (o.po_number as string | null) ?? "ใบสั่งซื้อ",
+        detail: `${(o.supplier_name as string | null) ?? "-"} · ${baht(Number(o.total_amount ?? 0))}`,
+        owner: null, link: "/office",
+      });
+    }
+    for (const j of jvRes.data ?? []) {
+      add({
+        id: `jv-${j.id}`, kind: "done_accounting", date: dateOnly(j.jv_date as string)!,
+        title: (j.jv_number as string | null) ?? "รายการบัญชี",
+        detail: `${(j.description as string | null) ?? ""} · ${baht(Number(j.total_debit ?? 0))}`.trim(),
+        owner: null, link: "/office",
+      });
+    }
+    for (const a of actRes.data ?? []) {
+      add({
+        id: `act-${a.id}`, kind: "done_activity",
+        date: dateOnly((a.activity_date as string).replace(" ", "T"))!,
+        title: (a.activity_type as string | null) ?? "กิจกรรม",
+        detail: (a.note as string | null) ?? (a.created_by_name as string | null),
+        owner: (a.created_by_name as string | null) ?? null, link: "/crm",
+      });
+    }
+    for (const g of logRes.data ?? []) {
+      add({
+        id: `log-${g.id}`, kind: "done_activity", date: dateOnly(g.activity_date as string)!,
+        title: (g.description as string | null) ?? (g.activity_type as string | null) ?? "กิจกรรม",
+        detail: (g.performer_name as string | null) ?? null,
+        owner: (g.performer_name as string | null) ?? null, link: null,
+      });
+    }
   }
 
   for (const p of payRes.data ?? []) {

@@ -9,8 +9,8 @@ import { useCurrentUser } from "@/lib/user-context";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
-import { DailyActivityCalendar } from "@/components/DailyActivityCalendar";
 import UpcomingAppointmentsCard from "@/components/UpcomingAppointmentsCard";
+import ProjectCalendar from "@/components/ProjectCalendar";
 import TeamReportsSummaryWidget from "@/components/TeamReportsSummaryWidget";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
 import { supabase } from "@/lib/supabase";
@@ -715,8 +715,8 @@ export default function DashboardPage() {
         {/* Daily Activity Calendar - ปฏิทินกิจกรรมขยับขึ้นบน */}
         {canSeeAll && (
           <div>
-            <SectionHeader title="ปฏิทินกิจกรรมประจำวัน" subtitle="ดูภาพรวมการทำงานแต่ละวัน" />
-            <DailyActivityCalendar />
+            <SectionHeader title="ปฏิทินโครงการ" subtitle="นัดหมายข้างหน้า + กิจกรรมที่ทำไปแล้ว ในปฏิทินเดียว" />
+            <ProjectCalendar compact />
           </div>
         )}
 

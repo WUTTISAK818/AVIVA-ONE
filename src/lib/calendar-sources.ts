@@ -26,7 +26,11 @@ export type CalendarKind =
   | "done_booking"    // รับจอง
   | "done_contract"   // ทำสัญญา
   | "done_transfer"   // โอนกรรมสิทธิ์แล้ว
-  | "done_payment";   // รับชำระเงินงวด
+  | "done_payment"    // รับชำระเงินงวด
+  | "done_contractor" // งวดงานผู้รับเหมา (อนุมัติ/จ่าย)
+  | "done_purchase"   // ใบสั่งซื้อ
+  | "done_accounting" // บันทึกบัญชี
+  | "done_activity";  // กิจกรรมอื่นที่ระบบบันทึกไว้
 
 export interface CalendarItem {
   id: string;
@@ -69,6 +73,10 @@ export const KIND_META: Record<CalendarKind, KindMeta> = {
   done_contract: { label: "ทำสัญญาแล้ว",     emoji: "🤝", weight: "past", text: "text-green-400",       chip: "bg-green-500/10 border-green-500/30 text-green-300" },
   done_transfer: { label: "โอนกรรมสิทธิ์แล้ว", emoji: "✅", weight: "past", text: "text-aviva-gold",     chip: "bg-aviva-gold/10 border-aviva-gold/30 text-aviva-gold" },
   done_payment:  { label: "รับชำระเงินงวด",  emoji: "💵", weight: "past", text: "text-yellow-300",      chip: "bg-yellow-500/10 border-yellow-500/25 text-yellow-300" },
+  done_contractor: { label: "งวดงานผู้รับเหมา", emoji: "🧰", weight: "past", text: "text-amber-300",    chip: "bg-amber-500/10 border-amber-500/25 text-amber-300" },
+  done_purchase:   { label: "ใบสั่งซื้อ",      emoji: "🛒", weight: "past", text: "text-purple-300",   chip: "bg-purple-500/10 border-purple-500/25 text-purple-300" },
+  done_accounting: { label: "บันทึกบัญชี",     emoji: "📘", weight: "past", text: "text-blue-300",     chip: "bg-blue-500/10 border-blue-500/25 text-blue-300" },
+  done_activity:   { label: "กิจกรรมอื่น",     emoji: "📌", weight: "past", text: "text-aviva-secondary", chip: "bg-aviva-bg border-aviva-gold/15 text-aviva-secondary" },
 };
 
 /** มุมมองของปฏิทิน — ข้างหน้า (ต้องทำ) · ย้อนหลัง (ทำไปแล้ว) · ทั้งหมด */
@@ -76,7 +84,8 @@ export type CalendarView = "upcoming" | "past" | "all";
 
 export const PAST_KINDS: CalendarKind[] = [
   "done_transfer", "done_contract", "done_booking", "done_payment",
-  "done_site", "done_report", "done_lead",
+  "done_contractor", "done_purchase", "done_accounting",
+  "done_site", "done_report", "done_lead", "done_activity",
 ];
 
 export function kindsForView(view: CalendarView): CalendarKind[] {
@@ -93,7 +102,8 @@ export const KIND_ORDER: CalendarKind[] = [
   "leave", "holiday", "followup",
   // ย้อนหลัง — ต่อท้ายเสมอ เพราะเป็นข้อมูลอ้างอิง ไม่ใช่สิ่งที่ต้องลงมือ
   "done_transfer", "done_contract", "done_booking", "done_payment",
-  "done_site", "done_report", "done_lead",
+  "done_contractor", "done_purchase", "done_accounting",
+  "done_site", "done_report", "done_lead", "done_activity",
 ];
 
 export function sortItems(items: CalendarItem[]): CalendarItem[] {

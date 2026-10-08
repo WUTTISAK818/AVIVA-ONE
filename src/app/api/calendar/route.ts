@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyAuth } from "@/lib/api-auth";
 import { isManagerRole } from "@/lib/roles";
-import { expandRange, sortItems, type CalendarItem } from "@/lib/calendar-sources";
+import { expandRange, sortItems, type CalendarItem, type CalendarView } from "@/lib/calendar-sources";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "ต้องระบุ from/to เป็น YYYY-MM-DD" }, { status: 400 });
   }
 
+  const viewParam = (url.searchParams.get("view") ?? "upcoming").trim();
+  const view: CalendarView = viewParam === "past" || viewParam === "all" ? viewParam : "upcoming";
+  const wantUpcoming = view !== "past";
+  const wantPast = view !== "upcoming";
+
   const db = getSupabaseAdmin();
   const { data: dbUser } = await db.from("users").select("role, full_name").eq("id", user.id).maybeSingle();
   const manager = isManagerRole(dbUser?.role);
@@ -43,6 +48,7 @@ export async function GET(req: NextRequest) {
   const items: CalendarItem[] = [];
   const add = (i: CalendarItem) => { if (i.date >= from && i.date <= to) items.push(i); };
 
+  if (wantUpcoming) {
   const [leadsRes, instRes, dirRes, housesRes, apprRes, holRes, leaveRes, evtRes] = await Promise.all([
     db.from("leads")
       .select("id, customer_name, plot_number, assigned_to, status, transfer_appointment_date, contract_appointment_date, delivery_date, next_follow_up_date, visit_date")
@@ -178,5 +184,101 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ from, to, scope: manager ? "all" : "mine", items: sortItems(items) });
+  }
+
+  if (wantPast) await addPastItems(db, { from, to, manager, myNames, add });
+
+  return NextResponse.json({ from, to, view, scope: manager ? "all" : "mine", items: sortItems(items) });
+}
+
+interface PastCtx {
+  from: string; to: string; manager: boolean; myNames: string[];
+  add: (i: CalendarItem) => void;
+}
+
+/**
+ * สิ่งที่ "เกิดขึ้นไปแล้ว" — Pom ขอ 8 ต.ค. 69 ให้เห็นงาน/กิจกรรมทุกอย่างในปฏิทินเดียว
+ * เลือกเฉพาะเหตุการณ์ที่เป็นหมุดหมายจริง ไม่ดึงทุกแถวของทุกตาราง
+ * (ปริมาณจริง 30 วันล่าสุด: รายงานประจำวัน 76 · ลูกค้าใหม่ 53 · ที่เหลือหลักหน่วย
+ *  หน้าจอจึงสรุปเป็นยอดต่อวัน แล้วค่อยกางดูรายละเอียด ไม่งั้นกลบนัดสำคัญ)
+ */
+async function addPastItems(db: ReturnType<typeof getSupabaseAdmin>, ctx: PastCtx) {
+  const { from, to, manager, myNames, add } = ctx;
+  const isMine = (owner: string | null | undefined) =>
+    manager || (!!owner && myNames.includes(owner.trim().toLowerCase()));
+
+  const [repRes, siteRes, leadRes, payRes] = await Promise.all([
+    db.from("work_reports")
+      .select("id, employee_name, department, report_date, status")
+      .eq("report_type", "daily").in("status", ["submitted", "late"])
+      .gte("report_date", from).lte("report_date", to),
+    db.from("construction_reports")
+      .select("id, house_id, reported_by, progress, work_type, created_at")
+      .gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
+    db.from("leads")
+      .select("id, customer_name, plot_number, assigned_to, source, created_at, created_at_default, booking_date, contract_signed_date, transfer_date")
+      .eq("project_id", PROJECT_ID),
+    db.from("customer_installments")
+      .select("id, lead_id, name, amount, paid_date")
+      .not("paid_date", "is", null).gte("paid_date", from).lte("paid_date", to),
+  ]);
+
+  for (const r of repRes.data ?? []) {
+    if (!isMine(r.employee_name as string | null)) continue;
+    add({
+      id: `rep-${r.id}`, kind: "done_report", date: dateOnly(r.report_date as string)!,
+      title: (r.employee_name as string) ?? "-",
+      detail: (r.department as string | null) ?? null,
+      owner: null, link: "/reports/review",
+    });
+  }
+
+  const plotByHouse = new Map<string, string>();
+  const houseIds = [...new Set((siteRes.data ?? []).map(r => r.house_id as string).filter(Boolean))];
+  if (houseIds.length > 0) {
+    const { data: hs } = await db.from("houses").select("id, plot_code").in("id", houseIds);
+    for (const h of hs ?? []) plotByHouse.set(h.id as string, h.plot_code as string);
+  }
+  for (const r of siteRes.data ?? []) {
+    add({
+      id: `site-${r.id}`, kind: "done_site",
+      date: dateOnly((r.created_at as string).replace(" ", "T"))!,
+      title: plotByHouse.get(r.house_id as string) ?? "แปลง",
+      detail: `${r.progress ?? 0}% · ${(r.reported_by as string | null) ?? "-"}`,
+      owner: (r.reported_by as string | null) ?? null, link: "/construction",
+    });
+  }
+
+  const leadRows = (leadRes.data ?? []) as Record<string, unknown>[];
+  const payByLead = new Map<string, { name: string; plot: number | null; owner: string | null }>();
+  for (const l of leadRows) {
+    const owner = (l.assigned_to as string | null) ?? null;
+    payByLead.set(l.id as string, {
+      name: l.customer_name as string, plot: (l.plot_number as number | null) ?? null, owner,
+    });
+    if (!isMine(owner)) continue;
+    const base = {
+      title: l.customer_name as string,
+      detail: l.plot_number ? `แปลง ${l.plot_number}` : null,
+      owner, link: "/crm",
+    };
+    const created = dateOnly(((l.created_at_default as string | null) ?? (l.created_at as string)).replace(" ", "T"));
+    if (created) add({ id: `lead-${l.id}`, kind: "done_lead", date: created, ...base, detail: (l.source as string | null) ?? base.detail });
+    const push = (kind: CalendarItem["kind"], d: string | null) =>
+      d && add({ id: `${l.id}-${kind}`, kind, date: d, ...base });
+    push("done_booking", dateOnly(l.booking_date as string | null));
+    push("done_contract", dateOnly(l.contract_signed_date as string | null));
+    push("done_transfer", dateOnly(l.transfer_date as string | null));
+  }
+
+  for (const p of payRes.data ?? []) {
+    const lead = payByLead.get(p.lead_id as string);
+    if (lead && !isMine(lead.owner)) continue;
+    add({
+      id: `pay-${p.id}`, kind: "done_payment", date: dateOnly(p.paid_date as string)!,
+      title: lead?.name ?? (p.name as string),
+      detail: `${p.name as string} · ${baht(Number(p.amount ?? 0))}`,
+      owner: lead?.owner ?? null, link: "/crm",
+    });
+  }
 }

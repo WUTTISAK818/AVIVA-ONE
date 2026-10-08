@@ -18,7 +18,15 @@ export type CalendarKind =
   | "approval"        // เรื่องรออนุมัติครบกำหนด (SLA)
   | "holiday"         // วันหยุดบริษัท
   | "leave"           // ใบลาที่อนุมัติแล้ว
-  | "event";          // นัดทั่วไปที่คนกรอกเอง (ประชุม/นัดผู้รับเหมา/นัดธนาคาร)
+  | "event"           // นัดทั่วไปที่คนกรอกเอง (ประชุม/นัดผู้รับเหมา/นัดธนาคาร)
+  // ── ย้อนหลัง: สิ่งที่เกิดขึ้นไปแล้ว (Pom ขอ 8 ต.ค. 69 ให้เห็นงาน/กิจกรรมทุกอย่างในปฏิทินเดียว) ──
+  | "done_report"     // ส่งรายงานประจำวัน
+  | "done_site"       // รายงานหน้างาน/อัปเดตความคืบหน้าแปลง
+  | "done_lead"       // ลูกค้าใหม่เข้ามา
+  | "done_booking"    // รับจอง
+  | "done_contract"   // ทำสัญญา
+  | "done_transfer"   // โอนกรรมสิทธิ์แล้ว
+  | "done_payment";   // รับชำระเงินงวด
 
 export interface CalendarItem {
   id: string;
@@ -33,8 +41,8 @@ export interface CalendarItem {
 export interface KindMeta {
   label: string;
   emoji: string;
-  /** สำคัญ = ต้องเตรียมตัวล่วงหน้า พลาดไม่ได้ · ปกติ = งานประจำวัน · พื้นหลัง = ข้อมูลประกอบ */
-  weight: "critical" | "normal" | "background";
+  /** สำคัญ = ต้องเตรียมตัวล่วงหน้า พลาดไม่ได้ · ปกติ = งานประจำวัน · พื้นหลัง = ข้อมูลประกอบ · ย้อนหลัง = เกิดขึ้นแล้ว */
+  weight: "critical" | "normal" | "background" | "past";
   /** คลาสสีแบบเต็ม (Tailwind compile คลาสประกอบสดไม่ได้) */
   text: string;
   chip: string;
@@ -53,13 +61,39 @@ export const KIND_META: Record<CalendarKind, KindMeta> = {
   leave:       { label: "ลา (อนุมัติแล้ว)", emoji: "🏖️", weight: "background", text: "text-cyan-400",       chip: "bg-cyan-500/15 border-cyan-500/40 text-cyan-300" },
   holiday:     { label: "วันหยุดบริษัท",    emoji: "🌴", weight: "background", text: "text-pink-400",       chip: "bg-pink-500/15 border-pink-500/40 text-pink-300" },
   event:       { label: "นัดหมายทั่วไป",    emoji: "📅", weight: "normal",     text: "text-aviva-text",     chip: "bg-aviva-bg border-aviva-gold/25 text-aviva-text" },
+
+  done_report:   { label: "ส่งรายงานประจำวัน", emoji: "📄", weight: "past", text: "text-aviva-secondary", chip: "bg-aviva-bg border-aviva-gold/15 text-aviva-secondary" },
+  done_site:     { label: "รายงานหน้างาน",   emoji: "🧱", weight: "past", text: "text-orange-300",      chip: "bg-orange-500/10 border-orange-500/25 text-orange-300" },
+  done_lead:     { label: "ลูกค้าใหม่",      emoji: "✨", weight: "past", text: "text-green-300",       chip: "bg-green-500/10 border-green-500/25 text-green-300" },
+  done_booking:  { label: "รับจอง",          emoji: "🏷️", weight: "past", text: "text-aviva-gold",      chip: "bg-aviva-gold/10 border-aviva-gold/25 text-aviva-gold" },
+  done_contract: { label: "ทำสัญญาแล้ว",     emoji: "🤝", weight: "past", text: "text-green-400",       chip: "bg-green-500/10 border-green-500/30 text-green-300" },
+  done_transfer: { label: "โอนกรรมสิทธิ์แล้ว", emoji: "✅", weight: "past", text: "text-aviva-gold",     chip: "bg-aviva-gold/10 border-aviva-gold/30 text-aviva-gold" },
+  done_payment:  { label: "รับชำระเงินงวด",  emoji: "💵", weight: "past", text: "text-yellow-300",      chip: "bg-yellow-500/10 border-yellow-500/25 text-yellow-300" },
 };
+
+/** มุมมองของปฏิทิน — ข้างหน้า (ต้องทำ) · ย้อนหลัง (ทำไปแล้ว) · ทั้งหมด */
+export type CalendarView = "upcoming" | "past" | "all";
+
+export const PAST_KINDS: CalendarKind[] = [
+  "done_transfer", "done_contract", "done_booking", "done_payment",
+  "done_site", "done_report", "done_lead",
+];
+
+export function kindsForView(view: CalendarView): CalendarKind[] {
+  const past = new Set(PAST_KINDS);
+  if (view === "past") return KIND_ORDER.filter(k => past.has(k));
+  if (view === "upcoming") return KIND_ORDER.filter(k => !past.has(k));
+  return KIND_ORDER;
+}
 
 /** ลำดับการแสดงในวันเดียวกัน — เรื่องที่พลาดไม่ได้ขึ้นก่อนเสมอ */
 export const KIND_ORDER: CalendarKind[] = [
   "transfer", "contract", "delivery", "installment",
   "visit", "directive", "approval", "completion", "event",
   "leave", "holiday", "followup",
+  // ย้อนหลัง — ต่อท้ายเสมอ เพราะเป็นข้อมูลอ้างอิง ไม่ใช่สิ่งที่ต้องลงมือ
+  "done_transfer", "done_contract", "done_booking", "done_payment",
+  "done_site", "done_report", "done_lead",
 ];
 
 export function sortItems(items: CalendarItem[]): CalendarItem[] {

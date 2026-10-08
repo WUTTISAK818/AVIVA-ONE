@@ -12,8 +12,14 @@ import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 import {
   KIND_META, KIND_ORDER, criticalCount,
-  type CalendarItem, type CalendarKind,
+  type CalendarItem, type CalendarKind, type CalendarView,
 } from "@/lib/calendar-sources";
+
+const VIEWS: { key: CalendarView; label: string }[] = [
+  { key: "upcoming", label: "ที่ต้องทำ" },
+  { key: "past", label: "ที่ทำไปแล้ว" },
+  { key: "all", label: "ทั้งหมด" },
+];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
@@ -29,6 +35,7 @@ export default function CalendarPage() {
   const [selected, setSelected] = useState<string>(today);
   const [hidden, setHidden] = useState<Set<CalendarKind>>(new Set());
   const [scope, setScope] = useState<"all" | "mine">("mine");
+  const [view, setView] = useState<CalendarView>("upcoming");
 
   const monthStart = ymd(cursor.year, cursor.month, 1);
   const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
@@ -38,7 +45,7 @@ export default function CalendarPage() {
     setItems(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/calendar?from=${monthStart}&to=${monthEnd}`, {
+      const res = await fetch(`/api/calendar?from=${monthStart}&to=${monthEnd}&view=${view}`, {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
       });
       const json = await res.json();
@@ -47,7 +54,7 @@ export default function CalendarPage() {
     } catch {
       setItems([]);
     }
-  }, [monthStart, monthEnd]);
+  }, [monthStart, monthEnd, view]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -83,7 +90,7 @@ export default function CalendarPage() {
   };
 
   const dayItems = byDate.get(selected) ?? [];
-  const upcoming = visible.filter(i => i.date >= today).slice(0, 30);
+  const upcoming = visible.filter(i => i.date >= today && KIND_META[i.kind].weight !== "past").slice(0, 30);
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
@@ -98,6 +105,19 @@ export default function CalendarPage() {
       </div>
 
       <div className="p-4 space-y-3">
+        {/* สลับมุมมอง — Pom ขอ 8 ต.ค. 69 ให้เห็นงาน/กิจกรรมทุกอย่าง แต่แยกชั้นไม่ให้ของย้อนหลังกลบนัดสำคัญ */}
+        <div className="flex gap-1.5">
+          {VIEWS.map(v => (
+            <button key={v.key} onClick={() => { setView(v.key); setHidden(new Set()); }}
+              className={clsx("flex-1 text-xs font-bold py-2 rounded-xl border transition-all active:scale-[0.98]",
+                view === v.key
+                  ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                  : "bg-aviva-card text-aviva-secondary border-aviva-gold/20")}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+
         <GlassCard className="p-3">
           <div className="flex items-center gap-2">
             <button onClick={() => move(-1)} className="p-2 rounded-xl hover:bg-aviva-gold/10 text-aviva-secondary">
@@ -175,15 +195,18 @@ export default function CalendarPage() {
                 {new Date(selected + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" })}
               </p>
               {dayItems.length === 0 ? (
-                <p className="text-xs text-aviva-secondary mt-2">วันนี้ไม่มีนัดหมายหรือกำหนดส่งอะไร</p>
+                <p className="text-xs text-aviva-secondary mt-2">
+                  {view === "past" ? "วันนี้ไม่มีกิจกรรมที่บันทึกไว้" : "วันนี้ไม่มีนัดหมายหรือกำหนดส่งอะไร"}
+                </p>
               ) : (
                 <div className="space-y-2 mt-2.5">
-                  {dayItems.map(i => <Row key={i.id} item={i} />)}
+                  {dayItems.filter(i => KIND_META[i.kind].weight !== "past").map(i => <Row key={i.id} item={i} />)}
+                  <PastGroups items={dayItems.filter(i => KIND_META[i.kind].weight === "past")} />
                 </div>
               )}
             </GlassCard>
 
-            {upcoming.length > 0 && (
+            {view !== "past" && upcoming.length > 0 && (
               <GlassCard className="p-3.5">
                 <p className="text-sm font-bold text-aviva-text">ถัดไปในเดือนนี้</p>
                 <div className="space-y-2 mt-2.5">
@@ -202,6 +225,47 @@ export default function CalendarPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** ของย้อนหลังสรุปเป็นยอดต่อชนิดก่อน แล้วค่อยกางดูรายชื่อ — วันหนึ่งมีได้หลายสิบรายการ */
+function PastGroups({ items }: { items: CalendarItem[] }) {
+  const [open, setOpen] = useState<Set<CalendarKind>>(new Set());
+  if (items.length === 0) return null;
+
+  const groups = new Map<CalendarKind, CalendarItem[]>();
+  for (const i of items) groups.set(i.kind, [...(groups.get(i.kind) ?? []), i]);
+
+  return (
+    <div className="space-y-1.5">
+      {[...groups.entries()].map(([kind, list]) => {
+        const meta = KIND_META[kind];
+        const isOpen = open.has(kind);
+        return (
+          <div key={kind}>
+            <button
+              onClick={() => setOpen(prev => {
+                const next = new Set(prev);
+                if (next.has(kind)) next.delete(kind); else next.add(kind);
+                return next;
+              })}
+              className="w-full flex items-center justify-between bg-aviva-bg/40 rounded-xl px-3 py-2 active:scale-[0.99] transition-transform">
+              <span className={clsx("text-xs font-semibold", meta.text)}>{meta.emoji} {meta.label}</span>
+              <span className="text-[11px] text-aviva-secondary">{list.length} รายการ {isOpen ? "▴" : "▾"}</span>
+            </button>
+            {isOpen && (
+              <div className="mt-1 space-y-1 pl-2">
+                {list.map(i => (
+                  <p key={i.id} className="text-[11px] text-aviva-secondary leading-relaxed">
+                    • {i.title}{i.detail ? ` · ${i.detail}` : ""}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

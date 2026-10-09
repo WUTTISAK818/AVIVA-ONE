@@ -79,3 +79,64 @@ export function nextStepFor(
     tone: "waiting",
   };
 }
+
+/** ลำดับการแสดงผลในหน้าคำสั่งงาน
+ *  Pom สั่ง 9 ต.ค. 69: "คำสั่งที่ปิดจ็อบแล้วให้เลื่อนไปไว้ล่าง งานที่ค้างอยู่ให้แสดงด้านบนตามลำดับ"
+ *  เดิมเรียงตามวันที่สั่งอย่างเดียว -> งานที่เพิ่งปิดจ็อบไปลอยอยู่บนสุด
+ *  บังหน้างานที่ยังต้องทำ ยิ่งปิดงานได้มากหน้าจอยิ่งรก
+ *
+ *  กลุ่ม (น้อยไปมาก = บนลงล่าง):
+ *    0  ตาคุณ + เลยกำหนดแล้ว   — ด่วนที่สุด
+ *    1  ตาคุณ                   — ต้องลงมือ
+ *    2  รออีกฝ่าย + เลยกำหนด    — ต้องไปตาม
+ *    3  รออีกฝ่าย               — ยังไม่ต้องทำอะไร
+ *    4  ปิดจ็อบ / ยกเลิกแล้ว    — ล่างสุด
+ */
+export function directiveSortGroup(
+  status: string,
+  viewer: DirectiveViewer,
+  opts: { returned?: boolean; overdue?: boolean } = {},
+): number {
+  const { tone } = nextStepFor(status, viewer, { returned: opts.returned });
+  if (tone === "done") return 4;
+  if (tone === "todo") return opts.overdue ? 0 : 1;
+  return opts.overdue ? 2 : 3;
+}
+
+export interface SortableDirective {
+  status: string;
+  due_date?: string | null;
+  created_at: string;
+  returned_at?: string | null;
+  closed_at?: string | null;
+  cancelled_at?: string | null;
+}
+
+/** เรียงคำสั่งงานให้ "งานที่ต้องทำ" อยู่บน และ "งานที่จบแล้ว" ไปล่างสุด
+ *  ในกลุ่มเดียวกัน: ใกล้ครบกำหนดก่อน (ไม่มีกำหนดไปท้ายกลุ่ม) แล้วค่อยใหม่สุดก่อน
+ *  งานที่จบแล้วเรียงตามเวลาที่จบ ใหม่สุดอยู่บนของกลุ่มล่าง */
+export function sortDirectives<T extends SortableDirective>(
+  items: T[],
+  viewer: DirectiveViewer,
+  todayStr: string,
+): T[] {
+  const FINISHED = ["done", "closed", "cancelled"];
+  const keyed = items.map((d) => {
+    const overdue = !!d.due_date && d.due_date < todayStr && !FINISHED.includes(d.status);
+    return {
+      d,
+      group: directiveSortGroup(d.status, viewer, { returned: !!d.returned_at && d.status !== "done", overdue }),
+      due: d.due_date ?? "9999-12-31",
+      finishedAt: d.closed_at ?? d.cancelled_at ?? d.created_at,
+    };
+  });
+
+  return keyed
+    .sort((a, b) => {
+      if (a.group !== b.group) return a.group - b.group;
+      if (a.group === 4) return b.finishedAt.localeCompare(a.finishedAt);
+      if (a.due !== b.due) return a.due.localeCompare(b.due);
+      return b.d.created_at.localeCompare(a.d.created_at);
+    })
+    .map((x) => x.d);
+}

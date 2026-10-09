@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, REMINDER_STAGE_LABEL, type Directive, type DirectiveStatus } from "@/lib/directives";
-import { nextStepFor } from "@/lib/directive-next-step";
+import { nextStepFor, sortDirectives } from "@/lib/directive-next-step";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 import { lineErrorTh } from "@/lib/line-log-th";
@@ -233,6 +233,14 @@ export default function DirectivesPage() {
 
   const pendingReview = items.filter((d) => d.status === "done").length;
 
+  // งานที่ต้องลงมือขึ้นบน · ปิดจ็อบ/ยกเลิกแล้วไปล่างสุด (Pom สั่ง 9 ต.ค. 69)
+  const sortedItems = useMemo(
+    () => sortDirectives(items, tab === "received" ? "assignee" : "commander", todayStr),
+    [items, tab, todayStr],
+  );
+  const openCount = sortedItems.filter(d => !["closed", "cancelled"].includes(d.status)).length;
+  const finishedCount = sortedItems.length - openCount;
+
   if (!user) return null;
 
   return (
@@ -280,11 +288,24 @@ export default function DirectivesPage() {
             </p>
           </GlassCard>
         ) : (
-          items.map((d) => {
+          sortedItems.map((d, i) => {
             const meta = STATUS_META[d.status];
+            // เส้นคั่นก่อนงานที่จบแล้วรายการแรก — ให้เห็นชัดว่าของค้างหมดแค่ไหน
+            const finished = ["closed", "cancelled"].includes(d.status);
+            const startsFinished = finished && (i === 0 || !["closed", "cancelled"].includes(sortedItems[i - 1].status));
             const overdue = !!d.due_date && d.due_date < todayStr && !["done", "closed", "cancelled"].includes(d.status);
             return (
-              <GlassCard key={d.id} className="p-4">
+              <div key={d.id}>
+              {startsFinished && (
+                <div className="flex items-center gap-3 my-4">
+                  <span className="h-px flex-1 bg-aviva-gold/15" />
+                  <span className="text-[12px] text-aviva-secondary font-medium">
+                    จบแล้ว {finishedCount} รายการ{openCount === 0 ? "" : ` · ค้างอยู่ ${openCount} รายการด้านบน`}
+                  </span>
+                  <span className="h-px flex-1 bg-aviva-gold/15" />
+                </div>
+              )}
+              <GlassCard className={finished ? "p-4 opacity-60" : "p-4"}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[13px] text-aviva-secondary font-medium">
                     {tab === "received" ? `จาก ${d.created_by_name || d.created_by}` : `ถึง ${d.assigned_to_name || d.assigned_to}`}
@@ -489,6 +510,7 @@ export default function DirectivesPage() {
                   </div>
                 )}
               </GlassCard>
+              </div>
             );
           })
         )}

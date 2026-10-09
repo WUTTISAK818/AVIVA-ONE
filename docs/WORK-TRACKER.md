@@ -1820,3 +1820,26 @@ SELECT full_name, department FROM auth.users WHERE id = NEW.updated_by
 - **`approval_overdue` / `employees_directory` ยังเป็น SECURITY DEFINER โดยเจตนา** — `employees_directory` ตัด `base_salary`/`commission_rate` ออกแล้ว เหลือแค่ชื่อ/ฝ่าย/ตำแหน่ง/อีเมล = สมุดรายชื่อที่ทุกคนควรเห็น โดยไม่ต้องเปิดตาราง `employees` ที่มีเงินเดือน (ตรวจ definition แล้ว 9 ต.ค. 69)
 
 **สรุปกระทบยอด #71:** 9 รายการ — ✔️ ตรวจผ่าน ×8 · ✅ โค้ดเสร็จรอ Vee ทดสอบจริง ×1 (รายการ 9) · 🚫 รอคน ×1 (Leaked Password Protection อยู่ในชุด #70 ข้อ 4)
+
+### เพิ่มเติม (รอบเดียวกัน — ตรวจ advisor แล้วตามเก็บต่อ)
+
+| # | รายการ | วิธีตรวจ | สถานะ |
+|---|---|---|---|
+| 10 | **`auth_user_role(uid)` รับ uuid ของใครก็ได้** — เป็น SECURITY DEFINER ที่อ่าน `auth.users` และผู้ล็อกอินเรียกได้ผ่าน `/rest/v1/rpc/auth_user_role` → สอบถาม role ของเพื่อนร่วมงานได้ · ตรวจแล้วทั้ง 17 policy + 2 ฟังก์ชันส่ง `auth.uid()` อย่างเดียว | เปลี่ยนทั้งหมดไปใช้ `auth_role()` (ตัวเองเท่านั้น) แล้ว `REVOKE` ตัวที่รับ uuid · advisor 7→6 ตัว | ✔️ ตรวจผ่าน |
+| 11 | **`enforce_approval_maker_checker()` ก็ mismatch กับ UI** — เทียบ role ตรงตัว 6 ค่า แต่หน้าจออนุมัติ gate ด้วย `isManager` (regex) → "Sales Manager" เห็นปุ่มอนุมัติแต่ DB ปฏิเสธ | เปลี่ยนไปใช้ `is_app_manager()` · กฎ "ผู้อนุมัติต้องไม่ใช่ผู้ยื่น" คงเดิม | ✔️ ตรวจผ่าน |
+| 12 | **ตารางภาษี/การเงินยังว่าง 0 แถว** จึงนับแถวพิสูจน์ไม่ได้ | ทดสอบด้วยการ INSERT จริงใน transaction แล้ว ROLLBACK: ฟ้าออกใบกำกับภาษี → `violates row-level security policy` · Pom → สำเร็จ 1 แถว | ✔️ ตรวจผ่าน |
+
+### ผลตรวจ advisor ก่อน/หลัง
+
+| คำเตือน | ก่อน | หลัง |
+|---|---|---|
+| `anon` เรียกฟังก์ชัน SECURITY DEFINER ได้ | 4 | **0** |
+| ฟังก์ชันไม่ได้ตั้ง `search_path` | 2 | **0** |
+| view SECURITY DEFINER ข้าม RLS | 3 | **2** (ที่เหลือเป็นเจตนา) |
+| ผู้ล็อกอินเรียกฟังก์ชัน SECURITY DEFINER ได้ | 7 | **6** |
+| RLS เปิดแต่ไม่มี policy | 12 | 12 (ปิดสนิทอยู่แล้ว ไม่ใช่ช่องโหว่) |
+| Leaked Password Protection | 1 | 1 🚫 รอ Pom กดใน Dashboard |
+
+> **ทำไมเหลือ 6 ตัว:** `auth_role` · `auth_dept` · `is_app_manager` · `can_see_leads` · `can_edit_leads` · `can_view_finance` คืนข้อมูลของ "ตัวผู้เรียกเอง" เท่านั้น เรียกแล้วไม่ได้อะไรที่ตัวเองไม่รู้อยู่แล้ว · และ **ต้องให้ `authenticated` เรียกได้** เพราะ RLS ประเมิน expression ด้วยสิทธิ์ของคน query ถ้าถอน EXECUTE จะใช้แอปไม่ได้ทั้งระบบ · ต่างจาก `auth_user_role(uid)` ที่รับ uuid ของคนอื่นได้ จึงถอนไปแล้วในรายการ 10
+
+**สรุปกระทบยอด #71 (ฉบับสมบูรณ์):** 12 รายการ — ✔️ ตรวจผ่าน ×11 · ✅ โค้ดเสร็จรอ Vee ทดสอบจริง ×1 (แผงวันลา HR รายการ 9)

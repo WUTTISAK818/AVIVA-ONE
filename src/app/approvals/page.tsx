@@ -205,6 +205,33 @@ function ItemsList({ items }: { items: unknown }) {
 }
 
 // ดึงข้อมูลจริงจากตารางต้นทางตาม workflow_type + source_record_id มาแสดงก่อนอนุมัติ
+/** เตือนยอดที่ "ผ่านระบบไปแล้วแต่ดูไม่สมเหตุผล" ให้เห็นตอนเปิดดูย้อนหลัง
+ *  ที่เจอจริง (9 ต.ค. 69): แปลง 15 และ 7 อนุมัติเงินจอง ฿0 และไม่เคยบันทึกเงินจอง ·
+ *  แปลง 16 บันทึกราคาขาย ฿50,000 ทั้งที่โอนกรรมสิทธิ์แล้ว (น่าจะใส่ยอดเงินจองผิดช่อง)
+ *  ตัวเลขพวกนี้ไหลไปรายงานรายได้ จึงต้องสะดุดตาแทนที่จะเงียบ */
+function AmountWarnings({ row, logAmount }: { row: Record<string, unknown>; logAmount: number | null }) {
+  const warnings: string[] = [];
+  const deposit = row.booking_deposit;
+  const price = Number(row.contract_price ?? 0);
+
+  if (deposit === null || deposit === undefined)
+    warnings.push("ไม่เคยบันทึก “เงินจองที่รับจริง” — ใบจองและงวดแรกของตารางผ่อนจะใช้ค่าตั้งต้นแทนยอดจริง");
+  if (logAmount !== null && Number(logAmount) === 0)
+    warnings.push("คำขออนุมัตินี้ยื่นมาด้วยยอด ฿0");
+  if (price > 0 && price < 100000)
+    warnings.push(`ราคาขายที่บันทึกไว้คือ ฿${price.toLocaleString("th-TH")} ซึ่งต่ำผิดปกติสำหรับบ้านหนึ่งหลัง — อาจใส่ยอดเงินจองผิดช่อง`);
+  if (!row.contract_price && String(row.status ?? "") !== "New Lead")
+    warnings.push("ยังไม่ได้บันทึกราคาขายที่ตกลง ทั้งที่ลูกค้าเดินเรื่องไปแล้ว");
+
+  if (warnings.length === 0) return null;
+  return (
+    <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 space-y-1">
+      <p className="text-[11px] font-bold text-amber-300">⚠️ ตัวเลขที่ควรตรวจซ้ำ</p>
+      {warnings.map((w) => <p key={w} className="text-[11px] text-amber-200/90 leading-relaxed">• {w}</p>)}
+    </div>
+  );
+}
+
 function SourceDetail({ log }: { log: ApprovalLog }) {
   const [row, setRow] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -282,8 +309,10 @@ function SourceDetail({ log }: { log: ApprovalLog }) {
         <DetailRow label="เบอร์โทร" value={str(row.phone)} />
         {/* "งบ/ราคา" เดิมกำกวม — แยกเป็นราคาขายจริง กับงบลูกค้าที่เป็นแค่ข้อมูลคัดกรอง */}
         <DetailRow label="ราคาขายที่ตกลง" value={row.contract_price ? baht(row.contract_price) : "ยังไม่ระบุ"} />
+        <DetailRow label="เงินจองที่รับจริง" value={row.booking_deposit != null ? baht(row.booking_deposit) : "ยังไม่บันทึก"} />
         {Number(row.budget) > 0 && <DetailRow label="งบประมาณลูกค้า (อ้างอิง)" value={baht(row.budget)} />}
         <DetailRow label="สถานะ" value={str(row.status)} />
+        <AmountWarnings row={row} logAmount={log.amount} />
       </>}
     </div>
   );
@@ -917,7 +946,12 @@ function ApprovalsContent() {
 
             return (
               <GlassCard key={log.id} dataFocus={log.source_record_id ?? log.id} className={clsx("p-3 border", cfg.border)}>
-                <div className="flex items-start gap-2.5">
+                {/* แตะที่การ์ดเพื่อดูรายละเอียดคำขอฉบับเต็ม + ประวัติการส่งต่องาน
+                    (Pom ถาม 9 ต.ค. 69: "เข้าไปดูรายละเอียดแต่ละรายการได้ไหม" — เดิมเปิดไม่ได้เลย
+                     โมดัลเขียนไว้ครบแต่ไม่มีจุดไหนเรียก setDetail จึงเป็นโค้ดที่ไม่เคยถูกใช้) */}
+                <div className="flex items-start gap-2.5 cursor-pointer" role="button" tabIndex={0}
+                  onClick={() => setDetail(log)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetail(log); } }}>
                   <div className={clsx("w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0", cfg.bg)}>
                     <Icon size={14} className={cfg.color} />
                   </div>
@@ -944,12 +978,14 @@ function ApprovalsContent() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {canAct && (
-                      <button onClick={() => setVerifyLog(log)}
+                      <button onClick={(e) => { e.stopPropagation(); setVerifyLog(log); }}
                         className="text-[10px] px-2 py-1 rounded-lg bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30">
                         ตรวจสอบ &amp; อนุมัติ
                       </button>
                     )}
-                    <button onClick={() => setExpandedId(isExpanded ? null : log.id)} className="text-aviva-secondary">
+                    <button aria-label={isExpanded ? "ย่อข้อมูลย่อ" : "ดูข้อมูลย่อ"}
+                      onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : log.id); }}
+                      className="text-aviva-secondary">
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
                   </div>
@@ -1024,11 +1060,18 @@ function ApprovalsContent() {
       </div>
 
       {/* Detail / Action Modal */}
-      {detail && (
+      {detail && (() => {
+        // เรื่องที่ตัดสินไปแล้วเปิดดูได้ แต่กดอนุมัติ/ปฏิเสธซ้ำไม่ได้
+        const decided = normAction(detail.action_taken) !== "Pending";
+        const canActNow = !decided && (user?.isManager || user?.isAdmin);
+        const outcome = ACTION_CONFIG[normAction(detail.action_taken)] ?? ACTION_CONFIG.Pending;
+        return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" role="presentation">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14" role="dialog" aria-labelledby="approval-modal-title" aria-modal="true">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 max-h-[88vh] overflow-y-auto" role="dialog" aria-labelledby="approval-modal-title" aria-modal="true">
             <div className="flex items-center justify-between">
-              <h2 id="approval-modal-title" className="text-base font-bold text-aviva-text">ดำเนินการอนุมัติ</h2>
+              <h2 id="approval-modal-title" className="text-base font-bold text-aviva-text">
+                {canActNow ? "ดำเนินการอนุมัติ" : "รายละเอียดคำขอ"}
+              </h2>
               <button aria-label="ปิด" onClick={() => setDetail(null)}><X size={20} className="text-aviva-secondary" /></button>
             </div>
             <div className="bg-aviva-bg rounded-xl p-4 space-y-2 text-sm">
@@ -1053,6 +1096,33 @@ function ApprovalsContent() {
                 </div>
               )}
             </div>
+            {decided && (
+              <div className="bg-aviva-bg rounded-xl p-4 space-y-2 text-sm">
+                <p className="text-xs font-semibold text-aviva-secondary/70 mb-1">ผลการพิจารณา</p>
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary">ผล</span>
+                  <span className={clsx("font-bold", outcome.color)}>{outcome.label}</span>
+                </div>
+                {detail.approver_email && (
+                  <div className="flex justify-between">
+                    <span className="text-aviva-secondary">ผู้พิจารณา</span>
+                    <span className="text-aviva-text text-right max-w-[60%] break-all">{detail.approver_email}</span>
+                  </div>
+                )}
+                {detail.action_timestamp && (
+                  <div className="flex justify-between">
+                    <span className="text-aviva-secondary">เมื่อ</span>
+                    <span className="text-aviva-text">{new Date(detail.action_timestamp).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}</span>
+                  </div>
+                )}
+                {detail.notes && (
+                  <div className="flex justify-between">
+                    <span className="text-aviva-secondary">หมายเหตุ</span>
+                    <span className="text-aviva-text text-right max-w-[60%]">{detail.notes}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <SourceDetail log={detail} />
             {detail.source_record_id && (
               <div className="border-t border-aviva-gold/10 pt-3">
@@ -1060,6 +1130,7 @@ function ApprovalsContent() {
                 <WorkflowTimeline sourceRecordId={detail.source_record_id} />
               </div>
             )}
+            {canActNow && (
             <div>
               <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ (ถ้ามี)</label>
               <textarea
@@ -1070,6 +1141,15 @@ function ApprovalsContent() {
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 resize-none placeholder:text-aviva-secondary/40"
               />
             </div>
+            )}
+            {!canActNow && (
+              <p className="text-[11px] text-aviva-secondary bg-aviva-bg/60 rounded-xl px-3 py-2.5">
+                {decided
+                  ? "เรื่องนี้พิจารณาเสร็จแล้ว เปิดดูได้อย่างเดียว ไม่สามารถเปลี่ยนผลย้อนหลังได้"
+                  : "เรื่องนี้ยังรอพิจารณา — เฉพาะผู้จัดการ/ผู้บริหารเท่านั้นที่กดอนุมัติหรือปฏิเสธได้"}
+              </p>
+            )}
+            {canActNow && (
             <div className="flex gap-3">
               <button
                 onClick={() => handleApprove(detail, true)}
@@ -1084,9 +1164,11 @@ function ApprovalsContent() {
                 <XCircle size={16} /> ปฏิเสธ
               </button>
             </div>
+            )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {verifyLog && (
         <ApprovalVerifyModal

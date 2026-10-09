@@ -1,3 +1,4 @@
+import { contactPlan } from "./contact-channel";
 // จัดลำดับความสำคัญลูกค้าที่ต้องติดตาม แล้วแบ่งเป็น "ชุด" ทีละ 10 ราย
 // เหตุผล (Pom 28 ก.ย. 69): ส่งรายชื่อค้างติดตามทีเดียว 150 ราย พนักงานทำไม่ทันและไม่รู้จะเริ่มที่ใคร
 // → ระบบต้องบอกว่า "วันนี้โทร 10 คนนี้ เรียงตามความสำคัญ" แล้วค่อยทยอยชุดถัดไป
@@ -23,6 +24,10 @@ export interface PriorityLead {
   visit_date?: string | null;
   assigned_to?: string | null;
   created_at_default?: string | null;
+  /** ช่องทางที่ติดต่อได้จริง — ลูกค้าออนไลน์เกือบครึ่งไม่มีเบอร์ แต่ทักแชตได้ */
+  contact_channel?: string | null;
+  contact_handle?: string | null;
+  source?: string | null;
 }
 
 export type PriorityTier = "hot" | "warm" | "cold";
@@ -33,8 +38,10 @@ export interface ScoredLead<T extends PriorityLead = PriorityLead> {
   tier: PriorityTier;
   reasons: string[];
   overdueDays: number;
-  /** ไม่มีเบอร์โทร = ติดตามไม่ได้จริง ต้องไปหาเบอร์ก่อน จึงดันไปท้ายคิว */
-  noPhone: boolean;
+  /** ติดต่อไม่ได้เลย = ไม่มีทั้งเบอร์ที่ใช้ได้และช่องทางแชต จึงดันไปท้ายคิว
+   *  (เดิมชื่อ noPhone และดูแค่ว่าช่อง phone ว่างไหม ทำให้ลูกค้า 103 ราย
+   *   ที่ใส่ 099-999-9999 ถูกนับว่า "มีเบอร์" แล้วลอยขึ้นหัวคิวทั้งที่โทรไม่ติด) */
+  unreachable: boolean;
 }
 
 /** จำนวนวันระหว่างวันที่รูปแบบ YYYY-MM-DD (b − a) — ใช้ UTC เที่ยงวันกันปัญหา timezone/DST */
@@ -113,20 +120,25 @@ export function scoreLead<T extends PriorityLead>(lead: T, today: string): Score
     if (quiet >= 30) { score += 6; reasons.push(`ไม่ได้คุยมา ${quiet} วัน`); }
   }
 
-  const noPhone = !(lead.phone ?? "").replace(/\D/g, "");
-  if (noPhone) { score -= 10; reasons.push("ไม่มีเบอร์โทร — ต้องหาเบอร์ก่อน"); }
+  const plan = contactPlan(lead);
+  const unreachable = plan.unreachable;
+  if (unreachable) { score -= 10; reasons.push("ยังไม่มีช่องทางติดต่อ — ต้องหาช่องทางก่อน"); }
+  else if (plan.channel !== "phone" && !plan.handle) {
+    // ทักได้แต่ยังไม่รู้ว่าทักหาใคร — ติดตามได้ช้ากว่าคนที่ข้อมูลครบ
+    score -= 3; reasons.push(`ติดต่อทาง ${plan.label} — ยังไม่ได้บันทึกชื่อผู้ติดต่อ`);
+  }
 
   const tier: PriorityTier = score >= 45 ? "hot" : score >= 25 ? "warm" : "cold";
-  return { lead, score, tier, reasons, overdueDays, noPhone };
+  return { lead, score, tier, reasons, overdueDays, unreachable };
 }
 
-/** เรียงลูกค้าที่ต้องติดตามตามความสำคัญ (คนไม่มีเบอร์ไปท้ายคิวเสมอ) */
+/** เรียงลูกค้าที่ต้องติดตามตามความสำคัญ (คนที่ติดต่อไม่ได้เลยไปท้ายคิวเสมอ) */
 export function rankFollowupLeads<T extends PriorityLead>(leads: T[], today: string): ScoredLead<T>[] {
   return leads
     .filter(l => needsFollowup(l, today))
     .map(l => scoreLead(l, today))
     .sort((a, b) => {
-      if (a.noPhone !== b.noPhone) return a.noPhone ? 1 : -1;
+      if (a.unreachable !== b.unreachable) return a.unreachable ? 1 : -1;
       if (b.score !== a.score) return b.score - a.score;
       if (b.overdueDays !== a.overdueDays) return b.overdueDays - a.overdueDays;
       return a.lead.customer_name.localeCompare(b.lead.customer_name, "th");

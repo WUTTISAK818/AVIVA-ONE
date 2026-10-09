@@ -28,6 +28,7 @@ import LoanApplications from "@/components/LoanApplications";
 import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
+import { CONTACT_CHANNELS, isPlaceholderPhone } from "@/lib/contact-channel";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
 import { uploadPhotos } from "@/lib/upload-photos";
@@ -73,6 +74,8 @@ interface Lead {
   customer_name: string;
   phone: string;
   email?: string | null;
+  contact_channel?: string | null;
+  contact_handle?: string | null;
   budget: number;
   status: LeadStatus;
   source: string;
@@ -227,6 +230,8 @@ const emptyForm = {
   assigned_to: "",
   phone: "",
   email: "",
+  contact_channel: "",
+  contact_handle: "",
   budget: "",
   source: "",
   status: "New Lead" as LeadStatus,
@@ -771,7 +776,7 @@ export default function CRMPage() {
       return;
     }
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, assigned_to: lead.assigned_to ?? "", phone: lead.phone, email: lead.email ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", transfer_appointment_date: lead.transfer_appointment_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", booking_deposit: lead.booking_deposit != null ? String(lead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT), contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "", addr_detail: lead.addr_detail ?? "", addr_province: lead.addr_province ?? "", addr_amphoe: lead.addr_amphoe ?? "", addr_tambon: lead.addr_tambon ?? "", addr_zipcode: lead.addr_zipcode ?? "", visit_date: lead.visit_date ?? "", visit_time: lead.visit_time ?? "", reported_by: lead.reported_by ?? "", reported_at: lead.reported_at ?? "" });
+    setForm({ customer_name: lead.customer_name, assigned_to: lead.assigned_to ?? "", phone: lead.phone, email: lead.email ?? "", contact_channel: lead.contact_channel ?? "", contact_handle: lead.contact_handle ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", transfer_appointment_date: lead.transfer_appointment_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", booking_deposit: lead.booking_deposit != null ? String(lead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT), contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "", addr_detail: lead.addr_detail ?? "", addr_province: lead.addr_province ?? "", addr_amphoe: lead.addr_amphoe ?? "", addr_tambon: lead.addr_tambon ?? "", addr_zipcode: lead.addr_zipcode ?? "", visit_date: lead.visit_date ?? "", visit_time: lead.visit_time ?? "", reported_by: lead.reported_by ?? "", reported_at: lead.reported_at ?? "" });
     setShowModal(true);
   };
 
@@ -951,7 +956,7 @@ export default function CRMPage() {
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
       let loanCelebrated = false;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: form.phone, email: form.email || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: form.phone, email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) {
         setSaving(false);
         // TC-06: DB unique index กันจองซ้ำ (race) — แปลผล error 23505 เป็นข้อความที่เข้าใจง่าย
@@ -1028,7 +1033,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, assigned_to: form.assigned_to.trim() || user?.full_name || user?.email || null, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, assigned_to: form.assigned_to.trim() || user?.full_name || user?.email || null, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -2011,7 +2016,7 @@ export default function CRMPage() {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, assigned_to: selectedLead.assigned_to ?? "", phone: selectedLead.phone, email: selectedLead.email ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", transfer_appointment_date: selectedLead.transfer_appointment_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", booking_deposit: selectedLead.booking_deposit != null ? String(selectedLead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT), contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "", addr_detail: selectedLead.addr_detail ?? "", addr_province: selectedLead.addr_province ?? "", addr_amphoe: selectedLead.addr_amphoe ?? "", addr_tambon: selectedLead.addr_tambon ?? "", addr_zipcode: selectedLead.addr_zipcode ?? "", visit_date: selectedLead.visit_date ?? "", visit_time: selectedLead.visit_time ?? "", reported_by: selectedLead.reported_by ?? "", reported_at: selectedLead.reported_at ?? "" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, assigned_to: selectedLead.assigned_to ?? "", phone: selectedLead.phone, email: selectedLead.email ?? "", contact_channel: selectedLead.contact_channel ?? "", contact_handle: selectedLead.contact_handle ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", transfer_appointment_date: selectedLead.transfer_appointment_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", booking_deposit: selectedLead.booking_deposit != null ? String(selectedLead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT), contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "", addr_detail: selectedLead.addr_detail ?? "", addr_province: selectedLead.addr_province ?? "", addr_amphoe: selectedLead.addr_amphoe ?? "", addr_tambon: selectedLead.addr_tambon ?? "", addr_zipcode: selectedLead.addr_zipcode ?? "", visit_date: selectedLead.visit_date ?? "", visit_time: selectedLead.visit_time ?? "", reported_by: selectedLead.reported_by ?? "", reported_at: selectedLead.reported_at ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>
@@ -2123,6 +2128,31 @@ export default function CRMPage() {
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
                 </div>
+                {/* ช่องทางติดต่อ — ลูกค้าออนไลน์เกือบครึ่งไม่ให้เบอร์ เดิมฝ่ายขายใส่ 099-999-9999
+                    แล้วไม่มีใครรู้ว่าต้องไปทักที่ไหน ช่องนี้ทำให้คิวติดตามบอกได้ว่าต้องทำอะไร */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="crmform-contact_channel" className="text-xs text-aviva-secondary mb-1 block">ติดต่อกลับทางไหน</label>
+                    <select id="crmform-contact_channel" value={form.contact_channel}
+                      onChange={e => setForm(p => ({ ...p, contact_channel: e.target.value }))}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50">
+                      <option value="">— ยังไม่ระบุ —</option>
+                      {CONTACT_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.icon} {c.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="crmform-contact_handle" className="text-xs text-aviva-secondary mb-1 block">ชื่อ/ไอดีในช่องทางนั้น</label>
+                    <input id="crmform-contact_handle" type="text" value={form.contact_handle}
+                      onChange={e => setForm(p => ({ ...p, contact_handle: e.target.value }))}
+                      placeholder={CONTACT_CHANNELS.find(c => c.value === form.contact_channel)?.placeholder ?? "เลือกช่องทางก่อน"}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                  </div>
+                </div>
+                {isPlaceholderPhone(form.phone) && (
+                  <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                    ⚠️ เบอร์ 099-999-9999 คือค่าแทน “ไม่มีเบอร์” โทรไม่ได้จริง — กรุณาเลือกช่องทางติดต่อจริงด้านบน ไม่งั้นคิวติดตามจะสั่งให้โทรหาเบอร์ที่โทรไม่ติด
+                  </p>
+                )}
                 <div>
                   <label htmlFor="crmform-addr_detail" className="text-xs text-aviva-secondary mb-1 block">ที่อยู่ที่ติดต่อได้ (บ้านเลขที่ / หมู่ / ซอย / ถนน)</label>
                   <input id="crmform-addr_detail" type="text" value={form.addr_detail} onChange={e => setForm(p => ({ ...p, addr_detail: e.target.value }))}
@@ -2404,7 +2434,7 @@ export default function CRMPage() {
                       customer_name: displayLead.customer_name,
                       assigned_to: displayLead.assigned_to ?? "",
                       phone: displayLead.phone,
-                      email: displayLead.email ?? "",
+                      email: displayLead.email ?? "", contact_channel: displayLead.contact_channel ?? "", contact_handle: displayLead.contact_handle ?? "",
                       budget: String(displayLead.budget),
                       source: displayLead.source,
                       status: displayLead.status,
@@ -2493,7 +2523,7 @@ export default function CRMPage() {
                               customer_name: l.customer_name,
                               assigned_to: l.assigned_to ?? "",
                               phone: l.phone,
-                              email: l.email ?? "",
+                              email: l.email ?? "", contact_channel: l.contact_channel ?? "", contact_handle: l.contact_handle ?? "",
                               budget: String(l.budget),
                               source: l.source,
                               status: l.status,

@@ -13,6 +13,10 @@ export function thaiDbError(error: DbErrorLike | null | undefined, action = "บ
   if (code === "42501" || msg.includes("row-level security") || msg.includes("permission"))
     return `${action}ไม่สำเร็จ — บัญชีของคุณไม่มีสิทธิ์ทำรายการนี้ (ติดต่อผู้ดูแลระบบ)`;
   if (code === "23502") return `${action}ไม่สำเร็จ — ข้อมูลบางช่องที่จำเป็นยังว่างอยู่`;
+  // 23514 = check constraint · ผู้ใช้กรอกถูกแล้วแต่ฐานข้อมูลไม่ยอมรับค่าที่โค้ดส่งไป = บั๊กของระบบ
+  // (Pom เจอตอนกดปิดจ็อบคำสั่งงาน: โค้ดส่ง status 'closed' แต่ constraint ไม่อนุญาต)
+  if (code === "23514" || msg.includes("violates check constraint"))
+    return `${action}ไม่สำเร็จ — ระบบไม่ยอมรับค่าที่ส่งไป (ข้อผิดพลาดของระบบ ไม่ใช่ข้อมูลที่คุณกรอก) กรุณาแจ้งผู้ดูแลระบบ`;
   if (code === "22P02" || msg.includes("invalid input"))
     return `${action}ไม่สำเร็จ — รูปแบบข้อมูลไม่ถูกต้อง ตรวจตัวเลข/วันที่อีกครั้ง`;
   if (msg.includes("fetch") || msg.includes("network") || msg.includes("timeout"))

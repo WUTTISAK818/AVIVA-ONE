@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { createNotification, notifyPersonalLine } from "./notify";
 import { CLOSE_INSTRUCTION } from "./directive-next-step";
+import { thaiDbError } from "./db-errors";
 
 // สายสถานะคำสั่งงาน — "done" คือพนักงานรายงานว่าเสร็จ (ยังไม่จบ) · "closed" คือผู้สั่งตรวจรับแล้วปิดจ็อบ (จบจริง)
 export type DirectiveStatus = "sent" | "acknowledged" | "in_progress" | "done" | "closed" | "cancelled";
@@ -98,10 +99,32 @@ export async function updateDirectiveStatus(
   if (status === "done") patch.done_at = new Date().toISOString();
 
   // ปิดจ็อบแล้วห้ามย้อนสถานะ — พนักงานแก้ได้เฉพาะงานที่ยังไม่ถูกผู้สั่งปิดรับ
-  const { data: changed, error } = await supabase.from("directives")
-    .update(patch).eq("id", directive.id).not("status", "in", '("closed","cancelled")').select("id");
-  if (error) return { ok: false, error: error.message };
-  if (!changed || changed.length === 0) return { ok: false, error: "งานนี้ถูกปิดจ็อบหรือยกเลิกไปแล้ว — แก้สถานะไม่ได้" };
+  // "รับทราบ" บังคับว่าต้องมาจาก sent เท่านั้น เพื่อให้แจ้งผู้สั่งได้ครั้งเดียว
+  // (เปิดอ่านซ้ำ/กดปุ่มซ้ำต้องไม่ยิงแจ้งเตือนใหม่)
+  let q = supabase.from("directives").update(patch).eq("id", directive.id);
+  q = status === "acknowledged"
+    ? q.eq("status", "sent")
+    : q.not("status", "in", '("closed","cancelled")');
+  const { data: changed, error } = await q.select("id");
+  if (error) return { ok: false, error: thaiDbError(error, "อัปเดตสถานะ") };
+  if (!changed || changed.length === 0) {
+    // รับทราบซ้ำไม่ใช่ความผิดพลาด แค่ไม่มีอะไรให้เปลี่ยน
+    if (status === "acknowledged") return { ok: true };
+    return { ok: false, error: "งานนี้ถูกปิดจ็อบหรือยกเลิกไปแล้ว — แก้สถานะไม่ได้" };
+  }
+
+  // แจ้งผู้สั่งงานว่าผู้รับเปิดอ่านและรับงานแล้ว
+  // เดิมไม่มีขั้นนี้: Pom สั่งงาน 27 ก.ย. ฟ้ากดรับทราบ 2 ต.ค. แต่ Pom ไม่ได้รับแจ้งอะไรเลย
+  // จึงไม่รู้ว่างานถูกรับไปทำแล้วหรือยังเงียบอยู่
+  if (status === "acknowledged") {
+    const title = `👀 ${directive.assigned_to_name || "ผู้รับงาน"} รับทราบคำสั่งงานแล้ว`;
+    const body = `${directive.message}\n\nรับงานไปแล้ว กำลังดำเนินการ — ระบบจะแจ้งอีกครั้งเมื่อรายงานว่าเสร็จ`;
+    await createNotification({
+      type: "info", title, message: body,
+      to_user_email: directive.created_by, link: "/directives",
+    }).catch(() => {});
+    await notifyPersonalLine(title, body, "/directives", [directive.created_by]).catch(() => {});
+  }
 
   if (status === "done") {
     const title = `${directive.assigned_to_name || "พนักงาน"} รายงานว่าทำเสร็จแล้ว — รอคุณตรวจรับ`;
@@ -140,7 +163,7 @@ export async function closeDirective(
       updated_at: new Date().toISOString(),
     })
     .eq("id", directive.id).eq("status", "done").select("id");
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: thaiDbError(error, "ปิดจ็อบ") };
   if (!data || data.length === 0) return { ok: false, error: "งานนี้ถูกปิดจ็อบไปแล้ว หรือสถานะเปลี่ยนไปแล้ว — รีเฟรชหน้าอีกครั้ง" };
 
   const title = `✅ ${directive.created_by_name || "ผู้สั่งงาน"} ตรวจรับและปิดจ็อบแล้ว`;
@@ -171,7 +194,7 @@ export async function returnDirective(
       updated_at: new Date().toISOString(),
     })
     .eq("id", directive.id).eq("status", "done").select("id");
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: thaiDbError(error, "ตีกลับให้แก้") };
   if (!data || data.length === 0) return { ok: false, error: "สถานะงานเปลี่ยนไปแล้ว — รีเฟรชหน้าอีกครั้ง" };
 
   const title = `🔁 ${directive.created_by_name || "ผู้สั่งงาน"} ตีกลับให้แก้`;
@@ -214,7 +237,7 @@ export async function cancelDirective(
     .eq("id", directive.id)
     .not("status", "in", '("closed","cancelled")')
     .select("id");
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: thaiDbError(error, "ยกเลิกคำสั่งงาน") };
   if (!data || data.length === 0) return { ok: false, error: "งานนี้ปิดจ็อบหรือยกเลิกไปแล้ว — รีเฟรชหน้าอีกครั้ง" };
 
   const title = `🚫 ${directive.created_by_name || "ผู้สั่งงาน"} ยกเลิกคำสั่งงานนี้แล้ว`;

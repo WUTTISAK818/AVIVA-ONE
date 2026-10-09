@@ -7,6 +7,7 @@ import {
   FOLLOWUP_BATCH_SIZE, FOLLOWUP_DONE_STATUSES,
   rankFollowupLeads, splitIntoBatches, type PriorityLead,
 } from "@/lib/lead-priority";
+import { contactPlan } from "@/lib/contact-channel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: leadRows }, { data: dir }] = await Promise.all([
     db.from("leads")
-      .select("id, customer_name, phone, status, budget, ai_score, urgency, probability, plot_number, next_follow_up_date, last_contact_date, visit_date, assigned_to, created_at_default")
+      .select("id, customer_name, phone, contact_channel, contact_handle, source, status, budget, ai_score, urgency, probability, plot_number, next_follow_up_date, last_contact_date, visit_date, assigned_to, created_at_default")
       .not("status", "in", `(${FOLLOWUP_DONE_STATUSES.map(s => `"${s}"`).join(",")})`),
     db.from("employees_directory").select("full_name, nickname, email"),
   ]);
@@ -77,12 +78,14 @@ export async function GET(req: NextRequest) {
     }
 
     const lines = batch.map((r, i) => {
-      const head = `${i + 1}. ${r.lead.customer_name}${r.lead.phone ? ` ${r.lead.phone}` : ""}`;
+      // บอกช่องทางจริง ไม่ใช่เบอร์ดิบ — ลูกค้าออนไลน์ 147 รายติดต่อทางแชต ไม่ใช่โทรศัพท์
+      // เดิมข้อความสั่งให้ "โทร" พร้อมเบอร์ 099-999-9999 ที่โทรไม่ติด
+      const head = `${i + 1}. ${r.lead.customer_name} — ${contactPlan(r.lead).instruction}`;
       return r.reasons.length ? `${head}\n    (${r.reasons.slice(0, 3).join(" · ")})` : head;
     });
     const remaining = ranked.length - batch.length;
 
-    const title = `📞 ชุดติดตามวันนี้ ${batch.length} ราย (เรียงคนสำคัญก่อน)`;
+    const title = `📣 ชุดติดตามวันนี้ ${batch.length} ราย (เรียงคนสำคัญก่อน)`;
     const body = [
       lines.join("\n"),
       remaining > 0

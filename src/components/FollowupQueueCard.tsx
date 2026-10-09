@@ -9,13 +9,14 @@ import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { addDaysStr, normalizeDateInput, thaiDateStr } from "@/lib/thai-date";
 import { thaiDbError } from "@/lib/db-errors";
+import { contactPlan, contactLine } from "@/lib/contact-channel";
 import {
   FOLLOWUP_BATCH_SIZE, FOLLOWUP_DONE_STATUSES, TIER_LABEL,
   rankFollowupLeads, splitIntoBatches, type PriorityLead, type PriorityTier,
 } from "@/lib/lead-priority";
 
 const SELECT_COLS =
-  "id, customer_name, phone, status, budget, ai_score, urgency, probability, plot_number, next_follow_up_date, last_contact_date, visit_date, assigned_to, created_at_default";
+  "id, customer_name, phone, contact_channel, contact_handle, source, status, budget, ai_score, urgency, probability, plot_number, next_follow_up_date, last_contact_date, visit_date, assigned_to, created_at_default";
 
 const TIER_STYLE: Record<PriorityTier, string> = {
   hot: "bg-red-500/15 text-red-300 border-red-500/40",
@@ -144,7 +145,10 @@ export default function FollowupQueueCard() {
           <ul className="divide-y divide-aviva-gold/10">
             {batch.map((r, i) => {
               const rank = safeIndex * FOLLOWUP_BATCH_SIZE + i + 1;
-              const phone = (r.lead.phone ?? "").trim();
+              // เดิมใช้ r.lead.phone ตรง ๆ -> ลูกค้า 103 รายที่เบอร์เป็น 099-999-9999
+              // ขึ้นปุ่ม "โทรเลย" ที่โทรไปแล้วไม่ติด ตอนนี้บอกช่องทางจริงแทน
+              const plan = contactPlan(r.lead);
+              const phone = plan.channel === "phone" ? (plan.handle ?? "") : "";
               const expanded = openId === r.lead.id;
               return (
                 <li key={r.lead.id} className="px-3.5 py-3">
@@ -159,7 +163,7 @@ export default function FollowupQueueCard() {
                         )}
                       </div>
                       <p className="text-xs text-aviva-secondary mt-1 leading-relaxed">{r.reasons.join(" · ") || "ยังไม่มีข้อมูลเพิ่มเติม"}</p>
-                      {phone && <p className="text-xs text-aviva-text/80 mt-0.5">{phone}</p>}
+                      <p className={clsx("text-xs mt-0.5", plan.unreachable ? "text-amber-400" : "text-aviva-text/80")}>{contactLine(r.lead)}</p>
                     </div>
                   </div>
 
@@ -170,7 +174,12 @@ export default function FollowupQueueCard() {
                         <Phone size={13} />โทรเลย
                       </a>
                     ) : (
-                      <span className="flex-1 text-center py-2 rounded-xl bg-aviva-bg border border-aviva-gold/10 text-xs text-aviva-secondary">ไม่มีเบอร์โทร</span>
+                      <span className={clsx("flex-1 text-center py-2 rounded-xl border text-xs",
+                        plan.unreachable
+                          ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                          : "bg-aviva-bg border-aviva-gold/10 text-aviva-secondary")}>
+                        {plan.unreachable ? "⚠️ ต้องกรอกช่องทางติดต่อก่อน" : `${plan.icon} ทักทาง ${plan.label}`}
+                      </span>
                     )}
                     <button type="button" onClick={() => setOpenId(expanded ? null : r.lead.id)}
                       className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border",

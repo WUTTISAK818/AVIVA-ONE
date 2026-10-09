@@ -116,17 +116,26 @@ export default function HRContent() {
     if (!employeeName) { setLeaveBalance(null); return; }
     const emp = employees.find(e => e.full_name === employeeName);
     if (!emp) return;
-    const { data } = await supabase.from("employee_payroll_config").select("annual_leave_balance,sick_leave_balance,study_leave_balance,personal_leave_balance,maternity_leave_balance,absent_days,annual_leave_status").eq("employee_id", emp.id).single();
+    // annual_leave_status มีอยู่เฉพาะใน view employee_leave_balance ไม่ใช่ในตารางนี้
+    // เดิม select คอลัมน์ที่ไม่มี -> PostgREST คืน error, data เป็น null, แผงวันลาจึงว่างเปล่าเงียบ ๆ
+    // คำนวณสถานะฝั่ง client ด้วยเกณฑ์เดียวกับ view (<=2 Critical, <=5 Low, อื่น ๆ Normal)
+    const { data, error } = await supabase.from("employee_payroll_config")
+      .select("annual_leave_balance,sick_leave_balance,study_leave_balance,personal_leave_balance,maternity_leave_balance,absent_days")
+      .eq("employee_id", emp.id).maybeSingle();
+    if (error) { console.error("[HR] อ่านวันลาไม่สำเร็จ:", error.message); setLeaveBalance(null); return; }
     if (data) {
+      const annual = data.annual_leave_balance ?? 15;
       setLeaveBalance({
-        annual: data.annual_leave_balance ?? 15,
+        annual,
         sick: data.sick_leave_balance ?? 10,
         study: data.study_leave_balance ?? 5,
         personal: data.personal_leave_balance ?? 3,
         maternity: data.maternity_leave_balance ?? 98,
         absent: data.absent_days ?? 0,
-        annual_status: data.annual_leave_status ?? "Normal"
+        annual_status: annual <= 2 ? "Critical" : annual <= 5 ? "Low" : "Normal"
       });
+    } else {
+      setLeaveBalance(null);
     }
   };
 

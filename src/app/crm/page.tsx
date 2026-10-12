@@ -2626,7 +2626,8 @@ export default function CRMPage() {
           setReportAutoItems(auto.map(a => ({ category: a.category as AutoReportItem["category"], description: a.description })));
           setShowReportModal(true);
         }}
-        className="fixed bottom-24 left-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
+        className="fixed left-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
+        style={{ bottom: "var(--fab-bottom)" }}
       >
         <Send size={14} /> ส่งรายงานวัน
       </button>

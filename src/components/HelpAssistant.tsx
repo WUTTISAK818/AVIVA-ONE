@@ -247,7 +247,8 @@ export default function HelpAssistant() {
     <>
       {!open && (
         <button onClick={() => setOpen(true)}
-          className="fixed right-4 bottom-24 z-40 flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold pl-3 pr-3.5 py-2.5 rounded-full shadow-xl shadow-black/30 active:scale-95 transition-transform">
+          className="fixed right-4 z-40 flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold pl-3 pr-3.5 py-2.5 rounded-full shadow-xl shadow-black/30 active:scale-95 transition-transform"
+          style={{ bottom: "var(--fab-bottom)" }}>
           <HelpCircle size={16} />
           <span className="text-xs">{APP_NAME}</span>
           <Sparkles size={12} />

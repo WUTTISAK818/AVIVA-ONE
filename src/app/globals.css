@@ -33,6 +33,19 @@ body {
   padding-top: calc(env(safe-area-inset-top) + 0.6rem);
 }
 
+/* ── Safe-area: ขอบล่าง ──────────────────────────────────────────────
+   Pom แจ้ง 12 ต.ค. 69: ปุ่มตรวจรับรายงาน "ตกขอบ" — สาเหตุคือมีของ 3 ชั้น
+   วางที่ขอบล่างพร้อมกันโดยไม่รู้จักกัน: BottomNav (bottom-0) · แถบบันทึกผลตรวจ
+   (bottom-0 เหมือนกัน จึงถูก nav ทับ) · ปุ่มน้อง Viva (bottom-24 ทับช่องความเห็น)
+   เดิมแต่ละจุด hard-code ระยะของตัวเอง (bottom-24 ซ้ำกัน 3 ไฟล์) พอ nav สูงเปลี่ยน
+   หรือเครื่องมีแถบ home indicator ก็เพี้ยนทันที — ย้ายมาใช้ตัวแปรกลางตัวเดียว */
+:root {
+  /* ความสูง BottomNav จริง + safe area ของ home indicator บน iPhone */
+  --bottom-nav-h: calc(3.4rem + env(safe-area-inset-bottom));
+  /* ตำแหน่งปุ่มลอย (Viva / ปุ่มลัด) — หน้าไหนมีแถบเครื่องมือล่างให้ override ค่านี้ */
+  --fab-bottom: calc(var(--bottom-nav-h) + 0.75rem);
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
 }

@@ -26,7 +26,8 @@ export default function Toast({ message, type = "success", onClose, duration = 2
   const { Icon, color, bg } = cfg[type];
 
   return (
-    <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[999] flex items-center gap-2.5 px-4 py-3 rounded-2xl border ${bg} shadow-xl max-w-xs w-max`}>
+    <div className={`fixed left-1/2 -translate-x-1/2 z-[999] flex items-center gap-2.5 px-4 py-3 rounded-2xl border ${bg} shadow-xl max-w-xs w-max`}
+      style={{ bottom: "calc(var(--fab-bottom) + 3.2rem)" }}>
       <Icon size={16} className={color} />
       <p className={`text-sm font-medium ${color} whitespace-nowrap`}>{message}</p>
     </div>

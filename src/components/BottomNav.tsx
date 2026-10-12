@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { LayoutGrid, Users, HardHat, Briefcase, Settings, FileText, Clock } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
@@ -15,8 +16,28 @@ const OFFICE_DEPTS = ["ฝ่ายการเงิน", "ฝ่ายบั�
 // If adding new features, consolidate into existing hub or create new hub page.
 
 export default function BottomNav() {
+  const navRef = useRef<HTMLElement | null>(null);
   const pathname = usePathname();
   const user = useCurrentUser();
+
+  // แถบล่างบอกความสูงจริงของตัวเองให้ทั้งแอปรู้ผ่าน --bottom-nav-h
+  // แทนการ hard-code ระยะ (เดิมหลายไฟล์เดา bottom-24 กันเอง แล้วทับกันเวลา
+  // จำนวนเมนูเปลี่ยนตามสิทธิ์ผู้ใช้ หรือเครื่องมีแถบ home indicator)
+  //
+  // ⚠️ ต้องอยู่เหนือ early return ของหน้า /login — hook เรียกแบบมีเงื่อนไขไม่ได้
+  // และต้องผูกกับ pathname ด้วย ไม่งั้นตอนออกจากหน้า login แล้ว nav โผล่มา
+  // ค่าจะไม่ถูกตั้งใหม่ (ตอนรันครั้งแรก navRef ยังว่างอยู่)
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = navRef.current;
+    // หน้าที่ไม่มีแถบล่าง (login) ระยะเผื่อต้องเป็น 0 ไม่ใช่ค่า fallback ของแถบ
+    if (!el) { root.style.setProperty("--bottom-nav-h", "0px"); return; }
+    const sync = () => root.style.setProperty("--bottom-nav-h", `${el.offsetHeight}px`);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pathname]);
 
   if (pathname === "/login") return null;
 
@@ -39,7 +60,8 @@ export default function BottomNav() {
   ].filter(t => t.show);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-nav border-t border-aviva-gold/20">
+    <nav ref={navRef} className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-nav border-t border-aviva-gold/20"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex items-center px-1 py-1">
         {tabs.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname.startsWith(href);

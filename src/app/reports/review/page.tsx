@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users, ClipboardList, CheckCircle, AlertTriangle, Clock, Eye, X,
   ChevronLeft, ChevronRight, MapPin, UserX, Printer, ChevronDown, ChevronUp,
@@ -542,6 +542,33 @@ export default function ReportsReviewPage() {
     ? cards
     : cards.filter(c => c.department === selectedDept);
   const pendingCards = visibleCards.filter(c => !c.acknowledgedBy);
+
+  // วัดความสูงจริงของแถบบันทึกผลตรวจ แล้วใช้ค่าเดียวกันทั้ง
+  //   (1) ตัวเว้นท้ายรายการ  -> การ์ดใบสุดท้ายไม่ถูกแถบบัง
+  //   (2) ตำแหน่งปุ่มลอยน้อง Viva -> ไม่มาทับช่องความเห็น
+  // เดิมใช้ h-36 ตายตัว ซึ่งไม่ตรงความจริงเมื่อแถบมีบรรทัดผลลัพธ์เพิ่มเข้ามา
+  const actionBarRef = useRef<HTMLDivElement | null>(null);
+  const [actionBarH, setActionBarH] = useState(0);
+  const hasActionBar = pendingCards.length > 0;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = actionBarRef.current;
+    if (!hasActionBar || !el) {
+      setActionBarH(0);
+      root.style.removeProperty("--fab-bottom");
+      return;
+    }
+    const sync = () => {
+      const h = el.offsetHeight;
+      setActionBarH(h);
+      root.style.setProperty("--fab-bottom", `calc(var(--bottom-nav-h) + ${h}px + 0.75rem)`);
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => { ro.disconnect(); root.style.removeProperty("--fab-bottom"); };
+  }, [hasActionBar]);
 
   const submitted   = reports.filter(r => r.status === "submitted" || r.status === "late");
   const late        = reports.filter(r => r.status === "late");
@@ -1118,12 +1145,14 @@ export default function ReportsReviewPage() {
           </div>
         )}
 
-        {pendingCards.length > 0 && <div className="h-36" aria-hidden />}
+        {pendingCards.length > 0 && <div aria-hidden style={{ height: actionBarH + 16 }} />}
       </div>
 
       {/* แถบล่างติดหน้าจอ — กดครั้งเดียวจบทั้งวัน (เห็นการ์ดสรุป + ป้ายเตือนแล้ว) */}
       {pendingCards.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-aviva-card/95 backdrop-blur border-t border-aviva-gold/25 px-4 pt-3 pb-5 space-y-2">
+        <div ref={actionBarRef}
+          className="fixed left-0 right-0 z-30 bg-aviva-card/95 backdrop-blur border-t border-aviva-gold/25 px-4 pt-3 pb-3 space-y-2"
+          style={{ bottom: "var(--bottom-nav-h)" }}>
           {bulkResult && (
             <p className={`text-xs text-center ${bulkResult.startsWith("✅") ? "text-green-400" : "text-red-400"}`}>{bulkResult}</p>
           )}

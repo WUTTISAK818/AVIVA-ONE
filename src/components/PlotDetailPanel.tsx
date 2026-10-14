@@ -89,38 +89,45 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function PlotDetailPanel({ projectId, plotNumber, lead }: {
   projectId: string; plotNumber: number; lead: PlotLead | null;
 }) {
-  const [house, setHouse] = useState<HouseRow | null>(null);
-  const [insts, setInsts] = useState<Installment[]>([]);
-  const [tasks, setTasks] = useState<TransferTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  // เก็บผลโหลดเป็นก้อนเดียวพร้อม key ของแปลง แล้ว derive สถานะ "กำลังโหลด" จาก key
+  // (แทนการ setLoading(true) ซ้อนในตัว effect ซึ่งทำให้ render ซ้ำโดยไม่จำเป็น)
+  const key = `${projectId}:${plotNumber}:${lead?.id ?? ""}`;
+  const [data, setData] = useState<{ key: string; house: HouseRow | null; insts: Installment[]; tasks: TransferTask[] } | null>(null);
+  const loading = data?.key !== key;
+  const house = data?.house ?? null;
+  const insts = data?.insts ?? [];
+  const tasks = data?.tasks ?? [];
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     (async () => {
       const { data: h } = await supabase.from("houses")
         .select("id, plot_code, house_model, land_size, price, status, construction_status, progress, contractor, planned_completion_date, updated_at")
         .eq("project_id", projectId).eq("plot_number", plotNumber).maybeSingle();
+
+      const houseRow = (h as HouseRow | null) ?? null;
+
+      const ci = houseRow?.id
+        ? (await supabase.from("customer_installments")
+            .select("id, name, amount, due_date, paid_date, status")
+            .eq("house_id", houseRow.id).order("due_date")).data
+        : null;
+
+      const tt = lead?.id
+        ? (await supabase.from("transfer_tasks")
+            .select("item_key, done").eq("lead_id", lead.id)).data
+        : null;
+
       if (!active) return;
-      setHouse((h as HouseRow | null) ?? null);
-
-      if (h?.id) {
-        const { data: ci } = await supabase.from("customer_installments")
-          .select("id, name, amount, due_date, paid_date, status")
-          .eq("house_id", h.id).order("due_date");
-        if (active) setInsts((ci as Installment[]) ?? []);
-      } else if (active) setInsts([]);
-
-      if (lead?.id) {
-        const { data: tt } = await supabase.from("transfer_tasks")
-          .select("item_key, done").eq("lead_id", lead.id);
-        if (active) setTasks((tt as TransferTask[]) ?? []);
-      } else if (active) setTasks([]);
-
-      if (active) setLoading(false);
+      setData({
+        key,
+        house: houseRow,
+        insts: (ci as Installment[] | null) ?? [],
+        tasks: (tt as TransferTask[] | null) ?? [],
+      });
     })();
     return () => { active = false; };
-  }, [projectId, plotNumber, lead?.id]);
+  }, [key, projectId, plotNumber, lead?.id]);
 
   // ช่องที่ควรมีแต่ยังว่าง — แสดงรวมไว้ให้เห็นในที่เดียว ไม่ต้องไล่อ่านทีละบรรทัด
   const missing: string[] = [];

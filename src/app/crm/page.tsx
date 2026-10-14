@@ -29,6 +29,7 @@ import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { CONTACT_CHANNELS, isPlaceholderPhone } from "@/lib/contact-channel";
+import PlotDetailPanel from "@/components/PlotDetailPanel";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
 import { uploadPhotos } from "@/lib/upload-photos";
@@ -1457,10 +1458,6 @@ export default function CRMPage() {
                 const bookedLead = leads.find(l => l.plot_number && l.plot_number === n && BOOKING_STATUSES.includes(l.status));
                 const contractLead = leads.find(l => l.plot_number && l.plot_number === n && l.status === "Contract");
                 const soldLead = leads.find(l => l.plot_number && l.plot_number === n && l.status === "Closed Deal");
-                // DEBUG: Check A12 & A18
-                if ((n === 12 || n === 18) && process.env.NODE_ENV !== 'production') {
-                  console.log(`Plot ${n}:`, { bookedLead: bookedLead?.customer_name, status: bookedLead?.status, contractLead: contractLead?.customer_name, soldLead: soldLead?.customer_name });
-                }
                 const st = house?.status ?? "available";
                 const isSold = st === "sold" || st === "completed" || !!soldLead;
                 const isContract = !!contractLead && !isSold;
@@ -2424,6 +2421,8 @@ export default function CRMPage() {
                     )}
                     {displayLead.notes && <p className="text-[10px] text-aviva-secondary/70 mt-2 leading-relaxed">{displayLead.notes}</p>}
                   </div>
+                  {/* รายละเอียดครบทุกด้านของแปลงนี้ (Pom สั่ง 14 ต.ค. 69) */}
+                  <PlotDetailPanel projectId={PROJECT_ID} plotNumber={n} lead={displayLead} />
                   <button onClick={() => { setSelectedLead(displayLead); setMapPlotModal(null); }}
                     className="w-full py-2.5 bg-aviva-gold/10 border border-aviva-gold/30 rounded-xl text-xs text-aviva-gold font-medium">
                     ดูข้อมูลเต็ม / เปลี่ยนสถานะ &rarr;
@@ -2498,6 +2497,8 @@ export default function CRMPage() {
                   <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-3 text-center">
                     <p className="text-sm font-bold text-orange-400">ว่าง — พร้อมขาย</p>
                   </div>
+                  {/* แปลงว่างก็ยังอยากรู้ข้อมูลตัวบ้าน/งานก่อสร้างก่อนเสนอลูกค้า */}
+                  <PlotDetailPanel projectId={PROJECT_ID} plotNumber={n} lead={null} />
                   <button onClick={() => {
                     setEditingLead(null);
                     const defaultFollowUp = thaiDateOf(new Date(Date.now() + 3 * 86400_000));

@@ -1847,6 +1847,19 @@ export default function CRMPage() {
                       ส่งผ่าน LINE
                     </button>
                   </div>
+                  {/* ลิงก์นี้เปิดดูชื่อ/แปลง/ราคา/งวดผ่อนได้โดยไม่ต้องล็อกอิน และไม่มีวันหมดอายุ
+                      ถ้าส่งผิดคนหรือลิงก์หลุด ต้องมีทางปิดของเดิม ไม่ใช่ปล่อยให้เปิดได้ตลอดไป */}
+                  <button onClick={async () => {
+                    if (!window.confirm(`ออกลิงก์ใหม่ให้ ${selectedLead.customer_name}?\n\nลิงก์เดิมที่เคยส่งไปจะใช้ไม่ได้ทันที — ใช้เมื่อส่งผิดคนหรือลิงก์หลุดไปถึงคนอื่น`)) return;
+                    const fresh = crypto.randomUUID();
+                    const { error } = await supabase.from("leads").update({ portal_token: fresh }).eq("id", selectedLead.id);
+                    if (error) { setToast({ msg: thaiDbError(error, "ออกลิงก์ใหม่"), type: "error" }); return; }
+                    setSelectedLead({ ...selectedLead, portal_token: fresh });
+                    const r = rtRangeRef.current; fetchLeads(r.start, r.end, r.limit);
+                    setToast({ msg: "ออกลิงก์ใหม่แล้ว — ลิงก์เดิมใช้ไม่ได้อีก กรุณาส่งลิงก์ใหม่ให้ลูกค้า", type: "success" });
+                  }} className="w-full mt-2 py-2 text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/25 rounded-lg active:scale-95">
+                    ออกลิงก์ใหม่ (ลิงก์เดิมใช้ไม่ได้)
+                  </button>
                 </div>
               )}
               {selectedLead.booking_date && (

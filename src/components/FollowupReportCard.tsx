@@ -86,6 +86,15 @@ export default function FollowupReportCard() {
             ))}
           </div>
 
+          <p className="text-[11px] text-aviva-secondary mb-2.5">
+            เทียบ{data.prevLabel}: ความคืบหน้า {data.prevTotals.milestoneTotal} รายการ · ติดต่อจริง {data.prevTotals.contacted} ราย
+            {(() => {
+              const d = data.totals.milestoneTotal - data.prevTotals.milestoneTotal;
+              if (d === 0) return <span className="text-aviva-secondary"> · เท่าเดิม</span>;
+              return <span className={d > 0 ? "text-green-400" : "text-amber-400"}> · {d > 0 ? `▲ ดีขึ้น ${d}` : `▼ ลดลง ${Math.abs(d)}`}</span>;
+            })()}
+          </p>
+
           {data.sellers.length === 0 && <p className="text-[12px] text-aviva-secondary">ยังไม่มีข้อมูลในช่วงนี้</p>}
 
           <div className="space-y-2">
@@ -100,7 +109,14 @@ export default function FollowupReportCard() {
                 <div key={s.seller} className="bg-aviva-bg rounded-xl p-2.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-[13px] font-bold text-aviva-text">{s.seller}</p>
-                    <p className="text-[11px] text-aviva-secondary flex-shrink-0">ลูกค้าในมือ {s.inHand} ราย</p>
+                    <p className="text-[11px] text-aviva-secondary flex-shrink-0">
+                      {(() => {
+                        const d = s.milestoneTotal - s.prevMilestoneTotal;
+                        if (d === 0) return <span>เท่าช่วงก่อน · </span>;
+                        return <span className={d > 0 ? "text-green-400 font-bold" : "text-amber-400 font-bold"}>{d > 0 ? `▲ ${d}` : `▼ ${Math.abs(d)}`} · </span>;
+                      })()}
+                      ลูกค้าในมือ {s.inHand} ราย
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {done.length > 0 ? done.map((m) => (

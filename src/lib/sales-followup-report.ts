@@ -52,6 +52,9 @@ export interface SellerFollowup {
   overdue: number;
   /** ติดต่อไม่ได้เลย — ไม่มีทั้งเบอร์ที่ใช้ได้และชื่อผู้ติดต่อในช่องทางแชต */
   unreachable: number;
+  /** ช่วงก่อนหน้า (สัปดาห์ที่แล้ว / เดือนที่แล้ว) ไว้ตอบว่า "ดีขึ้นหรือแย่ลง" */
+  prevMilestoneTotal: number;
+  prevContacted: number;
 }
 
 export interface FollowupReport {
@@ -61,6 +64,9 @@ export interface FollowupReport {
   label: string;
   sellers: SellerFollowup[];
   totals: { inHand: number; contacted: number; bulkTouched: number; milestoneTotal: number; stale30: number; overdue: number };
+  /** ป้ายของช่วงก่อนหน้า เช่น "กันยายน 2569" — ใช้บอกผู้บริหารว่ากำลังเทียบกับอะไร */
+  prevLabel: string;
+  prevTotals: { milestoneTotal: number; contacted: number };
   /** ข้อสังเกตเรื่องความน่าเชื่อถือของตัวเลข — ต้องแสดงคู่กับรายงานเสมอ */
   warnings: string[];
   generatedAt: string;
@@ -112,6 +118,16 @@ export function thaiMonthRange(ref: Date): { since: string; until: string; label
   };
 }
 
+/** สัปดาห์ก่อนหน้าของสัปดาห์ที่วันนั้นอยู่ */
+export function prevWeekRange(ref: Date): { since: string; until: string; label: string } {
+  return thaiWeekRange(new Date(ref.getTime() - 7 * 86_400_000));
+}
+
+/** เดือนก่อนหน้าของเดือนที่วันนั้นอยู่ */
+export function prevMonthRange(ref: Date): { since: string; until: string; label: string } {
+  return thaiMonthRange(new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1) - 86_400_000));
+}
+
 const inRange = (v: string | null, since: string, until: string) => !!v && v >= since && v <= until;
 
 /** เบอร์ใช้ได้จริงไหม — ตรงกับกฎใน contact-channel.ts (เลี่ยง import ข้าม server/client) */
@@ -149,12 +165,45 @@ export async function buildFollowupReport(
   const isBulk = (seller: string | null, date: string | null) =>
     (touchesPerSellerDay.get(`${seller ?? ""}|${date}`) ?? 0) >= BULK_TOUCH_PER_DAY;
 
+  // ช่วงก่อนหน้า — นับจากข้อมูลชุดเดิมที่ดึงมาแล้ว ไม่ต้องยิง query เพิ่ม
+  //
+  // ⚠️ ต้องเทียบ "จำนวนวันเท่ากัน" เท่านั้น
+  // ถ้าเอาเดือนนี้ที่เพิ่งผ่านไป 19 วัน ไปเทียบกับเดือนที่แล้วทั้งเดือน ตัวเลขจะขึ้นว่า "ลดลง"
+  // ทั้งที่ยังไม่จบเดือน -> เป็นการบอกผู้บริหารผิด จึงตัดช่วงก่อนหน้าให้เหลือจำนวนวันเท่ากัน
+  const prevFull = period === "week" ? prevWeekRange(ref) : prevMonthRange(ref);
+  const elapsedDays =
+    Math.round((Date.parse(today) - Date.parse(range.since)) / 86_400_000) + 1;
+  const periodDays =
+    Math.round((Date.parse(range.until) - Date.parse(range.since)) / 86_400_000) + 1;
+  const inProgress = elapsedDays < periodDays;
+  const prevCapped = ymd(new Date(Date.parse(prevFull.since) + (elapsedDays - 1) * 86_400_000));
+  const prevUntil = inProgress && prevCapped < prevFull.until ? prevCapped : prevFull.until;
+  const prevDayLabel = (iso: string) =>
+    new Date(iso + "T00:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
+  const prev = {
+    since: prevFull.since,
+    until: prevUntil,
+    label: inProgress
+      ? `${prevDayLabel(prevFull.since)}–${prevDayLabel(prevUntil)} (ช่วงเดียวกันของรอบก่อน)`
+      : prevFull.label,
+  };
+  const prevTouchesPerSellerDay = new Map<string, number>();
+  for (const l of leads) {
+    if (inRange(l.last_contact_date, prev.since, prev.until)) {
+      const key = `${l.assigned_to ?? ""}|${l.last_contact_date}`;
+      prevTouchesPerSellerDay.set(key, (prevTouchesPerSellerDay.get(key) ?? 0) + 1);
+    }
+  }
+  const wasBulk = (seller: string | null, date: string | null) =>
+    (prevTouchesPerSellerDay.get(`${seller ?? ""}|${date}`) ?? 0) >= BULK_TOUCH_PER_DAY;
+
   const sellers = new Map<string, SellerFollowup>();
   const blank = (name: string): SellerFollowup => ({
     seller: name,
     inHand: 0, contacted: 0, bulkTouched: 0,
     milestones: MILESTONES.map((m) => ({ label: m.label, icon: m.icon, n: 0 })),
     milestoneTotal: 0, stale30: 0, stale90: 0, overdue: 0, unreachable: 0,
+    prevMilestoneTotal: 0, prevContacted: 0,
   });
 
   for (const l of leads) {
@@ -182,7 +231,12 @@ export async function buildFollowupReport(
         s.milestones[i].n += 1;
         s.milestoneTotal += 1;
       }
+      if (inRange(l[m.field], prev.since, prev.until)) s.prevMilestoneTotal += 1;
     });
+
+    if (inRange(l.last_contact_date, prev.since, prev.until) && !wasBulk(l.assigned_to, l.last_contact_date)) {
+      s.prevContacted += 1;
+    }
   }
 
   // เรียงคนที่มีความคืบหน้าจริงมากที่สุดขึ้นก่อน แล้วค่อยดูจำนวนที่ติดต่อ
@@ -202,7 +256,15 @@ export async function buildFollowupReport(
     { inHand: 0, contacted: 0, bulkTouched: 0, milestoneTotal: 0, stale30: 0, overdue: 0 },
   );
 
+  const prevTotals = list.reduce(
+    (t, s) => ({ milestoneTotal: t.milestoneTotal + s.prevMilestoneTotal, contacted: t.contacted + s.prevContacted }),
+    { milestoneTotal: 0, contacted: 0 },
+  );
+
   const warnings: string[] = [];
+  if (inProgress) {
+    warnings.push(`${period === "week" ? "สัปดาห์" : "เดือน"}นี้ยังไม่จบ (ผ่านไป ${elapsedDays} จาก ${periodDays} วัน) — ตัวเลขที่เอาไปเทียบจึงตัดช่วงก่อนหน้าให้เหลือ ${elapsedDays} วันเท่ากัน`);
+  }
   if (truncated) {
     warnings.push(`ข้อมูลลูกค้าเกิน ${LEAD_QUERY_LIMIT.toLocaleString("th-TH")} ราย — รายงานนี้นับเฉพาะชุดแรกเท่านั้น ตัวเลขอาจไม่ครบ กรุณาแจ้งผู้ดูแลระบบ`);
   }
@@ -218,6 +280,8 @@ export async function buildFollowupReport(
     label: range.label,
     sellers: list,
     totals,
+    prevLabel: prev.label,
+    prevTotals,
     warnings,
     generatedAt: new Date().toISOString(),
   };
@@ -236,7 +300,9 @@ export function followupReportLineText(r: FollowupReport): string {
   for (const s of r.sellers) {
     const done = s.milestones.filter((m) => m.n > 0).map((m) => `${m.icon} ${m.label} ${m.n}`).join(" · ");
     lines.push(`👤 ${s.seller} — ลูกค้าในมือ ${s.inHand} ราย`);
-    lines.push(`   ความคืบหน้า: ${done || "ไม่มีความคืบหน้าในช่วงนี้"}`);
+    const diff = s.milestoneTotal - s.prevMilestoneTotal;
+    const trend = diff > 0 ? `▲ มากกว่าช่วงก่อน ${diff}` : diff < 0 ? `▼ น้อยกว่าช่วงก่อน ${Math.abs(diff)}` : "เท่าช่วงก่อน";
+    lines.push(`   ความคืบหน้า: ${done || "ไม่มีความคืบหน้าในช่วงนี้"} (${trend})`);
     lines.push(`   ติดต่อจริง ${s.contacted} ราย${s.bulkTouched > 0 ? ` (+ อัปเดตเป็นชุดอีก ${s.bulkTouched} ราย ไม่นับ)` : ""}`);
     const risk: string[] = [];
     if (s.stale30 > 0) risk.push(`เงียบเกิน 30 วัน ${s.stale30}`);
@@ -247,6 +313,7 @@ export function followupReportLineText(r: FollowupReport): string {
   }
 
   lines.push(`รวมทีม: ความคืบหน้า ${r.totals.milestoneTotal} รายการ · ติดต่อจริง ${r.totals.contacted} ราย · เงียบเกิน 30 วัน ${r.totals.stale30} ราย`);
+  lines.push(`เทียบ${r.prevLabel}: ความคืบหน้า ${r.prevTotals.milestoneTotal} รายการ · ติดต่อจริง ${r.prevTotals.contacted} ราย`);
   for (const w of r.warnings) lines.push(`หมายเหตุ: ${w}`);
   return lines.join("\n");
 }

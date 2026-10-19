@@ -9,6 +9,10 @@
 /** เบอร์ที่ฝ่ายขายใช้แทน "ไม่มีเบอร์" — ไม่ใช่เบอร์จริง ห้ามเอาไปโทรหรือส่ง SMS */
 const PLACEHOLDER_DIGITS = "0999999999";
 
+/** ข้อความที่ใช้แทนเบอร์ เมื่อลูกค้าไม่ให้เบอร์ติดต่อ (Pom สั่ง 15 ต.ค. 69 ให้เลิกใช้ 099-999-9999)
+ *  เก็บเป็นข้อความจริงในคอลัมน์ phone ไม่ใช่เบอร์ปลอม -> ไม่มีใครเผลอโทรหรือส่ง SMS ได้ */
+export const NO_PHONE_LABEL = "ไม่ให้เบอร์ติดต่อ";
+
 export type ContactChannel =
   | "phone" | "facebook" | "line" | "instagram" | "tiktok" | "email" | "walk_in";
 
@@ -24,9 +28,38 @@ export const CONTACT_CHANNELS: { value: ContactChannel; label: string; icon: str
 
 const BY_VALUE = new Map(CONTACT_CHANNELS.map((c) => [c.value, c]));
 
-/** true เมื่อเบอร์นี้เป็นค่าแทน "ไม่มีเบอร์" ไม่ใช่เบอร์ที่โทรได้จริง */
+/** true เมื่อเบอร์นี้เป็นค่าแทน "ไม่มีเบอร์" ไม่ใช่เบอร์ที่โทรได้จริง
+ *  รับทั้งแบบเก่า (099-999-9999) และแบบใหม่ (ข้อความ "ไม่ให้เบอร์ติดต่อ") */
 export function isPlaceholderPhone(phone: string | null | undefined): boolean {
-  return digitsOf(phone) === PLACEHOLDER_DIGITS;
+  return (phone ?? "").trim() === NO_PHONE_LABEL || digitsOf(phone) === PLACEHOLDER_DIGITS;
+}
+
+/** แปลงค่าที่พิมพ์ในช่อง "เบอร์โทร" ให้เป็นค่าที่เก็บได้
+ *  - พิมพ์ 099-999-9999 (ค่าแทน "ไม่มีเบอร์") -> เก็บเป็นข้อความ "ไม่ให้เบอร์ติดต่อ" แทน
+ *    กันเบอร์ปลอมกลับเข้าฐานข้อมูลอีก (CRM-0621 ถูกแก้กลับมาเป็น 099-999-9999 หลังล้างรอบแรก)
+ *  - ข้อความ "ไม่ให้เบอร์ติดต่อ" ที่มีอยู่แล้ว -> คงไว้ ไม่ถูกตัดทิ้งเพราะไม่มีตัวเลข
+ *  - เบอร์ปกติ -> จัดรูปแบบ xxx-xxx-xxxx */
+export function normalizePhoneInput(v: string | null | undefined): string {
+  const raw = (v ?? "").trim();
+  if (raw === NO_PHONE_LABEL) return NO_PHONE_LABEL;
+  const d = digitsOf(raw).slice(0, 10);
+  if (d === PLACEHOLDER_DIGITS) return NO_PHONE_LABEL;
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join("-");
+}
+
+/** ข้อความที่แสดงแทนเบอร์บนหน้าจอ ใช้ที่เดิมเคยพิมพ์ lead.phone ตรง ๆ (ซึ่งโชว์ว่างเปล่าเมื่อไม่มีเบอร์)
+ *  แยก 2 กรณีให้ชัด เพราะเป็นข้อเท็จจริงต่างกัน:
+ *  - "ไม่ให้เบอร์ติดต่อ" = ถามแล้ว ลูกค้าไม่ให้
+ *  - "ยังไม่มีเบอร์"     = ยังไม่มีใครกรอก (อาจมีเบอร์อยู่แต่ยังไม่ได้ลงระบบ) */
+export function phoneDisplay(phone: string | null | undefined): string {
+  if (isUsablePhone(phone)) return (phone ?? "").trim();
+  return isPlaceholderPhone(phone) ? NO_PHONE_LABEL : "ยังไม่มีเบอร์";
+}
+
+/** ค่าที่พิมพ์ลงเอกสาร (ใบเสนอราคา/สัญญา/ใบแจ้งหนี้) — เบอร์จริง หรือ "-"
+ *  ห้ามพิมพ์ประโยค "ไม่ให้เบอร์ติดต่อ" ลงช่องเบอร์โทรในสัญญา */
+export function phoneForDocument(phone: string | null | undefined): string {
+  return isUsablePhone(phone) ? (phone ?? "").trim() : "-";
 }
 
 /** true เมื่อเบอร์นี้โทรได้จริง (ไม่ว่าง ไม่ใช่ค่าแทน และยาวพอเป็นเบอร์ไทย) */
@@ -87,7 +120,7 @@ export function contactPlan(lead: ContactSource): ContactPlan {
 
   // ไม่มีช่องทาง และเบอร์ใช้ไม่ได้
   const why = isPlaceholderPhone(lead.phone)
-    ? "เบอร์ในระบบเป็น 099-999-9999 ซึ่งเป็นค่าแทน “ไม่มีเบอร์” โทรไม่ได้"
+    ? "ลูกค้าไม่ได้ให้เบอร์ติดต่อไว้ (ในระบบบันทึกว่า “ไม่ให้เบอร์ติดต่อ”) โทรไม่ได้"
     : "ยังไม่มีเบอร์ติดต่อในระบบ";
   const hint = lead.source ? ` ลูกค้ามาจาก “${lead.source}” ลองหาแชตเดิมในช่องทางนั้น` : "";
   return {

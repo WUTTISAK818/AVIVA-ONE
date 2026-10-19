@@ -28,7 +28,7 @@ import LoanApplications from "@/components/LoanApplications";
 import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
-import { CONTACT_CHANNELS, isPlaceholderPhone } from "@/lib/contact-channel";
+import { CONTACT_CHANNELS, isPlaceholderPhone, isUsablePhone, normalizePhoneInput, phoneDisplay, phoneForDocument, NO_PHONE_LABEL } from "@/lib/contact-channel";
 import PlotDetailPanel from "@/components/PlotDetailPanel";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
@@ -208,11 +208,9 @@ function getChatLink(lead: Lead): string {
   return `https://line.me/R/ti/p/@avivaprivate`;
 }
 
-// จัดรูปแบบเบอร์โทรเป็น xxx-xxx-xxxx (รับเฉพาะตัวเลข สูงสุด 10 หลัก)
-function formatPhone(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 10);
-  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join("-");
-}
+// จัดรูปแบบเบอร์โทรเป็น xxx-xxx-xxxx — ใช้ตัวเดียวกับคิวติดตามและ cron
+// (เดิมฟังก์ชันนี้ตัดอักขระที่ไม่ใช่ตัวเลขทิ้งทั้งหมด ข้อความ "ไม่ให้เบอร์ติดต่อ" จึงหายไปเมื่อเปิดแก้ไข)
+const formatPhone = normalizePhoneInput;
 
 // คำนวณ AI Score จากความคืบหน้าใน pipeline + งบ + การมีนัดติดตาม (แทน hardcode เดิม)
 const AI_STAGE_SCORE: Record<string, number> = {
@@ -491,7 +489,7 @@ export default function CRMPage() {
         <tr><td>วันที่</td><td>${dateStr}</td></tr>
         <tr><td>รหัสลูกค้า</td><td>${escapeHtml(lead.lead_code ?? "-")}</td></tr>
         <tr><td>ชื่อ-นามสกุล</td><td>${escapeHtml(lead.customer_name)}</td></tr>
-        <tr><td>เบอร์โทรศัพท์</td><td>${escapeHtml(lead.phone)}</td></tr>
+        <tr><td>เบอร์โทรศัพท์</td><td>${escapeHtml(phoneForDocument(lead.phone))}</td></tr>
         <tr><td>แหล่งที่มา</td><td>${escapeHtml(lead.source)}</td></tr>
         <tr><td>สถานะ</td><td><span class="badge">${escapeHtml(lead.status)}</span></td></tr>
       </table>
@@ -544,7 +542,7 @@ export default function CRMPage() {
       <div style="text-align:center"><span class="doc-title">ใบจองซื้อบ้าน</span></div>
       <p style="text-align:right">วันที่ <span class="field">${dateStr}</span></p>
       <p>ข้าพเจ้า <span class="field" style="min-width:200px">${escapeHtml(lead.customer_name)}</span></p>
-      <p>เบอร์โทรศัพท์ <span class="field">${escapeHtml(lead.phone)}</span></p>
+      <p>เบอร์โทรศัพท์ <span class="field">${escapeHtml(phoneForDocument(lead.phone))}</span></p>
       <p>ขอจองซื้อบ้านหมู่บ้านจัดสรร <strong>AVIVA Private</strong> หมายเลขแปลง <span class="field">${escapeHtml(plotStr)}</span></p>
       <div class="highlight">
         <p><strong>ราคาขาย:</strong> ฿<span class="field" style="min-width:120px">${salePrice.toLocaleString()}</span> (${numberToThai(salePrice)})</p>
@@ -602,7 +600,7 @@ export default function CRMPage() {
       <div style="text-align:center"><span class="doc-title">สัญญาจะซื้อจะขาย</span></div>
       <p style="text-align:right">ทำ ณ วันที่ <span class="field">${dateStr}</span></p>
       <p>สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด</strong> เลขทะเบียน ${COMPANY.tax_id} โทร ${COMPANY.phone} ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะขาย"</strong></p>
-      <p>กับ <span class="field" style="min-width:200px">${escapeHtml(lead.customer_name)}</span> เบอร์โทรศัพท์ <span class="field">${escapeHtml(lead.phone)}</span> ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะซื้อ"</strong></p>
+      <p>กับ <span class="field" style="min-width:200px">${escapeHtml(lead.customer_name)}</span> เบอร์โทรศัพท์ <span class="field">${escapeHtml(phoneForDocument(lead.phone))}</span> ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะซื้อ"</strong></p>
       <div class="highlight">
         <p><strong>ทรัพย์สินที่ซื้อขาย:</strong> บ้านพร้อมที่ดิน โครงการ AVIVA Private ${escapeHtml(COMPANY.estate)} หมายเลขแปลง <strong>${escapeHtml(plotStr)}</strong></p>
         <p><strong>ราคาซื้อขาย:</strong> ฿${price.toLocaleString()} (${numberToThai(price)})</p>
@@ -661,7 +659,7 @@ export default function CRMPage() {
     </style></head><body>
     <div class="btns"><button class="p" onclick="window.print()">พิมพ์</button><button class="cc" onclick="window.close()">ปิด</button></div>
     <div class="hd"><h1>ใบแจ้งหนี้ / Invoice</h1><p>${escapeHtml(COMPANY.name)}</p><p style="font-size:12px;color:#555">เลขประจำตัวผู้เสียภาษี ${escapeHtml(COMPANY.tax_id)} · โทร ${escapeHtml(COMPANY.phone)}</p></div>
-    <div class="meta"><div><b>ลูกค้า:</b> ${escapeHtml(lead.customer_name)}<br><b>โทร:</b> ${escapeHtml(lead.phone)}${lead.plot_number ? `<br><b>แปลงที่:</b> ${lead.plot_number}` : ""}</div><div class="r"><b>เลขที่:</b> ${docNo}<br><b>วันที่:</b> ${new Date().toLocaleDateString("th-TH")}</div></div>
+    <div class="meta"><div><b>ลูกค้า:</b> ${escapeHtml(lead.customer_name)}<br><b>โทร:</b> ${escapeHtml(phoneForDocument(lead.phone))}${lead.plot_number ? `<br><b>แปลงที่:</b> ${lead.plot_number}` : ""}</div><div class="r"><b>เลขที่:</b> ${docNo}<br><b>วันที่:</b> ${new Date().toLocaleDateString("th-TH")}</div></div>
     <table><thead><tr><th class="c">งวด</th><th>รายการ</th><th class="c">ครบกำหนด</th><th class="r">จำนวนเงิน (บาท)</th><th class="c">สถานะ</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="sum"><table>
       <tr><td>รวมทั้งสิ้น</td><td class="r">${baht(total)}</td></tr>
@@ -784,8 +782,8 @@ export default function CRMPage() {
   const openCall = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     // Click-to-call: เปิด dialer ของเครื่องด้วยเบอร์ลูกค้า แล้วเปิดฟอร์มบันทึกผลการโทร
-    const digits = (lead.phone ?? "").replace(/\D/g, "");
-    if (digits) window.location.href = `tel:${digits}`;
+    // เบอร์ที่ใช้ไม่ได้ (ว่าง หรือ "ไม่ให้เบอร์ติดต่อ") ห้ามเปิด dialer — เปิดฟอร์มบันทึกผลอย่างเดียว
+    if (isUsablePhone(lead.phone)) window.location.href = `tel:${(lead.phone ?? "").replace(/\D/g, "")}`;
     setCrmLogLead(lead);
     setCrmLogForm({ channel: "Phone", callStatus: "", note: "", photos: [] });
   };
@@ -957,7 +955,7 @@ export default function CRMPage() {
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
       let loanCelebrated = false;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: form.phone, email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: normalizePhoneInput(form.phone), email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) {
         setSaving(false);
         // TC-06: DB unique index กันจองซ้ำ (race) — แปลผล error 23505 เป็นข้อความที่เข้าใจง่าย
@@ -1034,7 +1032,7 @@ export default function CRMPage() {
         setToast({ msg: `🏦 บันทึกวันกู้ผ่านแล้ว — ${form.customer_name}`, type: "success" });
       }
     } else {
-      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, assigned_to: form.assigned_to.trim() || user?.full_name || user?.email || null, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: normalizePhoneInput(form.phone), email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, assigned_to: form.assigned_to.trim() || user?.full_name || user?.email || null, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null });
       if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
@@ -1222,7 +1220,7 @@ export default function CRMPage() {
                     <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", sourceColor[lead.source] ?? "bg-gray-500/20 text-gray-400")}>{lead.source}</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <span className="flex items-center gap-1 text-xs text-aviva-secondary"><Phone size={10} />{lead.phone}</span>
+                    <span className="flex items-center gap-1 text-xs text-aviva-secondary"><Phone size={10} />{phoneDisplay(lead.phone)}</span>
                     <span className="text-xs text-aviva-gold font-medium">{formatBudget(lead.budget)}</span>
                     {(lead.visit_date || lead.created_at) && (
                       <span className="text-[10px] text-blue-400">📅 {lead.visit_date ? new Date(lead.visit_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }) : new Date(lead.created_at!).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}{lead.visit_time ? ` ${lead.visit_time}` : ""}</span>
@@ -1733,7 +1731,7 @@ export default function CRMPage() {
                   )}
                   <h2 id="lead-detail-modal-title" className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
                 </div>
-                <p className="text-xs text-aviva-secondary mt-0.5">{selectedLead.phone} · {selectedLead.source}</p>
+                <p className="text-xs text-aviva-secondary mt-0.5">{phoneDisplay(selectedLead.phone)} · {selectedLead.source}</p>
                 <p className="text-[11px] text-aviva-gold mt-0.5">👤 เซลล์ผู้ดูแล: {selectedLead.assigned_to || "ยังไม่ระบุ"}</p>
               </div>
               <button onClick={() => setSelectedLead(null)} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
@@ -2114,9 +2112,10 @@ export default function CRMPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="crmform-phone" className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร</label>
-                    <input id="crmform-phone" type="tel" inputMode="numeric" maxLength={12} value={form.phone ?? ""} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
+                    <input id="crmform-phone" type="tel" inputMode="numeric" maxLength={NO_PHONE_LABEL.length} value={form.phone ?? ""} onChange={e => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
                       placeholder="08x-xxx-xxxx"
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
+                    <p className="text-[10px] text-aviva-secondary/70 mt-1">ลูกค้าไม่ให้เบอร์ ให้เว้นว่างไว้ — ระบบจะบันทึกเป็น “{NO_PHONE_LABEL}” เอง ไม่ต้องใส่ 099-999-9999</p>
                   </div>
                   <div>
                     <label htmlFor="crmform-email" className="text-xs text-aviva-secondary mb-1 block">อีเมล</label>
@@ -2147,7 +2146,7 @@ export default function CRMPage() {
                 </div>
                 {isPlaceholderPhone(form.phone) && (
                   <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                    ⚠️ เบอร์ 099-999-9999 คือค่าแทน “ไม่มีเบอร์” โทรไม่ได้จริง — กรุณาเลือกช่องทางติดต่อจริงด้านบน ไม่งั้นคิวติดตามจะสั่งให้โทรหาเบอร์ที่โทรไม่ติด
+                    ⚠️ ลูกค้ารายนี้บันทึกว่า “{NO_PHONE_LABEL}” โทรไม่ได้ — กรุณาเลือกช่องทางติดต่อจริงด้านบน (Facebook / LINE / ฯลฯ) พร้อมกรอกชื่อผู้ติดต่อ ไม่งั้นคิวติดตามจะไม่รู้ว่าต้องไปทักที่ไหน
                   </p>
                 )}
                 <div>
@@ -2402,7 +2401,7 @@ export default function CRMPage() {
                   <div className={`rounded-2xl p-4 border ${isSold ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
                     <p className="text-[10px] text-aviva-secondary mb-1">{isSold ? "โอนกรรมสิทธิ์แล้ว" : "จองแล้ว"}</p>
                     <p className="text-base font-bold text-aviva-text">{displayLead.customer_name}</p>
-                    <p className="text-sm text-aviva-gold font-medium mt-0.5">{displayLead.phone}</p>
+                    <p className="text-sm text-aviva-gold font-medium mt-0.5">{phoneDisplay(displayLead.phone)}</p>
                     {(displayLead.visit_date || displayLead.created_at) && (
                       <p className="text-[10px] text-blue-400 mt-1">📅 เยี่ยมชม {new Date(displayLead.visit_date ?? displayLead.created_at!).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}{displayLead.visit_time ? ` ${displayLead.visit_time} น.` : ""}</p>
                     )}
@@ -2567,7 +2566,7 @@ export default function CRMPage() {
                           className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-xs text-aviva-text outline-none focus:border-aviva-gold/50">
                           <option value="">— เลือกลูกค้าจากรายชื่อ Lead —</option>
                           {unassigned.map(l => (
-                            <option key={l.id} value={l.id}>{l.customer_name} · {l.phone}{l.lead_code ? ` (${l.lead_code})` : ""}</option>
+                            <option key={l.id} value={l.id}>{l.customer_name} · {phoneDisplay(l.phone)}{l.lead_code ? ` (${l.lead_code})` : ""}</option>
                           ))}
                         </select>
                         <p className="text-[10px] text-aviva-secondary/60 mt-1">เลือกแล้วจะเปิดฟอร์มพร้อมผูกแปลง {n} ให้อัตโนมัติ — แก้สถานะเป็น &quot;จอง&quot; แล้วกดบันทึก</p>

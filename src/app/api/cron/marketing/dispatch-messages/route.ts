@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSMSProvider, getEmailProvider, getLINEProvider } from "@/lib/messaging-providers";
 import { thaiDateStr } from "@/lib/thai-date";
+import { isUsablePhone } from "@/lib/contact-channel";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -108,10 +109,12 @@ export async function GET(request: NextRequest) {
       try {
         switch (message.message_type) {
           case "sms":
-            if (message.lead_phone) {
+            // lead_phone อาจเป็นข้อความ "ไม่ให้เบอร์ติดต่อ" หรือเบอร์ปลอม 099-999-9999
+            // ซึ่ง truthy แต่ส่ง SMS ไม่ได้ -> เดิมจะยิงเข้า provider แล้วค่อยเฟล
+            if (isUsablePhone(message.lead_phone)) {
               sendSuccess = await sendSMS(message.lead_phone, message.content);
             } else {
-              errorMessage = "No phone number available";
+              errorMessage = "No usable phone number (ลูกค้าไม่ได้ให้เบอร์ติดต่อ)";
             }
             break;
 

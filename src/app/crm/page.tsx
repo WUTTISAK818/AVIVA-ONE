@@ -17,6 +17,7 @@ import { createNotification, notifyActivityLine, notifyMilestone } from "@/lib/n
 import { alertOthersInterestedInPlot } from "@/lib/plot-interest";
 import { useCurrentUser } from "@/lib/user-context";
 import WeeklyIntakeWidget from "@/components/WeeklyIntakeWidget";
+import FollowupReportCard from "@/components/FollowupReportCard";
 import FollowupQueueCard from "@/components/FollowupQueueCard";
 import BookingFlowCard from "@/components/BookingFlowCard";
 import ChannelConversionCard from "@/components/ChannelConversionCard";
@@ -1506,6 +1507,8 @@ export default function CRMPage() {
                 <Plus size={13} /> บันทึกกิจกรรม
               </button>
             </div>
+            {/* ติดตามลูกค้าเก่าไปถึงไหนแล้ว — คำถามแรกที่ผู้บริหารถาม จึงอยู่บนสุด (Pom สั่ง 19 ต.ค. 69) */}
+            {user?.isManager && <FollowupReportCard />}
             {/* ช่องทางไหนทำให้ลูกค้ามาจองได้ — ข้อมูลไว้ตัดสินใจเรื่องงบ/ช่องทางสื่อสาร */}
             <ChannelConversionCard />
             {teamStats.length > 0 && (

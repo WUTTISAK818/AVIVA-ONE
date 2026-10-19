@@ -6,6 +6,7 @@ import { sendLineToEmail, type LineKind } from "@/lib/line-log";
 import { isManagerRole } from "@/lib/roles";
 import { channelBucket } from "@/lib/lead-channel";
 import { monthlyDigestTarget } from "@/lib/lead-digest-schedule";
+import { buildFollowupReport, followupReportLineText, thaiWeekRange } from "@/lib/sales-followup-report";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -255,6 +256,38 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) {
       result.monthly = { error: (e as Error).message };
+    }
+  }
+
+  // 4) ติดตามลูกค้าเก่ารายสัปดาห์ — วันอาทิตย์ พร้อมกับสรุปลูกค้าใหม่ (Pom สั่ง 19 ต.ค. 69)
+  //    คนละเรื่องกับข้อ 2: ข้อ 2 คือ "ลูกค้าใหม่ที่เข้ามา" ข้อนี้คือ "เซลล์ตามลูกค้าเก่าไปถึงไหน"
+  if (isSundayThai) {
+    try {
+      const report = await buildFollowupReport(db, "week", thaiNow);
+      const title = `📊 สรุปการติดตามลูกค้ารายสัปดาห์ — ${thaiWeekRange(thaiNow).label}`;
+      const lineSent = await deliver(db, title, followupReportLineText(report), "lead_digest_weekly");
+      result.followupWeekly = { sellers: report.sellers.length, milestones: report.totals.milestoneTotal, lineSent };
+    } catch (e) {
+      result.followupWeekly = { error: (e as Error).message };
+    }
+  }
+
+  // 5) ติดตามลูกค้าเก่ารายเดือน — จังหวะเดียวกับสรุปรายเดือน (วันสุดท้ายของเดือน + ตามเก็บใน 5 วันแรก)
+  if (monthlyTarget) {
+    try {
+      const title = `📊 สรุปการติดตามลูกค้าประจำเดือน — ${monthlyTarget.label}`;
+      const { data: already } = await db.from("notifications").select("id").eq("title", title).limit(1);
+      if (already && already.length > 0) {
+        result.followupMonthly = { skipped: "already-delivered", label: monthlyTarget.label };
+      } else {
+        // since คือต้นเดือนเป้าหมายตามเวลาไทย -> บวก 7 ชม. แล้วอ่านด้วย getUTC* จะได้วันที่ 1 ของเดือนนั้น
+        const refInMonth = new Date(new Date(monthlyTarget.since).getTime() + 7 * 3_600_000);
+        const report = await buildFollowupReport(db, "month", refInMonth);
+        const lineSent = await deliver(db, title, followupReportLineText(report), "lead_digest_monthly");
+        result.followupMonthly = { label: monthlyTarget.label, sellers: report.sellers.length, milestones: report.totals.milestoneTotal, lineSent };
+      }
+    } catch (e) {
+      result.followupMonthly = { error: (e as Error).message };
     }
   }
 

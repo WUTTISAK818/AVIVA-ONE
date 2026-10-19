@@ -15,6 +15,10 @@ import { isClosedLost } from "./mock-data";
 // ⚠️ ผลตรวจนี้เป็นแค่ "ข้อมูลประกอบการตัดสินใจ" การตรวจรับยังเป็นอำนาจของผู้สั่งงานเสมอ
 // (หลัก Maker-Checker: ผู้ทำกับผู้ตรวจต้องไม่ใช่คนเดียวกัน และระบบไม่ใช่ผู้ตรวจรับ)
 
+/** เพดานแถวที่ดึงมาตรวจ — PostgREST ตัดที่ 1000 แถวโดยปริยาย ถ้าไม่ระบุจะนับไม่ครบเงียบ ๆ เมื่อข้อมูลโตขึ้น
+ *  (มาตรฐานโค้ดส่วน D: ลิสต์ข้อมูลต้องมี .limit() เสมอ) */
+const LEAD_QUERY_LIMIT = 5000;
+
 export type VerifyVerdict = "pass" | "partial" | "fail" | "unknown";
 
 export interface VerifyCheck {
@@ -100,8 +104,26 @@ async function verifyOverdueFollowups(db: Db, d: DirectiveForVerify): Promise<Ve
   const name = d.assigned_to_name ?? "";
 
   const mine = await rowsOf<LeadRow>(
-    db.from("leads").select("lead_code, customer_name, status, next_follow_up_date, assigned_to").eq("assigned_to", name),
+    db.from("leads").select("lead_code, customer_name, status, next_follow_up_date, assigned_to")
+      .eq("assigned_to", name).limit(LEAD_QUERY_LIMIT),
   );
+
+  // ไม่มีลูกค้าในระบบเลย = ตรวจไม่ได้ ไม่ใช่ "ผ่าน"
+  // ของเดิมจะได้ overdue = 0 แล้วสรุปว่า "เรียบร้อย" ซึ่งเป็นการบอกผู้สั่งงานผิด
+  // (เกิดได้จริงเมื่อชื่อผู้รับคำสั่งไม่ตรงกับชื่อเจ้าของลูกค้า หรือสั่งคนที่ไม่ได้ถือลูกค้า)
+  if (mine.length === 0) {
+    return {
+      rule: "คิวลูกค้าเลยนัดติดตาม",
+      verdict: "unknown",
+      headline: `ตรวจอัตโนมัติไม่ได้ — ไม่พบลูกค้าที่ ${name || "ผู้รับคำสั่ง"} ดูแลอยู่ในระบบเลย`,
+      checks: [],
+      notes: [
+        "อาจเป็นเพราะชื่อผู้รับคำสั่งไม่ตรงกับชื่อเจ้าของลูกค้าใน CRM หรือพนักงานคนนี้ไม่ได้ถือลูกค้า",
+        "กรุณาตรวจงานนี้ด้วยตาเอง — ระบบไม่มีข้อมูลพอจะยืนยันว่าเสร็จหรือยัง",
+      ],
+      checkedAt: new Date().toISOString(),
+    };
+  }
   const overdue = mine.filter(
     (l) => l.next_follow_up_date && l.next_follow_up_date < today
       && l.status !== "Closed Deal" && !isClosedLost(l.status),
@@ -157,11 +179,25 @@ async function verifyPlotRecord(db: Db, d: DirectiveForVerify): Promise<VerifyRe
   const codeMatch = text.match(/CRM-\d+/);
   const plotMatch = text.match(/แปลง\s*(?:ที่\s*)?(\d+)/);
 
-  let q = db
-    .from("leads")
-    .select("lead_code, customer_name, plot_number, status, contract_price, booking_deposit, contract_signed_date, loan_approved_date, transfer_appointment_date");
-  q = codeMatch ? q.eq("lead_code", codeMatch[0]) : q.eq("plot_number", Number(plotMatch![1]));
-  const lead = (await rowsOf<LeadRow>(q.limit(1)))[0];
+  const cols = "lead_code, customer_name, plot_number, status, contract_price, booking_deposit, contract_signed_date, loan_approved_date, transfer_appointment_date";
+  const base = db.from("leads").select(cols);
+
+  // อ้างด้วยเลขที่ลูกค้า -> ตรงตัว · อ้างด้วยเลขแปลง -> ต้องเลือกให้ถูกคน
+  // 1 แปลงมีลูกค้าผูกอยู่หลายรายได้ (ต.ค. 69: แปลง 15 มี 10 ราย · แปลง 7 มี 8 ราย)
+  // เพราะ plot_number ถูกใช้หมายถึง "สนใจแปลงนี้" ไม่ใช่ "เป็นเจ้าของแปลงนี้"
+  // ถ้าหยิบมาแถวเดียวแบบไม่เรียงลำดับ จะได้คนที่แค่มาเยี่ยมชม แล้วรายงานผิดคนให้ผู้สั่งงาน
+  const candidates = codeMatch
+    ? await rowsOf<LeadRow>(base.eq("lead_code", codeMatch[0]).limit(1))
+    : await rowsOf<LeadRow>(base.eq("plot_number", Number(plotMatch![1])).limit(LEAD_QUERY_LIMIT));
+
+  // คนที่ "ถือแปลงจริง" = เดินหน้าถึงขั้นจองขึ้นไป · เรียงจากขั้นที่ไกลที่สุดก่อน
+  const OWNER_RANK: Record<string, number> = {
+    "Closed Deal": 0, Transfer: 1, "Loan Approved": 2, Contract: 3, Booking: 4,
+  };
+  const owners = candidates
+    .filter((l) => OWNER_RANK[l.status ?? ""] !== undefined)
+    .sort((a, b) => OWNER_RANK[a.status ?? ""] - OWNER_RANK[b.status ?? ""]);
+  const lead = owners[0] ?? candidates[0];
 
   if (!lead) {
     return {
@@ -198,6 +234,9 @@ async function verifyPlotRecord(db: Db, d: DirectiveForVerify): Promise<VerifyRe
       }
     }
   }
+  if (!codeMatch && candidates.length > 1) {
+    notes.push(`แปลงนี้มีลูกค้าผูกอยู่ ${candidates.length} ราย — ระบบตรวจของ “${lead.customer_name ?? "-"}” (${lead.lead_code ?? "-"}) ซึ่งเป็นรายที่เดินหน้าไกลที่สุด${owners.length === 0 ? " (ยังไม่มีใครถึงขั้นจอง จึงอาจไม่ใช่เจ้าของแปลงจริง)" : ""}`);
+  }
   notes.push("ระบบตรวจได้แค่ว่า “กรอกครบไหม” — ตัวเลขที่กรอกตรงกับเอกสารจริงหรือไม่ ต้องให้คนตรวจกับสัญญา/สลิป");
 
   return {
@@ -217,7 +256,9 @@ async function verifyPlotRecord(db: Db, d: DirectiveForVerify): Promise<VerifyRe
 // กฎที่ 3 — งานอัปเดตผังก่อสร้างให้ตรงหน้างาน
 // ─────────────────────────────────────────────────────────────
 async function verifyConstructionProgress(db: Db, d: DirectiveForVerify): Promise<VerifyResult> {
-  const all = await rowsOf<HouseRow>(db.from("houses").select("plot_code, house_number, progress, construction_status, updated_at"));
+  const all = await rowsOf<HouseRow>(
+    db.from("houses").select("plot_code, house_number, progress, construction_status, updated_at").limit(LEAD_QUERY_LIMIT),
+  );
   const since = new Date(d.created_at).getTime();
   const updatedSince = all.filter((h) => h.updated_at && new Date(h.updated_at).getTime() >= since);
   const stillZero = all.filter((h) => (h.progress ?? 0) === 0);
@@ -274,7 +315,7 @@ async function verifyWorkReport(db: Db, d: DirectiveForVerify): Promise<VerifyRe
   const reports = await rowsOf<WorkReportRow>(
     db.from("work_reports").select("report_date, status, submitted_at")
       .eq("user_email", d.assigned_to ?? "").gte("report_date", since)
-      .order("report_date", { ascending: false }),
+      .order("report_date", { ascending: false }).limit(LEAD_QUERY_LIMIT),
   );
 
   return {

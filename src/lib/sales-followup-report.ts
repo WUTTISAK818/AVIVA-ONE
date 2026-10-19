@@ -17,6 +17,10 @@ import { isClosedLost } from "./mock-data";
 
 export type FollowupPeriod = "week" | "month";
 
+/** เพดานแถวที่ดึงมาคำนวณ — PostgREST ตัดที่ 1000 แถวโดยปริยาย ถ้าไม่ระบุจะนับไม่ครบเงียบ ๆ เมื่อลูกค้าโตขึ้น
+ *  (มาตรฐานโค้ดส่วน D: ลิสต์ข้อมูลต้องมี .limit() เสมอ) */
+const LEAD_QUERY_LIMIT = 5000;
+
 /** ติดต่อในวันเดียวกันเกินจำนวนนี้ = อัปเดตเป็นชุด ไม่ใช่การติดต่อรายคน
  *  20 ราย/วัน/คน คือเพดานที่ยังพอเป็นไปได้ถ้าโทรจริงทั้งวัน — เกินกว่านี้คือแก้ข้อมูลทีเดียว */
 const BULK_TOUCH_PER_DAY = 20;
@@ -128,8 +132,11 @@ export async function buildFollowupReport(
     .from("leads")
     .select(
       "assigned_to, status, phone, contact_handle, contact_channel, last_contact_date, next_follow_up_date, visit_date, booking_date, contract_signed_date, loan_approved_date, transfer_date",
-    );
+    )
+    .limit(LEAD_QUERY_LIMIT);
   const leads = (data ?? []) as LeadRow[];
+  // ถ้าชนเพดานพอดี แปลว่าอาจมีลูกค้าที่ไม่ได้ถูกนับ — ต้องบอกผู้บริหาร ห้ามให้ตัวเลขผิดแบบเงียบ ๆ
+  const truncated = leads.length >= LEAD_QUERY_LIMIT;
 
   // หาวันที่ "อัปเดตเป็นชุด" ของแต่ละคน ก่อนนับผลงาน
   const touchesPerSellerDay = new Map<string, number>();
@@ -196,6 +203,9 @@ export async function buildFollowupReport(
   );
 
   const warnings: string[] = [];
+  if (truncated) {
+    warnings.push(`ข้อมูลลูกค้าเกิน ${LEAD_QUERY_LIMIT.toLocaleString("th-TH")} ราย — รายงานนี้นับเฉพาะชุดแรกเท่านั้น ตัวเลขอาจไม่ครบ กรุณาแจ้งผู้ดูแลระบบ`);
+  }
   if (totals.bulkTouched > 0) {
     warnings.push(`มีลูกค้า ${totals.bulkTouched} รายถูกอัปเดต "วันติดต่อล่าสุด" เป็นชุดในช่วงนี้ (เกิน ${BULK_TOUCH_PER_DAY} รายในวันเดียว) — ไม่นับเป็นการติดต่อรายคน`);
   }

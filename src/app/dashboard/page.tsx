@@ -394,6 +394,8 @@ export default function DashboardPage() {
     const ORDER_MAP: Record<string, number> = {
       "New Lead": 0, "Contacted": 1, "Site Visit": 2,
       "Booking": 3, "Contract": 4, "Loan Approved": 5, "Transfer": 6, "Closed Deal": 7,
+      // ปลายทางแบบไม่ไปต่อ — จัดไว้ท้ายสุด ไม่ให้ไปปนกับลูกค้าที่ยังเดินหน้าอยู่
+      "Not Interested": 8, "Unreachable": 8,
     };
     const rank = (s: string) => ORDER_MAP[s] ?? 0;
     const emptyFunnel = { totalNew: 0, visitCount: 0, bookedCount: 0, loanCount: 0, loanApprovedCount: 0, transferCount: 0, hot: 0, warm: 0, cool: 0 };

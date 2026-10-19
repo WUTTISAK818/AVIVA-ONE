@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
+import { isClosedLost } from "./mock-data";
 
 function admin() {
   return createClient(
@@ -43,6 +44,10 @@ export async function getCustomerPortal(token: string): Promise<CustomerPortal |
     .maybeSingle();
   if (!lead) return null;
   const l = lead as Record<string, unknown>;
+  // ลูกค้าที่จบแบบไม่ไปต่อ (ไม่สนใจแล้ว/ติดต่อไม่ได้) ไม่ต้องเสิร์ฟหน้าติดตามสถานะอีก
+  // -> หน้าเว็บจะขึ้น "ลิงก์ไม่ถูกต้องหรือถูกยกเลิกแล้ว" แทนที่จะโชว์สถานะให้ลูกค้าเห็น
+  // ถ้าฝ่ายขายเปลี่ยนสถานะกลับ ลิงก์เดิมใช้ได้ทันทีเหมือนเดิม
+  if (isClosedLost(l.status as string)) return null;
 
   let project_name = "AVIVA Private";
   const { data: proj } = await db.from("projects").select("project_name").eq("id", l.project_id as string).maybeSingle();

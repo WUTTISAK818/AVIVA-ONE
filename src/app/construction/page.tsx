@@ -1494,7 +1494,7 @@ export default function ConstructionPage() {
                         <p className="text-xs text-aviva-gold font-medium mt-0.5">{(user?.isManager || user?.department === "ฝ่ายขาย") ? houseCustomer.phone : maskPhone(houseCustomer.phone)}</p>
                       </div>
                       <span className="text-[10px] bg-aviva-bg px-2 py-1 rounded-full text-aviva-secondary">
-                        {({ Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", "Closed Deal": "โอนแล้ว" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
+                        {({ Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", "Closed Deal": "โอนแล้ว", "Not Interested": "ไม่สนใจแล้ว", Unreachable: "ติดต่อไม่ได้" } as Record<string, string>)[houseCustomer.status] ?? houseCustomer.status}
                       </span>
                     </div>
                     {houseCustomer.loan_approved_date && (

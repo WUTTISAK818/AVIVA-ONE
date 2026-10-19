@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
 import { lineErrorTh } from "@/lib/line-log-th";
 import { loadWorkSchedule, loadHolidays, dueDateFromWorkingDays, DEFAULT_SCHEDULE, type WorkSchedule } from "@/lib/work-schedule";
+import type { VerifyResult } from "@/lib/directive-verify";
 
 type Tab = "received" | "sent";
 
@@ -61,6 +62,55 @@ function Step({ label, at, note, tone = "normal" }: { label: string; at?: string
   );
 }
 
+// ผลตรวจอัตโนมัติ — ให้ผู้สั่งงานเห็น "ข้อมูลจริงในระบบตอนนี้" เทียบกับที่พนักงานรายงาน
+// ตั้งใจให้อ่านง่ายบนมือถือ: พาดหัวบรรทัดเดียว + ตัวเลขที่ตรวจ + ข้อสังเกตที่ต้องให้คนดูเอง
+function VerifyPanel({ state, onRetry }: { state: VerifyResult | "loading" | { err: string } | undefined; onRetry: () => void }) {
+  if (!state) return null;
+  if (state === "loading") {
+    return <p className="text-[13px] text-aviva-secondary mb-4">⏳ กำลังตรวจข้อมูลจริงในระบบ…</p>;
+  }
+  if ("err" in state) {
+    return (
+      <div className="mb-4">
+        <p className="text-[13px] text-red-400">ตรวจอัตโนมัติไม่สำเร็จ — {state.err}</p>
+        <button onClick={onRetry} className="text-[13px] text-aviva-gold underline mt-0.5">ลองตรวจใหม่</button>
+      </div>
+    );
+  }
+
+  const tone = {
+    pass:    { cls: "bg-green-500/10 border-green-500/30 text-green-400", icon: "✅", title: "ตรวจแล้ว — ตรงกับที่รายงาน" },
+    partial: { cls: "bg-amber-500/10 border-amber-500/30 text-amber-400", icon: "⚠️", title: "ตรวจแล้ว — ยังไม่ครบ" },
+    fail:    { cls: "bg-red-500/10 border-red-500/30 text-red-400",       icon: "❌", title: "ตรวจแล้ว — ยังไม่เรียบร้อย" },
+    unknown: { cls: "bg-aviva-secondary/10 border-aviva-secondary/30 text-aviva-secondary", icon: "❔", title: "ระบบตรวจอัตโนมัติไม่ได้" },
+  }[state.verdict];
+
+  return (
+    <div className={`rounded-xl border p-3 mb-4 ${tone.cls}`}>
+      <p className="text-[13px] font-bold">{tone.icon} {tone.title}</p>
+      <p className="text-[14px] text-aviva-text mt-1 leading-relaxed">{state.headline}</p>
+      {state.checks.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2.5">
+          {state.checks.map((c) => (
+            <Fragment key={c.label}>
+              <p className="text-[13px] text-aviva-secondary">{c.label}</p>
+              <p className={`text-[13px] text-right font-medium ${c.ok === false ? "text-red-400" : c.ok === true ? "text-green-400" : "text-aviva-text"}`}>
+                {c.value}
+              </p>
+            </Fragment>
+          ))}
+        </div>
+      )}
+      {state.notes.map((n, i) => (
+        <p key={i} className="text-[13px] text-aviva-text/90 mt-2 leading-relaxed">• {n}</p>
+      ))}
+      <p className="text-[12px] text-aviva-secondary/70 mt-2">
+        ระบบตรวจจาก{state.rule === "—" ? "ข้อมูลในระบบ" : `: ${state.rule}`} · การตรวจรับยังเป็นอำนาจของผู้สั่งงาน
+      </p>
+    </div>
+  );
+}
+
 export default function DirectivesPage() {
   const user = useCurrentUser();
   const [tab, setTab] = useState<Tab>("received");
@@ -85,6 +135,7 @@ export default function DirectivesPage() {
   const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});   // เปิดดูรายละเอียด/ไทม์ไลน์
+  const [verify, setVerify] = useState<Record<string, VerifyResult | "loading" | { err: string }>>({});   // ผลตรวจอัตโนมัติรายใบ
   const [lineLog, setLineLog] = useState<Record<string, { ok: boolean; error: string | null; created_at: string }>>({});
   const [cancelFor, setCancelFor] = useState<Directive | null>(null);      // งานที่กำลังจะยกเลิก
   const [cancelReason, setCancelReason] = useState("");
@@ -107,10 +158,26 @@ export default function DirectivesPage() {
   // เปิดอ่านรายละเอียด = รับทราบอัตโนมัติ (Pom เคาะ 30 ก.ย. 69)
   // เหตุผล: การอ่านคือการรับทราบอยู่แล้ว ไม่ควรบังคับให้พนักงานทำ 2 จังหวะ
   // ปุ่ม "รับทราบ" ยังอยู่สำหรับคนที่อยากกดเอง
+  // ตรวจอัตโนมัติ: เทียบสิ่งที่พนักงานรายงาน กับข้อมูลจริงในระบบ ณ ตอนนี้
+  const runVerify = useCallback(async (d: Directive) => {
+    setVerify((p) => (p[d.id] && p[d.id] !== "loading" ? p : { ...p, [d.id]: "loading" }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/directives/verify?id=${d.id}`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const json = await res.json();
+      setVerify((p) => ({ ...p, [d.id]: res.ok ? (json as VerifyResult) : { err: json.error ?? "ตรวจไม่สำเร็จ" } }));
+    } catch {
+      setVerify((p) => ({ ...p, [d.id]: { err: "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง" } }));
+    }
+  }, []);
+
   const openDetail = (d: Directive) => {
     const willOpen = !expanded[d.id];
     setExpanded((p) => ({ ...p, [d.id]: !p[d.id] }));
     if (!willOpen) return;
+    if (tab === "sent") runVerify(d);
     if (tab !== "received" || d.status !== "sent") return;
     setItems((prev) => prev.map((x) => (x.id === d.id ? { ...x, status: "acknowledged", acknowledged_at: new Date().toISOString() } : x)));
     updateDirectiveStatus(d, "acknowledged").then(() => load(), () => load());
@@ -349,6 +416,7 @@ export default function DirectivesPage() {
 
                 {expanded[d.id] && (
                   <div className="mt-3 pt-3 border-t border-aviva-gold/10">
+                    {tab === "sent" && <VerifyPanel state={verify[d.id]} onRetry={() => runVerify(d)} />}
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-4">
                       <p className="text-[13px] text-aviva-secondary">ผู้สั่งงาน</p>
                       <p className="text-[13px] text-aviva-text text-right font-medium">{d.created_by_name || d.created_by}</p>
@@ -417,6 +485,20 @@ export default function DirectivesPage() {
                     <p className="text-[13px] text-amber-400 font-semibold">
                       พนักงานรายงานว่าทำเสร็จแล้ว — กรุณาตรวจรับ
                     </p>
+                    {!expanded[d.id] && (
+                      <button onClick={() => openDetail(d)} className="text-[13px] text-aviva-gold underline">
+                        กด &quot;ดูรายละเอียด&quot; เพื่อให้ระบบตรวจข้อมูลจริงให้ก่อนตัดสินใจ
+                      </button>
+                    )}
+                    {(() => {
+                      const v = verify[d.id];
+                      if (!v || v === "loading" || "err" in v || v.verdict === "pass") return null;
+                      return (
+                        <p className={`text-[13px] font-semibold ${v.verdict === "fail" ? "text-red-400" : "text-amber-400"}`}>
+                          {v.verdict === "fail" ? "⚠️ ระบบตรวจแล้วพบว่างานยังไม่เรียบร้อย" : v.verdict === "partial" ? "⚠️ ระบบตรวจแล้วพบว่ายังไม่ครบ" : "ℹ️ ระบบตรวจอัตโนมัติไม่ได้"} — {v.headline}
+                        </p>
+                      );
+                    })()}
                     <input
                       type="text"
                       placeholder="ความเห็น (ไม่บังคับตอนปิดจ็อบ · บังคับตอนตีกลับ)"

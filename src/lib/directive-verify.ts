@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isClosedLost } from "./mock-data";
 
 // ตรวจคำสั่งงานอัตโนมัติจากข้อมูลจริง — ใช้ตอนผู้สั่งงานจะกด "ตรวจรับ · ปิดจ็อบ"
 //
@@ -102,7 +103,8 @@ async function verifyOverdueFollowups(db: Db, d: DirectiveForVerify): Promise<Ve
     db.from("leads").select("lead_code, customer_name, status, next_follow_up_date, assigned_to").eq("assigned_to", name),
   );
   const overdue = mine.filter(
-    (l) => l.next_follow_up_date && l.next_follow_up_date < today && l.status !== "Closed Deal",
+    (l) => l.next_follow_up_date && l.next_follow_up_date < today
+      && l.status !== "Closed Deal" && !isClosedLost(l.status),
   );
   const noDate = mine.filter((l) => !l.next_follow_up_date);
 

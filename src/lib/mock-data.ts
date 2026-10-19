@@ -32,7 +32,20 @@ export type LeadStatus =
   | "Contract"
   | "Loan Approved"
   | "Transfer"
-  | "Closed Deal";
+  | "Closed Deal"
+  // ปลายทางแบบ "ไม่ไปต่อ" — Pom อนุมัติ 19 ต.ค. 69
+  // เดิม pipeline เดินหน้าทางเดียว ลูกค้าที่ปิดไม่ได้จริงจึงไม่มีที่ไป ฝ่ายขายต้องเลื่อนวันนัดหนีไปเรื่อย ๆ
+  // (ต.ค. 69 เจอลูกค้า 209 จาก 210 รายของเดียร์ถูกเลื่อนนัดเป็นก้อน) ทำให้ "ลูกค้าในมือ" ไม่ใช่ตัวเลขจริง
+  | "Not Interested"
+  | "Unreachable";
+
+/** ปลายทางแบบไม่ไปต่อ — ยังอยู่ในฐานข้อมูลให้ดูย้อนหลังได้ แต่ไม่ต้องตามต่อแล้ว */
+export const CLOSED_LOST_STATUSES: LeadStatus[] = ["Not Interested", "Unreachable"];
+
+/** true = ลูกค้ารายนี้จบแล้วแบบไม่ได้ขาย ไม่ต้องนับเป็นลูกค้าในมือและไม่ต้องเข้าคิวติดตาม */
+export function isClosedLost(status: string | null | undefined): boolean {
+  return (CLOSED_LOST_STATUSES as string[]).includes(status ?? "");
+}
 
 export const leads: {
   id: number;

@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isClosedLost } from "./mock-data";
 
 // รายงานการติดตามลูกค้าเก่า รายสัปดาห์/รายเดือน — ใช้ร่วมกันระหว่างหน้าจอ CRM และสรุป LINE
 //
@@ -153,7 +154,8 @@ export async function buildFollowupReport(
     const name = (l.assigned_to ?? "").trim() || "ยังไม่มีเจ้าของ";
     if (!sellers.has(name)) sellers.set(name, blank(name));
     const s = sellers.get(name)!;
-    const open = l.status !== "Closed Deal";
+    // "ลูกค้าในมือ" = ยังต้องตามต่อจริง — ไม่นับที่ปิดการขายแล้ว และที่จบแบบไม่ไปต่อ (ไม่สนใจ/ติดต่อไม่ได้)
+    const open = l.status !== "Closed Deal" && !isClosedLost(l.status);
 
     if (open) {
       s.inHand += 1;

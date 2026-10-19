@@ -12,7 +12,7 @@ import DeptAIChat from "@/components/DeptAIChat";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
-import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
+import { pipelineStages, CLOSED_LOST_STATUSES, isClosedLost, type LeadStatus } from "@/lib/mock-data";
 import { createNotification, notifyActivityLine, notifyMilestone } from "@/lib/notify";
 import { alertOthersInterestedInPlot } from "@/lib/plot-interest";
 import { useCurrentUser } from "@/lib/user-context";
@@ -53,7 +53,8 @@ function escapeHtml(s: string | null | undefined): string {
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Contract", "Loan Approved", "Closed Deal"];
 // "Transfer" ถูกรวมเป็น "โอนแล้ว" เดียวกับ "Closed Deal" จึงซ่อนออกจากตัวเลือกใน CRM
-const crmStages = pipelineStages.filter(s => s !== "Transfer");
+// ต่อท้ายด้วยปลายทางแบบ "ไม่ไปต่อ" เพื่อให้ทั้ง dropdown และแถบกรองเห็นพร้อมกัน
+const crmStages = [...pipelineStages.filter(s => s !== "Transfer"), ...CLOSED_LOST_STATUSES];
 const PLOT_COUNT = 31;
 
 function numberToThai(n: number): string {
@@ -180,6 +181,8 @@ const statusColor: Record<LeadStatus, string> = {
   "Loan Approved": "bg-gray-800/20 text-gray-400",
   "Transfer": "bg-green-900/20 text-green-400",
   "Closed Deal": "bg-green-900/20 text-green-400",
+  "Not Interested": "bg-aviva-secondary/15 text-aviva-secondary",
+  "Unreachable": "bg-aviva-secondary/15 text-aviva-secondary",
 };
 
 const SOURCES = ["Facebook", "TikTok", "Google", "Instagram", "LINE OA", "Call in", "Referral", "Walk-in", "อื่นๆ"];
@@ -217,6 +220,7 @@ const formatPhone = normalizePhoneInput;
 const AI_STAGE_SCORE: Record<string, number> = {
   "New Lead": 20, Contacted: 35, "Site Visit": 50, Booking: 70,
   Contract: 82, "Loan Approved": 92, Transfer: 96, "Closed Deal": 100,
+  "Not Interested": 0, Unreachable: 0,
 };
 function computeAiScore(status: string, budget: number, hasFollowUp: boolean): number {
   let s = AI_STAGE_SCORE[status] ?? 20;
@@ -910,13 +914,21 @@ export default function CRMPage() {
   const STATUS_TH: Record<string, string> = {
     "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", "Site Visit": "เยี่ยมชมโครงการ",
     Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว",
+    "Not Interested": "ไม่สนใจแล้ว", Unreachable: "ติดต่อไม่ได้",
   };
 
   const handleSave = async () => {
     if (!form.customer_name) return;
     // บังคับตั้งวันนัดติดตาม (ยกเว้นปิดการขายแล้ว) — เดิมพบว่าลูกค้าใหม่แทบไม่เคยถูกตั้งวันติดตามเลย
-    if (form.status !== "Closed Deal" && !form.next_follow_up_date) {
+    if (form.status !== "Closed Deal" && !isClosedLost(form.status) && !form.next_follow_up_date) {
       setToast({ msg: "กรุณาระบุวันนัดติดตามครั้งถัดไป — กันลูกค้าหลุดมือ", type: "error" });
+      return;
+    }
+    // เลือกช่องทางแชตไว้แล้วต้องบอกด้วยว่าทักที่ไหน ไม่งั้นคิวติดตามรู้แค่ว่า "ไม่ใช่โทรศัพท์" แต่ไปต่อไม่ได้
+    // (Pom อนุมัติ 19 ต.ค. 69 · ก่อนหน้านี้ลูกค้า 167 รายมีช่องทางแต่ไม่มีชื่อผู้ติดต่อสักราย)
+    if (form.contact_channel && !["phone", "walk_in"].includes(form.contact_channel) && !form.contact_handle.trim()) {
+      const ch = CONTACT_CHANNELS.find(c => c.value === form.contact_channel);
+      setToast({ msg: `เลือกช่องทาง "${ch?.label ?? form.contact_channel}" แล้ว ต้องกรอก "ชื่อ/ไอดีในช่องทางนั้น" ด้วย — ไม่งั้นไม่มีใครรู้ว่าต้องทักที่ไหน`, type: "error" });
       return;
     }
     // บังคับเลือกช่องทางที่มา — เดิม default เป็น Facebook เงียบๆ ทำให้ข้อมูลช่องทางเพี้ยน (ส.ค. 69: Facebook 85% วอล์กอิน 0%)
@@ -2388,7 +2400,7 @@ export default function CRMPage() {
         const isBooked = !!bookedLead && !isSold;
         const interestedLeads = !isBooked && !isSold ? leads.filter(l => l.plot_number && l.plot_number === n && !BOOKING_STATUSES.includes(l.status)).sort((a, b) => b.ai_score - a.ai_score) : [];
         const displayLead = isSold ? leads.find(l => l.plot_number === n && l.status === "Closed Deal") : bookedLead;
-        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว" };
+        const STATUS_TH_MAP: Record<string, string> = { "New Lead": "ลีดใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", Booking: "จอง", Contract: "ทำสัญญา", "Loan Approved": "อนุมัติสินเชื่อ", Transfer: "โอนแล้ว", "Closed Deal": "โอนแล้ว", "Not Interested": "ไม่สนใจแล้ว", Unreachable: "ติดต่อไม่ได้" };
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={() => setMapPlotModal(null)} role="presentation">
             <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] overflow-y-auto mb-14" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="plot-modal-title">

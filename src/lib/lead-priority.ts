@@ -5,7 +5,11 @@ import { contactPlan } from "./contact-channel";
 
 /** สถานะที่ถือว่าไม่ต้องติดตามในคิวขายแล้ว — ใช้ร่วมกันทั้งคิวในแอปและ cron สรุปเช้า เพื่อให้ตัวเลขตรงกันเสมอ
  *  หมายเหตุ: "Booking" ยังอยู่ในคิว เพราะจองแล้วยังต้องตามให้มาทำสัญญา — ที่ตัดออกคือขั้นที่มีระบบอื่นดูแลต่อแล้ว */
-export const FOLLOWUP_DONE_STATUSES = ["Contract", "Loan Approved", "Transfer", "Closed Deal"] as const;
+// สถานะที่ไม่ต้องเข้าคิวติดตามแล้ว — ทั้งที่ไปต่อจนจบ (ทำสัญญาขึ้นไป) และที่จบแบบไม่ได้ขาย
+export const FOLLOWUP_DONE_STATUSES = [
+  "Contract", "Loan Approved", "Transfer", "Closed Deal",
+  "Not Interested", "Unreachable",
+] as const;
 
 export const FOLLOWUP_BATCH_SIZE = 10;
 

@@ -51,6 +51,8 @@ function escapeHtml(s: string | null | undefined): string {
 }
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+/** กองลูกค้าที่ยังไม่มีพนักงานขายดูแล — ไม่ใช่ชื่อคน ห้ามเอาไปจัดอันดับผลงาน */
+const UNOWNED_LABEL = "ยังไม่มีเจ้าของ";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Contract", "Loan Approved", "Closed Deal"];
 // "Transfer" ถูกรวมเป็น "โอนแล้ว" เดียวกับ "Closed Deal" จึงซ่อนออกจากตัวเลือกใน CRM
 // ต่อท้ายด้วยปลายทางแบบ "ไม่ไปต่อ" เพื่อให้ทั้ง dropdown และแถบกรองเห็นพร้อมกัน
@@ -731,7 +733,8 @@ export default function CRMPage() {
   const filtered = useMemo(() => leads.filter(
     (l) => (activeStage === "all" || l.status === activeStage)
       && (search === "" || (l.customer_name ?? "").includes(search))
-      && (!assigneeFilter || (l.assigned_to || l.source || "ไม่ระบุ") === assigneeFilter)
+      // ต้องใช้สูตรเดียวกับการจัดกลุ่มในตารางผลงานทีม ไม่งั้นแตะการ์ดแล้วกรองไม่เจอใคร
+      && (!assigneeFilter || ((l.assigned_to ?? "").trim() || UNOWNED_LABEL) === assigneeFilter)
   ), [leads, activeStage, search, assigneeFilter]);
 
   // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
@@ -743,7 +746,10 @@ export default function CRMPage() {
   const teamStats = useMemo(() => {
     const groups = new Map<string, Lead[]>();
     leads.forEach((lead) => {
-      const key = lead.assigned_to || lead.source || "ไม่ระบุ";
+      // เดิมใช้ `assigned_to || source` -> ลูกค้าที่ไม่มีเจ้าของจะถูกจัดกลุ่มด้วย "ช่องทางที่มา"
+      // ทำให้ตารางผลงานทีมขึ้นแถวชื่อ "Facebook" ปนอยู่กับพนักงานขายจริง พร้อมยอดปิดการขายของตัวเอง
+      // (ต.ค. 69 เจอจริง 8 รายการ) -> ต้องแยกเป็น "ยังไม่มีเจ้าของ" ให้เห็นว่าไม่ใช่ผลงานของใคร
+      const key = (lead.assigned_to ?? "").trim() || UNOWNED_LABEL;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(lead);
     });
@@ -758,7 +764,12 @@ export default function CRMPage() {
         closeRate: ml.length > 0 ? Math.round((ml.filter((l) => l.status === "Closed Deal").length / ml.length) * 100) : 0,
       }))
       // จัดอันดับ leaderboard: ยอดขายเป็นหลัก → จำนวนปิดการขาย → อัตราปิด
-      .sort((a, b) => b.revenue - a.revenue || b.closed - a.closed || b.closeRate - a.closeRate);
+      // กอง "ยังไม่มีเจ้าของ" ไม่ใช่คน จึงไม่เข้าร่วมจัดอันดับ ให้ไปอยู่ท้ายสุดเสมอ
+      .sort((a, b) => {
+        if (a.name === UNOWNED_LABEL) return 1;
+        if (b.name === UNOWNED_LABEL) return -1;
+        return b.revenue - a.revenue || b.closed - a.closed || b.closeRate - a.closeRate;
+      });
   }, [leads]);
 
   // KPI สรุปภาพรวมทีมขาย (ใช้หัวแท็บผลงานทีม)
@@ -766,8 +777,11 @@ export default function CRMPage() {
     const revenue = teamStats.reduce((s, t) => s + t.revenue, 0);
     const closed = teamStats.reduce((s, t) => s + t.closed, 0);
     const booking = teamStats.reduce((s, t) => s + t.booking, 0);
-    const avgClose = teamStats.length > 0 ? Math.round(teamStats.reduce((s, t) => s + t.closeRate, 0) / teamStats.length) : 0;
-    return { revenue, closed, booking, avgClose, top: teamStats[0]?.name ?? "—" };
+    // "อัตราปิดเฉลี่ย" และ "ผู้ทำยอดสูงสุด" ต้องคิดจากพนักงานขายจริงเท่านั้น
+    // ไม่งั้นกองที่ยังไม่มีเจ้าของจะไปถ่วง/ดันค่าเฉลี่ยทั้งที่ไม่ใช่ผลงานของใคร
+    const people = teamStats.filter((t) => t.name !== UNOWNED_LABEL);
+    const avgClose = people.length > 0 ? Math.round(people.reduce((s, t) => s + t.closeRate, 0) / people.length) : 0;
+    return { revenue, closed, booking, avgClose, top: people[0]?.name ?? "—" };
   }, [teamStats]);
 
   const closedCount = stageCounts["Closed Deal"] ?? 0;

@@ -993,13 +993,16 @@ export default function CRMPage() {
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
         if (effectivePlot) {
-          if (form.status === "Booking") {
+          // ทุกสถานะตั้งแต่ "จอง" ขึ้นไปต้องกันแปลงไว้ ไม่ใช่เฉพาะตอนเลือก "จอง"
+          // (21 ต.ค. 69 เจอจริง: CRM-0410 แก้เป็น "ทำสัญญา" แล้วแปลง 5 ยังขึ้นว่าว่างขายได้)
+          // "ปิดการขาย" ไม่รวมตรงนี้ เพราะมีขั้นตอนโอนกรรมสิทธิ์ตั้งค่าเป็น sold ให้อยู่แล้ว
+          if (BOOKING_STATUSES.includes(form.status) && form.status !== "Closed Deal") {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({
               status: "reserved", sale_status_at: thaiDateStr(),
               sale_status_by: user?.full_name ?? user?.email ?? null,
-              sale_status_note: `จองไว้ — ${form.customer_name}`,
+              sale_status_note: `กันแปลงไว้ — ${form.customer_name} (${STATUS_TH[form.status] ?? form.status})`,
             }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
             // แยกให้ชัด 2 ตัวเลข: "ราคาขายที่ตกลง" = มูลค่าดีล (ใช้ฉลอง/รายงานยอดขาย)
             //                      "เงินจอง" = เงินที่ลูกค้าจ่ายจริงวันจอง = 1% ของราคาขาย (ใช้ในใบขออนุมัติเงินจอง)
@@ -1146,11 +1149,11 @@ export default function CRMPage() {
     if (newStatus === "Loan Approved" && lead.status !== "Loan Approved") { upd.loan_approved_date = lead.loan_approved_date ?? today; }
     await supabase.from("leads").update(upd).eq("id", lead.id);
     if (lead.plot_number) {
-      if (newStatus === "Booking") {
+      if (BOOKING_STATUSES.includes(newStatus) && newStatus !== "Closed Deal") {
         await supabase.from("houses").update({
           status: "reserved", sale_status_at: thaiDateStr(),
           sale_status_by: user?.full_name ?? user?.email ?? null,
-          sale_status_note: `จองไว้ — ${lead.customer_name}`,
+          sale_status_note: `กันแปลงไว้ — ${lead.customer_name} (${STATUS_TH[newStatus] ?? newStatus})`,
         }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
       } else if (BOOKING_STATUSES.includes(lead.status as LeadStatus) && !BOOKING_STATUSES.includes(newStatus)) {
         await supabase.from("houses").update({

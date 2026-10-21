@@ -996,7 +996,11 @@ export default function CRMPage() {
           if (form.status === "Booking") {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
             if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
-            await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
+            await supabase.from("houses").update({
+              status: "reserved", sale_status_at: thaiDateStr(),
+              sale_status_by: user?.full_name ?? user?.email ?? null,
+              sale_status_note: `จองไว้ — ${form.customer_name}`,
+            }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
             // แยกให้ชัด 2 ตัวเลข: "ราคาขายที่ตกลง" = มูลค่าดีล (ใช้ฉลอง/รายงานยอดขาย)
             //                      "เงินจอง" = เงินที่ลูกค้าจ่ายจริงวันจอง = 1% ของราคาขาย (ใช้ในใบขออนุมัติเงินจอง)
             const bookAmount = parseAmount(form.contract_price) ?? parseAmount(form.budget);
@@ -1080,7 +1084,11 @@ export default function CRMPage() {
   const recordTransfer = async (plot: number | null, customerName: string, amount: number | null) => {
     const today = thaiDateStr();
     const cv = amount && amount > 0 ? amount : 0;
-    if (plot) await supabase.from("houses").update({ status: "sold" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+    if (plot) await supabase.from("houses").update({
+      status: "sold", sale_status_at: today,
+      sale_status_by: user?.full_name ?? user?.email ?? null,
+      sale_status_note: `โอนกรรมสิทธิ์แล้ว — ${customerName}`,
+    }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
     await supabase.from("revenue_recognition").insert({
       house_number: plot ? String(plot) : null,
       contract_date: today, transfer_date: today,
@@ -1139,9 +1147,17 @@ export default function CRMPage() {
     await supabase.from("leads").update(upd).eq("id", lead.id);
     if (lead.plot_number) {
       if (newStatus === "Booking") {
-        await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
+        await supabase.from("houses").update({
+          status: "reserved", sale_status_at: thaiDateStr(),
+          sale_status_by: user?.full_name ?? user?.email ?? null,
+          sale_status_note: `จองไว้ — ${lead.customer_name}`,
+        }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
       } else if (BOOKING_STATUSES.includes(lead.status as LeadStatus) && !BOOKING_STATUSES.includes(newStatus)) {
-        await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
+        await supabase.from("houses").update({
+          status: "available", sale_status_at: thaiDateStr(),
+          sale_status_by: user?.full_name ?? user?.email ?? null,
+          sale_status_note: `คืนแปลงเป็นว่าง — ${lead.customer_name} เปลี่ยนสถานะเป็น ${newStatus}`,
+        }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
       }
     }
     if (newStatus !== lead.status) {
@@ -2522,7 +2538,11 @@ export default function CRMPage() {
                       if (!displayLead) return;
                       const byName = user?.full_name ?? user?.email ?? "ระบบ";
                       await supabase.from("leads").update({ status: "Site Visit" as LeadStatus, updated_at: new Date().toISOString() }).eq("id", displayLead.id);
-                      await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", displayLead.plot_number);
+                      await supabase.from("houses").update({
+                        status: "available", sale_status_at: thaiDateStr(),
+                        sale_status_by: user?.full_name ?? user?.email ?? null,
+                        sale_status_note: `ยกเลิกการจอง — ${displayLead.customer_name}`,
+                      }).eq("project_id", PROJECT_ID).eq("plot_number", displayLead.plot_number);
                       await createNotification({ type: "info", title: `${displayLead.customer_name} — ยกเลิกการจอง`, message: `แปลง ${displayLead.plot_number} โดย ${byName}`, from_dept: "ฝ่ายขาย", to_dept: "ฝ่ายขาย", record_id: displayLead.id });
                       setToast({ msg: `ยกเลิกการจอง ${displayLead.customer_name} แล้ว — แปลง ${displayLead.plot_number} เปิดให้ขายอีกครั้ง`, type: "success" });
                       setMapPlotModal(null);

@@ -41,7 +41,10 @@ export async function finalizeSale(
 
   const today = thaiDateStr();
   const cv = amount && amount > 0 ? Number(amount) : 0;
-  if (plot) await supabase.from("houses").update({ status: "sold" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+  if (plot) await supabase.from("houses").update({
+    status: "sold", sale_status_at: today, sale_status_by: byName ?? null,
+    sale_status_note: `โอนกรรมสิทธิ์แล้ว — ${customerName}`,
+  }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
   await supabase.from("revenue_recognition").insert({
     house_number: plot ? String(plot) : null,
     contract_date: today, transfer_date: today,

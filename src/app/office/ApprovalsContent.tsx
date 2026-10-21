@@ -189,7 +189,10 @@ export default function ApprovalsContent() {
         const { data: lead } = await supabase.from("leads").select("plot_number").eq("id", log.source_record_id).maybeSingle();
         await supabase.from("leads").update({ status: "New Lead" }).eq("id", log.source_record_id);
         const plot = (lead as { plot_number?: number } | null)?.plot_number;
-        if (plot) await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
+        if (plot) await supabase.from("houses").update({
+          status: "available", sale_status_at: thaiDateStr(), sale_status_by: user?.full_name ?? user?.email ?? null,
+          sale_status_note: "ปฏิเสธเงินจอง — คืนแปลงเป็นว่าง",
+        }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
       }
       else if (log.workflow_type === "Contract_Approval") await supabase.from("leads").update({ status: "Loan Approved" }).eq("id", log.source_record_id);
     }

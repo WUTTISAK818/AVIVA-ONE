@@ -46,6 +46,9 @@ interface HouseRow {
   price?: number | null;
   status?: string | null;
   construction_status?: string | null;
+  sale_status_at?: string | null;
+  sale_status_by?: string | null;
+  sale_status_note?: string | null;
   progress?: number | null;
   contractor?: string | null;
   planned_completion_date?: string | null;
@@ -54,6 +57,11 @@ interface HouseRow {
 
 interface Installment { id: string; name: string | null; amount: number | null; due_date: string | null; paid_date: string | null; status: string | null }
 interface TransferTask { item_key: string; done: boolean }
+
+/** สถานะการขายของแปลง — แยกจากสถานะก่อสร้างตั้งแต่ 21 ต.ค. 69 */
+const SALE_STATUS_TH: Record<string, string> = {
+  available: "ว่าง ขายได้", reserved: "จองแล้ว", sold: "ขายแล้ว (โอนกรรมสิทธิ์)",
+};
 
 const CONSTRUCTION_TH: Record<string, string> = {
   not_started: "ยังไม่เริ่ม", in_progress: "กำลังก่อสร้าง",
@@ -102,7 +110,7 @@ export default function PlotDetailPanel({ projectId, plotNumber, lead }: {
     let active = true;
     (async () => {
       const { data: h } = await supabase.from("houses")
-        .select("id, plot_code, house_model, land_size, price, status, construction_status, progress, contractor, planned_completion_date, updated_at")
+        .select("id, plot_code, house_model, land_size, price, status, construction_status, progress, contractor, planned_completion_date, updated_at, sale_status_at, sale_status_by, sale_status_note")
         .eq("project_id", projectId).eq("plot_number", plotNumber).maybeSingle();
 
       const houseRow = (h as HouseRow | null) ?? null;
@@ -193,6 +201,10 @@ export default function PlotDetailPanel({ projectId, plotNumber, lead }: {
         <Row label="แบบบ้าน" value={house?.house_model ?? null} />
         <Row label="ขนาดที่ดิน" value={house?.land_size ? `${house.land_size} ตร.วา` : null} />
         <Row label="ราคาตั้งของแบบบ้าน" value={baht(house?.price)} />
+        <Row label="สถานะการขายของแปลง" value={SALE_STATUS_TH[house?.status ?? ""] ?? house?.status ?? null} />
+        <Row label="เปลี่ยนสถานะการขายเมื่อ"
+          value={house?.sale_status_at ? `${thDate(house.sale_status_at)}${house.sale_status_by ? ` · โดย ${house.sale_status_by}` : ""}` : null} />
+        {house?.sale_status_note && <Row label="หมายเหตุสถานะการขาย" value={house.sale_status_note} />}
         <Row label="สถานะก่อสร้าง"
           value={house?.construction_status
             ? `${CONSTRUCTION_TH[house.construction_status] ?? house.construction_status} ${house.progress ?? 0}%`

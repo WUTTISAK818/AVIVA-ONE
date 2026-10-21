@@ -42,6 +42,16 @@ type FilterStatus = "all" | "complete" | "building" | "delayed" | "not_started";
 type Tab = "reports" | "defects";
 type Part = "inspect" | "daily" | "purchase";
 
+/** สถานะก่อสร้าง — คนละเรื่องกับสถานะการขายใน houses.status (Pom อนุมัติแยก 21 ต.ค. 69) */
+type ConstructionStatus = "not_started" | "in_progress" | "completed";
+const CONSTRUCTION_OPTIONS: { value: ConstructionStatus; label: string }[] = [
+  { value: "not_started", label: "ยังไม่เริ่ม" },
+  { value: "in_progress", label: "กำลังก่อสร้าง" },
+  { value: "completed",   label: "เสร็จแล้ว" },
+];
+const asConstructionStatus = (v: string | null | undefined): ConstructionStatus =>
+  v === "completed" || v === "not_started" ? v : "in_progress";
+
 interface House {
   id: string;
   house_number: string;
@@ -447,8 +457,8 @@ export default function ConstructionPage() {
   const fetchGenRef = useRef(0);
   const [savingInsp, setSavingInsp] = useState(false);
 
-  const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "on-track" as HouseStatus, progress: "", planned_completion_date: "", site_engineer: "", contract_no: "", contract_start_date: "", contract_end_date: "" });
-  const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus, reported_by: "", work_type: "งานตรวจสอบ" });
+  const [houseForm, setHouseForm] = useState({ house_number: "", contractor: "", phase: "", delayed_days: "", status: "in_progress" as ConstructionStatus, progress: "", planned_completion_date: "", site_engineer: "", contract_no: "", contract_start_date: "", contract_end_date: "" });
+  const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "in_progress" as ConstructionStatus, reported_by: "", work_type: "งานตรวจสอบ" });
   const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "", severity: "medium", assigned_to: "", due_date: "", installment_no: "" });
 
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
@@ -1054,7 +1064,7 @@ export default function ConstructionPage() {
     e.stopPropagation();
     setEditingReport(report);
     setSelectedHouse(null);
-    setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "on-track", reported_by: report.reported_by ?? "", work_type: report.work_type ?? "งานตรวจสอบ" });
+    setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "in_progress", reported_by: report.reported_by ?? "", work_type: report.work_type ?? "งานตรวจสอบ" });
     setDailyPhotos([]);
     setDailyExistingUrls(report.photo_urls?.length ? report.photo_urls : (report.photo_url ? [report.photo_url] : []));
     setShowModal(true);
@@ -1062,7 +1072,7 @@ export default function ConstructionPage() {
 
   const openEditHouse = (house: House) => {
     setEditingHouse(house);
-    setHouseForm({ house_number: house.house_number, contractor: house.contractor ?? "", phase: house.phase ?? "", delayed_days: String(house.delayed_days ?? 0), status: house.status, progress: String(house.progress), planned_completion_date: house.planned_completion_date ?? "", site_engineer: house.site_engineer ?? "", contract_no: house.contract_no ?? "", contract_start_date: house.contract_start_date ?? "", contract_end_date: house.contract_end_date ?? "" });
+    setHouseForm({ house_number: house.house_number, contractor: house.contractor ?? "", phase: house.phase ?? "", delayed_days: String(house.delayed_days ?? 0), status: asConstructionStatus(house.construction_status), progress: String(house.progress), planned_completion_date: house.planned_completion_date ?? "", site_engineer: house.site_engineer ?? "", contract_no: house.contract_no ?? "", contract_start_date: house.contract_start_date ?? "", contract_end_date: house.contract_end_date ?? "" });
     setShowHouseEditModal(true);
   };
 
@@ -1075,7 +1085,7 @@ export default function ConstructionPage() {
   const handleSaveHouse = async () => {
     if (!editingHouse) return;
     setSaving(true);
-    await supabase.from("houses").update({ house_number: houseForm.house_number, contractor: houseForm.contractor, phase: houseForm.phase, delayed_days: Number(houseForm.delayed_days) || 0, status: houseForm.status, progress: Number(houseForm.progress) || 0, planned_completion_date: houseForm.planned_completion_date || null, site_engineer: houseForm.site_engineer || null, contract_no: houseForm.contract_no || null, contract_start_date: houseForm.contract_start_date || null, contract_end_date: houseForm.contract_end_date || null, updated_at: new Date().toISOString() }).eq("id", editingHouse.id);
+    await supabase.from("houses").update({ house_number: houseForm.house_number, contractor: houseForm.contractor, phase: houseForm.phase, delayed_days: Number(houseForm.delayed_days) || 0, construction_status: houseForm.status, progress: Number(houseForm.progress) || 0, planned_completion_date: houseForm.planned_completion_date || null, site_engineer: houseForm.site_engineer || null, contract_no: houseForm.contract_no || null, contract_start_date: houseForm.contract_start_date || null, contract_end_date: houseForm.contract_end_date || null, updated_at: new Date().toISOString() }).eq("id", editingHouse.id);
     setSaving(false);
     setShowHouseEditModal(false);
     setEditingHouse(null);
@@ -1088,12 +1098,12 @@ export default function ConstructionPage() {
     let reportId = editingReport?.id ?? null;
     if (editingReport) {
       await supabase.from("construction_reports").update({ work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, updated_at: new Date().toISOString() }).eq("id", editingReport.id);
-      await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", editingReport.house_id);
+      await supabase.from("houses").update({ progress: Number(form.progress) || 0, construction_status: form.new_status }).eq("id", editingReport.house_id);
     } else {
       if (!form.house_id) { setSaving(false); return; }
       const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, reported_by: form.reported_by || null }).select().single();
       reportId = (inserted as Report | null)?.id ?? null;
-      await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", form.house_id);
+      await supabase.from("houses").update({ progress: Number(form.progress) || 0, construction_status: form.new_status }).eq("id", form.house_id);
       // Send LINE notification for new construction report
       await notifyActivityLine(
         "ฝ่ายก่อสร้าง",
@@ -1339,7 +1349,7 @@ export default function ConstructionPage() {
                 </button>
               )}
               {part === "daily" && (
-                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track", reported_by: "", work_type: "งานตรวจสอบ" }); setDailyPhotos([]); setDailyExistingUrls([]); setShowModal(true); }}
+                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "in_progress", reported_by: "", work_type: "งานตรวจสอบ" }); setDailyPhotos([]); setDailyExistingUrls([]); setShowModal(true); }}
                   className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
                   <Plus size={14} /> รายงาน
                 </button>
@@ -2110,9 +2120,9 @@ export default function ConstructionPage() {
                 </div>
                 {!editingReport && (
                   <div>
-                    <label htmlFor="dailyform-new_status" className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                    <select id="dailyform-new_status" value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                      <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
+                    <label htmlFor="dailyform-new_status" className="text-xs text-aviva-secondary mb-1 block">สถานะก่อสร้าง</label>
+                    <select id="dailyform-new_status" value={form.new_status} onChange={e => setForm({ ...form, new_status: e.target.value as ConstructionStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      {CONSTRUCTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
                 )}
@@ -2150,9 +2160,9 @@ export default function ConstructionPage() {
                   <input id="houseeditform-house_number" type="text" value={houseForm.house_number} onChange={e => setHouseForm({ ...houseForm, house_number: e.target.value })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
                 </div>
                 <div>
-                  <label htmlFor="houseeditform-status" className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                  <select id="houseeditform-status" value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="on-track">ตามแผน</option><option value="delayed">ล่าช้า</option><option value="complete">เสร็จแล้ว</option>
+                  <label htmlFor="houseeditform-status" className="text-xs text-aviva-secondary mb-1 block">สถานะก่อสร้าง</label>
+                  <select id="houseeditform-status" value={houseForm.status} onChange={e => setHouseForm({ ...houseForm, status: e.target.value as ConstructionStatus })} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    {CONSTRUCTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
               </div>

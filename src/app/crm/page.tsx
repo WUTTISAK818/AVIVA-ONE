@@ -51,6 +51,33 @@ function escapeHtml(s: string | null | undefined): string {
 }
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+/** ลูกค้าที่โอนแล้วถูกล็อกไม่ให้พนักงานแก้ไข (กันแก้ยอดขายที่ปิดไปแล้ว)
+ *  แต่การขายเก่าหลายรายโอนไปทั้งที่ข้อมูลยังไม่ครบ ผู้บริหารจึงปลดล็อกเป็นรายคนได้
+ *  โดยมีวันหมดอายุกำกับ — ถึงวันนั้นล็อกกลับเอง ไม่ต้องมีใครจำไปปิด (Pom เสนอ 23 ต.ค. 69) */
+function editUnlocked(lead: { edit_unlocked_until?: string | null }): boolean {
+  const until = lead.edit_unlocked_until;
+  return !!until && until >= thaiDateStr();
+}
+
+/** ร่องรอยการแตะต้องลูกค้าที่โอนแล้ว — ใครปลดล็อก ใครแก้ เมื่อไร
+ *  (หลัก Maker-Checker: ปลดล็อกได้ แต่ต้องตรวจย้อนได้ว่าใครทำอะไร) */
+async function logTransferredLeadAudit(
+  action: "unlock_edit" | "relock_edit" | "edit_after_transfer",
+  description: string,
+  leadId: string,
+  who: { full_name?: string; email?: string; role?: string; department?: string } | null,
+) {
+  await supabase.from("audit_log").insert({
+    module: "crm",
+    action,
+    description,
+    record_id: leadId,
+    performed_by: who?.full_name ?? who?.email ?? null,
+    performed_by_role: who?.role ?? null,
+    performed_by_dept: who?.department ?? null,
+  });
+}
 /** กองลูกค้าที่ยังไม่มีพนักงานขายดูแล — ไม่ใช่ชื่อคน ห้ามเอาไปจัดอันดับผลงาน */
 const UNOWNED_LABEL = "ยังไม่มีเจ้าของ";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Contract", "Loan Approved", "Closed Deal"];
@@ -100,6 +127,9 @@ interface Lead {
   contract_signed_date?: string | null;
   loan_approved_date?: string | null;
   portal_token?: string | null;
+  edit_unlocked_until?: string | null;
+  edit_unlock_by?: string | null;
+  edit_unlock_note?: string | null;
   contact_address?: string | null;
   marital_status?: string | null;
   age_range?: string | null;
@@ -789,8 +819,8 @@ export default function CRMPage() {
 
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (lead.status === "Closed Deal" && !(user?.isManager)) {
-      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
+    if (lead.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(lead)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องกรอกข้อมูลที่ยังขาด ให้แจ้งผู้บริหารปลดล็อกรายนี้ให้ก่อน", type: "error" });
       return;
     }
     setEditingLead(lead);
@@ -950,8 +980,8 @@ export default function CRMPage() {
       setToast({ msg: "กรุณาเลือกช่องทางที่มาของลูกค้า — ข้อมูลสำคัญสำหรับวิเคราะห์การตลาด", type: "error" });
       return;
     }
-    if (editingLead?.status === "Closed Deal" && !(user?.isManager)) {
-      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร", type: "error" });
+    if (editingLead?.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(editingLead)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องกรอกข้อมูลที่ยังขาด ให้แจ้งผู้บริหารปลดล็อกรายนี้ให้ก่อน", type: "error" });
       return;
     }
     // Group C: ปิดการขายต้องผ่านการอนุมัติ — ห้ามปิดผ่านฟอร์มแก้ไขโดยตรง
@@ -989,6 +1019,15 @@ export default function CRMPage() {
         const dup = updateErr.code === "23505" || /uq_leads_active_plot|duplicate key/i.test(updateErr.message);
         setToast({ msg: dup ? `แปลง ${plotNum ?? editingLead.plot_number} ถูกจอง/ทำสัญญาโดยลูกค้ารายอื่นแล้ว — จองซ้ำไม่ได้` : "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" });
         return;
+      }
+      // ลูกค้าที่โอนแล้วถูกแก้โดยฝ่ายขายผ่านการปลดล็อก -> ลงร่องรอยไว้ให้ตรวจย้อนได้
+      if (editingLead.status === "Closed Deal" && !(user?.isManager) && editUnlocked(editingLead)) {
+        await logTransferredLeadAudit(
+          "edit_after_transfer",
+          `แก้ไขลูกค้าที่โอนแล้ว ${editingLead.customer_name}${editingLead.plot_number ? ` (แปลง ${editingLead.plot_number})` : ""} ผ่านการปลดล็อกถึง ${editingLead.edit_unlocked_until}${editingLead.edit_unlock_by ? ` โดย ${editingLead.edit_unlock_by}` : ""}`,
+          editingLead.id,
+          user,
+        );
       }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
@@ -1107,8 +1146,10 @@ export default function CRMPage() {
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
+    // ไม่รับการปลดล็อกตรงนี้โดยตั้งใจ — ปลดล็อกมีไว้ให้ "กรอกข้อมูลที่ยังขาด"
+    // ไม่ใช่ให้ย้ายสถานะลูกค้าที่โอนไปแล้ว ซึ่งกระทบยอดขายที่รับรู้ทางบัญชีไปแล้ว
     if (lead.status === "Closed Deal" && !(user?.isManager)) {
-      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไข/เปลี่ยนสถานะได้เฉพาะฝ่ายบริหาร", type: "error" });
+      setToast({ msg: "ลูกค้าที่โอนแล้ว เปลี่ยนสถานะได้เฉพาะฝ่ายบริหาร (การปลดล็อกให้แก้ไขไม่รวมการเปลี่ยนสถานะ)", type: "error" });
       return;
     }
     if (lead.plot_number && newStatus === "Booking") {
@@ -1858,6 +1899,64 @@ export default function CRMPage() {
               />
               {["Contract", "Loan Approved", "Closed Deal"].includes(selectedLead.status) && (
                 <TransferChecklist leadId={selectedLead.id} />
+              )}
+              {selectedLead.status === "Closed Deal" && (
+                <div className={`rounded-xl p-3 border col-span-2 ${editUnlocked(selectedLead) ? "bg-amber-500/10 border-amber-500/30" : "bg-aviva-bg border-aviva-gold/10"}`}>
+                  <p className="text-xs font-bold text-aviva-text flex items-center gap-1.5 mb-1">
+                    {editUnlocked(selectedLead) ? "🔓 ปลดล็อกให้แก้ไขอยู่" : "🔒 ลูกค้าโอนแล้ว — ฝ่ายขายแก้ไขไม่ได้"}
+                  </p>
+                  {editUnlocked(selectedLead) ? (
+                    <p className="text-[11px] text-amber-300 leading-relaxed">
+                      {selectedLead.assigned_to || "เจ้าของลูกค้า"} แก้ไขรายนี้ได้ถึง {new Date(selectedLead.edit_unlocked_until! + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
+                      {selectedLead.edit_unlock_by ? ` · อนุญาตโดย ${selectedLead.edit_unlock_by}` : ""}
+                      {selectedLead.edit_unlock_note ? ` · ${selectedLead.edit_unlock_note}` : ""}
+                      {" "}· ถึงวันนั้นระบบล็อกกลับเอง
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-aviva-secondary leading-relaxed">
+                      กันแก้ยอดขายที่ปิดไปแล้ว · ถ้ารายนี้ข้อมูลยังไม่ครบและต้องให้ฝ่ายขายกรอก ผู้บริหารปลดล็อกเฉพาะรายนี้ได้
+                    </p>
+                  )}
+                  {user?.isManager && (
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={async () => {
+                        const days = 7;
+                        // วันหมดอายุ = วันนี้ (เวลาไทย = UTC+7) + 7 วัน
+                        const until = new Date(Date.now() + 7 * 3600_000 + days * 24 * 3600_000).toISOString().slice(0, 10);
+                        const note = window.prompt("เหตุผลที่ปลดล็อก (เช่น อ้างอิงคำสั่งงานใบไหน)", selectedLead.edit_unlock_note ?? "กรอกข้อมูลการขายที่ยังขาด");
+                        if (note === null) return;
+                        const { error } = await supabase.from("leads").update({
+                          edit_unlocked_until: until,
+                          edit_unlock_by: user?.full_name ?? user?.email ?? null,
+                          edit_unlock_note: note.trim() || null,
+                        }).eq("id", selectedLead.id);
+                        if (error) { setToast({ msg: thaiDbError(error, "ปลดล็อก"), type: "error" }); return; }
+                        await logTransferredLeadAudit("unlock_edit",
+                          `ปลดล็อกให้ฝ่ายขายแก้ไข ${selectedLead.customer_name}${selectedLead.plot_number ? ` (แปลง ${selectedLead.plot_number})` : ""} ถึง ${until}${note.trim() ? ` — ${note.trim()}` : ""}`,
+                          selectedLead.id, user);
+                        setSelectedLead({ ...selectedLead, edit_unlocked_until: until, edit_unlock_by: user?.full_name ?? user?.email ?? null, edit_unlock_note: note.trim() || null });
+                        const r = rtRangeRef.current; fetchLeads(r.start, r.end, r.limit);
+                        setToast({ msg: `ปลดล็อกให้แก้ไขได้ ${days} วัน — ถึงวันนั้นล็อกกลับเอง`, type: "success" });
+                      }} className="flex-1 py-2 text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg active:scale-95">
+                        {editUnlocked(selectedLead) ? "ต่ออายุอีก 7 วัน" : "ปลดล็อกให้ฝ่ายขายแก้ไข 7 วัน"}
+                      </button>
+                      {editUnlocked(selectedLead) && (
+                        <button onClick={async () => {
+                          const { error } = await supabase.from("leads").update({ edit_unlocked_until: null }).eq("id", selectedLead.id);
+                          if (error) { setToast({ msg: thaiDbError(error, "ล็อกกลับ"), type: "error" }); return; }
+                          await logTransferredLeadAudit("relock_edit",
+                            `ล็อกกลับ ${selectedLead.customer_name}${selectedLead.plot_number ? ` (แปลง ${selectedLead.plot_number})` : ""} ก่อนครบกำหนด`,
+                            selectedLead.id, user);
+                          setSelectedLead({ ...selectedLead, edit_unlocked_until: null });
+                          const r = rtRangeRef.current; fetchLeads(r.start, r.end, r.limit);
+                          setToast({ msg: "ล็อกกลับแล้ว", type: "success" });
+                        }} className="flex-1 py-2 text-[11px] font-medium bg-aviva-card text-aviva-secondary border border-aviva-gold/15 rounded-lg active:scale-95">
+                          ล็อกกลับทันที
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
               {selectedLead.portal_token && (
                 <div className="bg-aviva-bg rounded-xl p-3 border border-aviva-gold/10 col-span-2">

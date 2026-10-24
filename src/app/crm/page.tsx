@@ -979,19 +979,32 @@ export default function CRMPage() {
     const ref = payRef[inst.id]?.ref ?? "";
     const date = payRef[inst.id]?.date ?? today;
     const byName = user?.full_name ?? user?.email ?? "ฝ่ายการเงิน";
-    const { error } = await supabase.from("customer_installments")
+    // กันกดซ้ำแล้วลงบัญชีซ้ำ — เงื่อนไข .neq("status","paid") ทำให้ "คนแรกที่กดเท่านั้นที่ได้"
+    // ถ้ากดรัวหรือเน็ตช้าแล้วกดใหม่ คำสั่งที่ 2 จะไม่ตรงเงื่อนไข จึงไม่คืนแถวและไม่ลงบัญชีซ้ำ
+    // (เกิดจริงแล้ว: ตรวจพบ 24 ต.ค. 69 ว่ารายรับเกินจริง 8,833,000 บาท จากการกดซ้ำ 4 รายการ
+    //  เช่น "งวดโอนกรรมสิทธิ์ — คุณดารณี 5,230,000" ลงบัญชี 2 ครั้งในวินาทีเดียวกัน)
+    const { data: claimed, error } = await supabase.from("customer_installments")
       .update({ status: 'paid', paid_date: today, transfer_ref: ref || null, transfer_date: date || null, paid_by: byName })
-      .eq("id", inst.id);
-    if (error) { setToast({ msg: "บันทึกไม่สำเร็จ: " + error.message, type: "error" }); return; }
+      .eq("id", inst.id).neq("status", "paid").select("id");
+    if (error) { setToast({ msg: thaiDbError(error, "บันทึกรับชำระ"), type: "error" }); return; }
+    if (!claimed || claimed.length === 0) {
+      setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, status: 'paid' } : i));
+      setToast({ msg: `${inst.name} ถูกบันทึกรับชำระไปแล้ว — ไม่ลงบัญชีซ้ำ`, type: "error" });
+      return;
+    }
     // ลงบัญชีรับเงิน (รายรับ) อัตโนมัติ — งวดดาวน์/ผ่อน เข้าสมุดการเงินทันที
     const custName = selectedLead?.customer_name ?? "";
     const amt = Number(inst.amount) || 0;
     if (amt > 0) {
-      await supabase.from("finance_transactions").insert({
+      const { error: finErr } = await supabase.from("finance_transactions").insert({
         transaction_type: "income", amount: amt, category: "รับชำระงวด/เงินดาวน์",
         description: `รับชำระ ${inst.name}${custName ? ` — ${custName}` : ""}${ref ? ` (อ้างอิง ${ref})` : ""}`,
         approved_by: user?.id ?? null, project_id: PROJECT_ID,
       });
+      // ห้ามล้มเหลวเงียบ — ถ้าลงบัญชีไม่ผ่าน ผู้ใช้ต้องรู้ ไม่ใช่เห็นว่า "รับแล้ว" ทั้งที่เงินไม่เข้าสมุด
+      if (finErr) {
+        setToast({ msg: `บันทึกรับเงินแล้ว แต่ลงบัญชีไม่สำเร็จ: ${thaiDbError(finErr, "ลงบัญชี")} — แจ้งฝ่ายการเงินด่วน`, type: "error" });
+      }
       // ลง GL: รับเงินดาวน์/งวดผ่อน = Dr เงินฝากธนาคาร / Cr เงินรับล่วงหน้าจากลูกค้า (กลับเป็นรายได้ตอนโอน)
       await postJv({
         project_id: PROJECT_ID, jv_date: date || today, ref_number: ref || null,

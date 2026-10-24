@@ -389,6 +389,9 @@ export default function CRMPage() {
   const [custInsts, setCustInsts] = useState<CustomerInstallment[]>([]);
   const [loadingCustInsts, setLoadingCustInsts] = useState(false);
   const [payRef, setPayRef] = useState<Record<string, { ref: string; date: string }>>({});
+  // แก้ยอด/วันครบกำหนดรายงวด — ราคาขายแต่ละแปลงไม่เท่ากัน (โปรโมชั่น/ส่วนลดตามช่วงเวลา)
+  // สูตรมาตรฐานใช้เป็นค่าตั้งต้นเท่านั้น ยอดจริงต้องพิมพ์ทับได้ (Pom แจ้ง 24 ต.ค. 69)
+  const [instEdit, setInstEdit] = useState<Record<string, { amount: string; due: string }>>({});
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
@@ -910,11 +913,63 @@ export default function CRMPage() {
 
   const createDefaultCustInsts = async (lead: Lead) => {
     if (custInsts.length > 0) return;
-    const price = lead.contract_price ?? lead.budget ?? 0;
+    // ห้ามใช้ "งบประมาณที่ลูกค้าตั้งไว้" (budget) แทนราคาขาย — คนละเรื่องกัน
+    // เคยพังจริง: CRM-0325 budget = 4.5 (หมายถึง 4.5 ล้าน) กลายเป็นงวดจอง ฿4.50
+    const price = Number(lead.contract_price) || 0;
+    if (price > 0 && price < 1000) {
+      const ok = window.confirm(`ราคาขายที่บันทึกไว้คือ ฿${price} ซึ่งดูน้อยผิดปกติ — ถ้าตั้งใจพิมพ์ว่า "${price} ล้าน" ให้กดยกเลิก แล้วไปแก้ราคาขายเป็น ${(price * 1_000_000).toLocaleString("th-TH")} ก่อน\n\nยืนยันสร้างตารางด้วยยอด ฿${price} หรือไม่?`);
+      if (!ok) return;
+    }
     const rows = defaultInstallments(price, lead.booking_deposit).map(r => ({ ...r, lead_id: lead.id, house_id: null, status: 'pending' as const }));
-    const { data } = await supabase.from("customer_installments").insert(rows).select();
+    const { error, data } = await supabase.from("customer_installments").insert(rows).select();
+    if (error) { setToast({ msg: thaiDbError(error, "สร้างตารางชำระเงิน"), type: "error" }); return; }
     setCustInsts((data ?? []) as CustomerInstallment[]);
-    setToast({ msg: "สร้างตารางชำระเงินลูกค้าแล้ว", type: "success" });
+    setToast({ msg: price > 0 ? "สร้างตารางชำระเงินลูกค้าแล้ว — แก้ยอดรายงวดได้ถ้าตกลงกับลูกค้าต่างจากนี้" : "สร้างตารางเปล่าแล้ว (ยังไม่มีราคาขาย) — พิมพ์ยอดรายงวดได้เลย", type: "success" });
+  };
+
+  /** แก้ยอด/วันครบกำหนดของงวดที่ยังไม่ได้รับชำระ
+   *  งวดที่รับเงินแล้วแก้ไม่ได้ เพราะลงบัญชีและ GL ไปแล้ว แก้ย้อนหลังจะทำให้บัญชีไม่ตรง */
+  const saveCustInst = async (inst: CustomerInstallment) => {
+    const draft = instEdit[inst.id];
+    if (!draft) return;
+    const amt = draft.amount.trim() === "" ? inst.amount : parseAmountOrZero(draft.amount);
+    if (amt === null || !Number.isFinite(amt) || amt < 0) {
+      setToast({ msg: "ยอดเงินไม่ถูกต้อง — กรอกเป็นตัวเลขบาท เช่น 250000", type: "error" });
+      return;
+    }
+    const due = draft.due.trim() === "" ? null : normalizeDateInput(draft.due);
+    const { error } = await supabase.from("customer_installments")
+      .update({ amount: amt, due_date: due }).eq("id", inst.id).neq("status", "paid");
+    if (error) { setToast({ msg: thaiDbError(error, "บันทึกยอดงวด"), type: "error" }); return; }
+    await supabase.from("audit_log").insert({
+      module: "crm", action: "installment_edit", record_id: inst.lead_id,
+      description: `แก้ ${inst.name} ของ ${selectedLead?.customer_name ?? ""}${selectedLead?.plot_number ? ` (แปลง ${selectedLead.plot_number})` : ""}: ฿${Number(inst.amount).toLocaleString("th-TH")} → ฿${amt.toLocaleString("th-TH")}${due ? ` · ครบกำหนด ${due}` : ""}`,
+      performed_by: user?.full_name ?? user?.email ?? null, performed_by_role: user?.role ?? null, performed_by_dept: user?.department ?? null,
+    });
+    setCustInsts(prev => prev.map(i => i.id === inst.id ? { ...i, amount: amt, due_date: due } : i));
+    setInstEdit(prev => { const next = { ...prev }; delete next[inst.id]; return next; });
+    setToast({ msg: `บันทึก ${inst.name} แล้ว`, type: "success" });
+  };
+
+  /** ลบตารางทิ้งแล้วสร้างใหม่ — ใช้เมื่อตารางเดิมคำนวณจากราคาที่ผิด
+   *  ทำได้เฉพาะตอนที่ยังไม่มีงวดไหนรับชำระ (ถ้ารับแล้วต้องให้ฝ่ายการเงินแก้ไข) */
+  const rebuildCustInsts = async (lead: Lead) => {
+    if (custInsts.some(i => i.status === "paid")) {
+      setToast({ msg: "มีงวดที่รับชำระแล้ว — สร้างตารางใหม่ไม่ได้ ให้แก้ยอดเป็นรายงวดแทน", type: "error" });
+      return;
+    }
+    const total = custInsts.reduce((a, i) => a + (Number(i.amount) || 0), 0);
+    if (!window.confirm(`ลบตารางเดิม (${custInsts.length} งวด รวม ฿${total.toLocaleString("th-TH")}) แล้วสร้างใหม่จากราคาขายปัจจุบัน?`)) return;
+    const { error } = await supabase.from("customer_installments").delete().eq("lead_id", lead.id).neq("status", "paid");
+    if (error) { setToast({ msg: thaiDbError(error, "ลบตารางเดิม"), type: "error" }); return; }
+    await supabase.from("audit_log").insert({
+      module: "crm", action: "installment_rebuild", record_id: lead.id,
+      description: `สร้างตารางชำระเงินใหม่ของ ${lead.customer_name}${lead.plot_number ? ` (แปลง ${lead.plot_number})` : ""} — ของเดิม ${custInsts.length} งวด รวม ฿${total.toLocaleString("th-TH")}`,
+      performed_by: user?.full_name ?? user?.email ?? null, performed_by_role: user?.role ?? null, performed_by_dept: user?.department ?? null,
+    });
+    setCustInsts([]);
+    setInstEdit({});
+    setToast({ msg: "ลบตารางเดิมแล้ว — กด 'สร้างตาราง' เพื่อสร้างใหม่", type: "success" });
   };
 
   const markCustInstPaid = async (inst: CustomerInstallment) => {
@@ -2106,10 +2161,18 @@ export default function CRMPage() {
                       สร้างตาราง
                     </button>
                   ) : custInsts.length > 0 ? (
-                    <button onClick={() => printInvoice(selectedLead, custInsts)}
-                      className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
-                      🧾 พิมพ์ใบแจ้งหนี้
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {!custInsts.some(i => i.status === "paid") && (
+                        <button onClick={() => rebuildCustInsts(selectedLead)}
+                          className="text-[10px] text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg">
+                          ♻️ สร้างใหม่
+                        </button>
+                      )}
+                      <button onClick={() => printInvoice(selectedLead, custInsts)}
+                        className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg">
+                        🧾 พิมพ์ใบแจ้งหนี้
+                      </button>
+                    </div>
                   ) : null}
                 </div>
                 {loadingCustInsts ? (
@@ -2119,17 +2182,39 @@ export default function CRMPage() {
                     {custInsts.map(inst => (
                       <div key={inst.id} className={clsx("rounded-xl p-3 border", inst.status === 'paid' ? "bg-green-500/10 border-green-500/20" : "bg-aviva-bg border-aviva-gold/10")}>
                         <div className="flex items-center justify-between">
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-semibold text-aviva-text">{inst.name}</p>
-                            <p className="text-[10px] text-aviva-secondary">฿{inst.amount.toLocaleString()}</p>
+                            {inst.status === 'paid' ? (
+                              <p className="text-[10px] text-aviva-secondary">฿{inst.amount.toLocaleString()}</p>
+                            ) : (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[10px] text-aviva-secondary">฿</span>
+                                <input
+                                  type="text" inputMode="numeric"
+                                  aria-label={`ยอดเงิน ${inst.name}`}
+                                  placeholder={inst.amount.toLocaleString()}
+                                  value={instEdit[inst.id]?.amount ?? ""}
+                                  onChange={e => setInstEdit(prev => ({ ...prev, [inst.id]: { amount: e.target.value, due: prev[inst.id]?.due ?? (inst.due_date ?? "") } }))}
+                                  className="w-24 bg-aviva-card border border-aviva-gold/20 rounded-lg px-2 py-0.5 text-[11px] text-aviva-text placeholder:text-aviva-secondary/50 outline-none focus:border-aviva-gold/50"
+                                />
+                              </div>
+                            )}
                           </div>
                           <div className="text-right">
                             {inst.status === 'paid' ? (
                               <span className="text-[10px] text-green-400 font-semibold">รับแล้ว {inst.paid_date ? new Date(inst.paid_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : ""}</span>
                             ) : (
-                              <span className={clsx("text-[10px] font-medium", inst.status === 'overdue' ? "text-red-400" : "text-aviva-secondary")}>
-                                {inst.due_date ? new Date(inst.due_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "ยังไม่กำหนด"}
-                              </span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-[9px] text-aviva-secondary">ครบกำหนด</span>
+                                <input
+                                  type="date"
+                                  aria-label={`วันครบกำหนด ${inst.name}`}
+                                  value={instEdit[inst.id]?.due ?? (inst.due_date ?? "")}
+                                  onChange={e => setInstEdit(prev => ({ ...prev, [inst.id]: { amount: prev[inst.id]?.amount ?? "", due: e.target.value } }))}
+                                  className={clsx("w-28 bg-aviva-card border rounded-lg px-2 py-0.5 text-[10px] outline-none focus:border-aviva-gold/50",
+                                    inst.status === 'overdue' ? "border-red-500/40 text-red-400" : "border-aviva-gold/20 text-aviva-text")}
+                                />
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2152,10 +2237,39 @@ export default function CRMPage() {
                               className="text-[10px] text-aviva-gold border border-aviva-gold/30 px-2 py-0.5 rounded-lg whitespace-nowrap">
                               ยืนยันชำระ
                             </button>
+                            {instEdit[inst.id] && (
+                              <button onClick={() => saveCustInst(inst)}
+                                className="text-[10px] font-bold text-aviva-bg bg-aviva-gold px-2 py-0.5 rounded-lg whitespace-nowrap">
+                                บันทึกยอด
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
                     ))}
+                    {(() => {
+                      const total = custInsts.reduce((a, i) => a + (Number(i.amount) || 0), 0);
+                      const price = Number(selectedLead.contract_price) || 0;
+                      const diff = price - total;
+                      return (
+                        <div className="rounded-xl p-2.5 bg-aviva-bg border border-aviva-gold/10">
+                          <p className="text-[11px] text-aviva-text">
+                            รวมทุกงวด <span className="font-bold">฿{total.toLocaleString("th-TH")}</span>
+                            {price > 0 && <span className="text-aviva-secondary"> · ราคาขาย ฿{price.toLocaleString("th-TH")}</span>}
+                          </p>
+                          {price > 0 && diff !== 0 && (
+                            <p className="text-[10px] text-amber-400 mt-0.5">
+                              ⚠️ ยอดรวมต่างจากราคาขาย ฿{Math.abs(diff).toLocaleString("th-TH")} — ถ้าเป็นส่วนลด/โปรโมชั่นที่ตกลงไว้ก็ถูกแล้ว ถ้าไม่ใช่ให้แก้ยอดงวดให้ตรง
+                            </p>
+                          )}
+                          {price === 0 && (
+                            <p className="text-[10px] text-amber-400 mt-0.5">
+                              ⚠️ ลูกค้ารายนี้ยังไม่มี &quot;ราคาขายที่ตกลง&quot; — กรอกยอดแต่ละงวดได้เลย แต่ควรใส่ราคาขายด้วย ไม่งั้นรายงานยอดขายจะไม่นับรายนี้
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : null}
               </div>

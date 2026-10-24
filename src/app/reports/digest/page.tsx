@@ -9,6 +9,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import { loadPendingAbsences, acknowledgeAbsence, type ReportAbsence } from "@/lib/report-absences";
+import { REPORT_DEADLINE, REPORT_REMINDER_TIME } from "@/lib/report-deadline";
 
 interface PersonRow {
   name: string;
@@ -398,7 +399,7 @@ export default function ReportsDigestPage() {
             <GlassCard className="p-3 flex items-center gap-2 border border-orange-500/20">
               <AlertTriangle size={14} className="text-orange-400 flex-shrink-0" />
               <p className="text-[11px] text-aviva-secondary">
-                ระบบจะเตือนอัตโนมัติผ่าน Push/LINE เวลา 18:00 น. ถึงคนที่ยังไม่ส่ง (เส้นตาย 19:00 น.)
+                ระบบจะเตือนอัตโนมัติผ่าน Push/LINE เวลา {REPORT_REMINDER_TIME} น. ถึงคนที่ยังไม่ส่ง (เส้นตาย {REPORT_DEADLINE} น.)
               </p>
             </GlassCard>
           )}

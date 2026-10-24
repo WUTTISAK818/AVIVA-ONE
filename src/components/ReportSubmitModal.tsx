@@ -5,6 +5,7 @@ import { X, Send, CheckCircle, Plus, Trash2, MapPin, ClipboardList } from "lucid
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { thaiDateStr } from "@/lib/thai-date";
+import { reportSubmitStatus } from "@/lib/report-deadline";
 
 export interface AutoReportItem {
   category: "activity" | "achievement" | "issue" | "plan";
@@ -84,7 +85,8 @@ export default function ReportSubmitModal({ open, onClose, department, autoItems
     setSubmitting(true);
 
     const now = new Date();
-    const status = now.getHours() >= 18 ? "late" : "submitted";
+    // ใช้เส้นตายเดียวกับหน้าส่งรายงานหลัก — เดิมที่นี่ตัด 18:00 ส่วนอีกหน้าตัด 19:00
+    const status = reportSubmitStatus(false);
     const validItems = items.filter(i => i.description.trim());
 
     let reportId = existingId;

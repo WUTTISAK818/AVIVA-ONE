@@ -5,6 +5,7 @@ import { sendLineToEmail } from "@/lib/line-log";
 import { isManagerRole } from "@/lib/roles";
 import { parseSchedule, thaiDateStr, dowOfDateStr } from "@/lib/work-schedule";
 import { resolveOffDay, groupSwapsByEmail } from "@/lib/off-day-swaps";
+import { REPORT_DEADLINE } from "@/lib/report-deadline";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ function authorized(req: NextRequest): boolean {
 }
 
 // เตือนพนักงานที่ "ยังไม่ส่งรายงานประจำวัน" ผ่าน Push + LINE ส่วนตัว
-// ตั้ง Vercel Cron 18:00 น. ไทย (= 11:00 UTC) — 1 ชั่วโมงก่อนเส้นตาย 19:00 น.
+// ตั้ง Vercel Cron 18:00 น. ไทย (= 11:00 UTC) — ก่อนเส้นตายที่ตั้งไว้ใน src/lib/report-deadline.ts
 // ไม่เตือน: ฝ่ายสวน (ไม่ต้องส่ง) และผู้บริหาร (ไม่ได้ส่งรายงาน — เป็นฝ่ายรับทราบ)
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
   });
 
   const title = "⏰ อย่าลืมส่งรายงานประจำวัน";
-  const body = `วันนี้ (${dateLabel}) ยังไม่ได้ส่งรายงาน — ส่งก่อน 19:00 น. เพื่อไม่ให้ขึ้นสถานะล่าช้า`;
+  const body = `วันนี้ (${dateLabel}) ยังไม่ได้ส่งรายงาน — ส่งก่อน ${REPORT_DEADLINE} น. เพื่อไม่ให้ขึ้นสถานะล่าช้า`;
 
   let pushSent = 0;
   let lineSent = 0;

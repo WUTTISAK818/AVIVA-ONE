@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { createNotification, notifyPersonalLine } from "./notify";
+import { composeExplanation, validateExplanation, type ExplanationDraft } from "./absence-reasons";
 
 // เคส "ไม่ได้ส่งรายงานประจำวัน" — ต้องจบที่สถานะปลายทางเสมอ ไม่ค้างเงียบ
 //   open               = ระบบเปิดเคสแล้ว รอพนักงานส่งย้อนหลังหรือชี้แจง
@@ -22,6 +23,10 @@ export interface ReportAbsence {
   acknowledged_by: string | null;
   acknowledged_at: string | null;
   reminder_count: number;
+  /** ประเภทเหตุผล (บังคับตั้งแต่ v7.99) — เคสเก่าก่อนหน้านี้เป็น null */
+  reason_type: string | null;
+  /** วันหยุดเดิมที่สลับมา — มีค่าเมื่อ reason_type = swapped_off */
+  swap_from_date: string | null;
 }
 
 export const ABSENCE_STATUS_LABEL: Record<AbsenceStatus, string> = {
@@ -56,15 +61,24 @@ export async function loadPendingAbsences(): Promise<ReportAbsence[]> {
 /** พนักงานชี้แจงเหตุผล → รอผู้บริหารรับทราบ + แจ้งเตือนผู้บริหารทันที */
 export async function explainAbsence(
   absence: Pick<ReportAbsence, "id" | "report_date" | "employee_name">,
-  explanation: string,
+  draft: ExplanationDraft,
   executiveEmails: string[],
 ): Promise<{ ok: boolean; error?: string }> {
-  const note = explanation.trim();
-  if (!note) return { ok: false, error: "กรุณาเขียนเหตุผล" };
+  // ตรวจซ้ำฝั่งบันทึกด้วย ไม่พึ่งปุ่มอย่างเดียว — กันกรณีกดส่งได้ทั้งที่ยังไม่ครบ
+  const invalid = validateExplanation(draft);
+  if (invalid) return { ok: false, error: invalid };
+  const note = composeExplanation(draft);
 
   const { error } = await supabase
     .from("report_absences")
-    .update({ status: "explained", explanation: note, explained_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({
+      status: "explained",
+      explanation: note,
+      reason_type: draft.reasonType,
+      swap_from_date: draft.swapFromDate || null,
+      explained_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", absence.id);
   if (error) return { ok: false, error: error.message };
 

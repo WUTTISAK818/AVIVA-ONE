@@ -9,6 +9,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
 import { loadPendingAbsences, acknowledgeAbsence, type ReportAbsence } from "@/lib/report-absences";
+import { absenceReasonLabel, isEntitledOff } from "@/lib/absence-reasons";
 import { REPORT_DEADLINE, REPORT_REMINDER_TIME } from "@/lib/report-deadline";
 
 interface PersonRow {
@@ -319,7 +320,16 @@ export default function ReportsDigestPage() {
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-aviva-text">{a.employee_name} · {label}</p>
                       {explained ? (
-                        <p className="text-[11px] text-aviva-secondary mt-0.5">ชี้แจง: {a.explanation}</p>
+                        <>
+                          <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-1 ${
+                            isEntitledOff(a.reason_type)
+                              ? "bg-green-500/15 text-green-300 border border-green-500/25"
+                              : "bg-amber-500/15 text-amber-300 border border-amber-500/25"
+                          }`}>
+                            {absenceReasonLabel(a.reason_type)}
+                          </span>
+                          <p className="text-[11px] text-aviva-secondary mt-0.5">{a.explanation}</p>
+                        </>
                       ) : (
                         <p className="text-[11px] text-orange-400/80 mt-0.5">ยังไม่ชี้แจง · เตือนไปแล้ว {a.reminder_count} ครั้ง</p>
                       )}

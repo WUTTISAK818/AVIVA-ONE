@@ -12,6 +12,7 @@ import { buildAutoItems, dedupeAutoItems } from "@/lib/report-auto-items";
 import { loadWorkSchedule } from "@/lib/work-schedule";
 import { loadApprovedSwaps, resolveOffDay } from "@/lib/off-day-swaps";
 import { loadMyOpenAbsences, explainAbsence, closeAbsenceOnSubmit, type ReportAbsence } from "@/lib/report-absences";
+import { ABSENCE_REASONS, absenceReasonOf, absenceReasonLabel, validateExplanation } from "@/lib/absence-reasons";
 import GlassCard from "@/components/GlassCard";
 import UnitProgressCard from "@/components/UnitProgressCard";
 import { thaiDateOf, thaiDateStr, dowOfDateStr } from "@/lib/thai-date";
@@ -94,8 +95,13 @@ export default function ReportsPage() {
 
   // เคสขาดส่งรายงานที่ยังไม่จบ — ส่งย้อนหลัง หรือชี้แจงเหตุผล
   const [absences, setAbsences] = useState<ReportAbsence[]>([]);
+  const unexplained = absences.filter(a => a.status === "open");
   const [explainFor, setExplainFor] = useState<ReportAbsence | null>(null);
-  const [explainText, setExplainText] = useState("");
+  const [explainDraft, setExplainDraft] = useState({ reasonType: "", note: "", swapFromDate: "" });
+  // เคสขาดส่งที่ยัง "ไม่ได้ชี้แจงเลย" — Pom สั่ง 27 ต.ค. 69 ให้บังคับชี้แจงก่อนส่งรายงานวันใหม่
+  // เหตุผล: เดิมพนักงานข้ามแถบเตือนได้ ปล่อยครบ 7 วันระบบปิดเป็น "ขาดส่ง — ไม่ชี้แจง" เอง
+  //         ผู้บริหารจึงไม่เคยรู้ว่าวันนั้นหยุดตามสิทธิ์ หรือลืมส่งจริง
+  // ไม่นับเคสที่ชี้แจงแล้ว (explained) เพราะพนักงานทำหน้าที่ครบแล้ว รอผู้บริหารกดรับทราบ
   const [explainSaving, setExplainSaving] = useState(false);
 
   const reloadAbsences = useCallback(async () => {
@@ -492,20 +498,30 @@ export default function ReportsPage() {
   }
 
   async function submitExplanation() {
-    if (!explainFor || !explainText.trim()) return;
+    if (!explainFor) return;
+    const invalid = validateExplanation(explainDraft);
+    if (invalid) { showToast(invalid, "error"); return; }
     setExplainSaving(true);
     const { data: execs } = await supabase.from("users").select("email").in("role", ["admin", "ceo", "coo"]);
     const execEmails = ((execs ?? []) as { email: string | null }[]).map(e => e.email ?? "").filter(Boolean);
-    const res = await explainAbsence(explainFor, explainText, execEmails);
+    const res = await explainAbsence(explainFor, explainDraft, execEmails);
     setExplainSaving(false);
     if (!res.ok) { showToast(res.error ?? "บันทึกไม่สำเร็จ", "error"); return; }
     setExplainFor(null);
-    setExplainText("");
+    setExplainDraft({ reasonType: "", note: "", swapFromDate: "" });
     reloadAbsences();
     showToast("ส่งคำชี้แจงให้ผู้บริหารแล้ว ✓");
   }
 
   async function handleSubmit() {
+    // บังคับชี้แจงวันที่ขาดส่งก่อน ถึงจะส่งรายงานวันใหม่ได้ (Pom สั่ง 27 ต.ค. 69)
+    // แก้ง่ายมาก — กดเลือกเหตุผล 1 ข้อก็จบ ไม่ต้องพิมพ์
+    if (unexplained.length > 0) {
+      setExplainFor(unexplained[0]);
+      setExplainDraft({ reasonType: "", note: "", swapFromDate: "" });
+      showToast(`ยังมี ${unexplained.length} วันที่ยังไม่ได้ชี้แจง — เลือกเหตุผลก่อนส่งรายงานวันใหม่`, "error");
+      return;
+    }
     const firstSubmit = report?.status === "draft";
     // เตือนถ้าไม่มีรูปแนบ — เฉพาะตอนส่งครั้งแรก (ไม่กวนตอนแก้)
     if (firstSubmit && attachments.length === 0) { setNoPhotoModal(true); return; }
@@ -561,7 +577,7 @@ export default function ReportsPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-aviva-text">ยังไม่ได้ส่งรายงาน — {label}</p>
                 {explained ? (
-                  <p className="text-[11px] text-blue-400 mt-0.5">ชี้แจงแล้ว: {a.explanation} (รอผู้บริหารรับทราบ)</p>
+                  <p className="text-[11px] text-blue-400 mt-0.5">ชี้แจงแล้ว · {absenceReasonLabel(a.reason_type)} — {a.explanation} (รอผู้บริหารรับทราบ)</p>
                 ) : (
                   <>
                     <p className="text-[11px] text-aviva-secondary mt-0.5">ส่งย้อนหลังได้ หรือชี้แจงเหตุผลว่าทำไมไม่ได้ส่ง</p>
@@ -570,7 +586,7 @@ export default function ReportsPage() {
                         className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/30">
                         ส่งย้อนหลังวันนี้
                       </button>
-                      <button onClick={() => { setExplainFor(a); setExplainText(""); }}
+                      <button onClick={() => { setExplainFor(a); setExplainDraft({ reasonType: "", note: "", swapFromDate: "" }); }}
                         className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30">
                         ชี้แจงเหตุผล
                       </button>
@@ -592,12 +608,41 @@ export default function ReportsPage() {
         <p className="text-xs text-aviva-secondary">
           วันที่ {new Date(explainFor.report_date + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" })}
         </p>
-        <textarea value={explainText} onChange={e => setExplainText(e.target.value)} rows={3}
-          placeholder="เช่น ไปไซต์งานต่างจังหวัด สัญญาณอินเทอร์เน็ตไม่ได้ / ป่วยแต่ยังไม่ได้ยื่นใบลา"
-          className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+        <p className="text-[11px] text-aviva-secondary">เลือกเหตุผล 1 ข้อ — ผู้บริหารจะได้รับแจ้งทันที</p>
+        <div className="grid grid-cols-2 gap-2">
+          {ABSENCE_REASONS.map(r => (
+            <button key={r.key}
+              onClick={() => setExplainDraft(d => ({ ...d, reasonType: r.key, swapFromDate: r.needsSwapDate ? d.swapFromDate : "" }))}
+              className={`text-left px-2.5 py-2 rounded-xl text-[12px] font-medium border leading-snug ${
+                explainDraft.reasonType === r.key
+                  ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                  : "bg-aviva-bg text-aviva-text border-aviva-gold/20"
+              }`}>
+              {r.icon} {r.label}
+            </button>
+          ))}
+        </div>
+
+        {absenceReasonOf(explainDraft.reasonType)?.needsSwapDate && (
+          <div>
+            <label htmlFor="absence-swap-date" className="text-xs text-aviva-secondary mb-1 block">
+              วันหยุดเดิมที่สลับมา <span className="text-orange-400">(ต้องระบุ)</span>
+            </label>
+            <input id="absence-swap-date" type="date" value={explainDraft.swapFromDate}
+              onChange={e => setExplainDraft(d => ({ ...d, swapFromDate: e.target.value }))}
+              className="w-full bg-aviva-bg border border-orange-500/30 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+          </div>
+        )}
+
+        {explainDraft.reasonType && (
+          <textarea value={explainDraft.note} onChange={e => setExplainDraft(d => ({ ...d, note: e.target.value }))} rows={2}
+            placeholder={absenceReasonOf(explainDraft.reasonType)?.needsNote ? "เขียนรายละเอียดเพิ่ม (ต้องกรอก)" : "รายละเอียดเพิ่มเติม (ไม่บังคับ)"}
+            className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+        )}
+
         <div className="flex gap-2">
           <button onClick={() => setExplainFor(null)} className="flex-1 py-2.5 rounded-xl text-sm text-aviva-secondary border border-aviva-gold/20">ยกเลิก</button>
-          <button onClick={submitExplanation} disabled={!explainText.trim() || explainSaving}
+          <button onClick={submitExplanation} disabled={!!validateExplanation(explainDraft) || explainSaving}
             className="flex-1 bg-aviva-gold text-aviva-bg font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">
             {explainSaving ? "กำลังส่ง..." : "ส่งคำชี้แจง"}
           </button>
@@ -843,6 +888,20 @@ export default function ReportsPage() {
               <div className="flex items-center gap-2 p-3 bg-aviva-gold/10 rounded-xl border border-aviva-gold/20">
                 <Clock size={13} className="text-aviva-gold flex-shrink-0" />
                 <p className="text-xs text-aviva-gold">รายงานย้อนหลังของ {reportDateThai} — จะติดป้าย &lsquo;ย้อนหลัง&rsquo; ให้ผู้บริหารทราบ</p>
+              </div>
+            )}
+            {unexplained.length > 0 && (
+              <div className="rounded-xl border border-orange-500/40 bg-orange-500/10 p-3 mb-2">
+                <p className="text-[12px] font-bold text-orange-300">
+                  ⛔ ต้องชี้แจง {unexplained.length} วันที่ขาดส่งก่อน จึงจะส่งรายงานวันนี้ได้
+                </p>
+                <p className="text-[11px] text-aviva-secondary mt-0.5 leading-relaxed">
+                  ถ้าวันนั้นเป็นวันหยุดหรือสลับวันหยุด กดเลือกเหตุผลข้อเดียวก็จบ ไม่ต้องพิมพ์ — ผู้บริหารจะได้รู้ว่าหยุดตามสิทธิ์ ไม่ใช่ลืมส่ง
+                </p>
+                <button onClick={() => { setExplainFor(unexplained[0]); setExplainDraft({ reasonType: "", note: "", swapFromDate: "" }); }}
+                  className="mt-2 text-[11px] font-bold px-3 py-1.5 rounded-lg bg-orange-500 text-white">
+                  ชี้แจงเลย
+                </button>
               </div>
             )}
             <button onClick={handleSubmit} disabled={submitting || (items.length === 0 && !summary.trim())}

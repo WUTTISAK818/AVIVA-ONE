@@ -23,7 +23,11 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const photoArray = photos?.filter(Boolean) || [];
+  const pairs = (photos ?? [])
+    .map((url, i) => ({ url, caption: captions?.[i] ?? null }))
+    .filter((p): p is { url: string; caption: string | null } => Boolean(p.url));
+  const photoArray = pairs.map((p) => p.url);
+  const captionAt = (i: number) => pairs[i]?.caption || null;
 
   const pinchStartRef = useRef<{ dist: number; scale: number } | null>(null);
   const dragStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
@@ -164,7 +168,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
             >
               <img
                 src={photoUrl}
-                alt={captions?.[idx] || `Photo ${idx + 1}`}
+                alt={captionAt(idx) || `Photo ${idx + 1}`}
                 loading="lazy"
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform"
               />
@@ -188,8 +192,8 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
                 </button>
               )}
             </div>
-            {captions?.[idx] && (
-              <p className="text-[10px] text-aviva-secondary leading-tight line-clamp-2">{captions[idx]}</p>
+            {captionAt(idx) && (
+              <p title={captionAt(idx) ?? ""} className="text-[10px] text-aviva-secondary leading-tight line-clamp-2">{captionAt(idx)}</p>
             )}
           </div>
         ))}
@@ -225,7 +229,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
 
           {/* Image container (กดที่รูปไม่ปิด) — บีบนิ้ว/ล้อเมาส์ซูม, ลากเลื่อนตอนซูมค้าง, ดับเบิลแทป/คลิกสลับซูม */}
           <div
-            className="flex-1 w-full flex flex-col items-center justify-center max-w-4xl max-h-[85vh] overflow-hidden"
+            className="flex-1 min-h-0 w-full flex items-center justify-center max-w-4xl overflow-hidden"
             style={{ touchAction: "none" }}
             onClick={(e) => e.stopPropagation()}
             onTouchStart={onTouchStart}
@@ -240,7 +244,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
           >
             <img
               src={photoArray[lightboxIndex]}
-              alt={captions?.[lightboxIndex] || `Photo ${lightboxIndex + 1}`}
+              alt={captionAt(lightboxIndex) || `Photo ${lightboxIndex + 1}`}
               draggable={false}
               className="max-w-full max-h-full object-contain select-none"
               style={{
@@ -249,13 +253,24 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
                 cursor: scale > 1 ? "grab" : "zoom-in",
               }}
             />
-            {captions?.[lightboxIndex] && scale === 1 && (
-              <p className="text-white/90 text-sm text-center mt-3 px-4 max-w-2xl">{captions[lightboxIndex]}</p>
-            )}
           </div>
 
+          {/* คำอธิบายรูป — ต้องอยู่ "นอก" กรอบซูม
+              เดิมอยู่ข้างในกรอบที่เป็น overflow-hidden + รูปตั้งค่า max-h-full
+              พอรูปสูงเต็มกรอบ คำอธิบายจึงไม่เหลือที่ และถูกกรอบตัดทิ้งเหลือแค่เสี้ยวบรรทัด (พีทแนบรูปทีละ 40-50 รูป เจอทุกรูป)
+              และเดิมมีเงื่อนไข scale === 1 ทำให้พอซูมเข้าไปดูรายละเอียด คำอธิบายหายไปเลย
+              ทั้งที่ตอนซูมนั่นแหละที่ต้องรู้ว่ารูปนี้คือจุดไหนของงาน */}
+          {captionAt(lightboxIndex) && (
+            <p
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 w-full max-w-2xl mt-3 px-4 py-2 rounded-xl bg-white/10 text-white text-sm leading-relaxed text-center max-h-28 overflow-y-auto"
+            >
+              {captionAt(lightboxIndex)}
+            </p>
+          )}
+
           {/* Navigation */}
-          <div className="flex items-center gap-4 mt-4" onClick={(e) => e.stopPropagation()}>
+          <div className="shrink-0 flex items-center gap-4 mt-4" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handlePrevious}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-50"
@@ -279,7 +294,7 @@ export function PhotoGallery({ photos = [], captions = [], title = "ภาพแ
             </button>
           </div>
 
-          <p className="text-white/50 text-xs mt-3">บีบนิ้ว/ล้อเมาส์ซูม · ดับเบิลแทปสลับซูม · ปัดซ้าย-ขวาเปลี่ยนรูป · แตะพื้นที่ว่าง/ปุ่มย้อนกลับ/ESC เพื่อปิด</p>
+          <p className="shrink-0 text-white/50 text-xs mt-3 text-center px-4">บีบนิ้ว/ล้อเมาส์ซูม · ดับเบิลแทปสลับซูม · ปัดซ้าย-ขวาเปลี่ยนรูป · แตะพื้นที่ว่าง/ปุ่มย้อนกลับ/ESC เพื่อปิด</p>
         </div>
       )}
     </div>

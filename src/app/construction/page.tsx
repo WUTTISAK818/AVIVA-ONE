@@ -84,6 +84,8 @@ interface Report {
   created_at: string;
   photo_url: string | null;
   photo_urls: string[] | null;
+  /** คำอธิบายรูป ลำดับตรงกับ photo_urls แบบ 1:1 (Pom สั่งเพิ่ม 30 ต.ค. 69) */
+  photo_captions: string[] | null;
   reported_by: string | null;
 }
 
@@ -481,6 +483,10 @@ export default function ConstructionPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [dailyPhotos, setDailyPhotos] = useState<File[]>([]);
   const [dailyExistingUrls, setDailyExistingUrls] = useState<string[]>([]);
+  // คำอธิบายรูป — แยกเป็น 2 ชุดเหมือนตัวรูป (รูปเดิมที่อัปแล้ว / รูปใหม่ที่เพิ่งเลือก)
+  // ทั้งคู่ผูกกับรูปด้วยลำดับ ตอนบันทึกจึงต่อกันตามลำดับเดียวกับ photo_urls
+  const [dailyCaptions, setDailyCaptions] = useState<string[]>([]);
+  const [dailyExistingCaptions, setDailyExistingCaptions] = useState<string[]>([]);
   const [uploadingDailyPhoto, setUploadingDailyPhoto] = useState(false);
 
   const [rptPeriod, setRptPeriod] = useState<Period>("month");
@@ -1066,7 +1072,11 @@ export default function ConstructionPage() {
     setSelectedHouse(null);
     setForm({ house_id: report.house_id, work_detail: report.work_detail, progress: String(report.progress), issue: report.issue ?? "", new_status: "in_progress", reported_by: report.reported_by ?? "", work_type: report.work_type ?? "งานตรวจสอบ" });
     setDailyPhotos([]);
-    setDailyExistingUrls(report.photo_urls?.length ? report.photo_urls : (report.photo_url ? [report.photo_url] : []));
+    const urls = report.photo_urls?.length ? report.photo_urls : (report.photo_url ? [report.photo_url] : []);
+    setDailyExistingUrls(urls);
+    // เติมช่องว่างให้ครบจำนวนรูปเสมอ — รายงานเก่าที่ยังไม่มีคำอธิบายจะได้ช่องเปล่าให้กรอก
+    setDailyExistingCaptions(urls.map((_, i) => report.photo_captions?.[i] ?? ""));
+    setDailyCaptions([]);
     setShowModal(true);
   };
 
@@ -1116,7 +1126,17 @@ export default function ConstructionPage() {
       setUploadingDailyPhoto(true);
       const newUrls = await uploadPhotos("construction-daily-photos", `daily/${reportId}`, dailyPhotos);
       const merged = [...dailyExistingUrls, ...newUrls];
-      await supabase.from("construction_reports").update({ photo_urls: merged, photo_url: merged[0] ?? null }).eq("id", reportId);
+      // คำอธิบายต้องยาวเท่ารูปพอดี และเรียงลำดับเดียวกัน ไม่งั้นจะไปติดผิดรูป
+      // รูปใหม่ที่อัปไม่สำเร็จจะไม่อยู่ใน newUrls จึงตัดคำอธิบายให้เหลือเท่าที่อัปได้จริง
+      const mergedCaptions = [
+        ...merged.map((_, i) => (i < dailyExistingUrls.length ? (dailyExistingCaptions[i] ?? "") : "")),
+      ];
+      newUrls.forEach((_, i) => { mergedCaptions[dailyExistingUrls.length + i] = dailyCaptions[i] ?? ""; });
+      await supabase.from("construction_reports").update({
+        photo_urls: merged,
+        photo_url: merged[0] ?? null,
+        photo_captions: mergedCaptions.some(c => c.trim()) ? mergedCaptions : null,
+      }).eq("id", reportId);
       if (newUrls.length) setToast({ msg: `อัปโหลดรูปสำเร็จ ${newUrls.length} รูป`, type: "success" });
       setUploadingDailyPhoto(false);
     }
@@ -1126,6 +1146,8 @@ export default function ConstructionPage() {
     setEditingReport(null);
     setDailyPhotos([]);
     setDailyExistingUrls([]);
+    setDailyCaptions([]);
+    setDailyExistingCaptions([]);
     fetchData();
   };
 
@@ -1349,7 +1371,7 @@ export default function ConstructionPage() {
                 </button>
               )}
               {part === "daily" && (
-                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "in_progress", reported_by: "", work_type: "งานตรวจสอบ" }); setDailyPhotos([]); setDailyExistingUrls([]); setShowModal(true); }}
+                <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "in_progress", reported_by: "", work_type: "งานตรวจสอบ" }); setDailyPhotos([]); setDailyExistingUrls([]); setDailyCaptions([]); setDailyExistingCaptions([]); setShowModal(true); }}
                   className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
                   <Plus size={14} /> รายงาน
                 </button>
@@ -1823,7 +1845,7 @@ export default function ConstructionPage() {
                           {r.reported_by && <p className="text-[10px] text-aviva-secondary mt-0.5">โดย: {r.reported_by}</p>}
                           {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
                           <div className="mt-3">
-                            <PhotoGallery photos={r.photo_urls} title="รูปตรวจงาน" />
+                            <PhotoGallery photos={r.photo_urls} captions={r.photo_captions} title="รูปตรวจงาน" />
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -2138,7 +2160,20 @@ export default function ConstructionPage() {
               </div>
               <div>
                 <label className="text-xs text-aviva-secondary mb-1 block">แนบรูปภาพการตรวจงาน (เลือกได้หลายรูป)</label>
-                <MultiPhotoInput value={dailyPhotos} onChange={setDailyPhotos} existingUrls={dailyExistingUrls} onRemoveExisting={(u) => setDailyExistingUrls(prev => prev.filter(x => x !== u))} />
+                <MultiPhotoInput
+                  value={dailyPhotos}
+                  onChange={setDailyPhotos}
+                  existingUrls={dailyExistingUrls}
+                  onRemoveExisting={(_u, i) => {
+                    setDailyExistingUrls(prev => prev.filter((_, idx) => idx !== i));
+                    setDailyExistingCaptions(prev => prev.filter((_, idx) => idx !== i));
+                  }}
+                  captions={dailyCaptions}
+                  onCaptionsChange={setDailyCaptions}
+                  existingCaptions={dailyExistingCaptions}
+                  onExistingCaptionsChange={setDailyExistingCaptions}
+                  captionPlaceholder="รูปนี้คือจุดไหน เช่น เทพื้นชั้น 1 ฝั่งหน้าบ้าน"
+                />
               </div>
             </div>
             <button onClick={handleSave} disabled={saving || uploadingDailyPhoto || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving || uploadingDailyPhoto ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}</button>

@@ -13,12 +13,27 @@ import { toSignedUrl, toSignedUrls } from "@/lib/storage";
 import GlassCard from "@/components/GlassCard";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { thaiDateOf, thaiDateStr } from "@/lib/thai-date";
+import { absenceReasonLabel } from "@/lib/absence-reasons";
+import { ABSENCE_STATUS_LABEL, type AbsenceStatus } from "@/lib/report-absences";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   activity:    { label: "กิจกรรม",       color: "text-blue-400" },
   achievement: { label: "ผลสำเร็จ",      color: "text-green-400" },
   issue:       { label: "ปัญหา/อุปสรรค", color: "text-red-400" },
   plan:        { label: "แผนงานพรุ่งนี้",  color: "text-yellow-400" },
+};
+
+/** วันที่แบบสั้น "5 พ.ย." — ใช้ในบรรทัดเหตุผลของคนที่ไม่ได้ส่งรายงาน */
+function thDM(d: string) {
+  return new Date(d + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
+}
+
+/** เหตุผลที่ "ไม่ต้องส่ง" วันนั้น — ทุกอันมาจากบันทึกจริงในระบบ ไม่ใช่การเดา */
+const OFF_REASON: Record<string, { icon: string; label: string; note: string }> = {
+  leave:      { icon: "📝", label: "ลา",                  note: "มีใบลาอนุมัติแล้วในระบบ" },
+  holiday:    { icon: "🎌", label: "วันหยุดบริษัท",        note: "ตรงกับวันหยุดในปฏิทินบริษัท" },
+  swapped:    { icon: "🔄", label: "สลับวันหยุด",          note: "มีใบสลับวันหยุดอนุมัติแล้ว" },
+  weekly_off: { icon: "🌴", label: "วันหยุดประจำสัปดาห์",   note: "ตรงกับวันหยุดประจำตัวที่ตั้งไว้" },
 };
 
 interface WReport {
@@ -269,15 +284,42 @@ export default function ReportsReviewPage() {
 
   // วันหยุดบริษัท + ใบลาที่อนุมัติแล้วของวันที่กำลังดู — ไม่นับคนกลุ่มนี้เป็น "ยังไม่ส่ง"
   const [isHoliday, setIsHoliday] = useState(false);
-  const [onLeaveIds, setOnLeaveIds] = useState<Set<string>>(new Set());
+  // เดิมเก็บแค่ "ใครลา" (Set ของ id) จึงบอกผู้บริหารไม่ได้ว่าลาอะไร ใบไหน
+  // Pom ถาม 31 ต.ค. 69: "ไม่ส่งเพราะเหตุอะไร เป็นวันหยุดมีการบันทึกในระบบหรือไม่"
+  // -> เก็บรายละเอียดใบลาไว้ด้วย เพื่อแสดงเหตุผลตรง ๆ บนหน้าจอตรวจรายงาน
+  const [leaveById, setLeaveById] = useState<Map<string, { leave_type: string; date_from: string; date_to: string }>>(new Map());
+  // เคส "ขาดส่งรายงาน" ของวันที่กำลังดู — ผูกด้วยอีเมล (ตัวพิมพ์เล็ก)
+  const [absenceByEmail, setAbsenceByEmail] = useState<Map<string, {
+    status: AbsenceStatus; explanation: string | null; reason_type: string | null;
+    swap_from_date: string | null; reminder_count: number;
+  }>>(new Map());
   const [swapRows, setSwapRows] = useState<{ employee_email: string; original_off_date: string; swapped_off_date: string }[]>([]);
   useEffect(() => {
     if (!canAccess) return;
     supabase.from("company_holidays").select("holiday_date").eq("holiday_date", selectedDate)
       .then(({ data }) => setIsHoliday((data ?? []).length > 0));
-    supabase.from("leave_requests").select("employee_id")
+    supabase.from("leave_requests").select("employee_id, leave_type, date_from, date_to")
       .eq("status", "approved").lte("date_from", selectedDate).gte("date_to", selectedDate)
-      .then(({ data }) => setOnLeaveIds(new Set((data ?? []).map(l => l.employee_id as string))));
+      .then(({ data }) => {
+        const m = new Map<string, { leave_type: string; date_from: string; date_to: string }>();
+        for (const l of (data ?? []) as { employee_id: string | null; leave_type: string; date_from: string; date_to: string }[]) {
+          if (l.employee_id) m.set(l.employee_id, { leave_type: l.leave_type, date_from: l.date_from, date_to: l.date_to });
+        }
+        setLeaveById(m);
+      });
+    supabase.from("report_absences")
+      .select("employee_email, status, explanation, reason_type, swap_from_date, reminder_count")
+      .eq("report_date", selectedDate)
+      .then(({ data }) => {
+        const m = new Map<string, { status: AbsenceStatus; explanation: string | null; reason_type: string | null; swap_from_date: string | null; reminder_count: number }>();
+        for (const a of (data ?? []) as { employee_email: string; status: AbsenceStatus; explanation: string | null; reason_type: string | null; swap_from_date: string | null; reminder_count: number | null }[]) {
+          m.set((a.employee_email ?? "").toLowerCase(), {
+            status: a.status, explanation: a.explanation, reason_type: a.reason_type,
+            swap_from_date: a.swap_from_date, reminder_count: a.reminder_count ?? 0,
+          });
+        }
+        setAbsenceByEmail(m);
+      });
     supabase.from("off_day_swaps").select("employee_email, original_off_date, swapped_off_date")
       .eq("status", "approved")
       .or(`original_off_date.eq.${selectedDate},swapped_off_date.eq.${selectedDate}`)
@@ -530,13 +572,24 @@ export default function ReportsReviewPage() {
   );
   const selectedDow = new Date(selectedDate + "T12:00:00").getDay();
   const swapsByEmail = groupSwapsByEmail(swapRows);
-  const missingEmployees = employees.filter(e => {
-    const { isOff } = resolveOffDay({
-      dateStr: selectedDate, dow: selectedDow, weeklyOffDay: e.weekly_off_day,
-      companyWeeklyOff: schedule.weekly_off_days, swaps: swapsByEmail.get((e.email ?? "").toLowerCase()) ?? [],
+  // ทุกคนที่ "ไม่ได้ส่ง" พร้อมเหตุผลที่ระบบรู้ — เดิมคนที่มีเหตุผลถูกคัดทิ้งเงียบ ๆ
+  // ผู้บริหารจึงไม่เห็นเลยว่าวันนั้นใครหยุด/ลา และหยุดโดยมีบันทึกในระบบจริงไหม
+  const nonSubmitters = employees
+    .filter(e => !submittedEmails.has(e.email))
+    .map(e => {
+      const { isOff, swapped } = resolveOffDay({
+        dateStr: selectedDate, dow: selectedDow, weeklyOffDay: e.weekly_off_day,
+        companyWeeklyOff: schedule.weekly_off_days, swaps: swapsByEmail.get((e.email ?? "").toLowerCase()) ?? [],
+      });
+      const leave = leaveById.get(e.id);
+      const reason: { kind: "leave" | "holiday" | "swapped" | "weekly_off" | "none"; detail?: string } =
+        leave      ? { kind: "leave",      detail: `${leave.leave_type} · ใบลาอนุมัติแล้ว ${thDM(leave.date_from)}–${thDM(leave.date_to)}` }
+        : isHoliday  ? { kind: "holiday" }
+        : isOff      ? (swapped ? { kind: "swapped" } : { kind: "weekly_off" })
+        :              { kind: "none" };
+      return { emp: e, reason, absence: absenceByEmail.get((e.email ?? "").toLowerCase()) ?? null };
     });
-    return !submittedEmails.has(e.email) && !(isHoliday || isOff) && !onLeaveIds.has(e.id);
-  });
+  const missingEmployees = nonSubmitters.filter(n => n.reason.kind === "none").map(n => n.emp);
   const departments = ["ทั้งหมด", ...Array.from(new Set(employees.map(e => e.department).filter(Boolean)))];
   const visibleCards = selectedDept === "ทั้งหมด"
     ? cards
@@ -1008,14 +1061,19 @@ export default function ReportsReviewPage() {
           </div>
         )}
 
-        {missingEmployees.length > 0 && (
-          <GlassCard className="overflow-hidden border-red-500/15">
+        {/* ใครไม่ได้ส่ง และ "เพราะอะไร" — Pom สั่ง 31 ต.ค. 69
+            เดิมหน้าจอขึ้นแค่ "ยังไม่ส่ง" เฉย ๆ ผู้บริหารจึงไม่รู้ว่าเป็นวันหยุด/ลา
+            หรือขาดส่งจริง และไม่รู้ว่าระบบทำอะไรต่อให้แล้วบ้าง */}
+        {nonSubmitters.length > 0 && (
+          <GlassCard className={`overflow-hidden ${missingEmployees.length > 0 ? "border-red-500/15" : "border-green-500/15"}`}>
             <button onClick={() => setShowMissing(m => !m)}
               className="w-full flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
-                <UserX size={14} className="text-red-400" />
-                <span className="text-sm font-semibold text-red-400">
-                  ยังไม่ส่งรายงาน {missingEmployees.length} คน
+                <UserX size={14} className={missingEmployees.length > 0 ? "text-red-400" : "text-green-400"} />
+                <span className={`text-sm font-semibold ${missingEmployees.length > 0 ? "text-red-400" : "text-green-400"}`}>
+                  {missingEmployees.length > 0
+                    ? `ยังไม่ส่งรายงาน ${missingEmployees.length} คน`
+                    : `ไม่ได้ส่ง ${nonSubmitters.length} คน — มีเหตุผลในระบบครบทุกคน`}
                 </span>
               </div>
               {showMissing
@@ -1023,18 +1081,75 @@ export default function ReportsReviewPage() {
                 : <ChevronDown size={14} className="text-aviva-secondary" />}
             </button>
             {showMissing && (
-              <div className="border-t border-red-500/10 divide-y divide-aviva-gold/5">
-                {missingEmployees.map(e => (
-                  <div key={e.id} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
-                      <p className="text-xs font-semibold text-aviva-text">{e.full_name}</p>
-                      <p className="text-[10px] text-aviva-secondary">{e.department}</p>
+              <div className="border-t border-aviva-gold/10 divide-y divide-aviva-gold/5">
+                {nonSubmitters.map(({ emp, reason, absence }) => {
+                  const off = reason.kind === "none" ? null : OFF_REASON[reason.kind];
+                  return (
+                    <div key={emp.id} className="px-4 py-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-aviva-text">{emp.full_name}</p>
+                          <p className="text-[10px] text-aviva-secondary">{emp.department}</p>
+                        </div>
+                        {off ? (
+                          <span className="shrink-0 text-[10px] font-bold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+                            {off.icon} {off.label}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                            ยังไม่ส่ง
+                          </span>
+                        )}
+                      </div>
+
+                      {/* มีเหตุผล = บอกว่าเหตุผลนั้นมาจากบันทึกไหนในระบบ ตรวจย้อนได้ */}
+                      {off && (
+                        <p className="text-[10px] text-green-400/70 mt-1">
+                          ✓ {reason.detail ?? off.note}
+                        </p>
+                      )}
+
+                      {/* ไม่มีเหตุผล = บอกว่าตอนนี้เคสเดินไปถึงไหนแล้ว */}
+                      {!off && (
+                        absence ? (
+                          <div className="mt-1.5 rounded-lg bg-aviva-bg/60 border border-aviva-gold/10 px-2.5 py-2">
+                            <p className="text-[10px] font-semibold text-aviva-gold">
+                              {ABSENCE_STATUS_LABEL[absence.status]}
+                              {absence.reminder_count > 0 && ` · เตือนแล้ว ${absence.reminder_count} ครั้ง`}
+                            </p>
+                            {absence.explanation && (
+                              <p className="text-[10px] text-aviva-secondary mt-0.5 whitespace-pre-wrap">
+                                {absenceReasonLabel(absence.reason_type)}
+                                {absence.reason_type ? ` — ${absence.explanation}` : absence.explanation}
+                              </p>
+                            )}
+                            {absence.status === "explained" && (
+                              <p className="text-[10px] text-yellow-400/80 mt-1">
+                                รอผู้บริหารกด &quot;รับทราบ&quot; ที่หน้าสรุปรายงานทีม (/reports/digest)
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-aviva-secondary/70 mt-1">
+                            ยังไม่มีเคสขาดส่ง — ระบบจะเปิดให้อัตโนมัติหลังเลยเวลาเตือน
+                          </p>
+                        )
+                      )}
                     </div>
-                    <span className="text-[10px] font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-                      ยังไม่ส่ง
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
+
+                {/* ตอบคำถาม "ถ้ามีคนไม่ส่งจะดำเนินการอย่างไร" ไว้ตรงนี้เลย ไม่ต้องไปเปิดคู่มือ */}
+                <div className="px-4 py-2.5 bg-aviva-bg/40">
+                  <p className="text-[10px] font-semibold text-aviva-secondary mb-1">ระบบดำเนินการให้อัตโนมัติ</p>
+                  <ul className="text-[10px] text-aviva-secondary/80 space-y-0.5 list-disc list-inside">
+                    <li>18:00 น. เตือนคนที่ยังไม่ส่ง (แอป + LINE ส่วนตัว)</li>
+                    <li>เลยวันแล้วยังไม่ส่ง → เปิดเคสขาดส่งให้ชี้แจง</li>
+                    <li>ยังไม่ชี้แจง → ส่งรายงานวันใหม่ไม่ได้จนกว่าจะเลือกเหตุผล</li>
+                    <li>ครบ 7 วันไม่ชี้แจง → ปิดเป็น &quot;ขาดส่ง — ไม่ชี้แจง&quot; ติดประวัติถาวร</li>
+                    <li>คนที่ลา/หยุดตามสิทธิ์ ระบบไม่นับเป็นขาดส่งตั้งแต่แรก</li>
+                  </ul>
+                </div>
               </div>
             )}
           </GlassCard>

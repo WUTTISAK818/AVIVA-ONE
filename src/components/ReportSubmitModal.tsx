@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Send, CheckCircle, Plus, Trash2, MapPin, ClipboardList } from "lucide-react";
+import { X, Send, CheckCircle, Plus, Trash2, MapPin, ClipboardList, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { thaiDateStr } from "@/lib/thai-date";
 import { reportSubmitStatus } from "@/lib/report-deadline";
+import { loadMyOpenAbsences, type ReportAbsence } from "@/lib/report-absences";
 
 export interface AutoReportItem {
   category: "activity" | "achievement" | "issue" | "plan";
@@ -27,6 +28,11 @@ const CATEGORY_OPTIONS = [
   { value: "plan",        label: "แผนพรุ่งนี้" },
 ] as const;
 
+/** วันที่แบบสั้น "29 ต.ค." */
+function thDate(d: string) {
+  return new Date(d + "T12:00:00Z").toLocaleDateString("th-TH", { timeZone: "UTC", day: "numeric", month: "short" });
+}
+
 const CATEGORY_COLOR: Record<string, string> = {
   activity:    "text-blue-400",
   achievement: "text-green-400",
@@ -45,6 +51,23 @@ export default function ReportSubmitModal({ open, onClose, department, autoItems
   const [existingId, setExistingId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // วันที่ขาดส่งซึ่งยังไม่ได้ชี้แจง — ต้องบล็อกที่นี่ด้วย
+  //
+  // บั๊กจริงที่เจอ 31 ต.ค. 69: v7.99 ใส่ "บังคับชี้แจงก่อนส่งรายงานวันใหม่" ไว้ที่ /reports อย่างเดียว
+  // แต่ฝ่ายขายส่งรายงานผ่านกล่องนี้ในหน้า CRM ได้อีกทาง ซึ่งไม่มีด่านอะไรเลย
+  // ผลคือเดียร์ส่งรายงาน 31 ต.ค. ได้ทั้งที่วันที่ 29 ต.ค. ยังค้างไม่ชี้แจง — กติกาเดียวกันแต่บังคับแค่ประตูเดียว
+  // (รูปแบบเดียวกับที่เคยพลาดเรื่องเส้นตาย 19:00 กับ 18:00 ที่อยู่คนละไฟล์)
+  const [openAbsences, setOpenAbsences] = useState<ReportAbsence[]>([]);
+  useEffect(() => {
+    if (!open || !user?.email) return;
+    let alive = true;
+    (async () => {
+      const rows = await loadMyOpenAbsences(user.email);
+      if (alive) setOpenAbsences(rows.filter(a => a.status === "open"));
+    })();
+    return () => { alive = false; };
+  }, [open, user?.email]);
 
   useEffect(() => {
     if (!open || !user?.email) return;
@@ -82,6 +105,7 @@ export default function ReportSubmitModal({ open, onClose, department, autoItems
 
   async function handleSubmit() {
     if (!user?.email) return;
+    if (openAbsences.length > 0) return; // กันไว้ที่ฟังก์ชันด้วย ไม่ใช่แค่ซ่อนปุ่ม
     setSubmitting(true);
 
     const now = new Date();
@@ -226,13 +250,26 @@ export default function ReportSubmitModal({ open, onClose, department, autoItems
             </div>
 
             <div className="pt-4 border-t border-aviva-gold/10 mt-3">
+              {openAbsences.length > 0 && (
+                <div className="mb-3 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
+                  <p className="text-xs font-bold text-orange-300 flex items-center gap-1.5">
+                    <AlertTriangle size={13} /> ต้องชี้แจง {openAbsences.length} วันที่ขาดส่งก่อน
+                  </p>
+                  <p className="text-[11px] text-orange-200/80 mt-1">
+                    {openAbsences.map(a => thDate(a.report_date)).join(" · ")}
+                  </p>
+                  <a href="/reports" className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold text-aviva-bg bg-orange-400 px-3 py-1.5 rounded-lg">
+                    ไปชี้แจง (กดเลือกเหตุผล ไม่ต้องพิมพ์)
+                  </a>
+                </div>
+              )}
               <button
                 onClick={handleSubmit}
-                disabled={submitting || items.every(i => !i.description.trim())}
+                disabled={submitting || openAbsences.length > 0 || items.every(i => !i.description.trim())}
                 className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Send size={14} />
-                {submitting ? "กำลังส่ง..." : "ยืนยันส่งรายงาน"}
+                {submitting ? "กำลังส่ง..." : openAbsences.length > 0 ? "ชี้แจงวันที่ขาดส่งก่อน" : "ยืนยันส่งรายงาน"}
               </button>
             </div>
           </>

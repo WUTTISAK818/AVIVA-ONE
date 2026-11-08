@@ -62,7 +62,14 @@ export async function GET(req: NextRequest) {
     .eq("project_id", PROJECT_ID).in("plot_code", [...worked]);
 
   const staleCutMs = Date.now() - STALE_DAYS * 86_400_000;
+  // แปลงที่สร้างเสร็จแล้ว (100%) ไม่นับว่า "ผังไม่ตรงหน้างาน" — รายงานหน้างานหลังจากนั้น
+  // เป็นงานเก็บงาน/ซ่อม/จัดสวน ไม่ใช่ความคืบหน้าที่ต้องขยับ % · ถ้าไม่กันไว้จะเตือนทุกวันตลอดไป
+  // เพราะ updated_at ของแปลงที่ปิดงานแล้วจะไม่ขยับอีกเลย (เจอจริงที่ V15 — ค้าง 142 วัน)
+  const completed = (houses ?? []).filter(
+    h => h.construction_status === "completed" || Number(h.progress ?? 0) >= 100,
+  ).length;
   const stale = (houses ?? [])
+    .filter(h => h.construction_status !== "completed" && Number(h.progress ?? 0) < 100)
     .filter(h => !h.updated_at || new Date(h.updated_at as string).getTime() < staleCutMs)
     .map(h => ({
       code: h.plot_code as string,
@@ -73,7 +80,7 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => b.days - a.days);
 
-  if (stale.length === 0) return NextResponse.json({ ok: true, stale: 0 });
+  if (stale.length === 0) return NextResponse.json({ ok: true, stale: 0, completedSkipped: completed });
 
   const lines = stale.map(s => `• ${s.code} — ผังขึ้น ${s.progress}% (ไม่ได้อัปเดต ${s.days} วัน)`).join("\n");
 
@@ -128,5 +135,8 @@ export async function GET(req: NextRequest) {
     } catch { /* best-effort */ }
   }
 
-  return NextResponse.json({ ok: true, stale: stale.length, notified, lineSent, codes: stale.map(s => s.code) });
+  return NextResponse.json({
+    ok: true, stale: stale.length, completedSkipped: completed,
+    notified, lineSent, codes: stale.map(s => s.code),
+  });
 }

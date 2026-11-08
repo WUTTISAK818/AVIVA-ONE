@@ -51,13 +51,20 @@ export default function ConstructionSyncAlert({ projectId }: Props) {
         .eq("project_id", projectId)
         .in("plot_code", [...worked]);
 
+      // แปลงที่สร้างเสร็จแล้ว (100%) ไม่เอามาเทียบ — รายงานหน้างานหลังปิดงานเป็นงานเก็บ/ซ่อม/จัดสวน
+      // และ updated_at ของแปลงที่ปิดแล้วจะไม่ขยับอีก จึงทำให้กล่องเตือนขึ้นค้างตลอดไปถ้าไม่กันไว้
+      const active = (houses ?? []).filter(
+        h => h.construction_status !== "completed" && Number(h.progress ?? 0) < 100,
+      );
+      if (active.length === 0) { setStale(null); return; }
+
       // แปลงที่มีรายงานหน้างาน แต่ผังยังขึ้นว่า "ยังไม่เริ่ม"
-      const codes = (houses ?? [])
+      const codes = active
         .filter(h => h.construction_status === "not_started" || Number(h.progress ?? 0) === 0)
         .map(h => h.plot_code as string)
         .sort();
 
-      const lastUpdated = (houses ?? [])
+      const lastUpdated = active
         .map(h => h.updated_at as string | null)
         .filter(Boolean)
         .sort()

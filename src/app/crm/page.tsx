@@ -366,6 +366,11 @@ export default function CRMPage() {
   const formSnapshotRef = useRef("");
   const [geo, setGeo] = useState<GeoData | null>(null);
   const [saving, setSaving] = useState(false);
+  // กันกดปุ่ม "บันทึก" รัวบนมือถือ — ปุ่ม disabled ตาม state `saving` ซึ่งยังไม่ทันเป็น true
+  // เพราะ handleSave มี await (เช็ค lost update) ก่อนถึง setSaving(true) · เจอจริง 7 พ.ย. 69:
+  // CRM-0414 ถูกบันทึก 3 ครั้งในวินาทีเดียว (17:35:26) ลง audit_log ซ้ำ 3 แถว
+  const savingRef = useRef(false);
+  const stopSaving = () => { savingRef.current = false; setSaving(false); };
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [crmLogLead, setCrmLogLead] = useState<Lead | null>(null);
@@ -1033,6 +1038,7 @@ export default function CRMPage() {
 
   const handleSave = async () => {
     if (!form.customer_name) return;
+    if (savingRef.current) return;   // กดซ้ำระหว่างที่ครั้งแรกยังไม่จบ
     // บังคับตั้งวันนัดติดตาม (ยกเว้นปิดการขายแล้ว) — เดิมพบว่าลูกค้าใหม่แทบไม่เคยถูกตั้งวันติดตามเลย
     if (form.status !== "Closed Deal" && !isClosedLost(form.status) && !form.next_follow_up_date) {
       setToast({ msg: "กรุณาระบุวันนัดติดตามครั้งถัดไป — กันลูกค้าหลุดมือ", type: "error" });
@@ -1062,6 +1068,7 @@ export default function CRMPage() {
     // กัน "lost update" — ค่าในฟอร์มถูกถ่ายไว้ตอนเปิดฟอร์ม ถ้าสถานะถูกเปลี่ยนจากทางอื่น
     // ระหว่างที่ฟอร์มเปิดอยู่ การกดบันทึกเดิมจะย้อนสถานะกลับเงียบ ๆ
     // (เกิดจริง 23 ต.ค. 69: CRM-0400 ฟ้าเปลี่ยนเป็น "ไม่สนใจแล้ว" แล้วถูกทับกลับใน 29 วินาที)
+    savingRef.current = true;   // ยกธงก่อน await แรก ไม่ใช่ตอน setSaving(true) ซึ่งอยู่หลัง await
     if (editingLead) {
       const { data: fresh } = await supabase.from("leads").select("status").eq("id", editingLead.id).maybeSingle();
       const liveStatus = (fresh as { status?: string } | null)?.status;
@@ -1071,7 +1078,7 @@ export default function CRMPage() {
           `หลังจากที่เปิดฟอร์มนี้\n\nถ้ากดตกลง สถานะจะถูกเขียนทับกลับเป็น "${STATUS_TH[form.status] ?? form.status}"\n` +
           `ถ้าไม่ต้องการทับ ให้กดยกเลิก ปิดฟอร์มแล้วเปิดใหม่`
         );
-        if (!ok) { setSaving(false); return; }
+        if (!ok) { stopSaving(); return; }
       }
     }
     setSaving(true);
@@ -1109,7 +1116,7 @@ export default function CRMPage() {
       let loanCelebrated = false;
       const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: normalizePhoneInput(form.phone), email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, ...backfillDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
       if (updateErr) {
-        setSaving(false);
+        stopSaving();
         // TC-06: DB unique index กันจองซ้ำ (race) — แปลผล error 23505 เป็นข้อความที่เข้าใจง่าย
         const dup = updateErr.code === "23505" || /uq_leads_active_plot|duplicate key/i.test(updateErr.message);
         setToast({ msg: dup ? `แปลง ${plotNum ?? editingLead.plot_number} ถูกจอง/ทำสัญญาโดยลูกค้ารายอื่นแล้ว — จองซ้ำไม่ได้` : "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" });
@@ -1132,7 +1139,7 @@ export default function CRMPage() {
           // "ปิดการขาย" ไม่รวมตรงนี้ เพราะมีขั้นตอนโอนกรรมสิทธิ์ตั้งค่าเป็น sold ให้อยู่แล้ว
           if (BOOKING_STATUSES.includes(form.status) && form.status !== "Closed Deal") {
             const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", editingLead.id).maybeSingle();
-            if (existingBook) { setSaving(false); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
+            if (existingBook) { stopSaving(); setToast({ msg: `แปลง ${effectivePlot} ถูกจองโดย ${existingBook.customer_name} แล้ว ไม่สามารถจองซ้ำได้`, type: "error" }); return; }
             await supabase.from("houses").update({
               status: "reserved", sale_status_at: thaiDateStr(),
               sale_status_by: user?.full_name ?? user?.email ?? null,
@@ -1201,7 +1208,7 @@ export default function CRMPage() {
       }
     } else {
       const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: normalizePhoneInput(form.phone), email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, assigned_to: form.assigned_to.trim() || user?.full_name || user?.email || null, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null });
-      if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
+      if (insertErr) { stopSaving(); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
         title: `ลูกค้าใหม่ — ${form.customer_name}`,
@@ -1210,7 +1217,7 @@ export default function CRMPage() {
         to_dept: "ฝ่ายขาย",
       });
     }
-    setSaving(false);
+    stopSaving();
     setShowModal(false);
     setEditingLead(null);
     setForm(emptyForm);

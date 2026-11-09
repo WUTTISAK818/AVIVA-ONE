@@ -410,6 +410,7 @@ export default function CRMPage() {
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
   const [activeStage, setActiveStage] = useState<LeadStatus | "all">("all");
   const [search, setSearch] = useState("");
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);   // ทุกใบรวมใบซ้ำ — ใช้เฉพาะแถบ "ลูกค้าซ้ำ"
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("none");
   const [showDupPanel, setShowDupPanel] = useState(false);
   const [merging, setMerging] = useState<string | null>(null);
@@ -791,7 +792,12 @@ export default function CRMPage() {
       const { data, error } = await q.order("created_at_default", { ascending: false }).limit(limit);
       // ห้ามล้มเหลวเงียบ (QA-STANDARD ส่วน D) — เดิมโหลดพลาดแล้วค้างรายชื่อเก่าไว้โดยผู้ใช้ไม่รู้
       if (error) { setToast({ msg: thaiDbError(error, "โหลดรายชื่อลูกค้า"), type: "error" }); return; }
-      setLeads((data as Lead[]) ?? []);
+      const rows = (data as Lead[]) ?? [];
+      setAllLeads(rows);
+      // `leads` = ใบที่นับยอดได้ -> ตัดใบที่ยืนยันว่าซ้ำออกตั้งแต่ต้นทาง
+      // ทำที่นี่จุดเดียว ทุกการนับในหน้านี้จึงไม่นับลูกค้ารายเดียวซ้ำ 2 ครั้งเอง
+      // (ถ้าไปกรองทีละจุดจะพลาดบางจุดแน่ ๆ — มีที่นับยอดเกิน 15 แห่งในไฟล์นี้)
+      setLeads(rows.filter((l) => !l.duplicate_of));
     } catch (e) {
       setToast({ msg: thaiDbError(e as { message?: string }, "โหลดรายชื่อลูกค้า"), type: "error" });
     } finally {
@@ -830,18 +836,14 @@ export default function CRMPage() {
   };
 
   // กลุ่มที่ "น่าจะ" เป็นลูกค้ารายเดียวกัน — ระบบเสนอ คนยืนยัน (ไม่รวมให้เอง)
-  const dupGroups = useMemo(() => findDuplicateGroups(leads as DupLead[]), [leads]);
-  const mergedLeads = useMemo(() => leads.filter((l) => l.duplicate_of), [leads]);
-
-  // ใบที่ถูกยืนยันว่าเป็น "ใบซ้ำของลูกค้ารายเดียวกัน" ต้องหลุดจากทุกการนับยอดและรายชื่อ
-  // ไม่งั้นลูกค้า 1 รายจะถูกนับเป็น 2 (Pom ถาม 9 พ.ย. 69) · ดูใบซ้ำได้ที่แถบ "ลูกค้าซ้ำ"
-  const realLeads = useMemo(() => leads.filter((l) => !l.duplicate_of), [leads]);
+  const dupGroups = useMemo(() => findDuplicateGroups(allLeads as DupLead[]), [allLeads]);
+  const mergedLeads = useMemo(() => allLeads.filter((l) => l.duplicate_of), [allLeads]);
 
   const stageCounts = useMemo(() => Object.fromEntries(
-    crmStages.map((s) => [s, realLeads.filter((l) => l.status === s).length])
-  ) as Record<LeadStatus, number>, [realLeads]);
+    crmStages.map((s) => [s, leads.filter((l) => l.status === s).length])
+  ) as Record<LeadStatus, number>, [leads]);
 
-  const filtered = useMemo(() => realLeads.filter(
+  const filtered = useMemo(() => leads.filter(
     (l) => (activeStage === "all" || l.status === activeStage)
       // ค้นหาได้ทุกช่อง: ชื่อ · รหัส · เบอร์ · ชื่อในแชต · เลขแปลง · พนักงานขาย · สถานะ ฯลฯ
       // (เดิมค้นได้แค่ชื่อ และ case-sensitive — Pom แจ้ง 9 พ.ย. 69)
@@ -849,7 +851,7 @@ export default function CRMPage() {
       // ต้องใช้สูตรเดียวกับการจัดกลุ่มในตารางผลงานทีม ไม่งั้นแตะการ์ดแล้วกรองไม่เจอใคร
       && (!assigneeFilter || ((l.assigned_to ?? "").trim() || UNOWNED_LABEL) === assigneeFilter)
       && matchQuickFilter(l, quickFilter)
-  ), [realLeads, activeStage, search, assigneeFilter, quickFilter]);
+  ), [leads, activeStage, search, assigneeFilter, quickFilter]);
 
   // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
   // แสดงทีละชุด แล้วกด "แสดงเพิ่ม" — รีเซ็ตเป็นชุดแรกเมื่อเปลี่ยนตัวกรอง/ค้นหา
@@ -1336,7 +1338,7 @@ export default function CRMPage() {
    *  เฉพาะผู้บริหาร เพราะกระทบยอดขายที่รายงาน (ลูกค้า 1 ราย ต้องนับ 1 ครั้ง) */
   const handleMarkDuplicate = async (dupId: string, primaryId: string, primaryCode: string) => {
     if (!user?.isManager) return;
-    const dup = leads.find((l) => l.id === dupId);
+    const dup = allLeads.find((l) => l.id === dupId);
     if (!dup) return;
     if (!window.confirm(
       `ยืนยันว่า ${dup.lead_code} (${dup.customer_name}) เป็นใบซ้ำของ ${primaryCode} ใช่ไหม\n\n` +
@@ -1367,7 +1369,7 @@ export default function CRMPage() {
   /** แยกใบที่เคยรวมกลับออกมา — ใช้เมื่อรวมผิดคน */
   const handleUnmarkDuplicate = async (dupId: string) => {
     if (!user?.isManager) return;
-    const dup = leads.find((l) => l.id === dupId);
+    const dup = allLeads.find((l) => l.id === dupId);
     if (!dup) return;
     setMerging(dupId);
     const { error } = await supabase.from("leads").update({
@@ -1851,7 +1853,7 @@ export default function CRMPage() {
                   </summary>
                   <div className="mt-2 space-y-1.5">
                     {mergedLeads.map((l) => {
-                      const into = leads.find((x) => x.id === l.duplicate_of);
+                      const into = allLeads.find((x) => x.id === l.duplicate_of);
                       return (
                         <div key={l.id} className="flex items-center justify-between gap-2">
                           <p className="text-[12px] text-aviva-secondary truncate">

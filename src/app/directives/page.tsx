@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { Send, Plus, X, MessageSquareText, CheckCircle2, Clock, PlayCircle, BadgeCheck, RotateCcw, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
-import { sendDirective, updateDirectiveStatus, closeDirective, returnDirective, cancelDirective, REMINDER_STAGE_LABEL, type Directive, type DirectiveStatus } from "@/lib/directives";
+import { sendDirective, updateDirectiveStatus, closeDirective, closeDirectiveWithoutReport, returnDirective, cancelDirective, REMINDER_STAGE_LABEL, type Directive, type DirectiveStatus } from "@/lib/directives";
 import { nextStepFor, sortDirectives } from "@/lib/directive-next-step";
 import GlassCard from "@/components/GlassCard";
 import { thaiDateStr } from "@/lib/thai-date";
@@ -132,6 +132,7 @@ export default function DirectivesPage() {
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [closeErrors, setCloseErrors] = useState<Record<string, string>>({});
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});   // ความเห็นผู้สั่งตอนตรวจรับ
+  const [closeSelf, setCloseSelf] = useState<Record<string, boolean>>({});        // เปิดกล่อง "ปิดจ็อบเอง" ของใบไหนไว้
   const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});   // เปิดดูรายละเอียด/ไทม์ไลน์
@@ -268,6 +269,22 @@ export default function DirectivesPage() {
     if (!user) return;
     setReviewing(d.id); setReviewErrors((p) => ({ ...p, [d.id]: "" }));
     const r = await closeDirective(d, user.email, reviewDrafts[d.id] ?? "");
+    setReviewing(null);
+    if (!r.ok) { setReviewErrors((p) => ({ ...p, [d.id]: r.error ?? "ปิดจ็อบไม่สำเร็จ" })); return; }
+    setReviewDrafts((p) => ({ ...p, [d.id]: "" }));
+    load();
+  };
+
+  // ผู้สั่งงานปิดจ็อบเอง ตอนที่ผู้รับยังไม่ได้กดส่ง — ต้องเขียนเหตุผลเสมอ
+  const handleCloseWithoutReport = async (d: Directive) => {
+    if (!user) return;
+    const note = (reviewDrafts[d.id] ?? "").trim();
+    if (!note) {
+      setReviewErrors((p) => ({ ...p, [d.id]: "กรุณาเขียนเหตุผลที่ปิดจ็อบเอง (เช่น ตรวจในระบบแล้วเสร็จครบ)" }));
+      return;
+    }
+    setReviewing(d.id); setReviewErrors((p) => ({ ...p, [d.id]: "" }));
+    const r = await closeDirectiveWithoutReport(d, user.email, note);
     setReviewing(null);
     if (!r.ok) { setReviewErrors((p) => ({ ...p, [d.id]: r.error ?? "ปิดจ็อบไม่สำเร็จ" })); return; }
     setReviewDrafts((p) => ({ ...p, [d.id]: "" }));
@@ -523,6 +540,50 @@ export default function DirectivesPage() {
                         <RotateCcw size={11} /> ตีกลับให้แก้
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* ผู้สั่งงานปิดจ็อบเองได้ ตอนที่ผู้รับยังไม่ได้กดส่ง (Pom อนุมัติ 8 พ.ย. 69)
+                    เดิมปุ่มตรวจรับขึ้นเฉพาะตอนผู้รับกดส่งมาก่อน งานที่เสร็จจริงแต่ไม่มีใครกดปิดจึงค้างตลอดไป */}
+                {tab === "sent" && ["sent", "acknowledged", "in_progress"].includes(d.status) && (
+                  <div className="mt-3 pt-3 border-t border-aviva-gold/15 space-y-2">
+                    {!closeSelf[d.id] ? (
+                      <button onClick={() => setCloseSelf((p) => ({ ...p, [d.id]: true }))}
+                        className="text-[13px] text-aviva-secondary underline">
+                        ตรวจแล้วว่างานนี้เสร็จจริง — ปิดจ็อบเองเลย
+                      </button>
+                    ) : (
+                      <>
+                        <p className="text-[13px] text-aviva-gold font-semibold">ปิดจ็อบเอง (ผู้รับยังไม่ได้กดส่ง)</p>
+                        <p className="text-[12px] text-aviva-secondary leading-relaxed">
+                          ใช้เมื่อตรวจของจริงในระบบแล้วว่าเสร็จครบ แต่ผู้รับไม่ได้กด &ldquo;ทำเสร็จแล้ว&rdquo;
+                          · ระบบจะแจ้ง {d.assigned_to_name || "ผู้รับ"} ว่าไม่ต้องทำต่อ และเก็บเหตุผลไว้ให้ตรวจย้อนได้
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="เหตุผลที่ปิดเอง (บังคับ) เช่น ตรวจในระบบแล้วเหลือ 0 ราย"
+                          value={reviewDrafts[d.id] ?? ""}
+                          onChange={(e) => setReviewDrafts((p) => ({ ...p, [d.id]: e.target.value }))}
+                          className="w-full bg-aviva-bg border border-aviva-gold/15 rounded-lg px-3 py-2.5 text-[14px] text-aviva-text"
+                        />
+                        {reviewErrors[d.id] && <p className="text-[13px] text-red-400">{reviewErrors[d.id]}</p>}
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handleCloseWithoutReport(d)}
+                            disabled={reviewing === d.id}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 text-[13px] font-semibold disabled:opacity-50"
+                          >
+                            <BadgeCheck size={11} /> {reviewing === d.id ? "กำลังบันทึก…" : "ยืนยันปิดจ็อบ"}
+                          </button>
+                          <button
+                            onClick={() => { setCloseSelf((p) => ({ ...p, [d.id]: false })); setReviewErrors((p) => ({ ...p, [d.id]: "" })); }}
+                            className="px-2.5 py-1.5 rounded-lg border border-aviva-gold/20 text-aviva-secondary text-[13px]"
+                          >
+                            ยกเลิก
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

@@ -373,6 +373,8 @@ export default function CRMPage() {
   const stopSaving = () => { savingRef.current = false; setSaving(false); };
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  /** ใครกรอก "วันจอง/วันโอน" ย้อนหลังได้ — ผู้บริหารเสมอ หรือฝ่ายขายเมื่อลูกค้ารายนี้ถูกปลดล็อกไว้ */
+  const canBackfillDates = !!user?.isManager || (!!editingLead && editUnlocked(editingLead));
   const [crmLogLead, setCrmLogLead] = useState<Lead | null>(null);
   const [crmLogForm, setCrmLogForm] = useState(emptyCrmLog);
   const [savingLog, setSavingLog] = useState(false);
@@ -1086,11 +1088,15 @@ export default function CRMPage() {
     const byName = user?.full_name ?? user?.email ?? "ทีมขาย";
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     const statusDates: Record<string, unknown> = {};
-    // วันจอง/วันโอนของการขายเก่าที่กรอกย้อนหลัง — ผู้บริหารเท่านั้น (ฝ่ายขายไม่มีช่องให้แก้)
+    // วันจอง/วันโอนของการขายเก่าที่กรอกย้อนหลัง
     // ปกติระบบเขียน 2 ช่องนี้ให้เองตอนสถานะเปลี่ยนผ่าน และใส่เป็น "วันนี้"
     // การขายเก่าที่นำเข้ามาจึงไม่มีค่า และไม่เคยมีช่องให้ใครกรอกย้อนหลังเลย (เจอ 23 ต.ค. 69)
+    // v8.06 (Pom อนุมัติ 8 พ.ย. 69): เดิมเปิดให้ผู้บริหารเท่านั้น ทำให้งานที่สั่งฝ่ายขาย
+    // "กรอกวันจอง/วันโอนให้ครบ" ทำไม่ได้จริง — ฝ่ายขายไม่เห็นช่องเลย (แปลง 13 · 14 ค้างเพราะเหตุนี้)
+    // ตอนนี้การปลดล็อกรายคนที่ผู้บริหารกดให้ (มีวันหมดอายุกำกับ + ลง audit_log ทุกครั้งที่แก้)
+    // เปิดสิทธิ์กรอก 2 ช่องนี้ด้วย
     const backfillDates: Record<string, unknown> = {};
-    if (user?.isManager && editingLead) {
+    if (canBackfillDates && editingLead) {
       const bd = normalizeDateInput(form.booking_date);
       const td = normalizeDateInput(form.transfer_date);
       if (bd !== (editingLead.booking_date ?? null)) backfillDates.booking_date = bd;
@@ -2661,12 +2667,13 @@ export default function CRMPage() {
                     <input id="crmform-loan_approved_date" type="date" value={form.loan_approved_date} onChange={e => setForm(p => ({ ...p, loan_approved_date: e.target.value }))}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
                   </div>
-                  {user?.isManager && (
+                  {canBackfillDates && (
                     <>
                       <div className="col-span-2">
                         <p className="text-[10px] text-amber-400/90 leading-relaxed">
-                          👑 2 ช่องล่างนี้เฉพาะผู้บริหาร — ปกติระบบบันทึกให้เองตอนเปลี่ยนสถานะ (ใส่เป็นวันที่กดเปลี่ยน)
-                          มีไว้กรอกย้อนหลังให้การขายเก่าที่นำเข้ามาโดยไม่ได้เดินผ่านขั้นตอนในแอป
+                          {user?.isManager
+                            ? "👑 ปกติระบบบันทึก 2 ช่องล่างนี้ให้เองตอนเปลี่ยนสถานะ (ใส่เป็นวันที่กดเปลี่ยน) มีไว้กรอกย้อนหลังให้การขายเก่าที่นำเข้ามาโดยไม่ได้เดินผ่านขั้นตอนในแอป"
+                            : "🔓 ลูกค้ารายนี้ถูกปลดล็อกให้แก้ได้ จึงกรอก 2 ช่องล่างนี้ย้อนหลังได้ — ใส่วันที่จริงตามเอกสาร ไม่ใช่วันที่กรอก · ทุกการแก้ถูกบันทึกร่องรอยไว้ให้ผู้บริหารตรวจย้อน"}
                         </p>
                       </div>
                       <div>

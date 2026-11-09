@@ -175,6 +175,48 @@ export async function closeDirective(
   return { ok: true };
 }
 
+/** ผู้สั่งงานปิดจ็อบเอง โดยที่ผู้รับยังไม่ได้กด "ทำเสร็จแล้ว"
+ *
+ *  ทำไมต้องมี (Pom อนุมัติ 8 พ.ย. 69): งานที่ทำเสร็จจริงแล้วแต่ไม่มีใครกดปิด จะค้างในระบบตลอดไป
+ *  เพราะปุ่ม "ตรวจรับ" ของผู้สั่งขึ้นเฉพาะตอนผู้รับกดส่งมาก่อน และระบบเตือนมีโควตา (reminder_stage 5)
+ *  ครบแล้วก็เงียบ — เจอจริงกับงานค้าง 4 ใบของฝ่ายขายที่ตรวจของจริงแล้วว่าเสร็จครบ
+ *
+ *  บังคับเขียนเหตุผลเสมอ และเช็คในฟังก์ชันนี้ ไม่ใช่แค่ซ่อนปุ่มบนหน้าจอ — เพราะการปิดแบบนี้
+ *  ข้ามการรายงานของผู้รับ (ข้าม Maker-Checker ไปหนึ่งขั้น) ร่องรอยจึงต้องบอกได้ว่าปิดเพราะอะไร */
+export async function closeDirectiveWithoutReport(
+  directive: ReviewTarget,
+  closedByEmail: string,
+  closeNote: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const reason = closeNote.trim();
+  if (!reason) {
+    return { ok: false, error: "กรุณาเขียนเหตุผลที่ปิดจ็อบเอง — การปิดแบบนี้ข้ามการรายงานของผู้รับ ต้องตรวจย้อนได้" };
+  }
+
+  const { data, error } = await supabase
+    .from("directives")
+    .update({
+      status: "closed",
+      closed_at: new Date().toISOString(),
+      closed_by: closedByEmail,
+      close_note: `ผู้สั่งงานปิดจ็อบเอง (ผู้รับยังไม่ได้กดส่ง): ${reason}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", directive.id)
+    .in("status", ["sent", "acknowledged", "in_progress"])
+    .select("id");
+  if (error) return { ok: false, error: thaiDbError(error, "ปิดจ็อบ") };
+  if (!data || data.length === 0) {
+    return { ok: false, error: "สถานะงานเปลี่ยนไปแล้ว (อาจถูกส่งมาให้ตรวจรับหรือปิดไปแล้ว) — รีเฟรชหน้าอีกครั้ง" };
+  }
+
+  const title = `✅ ${directive.created_by_name || "ผู้สั่งงาน"} ปิดจ็อบให้แล้ว — ไม่ต้องทำต่อ`;
+  const body = `${directive.message}\n\nผู้สั่งงานตรวจแล้วว่าเรียบร้อย จึงปิดจ็อบให้เอง ไม่ต้องกดอะไรเพิ่ม\nเหตุผล: ${reason}`;
+  await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  return { ok: true };
+}
+
 /** ผู้สั่งงานตรวจแล้วยังไม่ผ่าน — ตีกลับให้แก้ พร้อมเหตุผล (บังคับ) แล้วงานกลับไปสถานะ "กำลังทำ" */
 export async function returnDirective(
   directive: ReviewTarget,

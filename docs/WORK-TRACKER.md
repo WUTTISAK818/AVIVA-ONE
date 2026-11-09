@@ -3468,3 +3468,14 @@ cron ยิงครบทุกตัว (เตือนส่งรายง�
 
 **ตรวจก่อน push:** `npm run build` ✓ Compiled successfully · TypeScript ✓ ไม่มี error
 > ⚠️ ระหว่างทาง build ตายด้วย `panicked at next-code-frame` ซึ่งเป็นบั๊กของตัวแสดง error ของ Next เองเมื่อคอมเมนต์เป็นภาษาไทย (ตัดสตริงกลางตัวอักษร) — error จริงคือ `Cannot find name 'load'` หาเจอด้วย `npx tsc --noEmit` แก้แล้ว (หน้านี้ใช้ `fetchLeads()` ไม่ใช่ `load()`)
+
+### 📋 รอบตรวจประจำวัน 9 พ.ย. — ปกติทั้งหมด + ยืนยันผลแก้ v8.04
+| ตรวจ | ผล |
+|---|---|
+| production | `READY` (commit `8419109` = v8.07) · ไม่มี FAILED/CANCELED |
+| cron | ยิงครบทุกตัว: ติดตามลูกค้า 08:30 · คำสั่งงาน 09:17 · สรุปทีม 09:24 · ก่อสร้าง 10:02 · สรุปลูกค้าใหม่ 19:48 |
+| **ยืนยัน v8.04 แก้ถูก** | cron 10:02 วันนี้แจ้ง **"ผังก่อสร้างไม่ตรงหน้างาน 3 แปลง"** (เมื่อวาน 4 แปลง) — **V15 ที่ปิดงานแล้วหายจากรายการตามที่คาดไว้** เหลือ V28/V29/A10 ที่ไม่ตรงจริง |
+| ข้อเสนอแนะอนุมัติรอทำ | 0 รายการ |
+| security advisors | ไม่มีคำเตือนใหม่ — ทั้งหมดเป็นรายการเดิมที่รู้อยู่แล้ว (ตารางสำรอง `_*_backup_*` RLS ไม่มี policy · `payroll_runs`/`accounting_entries`/`payment_vouchers`/`profiles`/`stock_transactions` RLS ไม่มี policy · view/function SECURITY DEFINER · leaked password protection ปิด) · migration `add_lead_duplicate_marking` ไม่ได้สร้างคำเตือนใหม่ |
+| commit จากคนอื่น | ไม่มี — 7 commit ใน 3 วันเป็นของ ONE ทั้งหมด |
+| Google Sheet มิเรอร์ | ยังค้างที่ 27 มิ.ย. 69 — Vee ยังไม่เริ่มใช้ |

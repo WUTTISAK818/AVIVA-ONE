@@ -30,6 +30,8 @@ import TransferChecklist from "@/components/TransferChecklist";
 import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { CONTACT_CHANNELS, isPlaceholderPhone, isUsablePhone, normalizePhoneInput, phoneDisplay, phoneForDocument, NO_PHONE_LABEL } from "@/lib/contact-channel";
+import { matchLead, SEARCH_HINT } from "@/lib/lead-search";
+import { findDuplicateGroups, sortByCompleteness, diffFields, DUP_REASON_LABEL, type DupLead } from "@/lib/lead-duplicates";
 import PlotDetailPanel from "@/components/PlotDetailPanel";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
@@ -63,7 +65,7 @@ function editUnlocked(lead: { edit_unlocked_until?: string | null }): boolean {
 /** ร่องรอยการแตะต้องลูกค้าที่โอนแล้ว — ใครปลดล็อก ใครแก้ เมื่อไร
  *  (หลัก Maker-Checker: ปลดล็อกได้ แต่ต้องตรวจย้อนได้ว่าใครทำอะไร) */
 async function logTransferredLeadAudit(
-  action: "unlock_edit" | "relock_edit" | "edit_after_transfer",
+  action: "unlock_edit" | "relock_edit" | "edit_after_transfer" | "merge_duplicate" | "unmerge_duplicate",
   description: string,
   leadId: string,
   who: { full_name?: string; email?: string; role?: string; department?: string } | null,
@@ -79,6 +81,58 @@ async function logTransferredLeadAudit(
   });
 }
 /** กองลูกค้าที่ยังไม่มีพนักงานขายดูแล — ไม่ใช่ชื่อคน ห้ามเอาไปจัดอันดับผลงาน */
+/** ตัวกรองด่วน — Pom สั่ง 9 พ.ย. 69 ให้ "ค้นหาข้อมูลลูกค้าได้ง่ายที่สุด และมีตัวเลือกมากที่สุด"
+ *  คัดจากคำถามที่ฝ่ายขาย/ผู้บริหารถามจริงบ่อย ๆ ไม่ใช่ใส่ให้ครบ ๆ แล้วไม่มีใครใช้ */
+type QuickFilter =
+  | "none" | "no_phone" | "has_plot" | "no_plot" | "incomplete_sale"
+  | "due_followup" | "no_followup" | "visited_no_date";
+
+const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: "none",            label: "ทั้งหมด" },
+  { value: "due_followup",    label: "ถึงกำหนดติดตาม" },
+  { value: "no_followup",     label: "ไม่มีวันนัดติดตาม" },
+  { value: "no_phone",        label: "ไม่มีทางติดต่อ" },
+  { value: "has_plot",        label: "มีแปลง" },
+  { value: "no_plot",         label: "ไม่มีแปลง" },
+  { value: "incomplete_sale", label: "ข้อมูลการขายไม่ครบ" },
+  { value: "visited_no_date", label: "เยี่ยมชมแต่ไม่มีวันที่" },
+];
+
+const SALE_STAGES = new Set(["Booking", "Contract", "Loan Approved", "Closed Deal", "Transfer"]);
+
+function matchQuickFilter(l: {
+  phone?: string | null; contact_handle?: string | null; plot_number?: number | null;
+  status?: string | null; next_follow_up_date?: string | null; visit_date?: string | null;
+  contract_price?: number | null; booking_deposit?: number | null;
+  contract_signed_date?: string | null; booking_date?: string | null; transfer_date?: string | null;
+}, f: QuickFilter): boolean {
+  if (f === "none") return true;
+  const today = thaiDateStr();
+  switch (f) {
+    case "no_phone":
+      return !isUsablePhone(l.phone) && !((l.contact_handle ?? "").trim());
+    case "has_plot":
+      return l.plot_number != null;
+    case "no_plot":
+      return l.plot_number == null;
+    case "due_followup":
+      return !!l.next_follow_up_date && l.next_follow_up_date <= today
+        && !SALE_STAGES.has(l.status ?? "") && !CLOSED_LOST_STATUSES.includes((l.status ?? "") as LeadStatus);
+    case "no_followup":
+      return !l.next_follow_up_date
+        && !SALE_STAGES.has(l.status ?? "") && !CLOSED_LOST_STATUSES.includes((l.status ?? "") as LeadStatus);
+    case "visited_no_date":
+      return !l.visit_date && (l.status === "Visit" || SALE_STAGES.has(l.status ?? ""));
+    case "incomplete_sale":
+      if (!SALE_STAGES.has(l.status ?? "")) return false;
+      return l.contract_price == null || Number(l.contract_price) === 0
+        || l.booking_deposit == null || !l.contract_signed_date
+        || (l.status === "Closed Deal" && (!l.booking_date || !l.transfer_date));
+    default:
+      return true;
+  }
+}
+
 const UNOWNED_LABEL = "ยังไม่มีเจ้าของ";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Contract", "Loan Approved", "Closed Deal"];
 // "Transfer" ถูกรวมเป็น "โอนแล้ว" เดียวกับ "Closed Deal" จึงซ่อนออกจากตัวเลือกใน CRM
@@ -156,6 +210,10 @@ interface Lead {
   visit_time?: string | null;
   reported_by?: string | null;
   reported_at?: string | null;
+  duplicate_of?: string | null;
+  merged_at?: string | null;
+  merged_by?: string | null;
+  merge_note?: string | null;
 }
 
 interface CustomerInstallment {
@@ -279,7 +337,7 @@ const emptyForm = {
   delivery_date: "",
   transfer_appointment_date: "",
   contract_price: "",
-  booking_deposit: String(DEFAULT_BOOKING_DEPOSIT),
+  booking_deposit: "",   // ไม่ใส่ค่าตั้งต้น — พนักงานต้องกรอกยอดจริงเอง (Pom สั่ง 9 พ.ย. 69)
   contract_signed_date: "",
   loan_approved_date: "",
   booking_date: "",
@@ -352,6 +410,9 @@ export default function CRMPage() {
   const [mainTab, setMainTab] = useState<MainTab>("pipeline");
   const [activeStage, setActiveStage] = useState<LeadStatus | "all">("all");
   const [search, setSearch] = useState("");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("none");
+  const [showDupPanel, setShowDupPanel] = useState(false);
+  const [merging, setMerging] = useState<string | null>(null);
   // กรองดูลูกค้าตามพนักงานขายที่ดูแล (คลิกจากแท็บผลงานทีม)
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   // รายชื่อพนักงานขายจากฐานข้อมูลพนักงาน (ใช้เป็นตัวเลือก dropdown ในฟอร์ม)
@@ -768,16 +829,27 @@ export default function CRMPage() {
     setDateEnd(end);
   };
 
-  const stageCounts = useMemo(() => Object.fromEntries(
-    crmStages.map((s) => [s, leads.filter((l) => l.status === s).length])
-  ) as Record<LeadStatus, number>, [leads]);
+  // กลุ่มที่ "น่าจะ" เป็นลูกค้ารายเดียวกัน — ระบบเสนอ คนยืนยัน (ไม่รวมให้เอง)
+  const dupGroups = useMemo(() => findDuplicateGroups(leads as DupLead[]), [leads]);
+  const mergedLeads = useMemo(() => leads.filter((l) => l.duplicate_of), [leads]);
 
-  const filtered = useMemo(() => leads.filter(
+  // ใบที่ถูกยืนยันว่าเป็น "ใบซ้ำของลูกค้ารายเดียวกัน" ต้องหลุดจากทุกการนับยอดและรายชื่อ
+  // ไม่งั้นลูกค้า 1 รายจะถูกนับเป็น 2 (Pom ถาม 9 พ.ย. 69) · ดูใบซ้ำได้ที่แถบ "ลูกค้าซ้ำ"
+  const realLeads = useMemo(() => leads.filter((l) => !l.duplicate_of), [leads]);
+
+  const stageCounts = useMemo(() => Object.fromEntries(
+    crmStages.map((s) => [s, realLeads.filter((l) => l.status === s).length])
+  ) as Record<LeadStatus, number>, [realLeads]);
+
+  const filtered = useMemo(() => realLeads.filter(
     (l) => (activeStage === "all" || l.status === activeStage)
-      && (search === "" || (l.customer_name ?? "").includes(search))
+      // ค้นหาได้ทุกช่อง: ชื่อ · รหัส · เบอร์ · ชื่อในแชต · เลขแปลง · พนักงานขาย · สถานะ ฯลฯ
+      // (เดิมค้นได้แค่ชื่อ และ case-sensitive — Pom แจ้ง 9 พ.ย. 69)
+      && matchLead(l, search)
       // ต้องใช้สูตรเดียวกับการจัดกลุ่มในตารางผลงานทีม ไม่งั้นแตะการ์ดแล้วกรองไม่เจอใคร
       && (!assigneeFilter || ((l.assigned_to ?? "").trim() || UNOWNED_LABEL) === assigneeFilter)
-  ), [leads, activeStage, search, assigneeFilter]);
+      && matchQuickFilter(l, quickFilter)
+  ), [realLeads, activeStage, search, assigneeFilter, quickFilter]);
 
   // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
   // แสดงทีละชุด แล้วกด "แสดงเพิ่ม" — รีเซ็ตเป็นชุดแรกเมื่อเปลี่ยนตัวกรอง/ค้นหา
@@ -836,7 +908,7 @@ export default function CRMPage() {
       return;
     }
     setEditingLead(lead);
-    setForm({ customer_name: lead.customer_name, assigned_to: lead.assigned_to ?? "", phone: lead.phone, email: lead.email ?? "", contact_channel: lead.contact_channel ?? "", contact_handle: lead.contact_handle ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", transfer_appointment_date: lead.transfer_appointment_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", booking_deposit: lead.booking_deposit != null ? String(lead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT), contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", booking_date: lead.booking_date ?? "", transfer_date: lead.transfer_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "", addr_detail: lead.addr_detail ?? "", addr_province: lead.addr_province ?? "", addr_amphoe: lead.addr_amphoe ?? "", addr_tambon: lead.addr_tambon ?? "", addr_zipcode: lead.addr_zipcode ?? "", visit_date: lead.visit_date ?? "", visit_time: lead.visit_time ?? "", reported_by: lead.reported_by ?? "", reported_at: lead.reported_at ?? "" });
+    setForm({ customer_name: lead.customer_name, assigned_to: lead.assigned_to ?? "", phone: lead.phone, email: lead.email ?? "", contact_channel: lead.contact_channel ?? "", contact_handle: lead.contact_handle ?? "", budget: String(lead.budget), source: lead.source, status: lead.status, notes: lead.notes ?? "", plot_number: lead.plot_number ? String(lead.plot_number) : "", next_follow_up_date: lead.next_follow_up_date ?? "", financing_type: lead.financing_type ?? "ไม่ระบุ", urgency: lead.urgency ?? "ปกติ", delivery_date: lead.delivery_date ?? "", transfer_appointment_date: lead.transfer_appointment_date ?? "", contract_price: lead.contract_price ? String(lead.contract_price) : "", booking_deposit: lead.booking_deposit != null ? String(lead.booking_deposit) : "", contract_signed_date: lead.contract_signed_date ?? "", loan_approved_date: lead.loan_approved_date ?? "", booking_date: lead.booking_date ?? "", transfer_date: lead.transfer_date ?? "", contact_address: lead.contact_address ?? "", marital_status: lead.marital_status ?? "", age_range: lead.age_range ?? "", occupation: lead.occupation ?? "", current_residence: lead.current_residence ?? "", product_interest: lead.product_interest ?? "", room_requirement: lead.room_requirement ?? "", visit_reason: lead.visit_reason ?? "", competitor_projects: lead.competitor_projects ?? "", budget_range: lead.budget_range ?? "", monthly_payment_range: lead.monthly_payment_range ?? "", probability: lead.probability ?? "", addr_detail: lead.addr_detail ?? "", addr_province: lead.addr_province ?? "", addr_amphoe: lead.addr_amphoe ?? "", addr_tambon: lead.addr_tambon ?? "", addr_zipcode: lead.addr_zipcode ?? "", visit_date: lead.visit_date ?? "", visit_time: lead.visit_time ?? "", reported_by: lead.reported_by ?? "", reported_at: lead.reported_at ?? "" });
     setShowModal(true);
   };
 
@@ -1058,6 +1130,13 @@ export default function CRMPage() {
       setToast({ msg: "กรุณาเลือกช่องทางที่มาของลูกค้า — ข้อมูลสำคัญสำหรับวิเคราะห์การตลาด", type: "error" });
       return;
     }
+    // เงินจองต้องเป็นยอดที่รับจริง — ตอนขยับเข้าสถานะที่มีเงินเข้าแล้ว ต้องกรอกเอง ห้ามปล่อยว่าง
+    // (Pom สั่ง 9 พ.ย. 69 ให้พนักงานใส่ตัวเลขจำนวนเงินเอง · ระบบเลิกใส่ค่าตั้งต้นให้แล้ว)
+    if (SALE_STAGES.has(form.status) && form.status !== editingLead?.status
+        && parseAmount(form.booking_deposit) == null) {
+      setToast({ msg: "กรุณากรอก \u201cเงินจอง\u201d เป็นยอดที่รับจริงจากลูกค้า — ระบบไม่ใส่ตัวเลขให้แล้ว ถ้ายังไม่ได้รับเงินจอง ให้ใส่ 0", type: "error" });
+      return;
+    }
     if (editingLead?.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(editingLead)) {
       setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องกรอกข้อมูลที่ยังขาด ให้แจ้งผู้บริหารปลดล็อกรายนี้ให้ก่อน", type: "error" });
       return;
@@ -1251,6 +1330,63 @@ export default function CRMPage() {
       description: `รายได้โอนกรรมสิทธิ์ — ${customerName}${plot ? ` แปลง ${plot}` : ""}`,
       approved_by: user?.id ?? null, project_id: PROJECT_ID,
     });
+  };
+
+  /** ยืนยันว่าใบนี้เป็นใบซ้ำของลูกค้ารายเดียวกัน — ไม่ลบข้อมูล แค่ชี้ไปใบตัวจริง
+   *  เฉพาะผู้บริหาร เพราะกระทบยอดขายที่รายงาน (ลูกค้า 1 ราย ต้องนับ 1 ครั้ง) */
+  const handleMarkDuplicate = async (dupId: string, primaryId: string, primaryCode: string) => {
+    if (!user?.isManager) return;
+    const dup = leads.find((l) => l.id === dupId);
+    if (!dup) return;
+    if (!window.confirm(
+      `ยืนยันว่า ${dup.lead_code} (${dup.customer_name}) เป็นใบซ้ำของ ${primaryCode} ใช่ไหม\n\n` +
+      `ข้อมูลไม่ถูกลบ แต่ใบนี้จะถูกตัดออกจากการนับยอดและคิวติดตาม · แยกกลับได้ตลอด`
+    )) return;
+
+    setMerging(dupId);
+    const note = `รวมเป็นใบซ้ำของ ${primaryCode} โดย ${user.full_name ?? user.email} (${thaiDateStr()})`;
+    const { error } = await supabase.from("leads").update({
+      duplicate_of: primaryId,
+      merged_at: new Date().toISOString(),
+      merged_by: user.full_name ?? user.email ?? null,
+      merge_note: note,
+      updated_at: new Date().toISOString(),
+    }).eq("id", dupId).is("duplicate_of", null);
+    setMerging(null);
+    if (error) { setToast({ msg: "รวมไม่สำเร็จ: " + error.message, type: "error" }); return; }
+
+    await logTransferredLeadAudit(
+      "merge_duplicate",
+      `ยืนยันใบซ้ำ: ${dup.lead_code} ${dup.customer_name} -> รวมเข้า ${primaryCode} — ลูกค้ารายเดียวกันถูกลงข้อมูลหลายครั้ง (ไม่ลบข้อมูล ตัดออกจากการนับยอด)`,
+      dupId, user,
+    );
+    setToast({ msg: `รวมแล้ว — ${dup.lead_code} ไม่ถูกนับในยอดอีก`, type: "success" });
+    fetchLeads(dateStart, dateEnd, leadsLimit);
+  };
+
+  /** แยกใบที่เคยรวมกลับออกมา — ใช้เมื่อรวมผิดคน */
+  const handleUnmarkDuplicate = async (dupId: string) => {
+    if (!user?.isManager) return;
+    const dup = leads.find((l) => l.id === dupId);
+    if (!dup) return;
+    setMerging(dupId);
+    const { error } = await supabase.from("leads").update({
+      duplicate_of: null,
+      merged_at: null,
+      merged_by: null,
+      merge_note: `แยกกลับโดย ${user.full_name ?? user.email} (${thaiDateStr()}) — เดิม: ${dup.merge_note ?? "-"}`,
+      updated_at: new Date().toISOString(),
+    }).eq("id", dupId);
+    setMerging(null);
+    if (error) { setToast({ msg: "แยกกลับไม่สำเร็จ: " + error.message, type: "error" }); return; }
+
+    await logTransferredLeadAudit(
+      "unmerge_duplicate",
+      `แยกใบซ้ำกลับ: ${dup.lead_code} ${dup.customer_name} — กลับมานับในยอดตามปกติ`,
+      dupId, user,
+    );
+    setToast({ msg: `แยกกลับแล้ว — ${dup.lead_code} กลับมานับในยอด`, type: "success" });
+    fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
@@ -1600,10 +1736,138 @@ export default function CRMPage() {
 
         {mainTab === "pipeline" && (
           <>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-aviva-secondary" />
-              <input type="text" placeholder="ค้นหาลูกค้า..." value={search} onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl pl-8 pr-4 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/50 outline-none focus:border-aviva-gold/40" />
+            <div className="space-y-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-aviva-secondary" />
+                <input type="text" placeholder="ค้นหา: ชื่อ · รหัส · เบอร์ · แปลง · ชื่อใน LINE …" value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl pl-8 pr-9 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/50 outline-none focus:border-aviva-gold/40" />
+                {search && (
+                  <button onClick={() => setSearch("")} aria-label="ล้างคำค้น"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-aviva-secondary active:scale-95">
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-aviva-secondary/80 leading-relaxed px-0.5">{SEARCH_HINT}</p>
+
+              {/* ตัวกรองด่วน — กดแล้วได้คำตอบทันทีโดยไม่ต้องรู้ว่าจะพิมพ์อะไร */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                {QUICK_FILTERS.map((q) => (
+                  <button key={q.value} onClick={() => setQuickFilter(q.value)}
+                    className={clsx("flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all",
+                      quickFilter === q.value
+                        ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                        : "bg-aviva-card text-aviva-secondary border-aviva-gold/10")}>
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+
+              {(search || quickFilter !== "none") && (
+                <p className="text-[11px] text-aviva-gold px-0.5">
+                  เจอ {filtered.length} ราย
+                  {search ? ` จากคำค้น “${search}”` : ""}
+                  {quickFilter !== "none" ? ` · ตัวกรอง “${QUICK_FILTERS.find((q) => q.value === quickFilter)?.label}”` : ""}
+                </p>
+              )}
+
+              {user?.isManager && dupGroups.length > 0 && (
+                <button onClick={() => setShowDupPanel((v) => !v)}
+                  className="w-full text-left rounded-xl border border-orange-500/35 bg-orange-500/5 px-3 py-2.5">
+                  <p className="text-[13px] font-bold text-orange-400">
+                    👥 น่าจะเป็นลูกค้ารายเดียวกันที่ลงข้อมูลหลายครั้ง {dupGroups.length} กลุ่ม
+                  </p>
+                  <p className="text-[11px] text-aviva-secondary mt-0.5">
+                    {showDupPanel ? "แตะเพื่อซ่อน" : "แตะเพื่อตรวจและรวมเป็นรายเดียว"} — ระบบไม่รวมให้เอง ต้องให้ผู้บริหารยืนยัน
+                  </p>
+                </button>
+              )}
+
+              {user?.isManager && showDupPanel && (
+                <div className="space-y-2.5">
+                  {dupGroups.map((g) => {
+                    const items = sortByCompleteness(g.leads as DupLead[]);
+                    const primary = items[0];
+                    const diffs = diffFields(items);
+                    return (
+                      <GlassCard key={g.key} className="p-3 border-orange-500/25">
+                        <p className="text-[11px] text-orange-300 font-semibold">{DUP_REASON_LABEL[g.reason]}</p>
+                        <div className="mt-2 space-y-1.5">
+                          {items.map((l, i) => (
+                            <div key={l.id} className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[13px] text-aviva-text truncate">
+                                  {i === 0 && <span className="text-[10px] text-green-400 font-bold mr-1">ตัวจริง(แนะนำ)</span>}
+                                  {l.lead_code} · {l.customer_name}
+                                </p>
+                                <p className="text-[11px] text-aviva-secondary">
+                                  {l.plot_number != null ? `แปลง ${l.plot_number} · ` : ""}
+                                  {STATUS_TH[(l.status ?? "") as LeadStatus] ?? l.status}
+                                  {l.contract_price ? ` · ฿${Number(l.contract_price).toLocaleString("th-TH")}` : ""}
+                                  {l.assigned_to ? ` · ${l.assigned_to}` : ""}
+                                </p>
+                              </div>
+                              {i > 0 && (
+                                <button onClick={() => handleMarkDuplicate(l.id, primary.id, primary.lead_code ?? "")}
+                                  disabled={merging === l.id}
+                                  className="flex-shrink-0 px-2 py-1 rounded-lg bg-orange-500/10 text-orange-300 border border-orange-500/30 text-[11px] font-semibold disabled:opacity-50">
+                                  {merging === l.id ? "กำลังรวม…" : `รวมเข้า ${primary.lead_code}`}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {diffs.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-orange-500/15">
+                            <p className="text-[11px] text-amber-400 font-semibold">⚠️ ช่องที่ค่าไม่เหมือนกัน — ดูก่อนรวม</p>
+                            <div className="mt-1 space-y-0.5">
+                              {diffs.map((d) => (
+                                <p key={d.field} className="text-[11px] text-aviva-secondary leading-relaxed">
+                                  <span className="text-aviva-text">{d.label}:</span>{" "}
+                                  {d.values.map((v) => `${v.leadCode} = ${v.value || "—"}`).join("  |  ")}
+                                </p>
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-aviva-secondary/80 mt-1.5 leading-relaxed">
+                              ระบบ<b>ไม่ย้ายค่าให้เอง</b> เพราะเป็นข้อมูลการขายจริง — ถ้าใบที่จะรวมมีค่าที่ต้องเก็บไว้
+                              ให้เปิดใบตัวจริงแล้วกรอกค่านั้นก่อน แล้วค่อยกดรวม
+                            </p>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-aviva-secondary/70 mt-2 leading-relaxed">
+                          รวมแล้ว<b>ไม่ลบข้อมูล</b> — ใบซ้ำจะถูกตัดออกจากการนับยอดและคิวติดตาม แต่ยังเปิดดูได้ และ<b>แยกกลับได้</b>
+                        </p>
+                      </GlassCard>
+                    );
+                  })}
+                </div>
+              )}
+
+              {user?.isManager && mergedLeads.length > 0 && (
+                <details className="rounded-xl border border-aviva-gold/15 bg-aviva-card/60 px-3 py-2">
+                  <summary className="text-[12px] text-aviva-secondary cursor-pointer">
+                    ใบที่รวมเป็นรายซ้ำไปแล้ว {mergedLeads.length} ใบ (ไม่ถูกนับในยอด) — แตะเพื่อดู/แยกกลับ
+                  </summary>
+                  <div className="mt-2 space-y-1.5">
+                    {mergedLeads.map((l) => {
+                      const into = leads.find((x) => x.id === l.duplicate_of);
+                      return (
+                        <div key={l.id} className="flex items-center justify-between gap-2">
+                          <p className="text-[12px] text-aviva-secondary truncate">
+                            {l.lead_code} · {l.customer_name}
+                            <span className="text-aviva-secondary/70"> → รวมเข้า {into?.lead_code ?? "?"}</span>
+                          </p>
+                          <button onClick={() => handleUnmarkDuplicate(l.id)} disabled={merging === l.id}
+                            className="flex-shrink-0 px-2 py-1 rounded-lg border border-aviva-gold/20 text-aviva-gold text-[11px] disabled:opacity-50">
+                            {merging === l.id ? "…" : "แยกกลับ"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
             </div>
 
             <div>
@@ -2342,7 +2606,7 @@ export default function CRMPage() {
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <PhoneCall size={12} /> บันทึกการติดต่อ
               </button>
-              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, assigned_to: selectedLead.assigned_to ?? "", phone: selectedLead.phone, email: selectedLead.email ?? "", contact_channel: selectedLead.contact_channel ?? "", contact_handle: selectedLead.contact_handle ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", transfer_appointment_date: selectedLead.transfer_appointment_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", booking_deposit: selectedLead.booking_deposit != null ? String(selectedLead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT), contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", booking_date: selectedLead.booking_date ?? "", transfer_date: selectedLead.transfer_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "", addr_detail: selectedLead.addr_detail ?? "", addr_province: selectedLead.addr_province ?? "", addr_amphoe: selectedLead.addr_amphoe ?? "", addr_tambon: selectedLead.addr_tambon ?? "", addr_zipcode: selectedLead.addr_zipcode ?? "", visit_date: selectedLead.visit_date ?? "", visit_time: selectedLead.visit_time ?? "", reported_by: selectedLead.reported_by ?? "", reported_at: selectedLead.reported_at ?? "" }); setShowModal(true); setSelectedLead(null); }}
+              <button onClick={() => { setEditingLead(selectedLead); setForm({ customer_name: selectedLead.customer_name, assigned_to: selectedLead.assigned_to ?? "", phone: selectedLead.phone, email: selectedLead.email ?? "", contact_channel: selectedLead.contact_channel ?? "", contact_handle: selectedLead.contact_handle ?? "", budget: String(selectedLead.budget), source: selectedLead.source, status: selectedLead.status, notes: selectedLead.notes, plot_number: selectedLead.plot_number ? String(selectedLead.plot_number) : "", next_follow_up_date: selectedLead.next_follow_up_date ?? "", financing_type: selectedLead.financing_type ?? "ไม่ระบุ", urgency: selectedLead.urgency ?? "ปกติ", delivery_date: selectedLead.delivery_date ?? "", transfer_appointment_date: selectedLead.transfer_appointment_date ?? "", contract_price: selectedLead.contract_price ? String(selectedLead.contract_price) : "", booking_deposit: selectedLead.booking_deposit != null ? String(selectedLead.booking_deposit) : "", contract_signed_date: selectedLead.contract_signed_date ?? "", loan_approved_date: selectedLead.loan_approved_date ?? "", booking_date: selectedLead.booking_date ?? "", transfer_date: selectedLead.transfer_date ?? "", contact_address: selectedLead.contact_address ?? "", marital_status: selectedLead.marital_status ?? "", age_range: selectedLead.age_range ?? "", occupation: selectedLead.occupation ?? "", current_residence: selectedLead.current_residence ?? "", product_interest: selectedLead.product_interest ?? "", room_requirement: selectedLead.room_requirement ?? "", visit_reason: selectedLead.visit_reason ?? "", competitor_projects: selectedLead.competitor_projects ?? "", budget_range: selectedLead.budget_range ?? "", monthly_payment_range: selectedLead.monthly_payment_range ?? "", probability: selectedLead.probability ?? "", addr_detail: selectedLead.addr_detail ?? "", addr_province: selectedLead.addr_province ?? "", addr_amphoe: selectedLead.addr_amphoe ?? "", addr_tambon: selectedLead.addr_tambon ?? "", addr_zipcode: selectedLead.addr_zipcode ?? "", visit_date: selectedLead.visit_date ?? "", visit_time: selectedLead.visit_time ?? "", reported_by: selectedLead.reported_by ?? "", reported_at: selectedLead.reported_at ?? "" }); setShowModal(true); setSelectedLead(null); }}
                 className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-medium border bg-aviva-bg text-aviva-secondary border-aviva-gold/20 hover:border-aviva-gold/50">
                 <Pencil size={12} /> แก้ไข
               </button>
@@ -2655,7 +2919,7 @@ export default function CRMPage() {
                     <input id="crmform-booking_deposit" type="number" min="0" value={form.booking_deposit} onChange={e => setForm(p => ({ ...p, booking_deposit: e.target.value }))}
                       placeholder={String(DEFAULT_BOOKING_DEPOSIT)}
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/50" />
-                    <p className="text-[10px] text-aviva-secondary/70 mt-1">ค่าตั้งต้น {DEFAULT_BOOKING_DEPOSIT.toLocaleString("th-TH")} บาท — ถ้าตกลงกับลูกค้าเป็นยอดอื่น แก้ตรงนี้ก่อนเปลี่ยนสถานะเป็น &ldquo;จอง&rdquo; · ยอดนี้จะขึ้นในใบจอง ใบขออนุมัติเงินจอง และงวดแรกของตารางผ่อน</p>
+                    <p className="text-[10px] text-amber-400/90 mt-1 leading-relaxed">⚠️ <b>ต้องกรอกยอดที่รับจริงเอง</b> — ระบบไม่ใส่ตัวเลขให้แล้ว (ตั้งแต่ v8.07) เพราะเคยมีใบที่ยอดเป็นค่าตั้งต้นทั้งที่รับจริงไม่เท่านั้น · ตัวเลขสีจาง {DEFAULT_BOOKING_DEPOSIT.toLocaleString("th-TH")} เป็นเพียงตัวอย่างยอดที่พบบ่อย ไม่ใช่ค่าที่ถูกบันทึก · ยอดนี้จะขึ้นในใบจอง ใบขออนุมัติเงินจอง และงวดแรกของตารางผ่อน</p>
                   </div>
                   <div>
                     <label htmlFor="crmform-contract_signed_date" className="text-xs text-aviva-secondary mb-1 block">วันเซ็นสัญญา</label>
@@ -2797,7 +3061,7 @@ export default function CRMPage() {
                       delivery_date: displayLead.delivery_date ?? "",
                       transfer_appointment_date: displayLead.transfer_appointment_date ?? "",
                       contract_price: displayLead.contract_price ? String(displayLead.contract_price) : "",
-                      booking_deposit: displayLead.booking_deposit != null ? String(displayLead.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT),
+                      booking_deposit: displayLead.booking_deposit != null ? String(displayLead.booking_deposit) : "",
                       contract_signed_date: displayLead.contract_signed_date ?? "",
                       loan_approved_date: displayLead.loan_approved_date ?? "",
                       booking_date: displayLead.booking_date ?? "",
@@ -2894,7 +3158,7 @@ export default function CRMPage() {
                               delivery_date: l.delivery_date ?? "",
                               transfer_appointment_date: l.transfer_appointment_date ?? "",
                               contract_price: l.contract_price ? String(l.contract_price) : "",
-                              booking_deposit: l.booking_deposit != null ? String(l.booking_deposit) : String(DEFAULT_BOOKING_DEPOSIT),
+                              booking_deposit: l.booking_deposit != null ? String(l.booking_deposit) : "",
                               contract_signed_date: l.contract_signed_date ?? "",
                               loan_approved_date: l.loan_approved_date ?? "",
                               booking_date: l.booking_date ?? "",

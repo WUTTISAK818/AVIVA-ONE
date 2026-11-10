@@ -65,7 +65,7 @@ function editUnlocked(lead: { edit_unlocked_until?: string | null }): boolean {
 /** ร่องรอยการแตะต้องลูกค้าที่โอนแล้ว — ใครปลดล็อก ใครแก้ เมื่อไร
  *  (หลัก Maker-Checker: ปลดล็อกได้ แต่ต้องตรวจย้อนได้ว่าใครทำอะไร) */
 async function logTransferredLeadAudit(
-  action: "unlock_edit" | "relock_edit" | "edit_after_transfer" | "merge_duplicate" | "unmerge_duplicate",
+  action: "unlock_edit" | "relock_edit" | "edit_after_transfer" | "merge_duplicate" | "unmerge_duplicate" | "status_change_after_transfer",
   description: string,
   leadId: string,
   who: { full_name?: string; email?: string; role?: string; department?: string } | null,
@@ -1392,11 +1392,35 @@ export default function CRMPage() {
   };
 
   const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
-    // ไม่รับการปลดล็อกตรงนี้โดยตั้งใจ — ปลดล็อกมีไว้ให้ "กรอกข้อมูลที่ยังขาด"
-    // ไม่ใช่ให้ย้ายสถานะลูกค้าที่โอนไปแล้ว ซึ่งกระทบยอดขายที่รับรู้ทางบัญชีไปแล้ว
-    if (lead.status === "Closed Deal" && !(user?.isManager)) {
-      setToast({ msg: "ลูกค้าที่โอนแล้ว เปลี่ยนสถานะได้เฉพาะฝ่ายบริหาร (การปลดล็อกให้แก้ไขไม่รวมการเปลี่ยนสถานะ)", type: "error" });
+    // ลูกค้าที่โอนแล้ว: เปลี่ยนสถานะได้เฉพาะผู้บริหาร "หรือ" ช่วงที่ผู้บริหารเปิดหน้าต่างแก้ไขให้
+    //
+    // v8.08 (Pom สั่ง 10 พ.ย. 69 "เปิดระบบให้พนักงานแก้ไขข้อมูลได้ทุกส่วน 7 วัน แล้วปิดกลับเหมือนเดิม"):
+    // เดิมการปลดล็อกครอบแค่ "กรอกข้อมูลที่ยังขาด" ไม่รวมการเปลี่ยนสถานะ ซึ่งกลายเป็นตัวขัด —
+    // ลูกค้าคนเดียวมักมีหลายใบตามธรรมชาติของงาน (เยี่ยมชมออนไลน์ -> มาดูโครงการจริง)
+    // และยอดเงินในแต่ละใบไม่เท่ากัน การจัดให้ถูกจึงต้องขยับสถานะของใบที่ไม่ใช่ใบจริงได้ด้วย
+    //
+    // ความเสี่ยงที่กันไว้: หน้าต่างมีวันหมดอายุกำกับ -> ปิดกลับเองไม่ต้องมีใครจำ ·
+    // ทุกการเปลี่ยนสถานะหลังโอนถูกบันทึกร่องรอยแยก action ไว้ให้ตรวจย้อน ·
+    // การรวมใบซ้ำยังเป็นอำนาจผู้บริหารเท่านั้น เพราะกระทบยอดขายที่รายงานโดยตรง
+    const statusUnlocked = lead.status === "Closed Deal" && !user?.isManager && editUnlocked(lead);
+    if (lead.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(lead)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว เปลี่ยนสถานะได้เฉพาะฝ่ายบริหาร — ถ้าต้องจัดข้อมูลให้ถูก ให้แจ้งผู้บริหารเปิดสิทธิ์แก้ไขรายนี้ให้ก่อน", type: "error" });
       return;
+    }
+    if (statusUnlocked && !window.confirm(
+      `ลูกค้ารายนี้ขึ้นว่า "โอนแล้ว" อยู่\n\n` +
+      `การย้ายสถานะไปเป็น "${STATUS_TH[newStatus] ?? newStatus}" จะทำให้ยอดโอนที่รายงานผู้บริหารเปลี่ยนไปด้วย\n` +
+      `ทำได้เพราะผู้บริหารเปิดสิทธิ์ให้ถึง ${lead.edit_unlocked_until}\n\n` +
+      `ยืนยันว่าใบนี้ไม่ใช่การขายจริงที่โอนไปแล้ว ใช่ไหม`
+    )) return;
+    if (statusUnlocked) {
+      await logTransferredLeadAudit(
+        "status_change_after_transfer",
+        `ฝ่ายขายเปลี่ยนสถานะลูกค้าที่โอนแล้ว ${lead.customer_name}${lead.plot_number ? ` (แปลง ${lead.plot_number})` : ""} ` +
+        `จาก "โอนแล้ว" เป็น "${STATUS_TH[newStatus] ?? newStatus}" ผ่านหน้าต่างแก้ไขที่เปิดถึง ${lead.edit_unlocked_until}` +
+        `${lead.edit_unlock_by ? ` โดย ${lead.edit_unlock_by}` : ""} — กระทบยอดโอนที่รายงานผู้บริหาร`,
+        lead.id, user,
+      );
     }
     if (lead.plot_number && newStatus === "Booking") {
       const { data: existingBook } = await supabase.from("leads").select("id,customer_name").eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).neq("id", lead.id).maybeSingle();
@@ -2289,6 +2313,12 @@ export default function CRMPage() {
                       {selectedLead.edit_unlock_by ? ` · อนุญาตโดย ${selectedLead.edit_unlock_by}` : ""}
                       {selectedLead.edit_unlock_note ? ` · ${selectedLead.edit_unlock_note}` : ""}
                       {" "}· ถึงวันนั้นระบบล็อกกลับเอง
+                    </p>
+                  ) : null}
+                  {editUnlocked(selectedLead) ? (
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed mt-1">
+                      ช่วงนี้แก้ได้<b>ทุกส่วน รวมการเปลี่ยนสถานะ</b> (v8.08) — ใช้จัดใบที่เป็นลูกค้ารายเดียวกันให้ถูก
+                      · ทุกการแก้และการเปลี่ยนสถานะถูกบันทึกร่องรอยไว้ · <b>การรวมใบซ้ำยังเป็นของผู้บริหาร</b> เจอคู่ซ้ำให้แจ้งมา
                     </p>
                   ) : (
                     <p className="text-[11px] text-aviva-secondary leading-relaxed">

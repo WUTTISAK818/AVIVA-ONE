@@ -32,6 +32,7 @@ export interface SearchableLead {
   contract_price?: number | null;
   booking_deposit?: number | null;
   budget?: number | null;
+  next_follow_up_date?: string | null;
 }
 
 /** ป้ายสถานะภาษาไทย — ให้พิมพ์ "โอนแล้ว" หรือ "ไม่สนใจ" แล้วหาเจอ */
@@ -64,6 +65,12 @@ function digitsOf(v: string | null | undefined): string {
   return (v ?? "").replace(/[^0-9]/g, "");
 }
 
+/** "2026-12-31" -> "31/12" — ให้พิมพ์วันที่แบบที่คนไทยพิมพ์จริงแล้วหาเจอ */
+function followupDM(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return d && m ? `${Number(d)}/${Number(m)}` : "";
+}
+
 /** ก้อนข้อความที่เอาไว้ค้นของลูกค้า 1 ราย — รวมทุกช่องที่คนน่าจะพิมพ์หา */
 function haystack(l: SearchableLead): string {
   const code = (l.lead_code ?? "").toLowerCase();
@@ -93,6 +100,9 @@ function haystack(l: SearchableLead): string {
     l.contract_price != null ? String(l.contract_price) : "",
     l.booking_deposit != null ? String(l.booking_deposit) : "",
     l.budget ? String(l.budget) : "",
+    // วันนัดติดตาม — พิมพ์ได้ทั้ง 2026-12-31 และ 31/12 (เดียร์ถาม 9 พ.ย. 69)
+    l.next_follow_up_date ?? "",
+    l.next_follow_up_date ? followupDM(l.next_follow_up_date) : "",
   ].filter(Boolean).join(" \u0001 ");
 }
 
@@ -124,4 +134,4 @@ export function matchLead(l: SearchableLead, query: string): boolean {
 
 /** ข้อความบอกผู้ใช้ว่าพิมพ์อะไรหาได้ — แสดงใต้ช่องค้นหา */
 export const SEARCH_HINT =
-  "พิมพ์หาได้ทุกอย่าง: ชื่อ · รหัส (CRM-0325 หรือ 325) · เบอร์ (ใส่ขีดหรือไม่ก็ได้) · ชื่อใน LINE/Facebook · เลขแปลง (13) · ชื่อพนักงานขาย · สถานะ (โอนแล้ว) · ช่องทาง (ไลน์) · จังหวัด/อำเภอ · อาชีพ · ยอดเงิน · หมายเหตุ — พิมพ์หลายคำได้ เช่น “ฟ้า 13”";
+  "พิมพ์หาได้ทุกอย่าง: ชื่อ · รหัส (CRM-0325 หรือ 325) · เบอร์ (ใส่ขีดหรือไม่ก็ได้) · ชื่อใน LINE/Facebook · เลขแปลง (13) · ชื่อพนักงานขาย · สถานะ (โอนแล้ว) · ช่องทาง (ไลน์) · วันนัดติดตาม (31/12) · จังหวัด/อำเภอ · อาชีพ · ยอดเงิน · หมายเหตุ — พิมพ์หลายคำได้ เช่น “ฟ้า 13”";

@@ -412,6 +412,8 @@ export default function CRMPage() {
   const [search, setSearch] = useState("");
   const [allLeads, setAllLeads] = useState<Lead[]>([]);   // ทุกใบรวมใบซ้ำ — ใช้เฉพาะแถบ "ลูกค้าซ้ำ"
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("none");
+  // ค้นหาลูกค้าตาม "วันนัดติดตาม" (เดียร์ถาม 9 พ.ย. 69 — ลูกค้ากองรวมวันเดียวกันเป็นร้อยรายแล้วหาไม่เจอ)
+  const [followupDate, setFollowupDate] = useState("");
   const [showDupPanel, setShowDupPanel] = useState(false);
   const [merging, setMerging] = useState<string | null>(null);
   // กรองดูลูกค้าตามพนักงานขายที่ดูแล (คลิกจากแท็บผลงานทีม)
@@ -851,13 +853,26 @@ export default function CRMPage() {
       // ต้องใช้สูตรเดียวกับการจัดกลุ่มในตารางผลงานทีม ไม่งั้นแตะการ์ดแล้วกรองไม่เจอใคร
       && (!assigneeFilter || ((l.assigned_to ?? "").trim() || UNOWNED_LABEL) === assigneeFilter)
       && matchQuickFilter(l, quickFilter)
-  ), [leads, activeStage, search, assigneeFilter, quickFilter]);
+      && (!followupDate || l.next_follow_up_date === followupDate)
+  ), [leads, activeStage, search, assigneeFilter, quickFilter, followupDate]);
+
+  // วันนัดติดตามที่มีลูกค้ากองรวมกันมาก — แสดงเป็นปุ่มให้แตะเลือกวันได้เลย ไม่ต้องเดาว่าวันไหน
+  // (เจอจริง 11 พ.ย. 69: 31 ธ.ค. 69 = 60 ราย · 31 ม.ค. 70 = 38 ราย · 29 ต.ค. 69 = 30 ราย เลยนัดแล้ว)
+  const followupClumps = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of leads) {
+      const d = l.next_follow_up_date;
+      if (!d) continue;
+      m.set(d, (m.get(d) ?? 0) + 1);
+    }
+    return [...m.entries()].filter(([, n]) => n >= 5).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [leads]);
 
   // จำกัดจำนวนการ์ดที่ render พร้อมกัน (กัน DOM ใหญ่จน Safari มือถือหน่วยความจำเต็ม/เด้ง)
   // แสดงทีละชุด แล้วกด "แสดงเพิ่ม" — รีเซ็ตเป็นชุดแรกเมื่อเปลี่ยนตัวกรอง/ค้นหา
   const PAGE_SIZE = 40;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeStage, search, leads, assigneeFilter]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeStage, search, leads, assigneeFilter, quickFilter, followupDate]);
 
   const teamStats = useMemo(() => {
     const groups = new Map<string, Lead[]>();
@@ -1790,11 +1805,44 @@ export default function CRMPage() {
                 ))}
               </div>
 
-              {(search || quickFilter !== "none") && (
+              {/* ค้นตามวันนัดติดตาม — เลือกวันเอง หรือแตะวันที่มีลูกค้ากองรวมกันมาก */}
+              <div className="rounded-xl border border-aviva-gold/10 bg-aviva-card/60 px-3 py-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="crm-followup-date" className="text-[11px] text-aviva-secondary flex-shrink-0">📅 วันนัดติดตาม</label>
+                  <input id="crm-followup-date" type="date" value={followupDate}
+                    onChange={(e) => setFollowupDate(e.target.value)}
+                    className="flex-1 min-w-0 bg-aviva-bg border border-aviva-gold/15 rounded-lg px-2 py-1 text-[12px] text-aviva-text outline-none focus:border-aviva-gold/40" />
+                  {followupDate && (
+                    <button onClick={() => setFollowupDate("")} className="text-[11px] text-aviva-gold underline flex-shrink-0">ล้าง</button>
+                  )}
+                </div>
+                {followupClumps.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-aviva-secondary/80">วันที่มีลูกค้านัดรวมกันมาก — แตะเพื่อดูรายชื่อ:</p>
+                    <div className="flex gap-1.5 overflow-x-auto pb-0.5 mt-1">
+                      {followupClumps.map(([d, n]) => (
+                        <button key={d} onClick={() => setFollowupDate(followupDate === d ? "" : d)}
+                          className={clsx("flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] border",
+                            followupDate === d
+                              ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                              : d < thaiDateStr()
+                                ? "bg-red-500/10 text-red-300 border-red-500/30"
+                                : "bg-aviva-bg text-aviva-secondary border-aviva-gold/15")}>
+                          {new Date(d + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })} · {n} ราย
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-aviva-secondary/70 mt-1">สีแดง = เลยวันนัดแล้ว</p>
+                  </div>
+                )}
+              </div>
+
+              {(search || quickFilter !== "none" || followupDate) && (
                 <p className="text-[11px] text-aviva-gold px-0.5">
                   เจอ {filtered.length} ราย
                   {search ? ` จากคำค้น “${search}”` : ""}
                   {quickFilter !== "none" ? ` · ตัวกรอง “${QUICK_FILTERS.find((q) => q.value === quickFilter)?.label}”` : ""}
+                  {followupDate ? ` · นัดติดตามวันที่ ${new Date(followupDate + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}` : ""}
                 </p>
               )}
 

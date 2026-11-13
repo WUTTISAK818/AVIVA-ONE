@@ -45,6 +45,7 @@ import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmi
 import { buildAutoItems } from "@/lib/report-auto-items";
 import { normalizeDateInput, thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 import { parseAmount, parseAmountOrZero } from "@/lib/money";
+import { recognizeTransferRevenue } from "@/lib/sales-finalize";
 import { thaiDbError } from "@/lib/db-errors";
 
 function escapeHtml(s: string | null | undefined): string {
@@ -1294,7 +1295,7 @@ export default function CRMPage() {
         }
         if (form.status === "Closed Deal") {
           celebrate({ event: "transfer", customerName: form.customer_name, plotNumber: plotNum, amount: parseAmount(form.contract_price) ?? parseAmount(form.budget), salesPerson: byName });
-          await recordTransfer(plotNum, form.customer_name, parseAmount(form.contract_price) ?? parseAmount(form.budget));
+          await recordTransfer(plotNum, form.customer_name, parseAmount(form.contract_price) ?? parseAmount(form.budget), normalizeDateInput(form.transfer_date) || null, normalizeDateInput(form.contract_signed_date) || null);
           await closeWorkQueue(editingLead.id, "sales_ai", byName); // ปิดงานติดตามค้างเมื่อปิดดีล (กัน orphan)
         }
       }
@@ -1326,27 +1327,19 @@ export default function CRMPage() {
     fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
-  // A1+A3: เมื่อโอนกรรมสิทธิ์ — ตั้งบ้าน=sold + สร้างรับรู้รายได้ (revenue_recognition) + รายการรับเงิน (finance) อัตโนมัติ
-  const recordTransfer = async (plot: number | null, customerName: string, amount: number | null) => {
+  // A1+A3: เมื่อโอนกรรมสิทธิ์ — ตั้งบ้าน=sold + รับรู้รายได้ (ตรรกะเดียวกับตอนอนุมัติปิดการขาย)
+  // v8.10: ไม่ลง "รายได้จากการขาย" ในสมุดรับ-จ่ายแล้ว (เงินลงครบตอนรับชำระแต่ละงวด ลงซ้ำ = รายรับเกินจริง)
+  //        และใช้วันโอน/วันทำสัญญาที่กรอกไว้ ไม่ใช่วันที่กดปุ่ม
+  // หมายเหตุ: ปัจจุบันการปิดการขายทุกทางต้องผ่าน "ขออนุมัติ" → finalizeSale() เป็นตัวทำงานจริง ฟังก์ชันนี้คงไว้กันพลาด
+  const recordTransfer = async (plot: number | null, customerName: string, amount: number | null, transferDate?: string | null, contractDate?: string | null) => {
     const today = thaiDateStr();
-    const cv = amount && amount > 0 ? amount : 0;
     if (plot) await supabase.from("houses").update({
       status: "sold", sale_status_at: today,
       sale_status_by: user?.full_name ?? user?.email ?? null,
       sale_status_note: `โอนกรรมสิทธิ์แล้ว — ${customerName}`,
     }).eq("project_id", PROJECT_ID).eq("plot_number", plot);
-    await supabase.from("revenue_recognition").insert({
-      house_number: plot ? String(plot) : null,
-      contract_date: today, transfer_date: today,
-      contract_value: cv, recognized_amount: cv, deferred_amount: 0, received_total: cv,
-      status: "recognized", project_id: PROJECT_ID,
-      notes: `โอนกรรมสิทธิ์ — ${customerName}`,
-    });
-    if (cv > 0) await supabase.from("finance_transactions").insert({
-      transaction_type: "income", amount: cv, category: "รายได้จากการขาย",
-      description: `รายได้โอนกรรมสิทธิ์ — ${customerName}${plot ? ` แปลง ${plot}` : ""}`,
-      approved_by: user?.id ?? null, project_id: PROJECT_ID,
-    });
+    const td = transferDate || today;
+    await recognizeTransferRevenue({ plot, customerName, amount, transferDate: td, contractDate: contractDate || td });
   };
 
   /** ยืนยันว่าใบนี้เป็นใบซ้ำของลูกค้ารายเดียวกัน — ไม่ลบข้อมูล แค่ชี้ไปใบตัวจริง
@@ -1525,7 +1518,7 @@ export default function CRMPage() {
       }
       if (newStatus === "Closed Deal") {
         celebrate({ event: "transfer", customerName: lead.customer_name, plotNumber: lead.plot_number ?? null, amount: lead.contract_price ?? lead.budget ?? null, salesPerson: byName });
-        await recordTransfer(lead.plot_number ?? null, lead.customer_name, lead.contract_price ?? lead.budget ?? null);
+        await recordTransfer(lead.plot_number ?? null, lead.customer_name, lead.contract_price ?? lead.budget ?? null, lead.transfer_date, lead.contract_signed_date);
         await closeWorkQueue(lead.id, "sales_ai", byName); // ปิดงานติดตามค้างเมื่อปิดดีล (กัน orphan)
         const docNum = await generateDocNumber("CONTRACT");
         // วงเงินในใบขออนุมัติต้องเป็น "ราคาขายที่ตกลง" ไม่ใช่ "งบประมาณที่ลูกค้าตั้งไว้"

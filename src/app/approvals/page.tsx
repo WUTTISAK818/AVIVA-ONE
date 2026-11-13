@@ -731,7 +731,7 @@ function ApprovalsContent() {
       const byName = user.full_name ?? user.email;
       if (approved && log.source_record_id) {
         // Group C: อนุมัติแล้วจึง "ปิดการขายจริง" — รับรู้รายได้ + บ้าน sold + lead=Closed Deal
-        const fin = await finalizeSale(log.source_record_id, byName, user.id);
+        const fin = await finalizeSale(log.source_record_id, byName);
         await closeWorkQueue(log.source_record_id, "sales_ai", byName);
         await logWorkflowEvent({
           workflowType: "Contract_Approval",

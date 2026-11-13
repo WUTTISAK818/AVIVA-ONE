@@ -132,7 +132,7 @@ export default function ApprovalsContent() {
       else if (log.workflow_type === "Leave_Request") await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.full_name ?? user?.email, approved_by_role: user?.role, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
       else if (log.workflow_type === "Contract_Approval") {
         // Group C: อนุมัติแล้วจึงปิดการขายจริง (รับรู้รายได้ + บ้าน sold + lead=Closed Deal)
-        const fin = await finalizeSale(log.source_record_id, user?.full_name ?? user?.email ?? "ผู้จัดการ", user?.id);
+        const fin = await finalizeSale(log.source_record_id, user?.full_name ?? user?.email ?? "ผู้จัดการ");
         broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: user?.full_name ?? user?.email, byUserId: user?.id });
       }
     }

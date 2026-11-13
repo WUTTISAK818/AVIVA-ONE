@@ -3761,17 +3761,17 @@ SELECT lead_code, duplicate_of FROM leads WHERE lead_code = 'CRM-0388';
 
 ---
 
-## 🔨 ชุดงานที่ #113 — v8.10 · แก้ปุ่มอนุมัติปิดการขาย 4 จุด + กลับรายการรายได้ที่นับซ้ำ (Pom อนุมัติ 13 พ.ย. 69 "Ok")
+## ✔️ ชุดงานที่ #113 — v8.10 · แก้ปุ่มอนุมัติปิดการขาย 4 จุด + กลับรายการรายได้ที่นับซ้ำ (Pom อนุมัติ 13 พ.ย. 69 "Ok")
 
 ### โค้ด (`src/lib/sales-finalize.ts` เป็นแหล่งความจริงเดียว · หน้า CRM `recordTransfer` เรียกตัวเดียวกัน)
 | # | ข้อ | ของเดิม | ของใหม่ | สถานะ |
 |---|---|---|---|---|
-| ก | วันโอน | เขียนทับเป็น "วันที่กดอนุมัติ" เสมอ | ใช้ `transfer_date` ที่ฝ่ายขายกรอกไว้ ถ้าว่างจึงใช้วันนี้ · `revenue_recognition`/JV ลงวันที่ตามวันโอนจริง · วันทำสัญญาใช้ `contract_signed_date` | ✅ โค้ดเสร็จ (build ผ่าน) |
-| ข | สมุดรับ-จ่าย | ลง "รายได้จากการขาย" เต็มราคาซ้ำกับเงินรับรายงวด | ไม่ลงแล้ว — เงินเข้าสมุดตอนรับชำระงวดเท่านั้น | ✅ โค้ดเสร็จ |
-| ค | JV ตอนโอน | Dr 1120 ธนาคาร / Cr 4100 | **Dr 2200 เงินรับล่วงหน้า / Cr 4100** · เก็บ `jv_id` ไว้ที่ `revenue_recognition` | ✅ โค้ดเสร็จ |
-| ง | กันรับรู้ซ้ำ | ไม่มี | แปลงที่มี `revenue_recognition.status='recognized'` แล้วจะไม่รับรู้ซ้ำ · แถว `pending` ของแปลงนั้นถูกใช้ต่อแทนการสร้างใหม่ | ✅ โค้ดเสร็จ |
-| — | คู่มือ (Docs Sync) | — | `/settings/manual` หัวข้อ "อัปเดตสถานะลูกค้า" + "การลงบัญชีอัตโนมัติของระบบ" | ✅ โค้ดเสร็จ |
-| — | ขึ้น production | — | push feature branch แล้ว · **merge เข้า `main` ถูกระบบความปลอดภัยของ session ปฏิเสธ → รอ Pom อนุญาต** | 🚫 รอ Pom |
+| ก | วันโอน | เขียนทับเป็น "วันที่กดอนุมัติ" เสมอ | ใช้ `transfer_date` ที่ฝ่ายขายกรอกไว้ ถ้าว่างจึงใช้วันนี้ · `revenue_recognition`/JV ลงวันที่ตามวันโอนจริง · วันทำสัญญาใช้ `contract_signed_date` | ✔️ production READY |
+| ข | สมุดรับ-จ่าย | ลง "รายได้จากการขาย" เต็มราคาซ้ำกับเงินรับรายงวด | ไม่ลงแล้ว — เงินเข้าสมุดตอนรับชำระงวดเท่านั้น | ✔️ production READY |
+| ค | JV ตอนโอน | Dr 1120 ธนาคาร / Cr 4100 | **Dr 2200 เงินรับล่วงหน้า / Cr 4100** · เก็บ `jv_id` ไว้ที่ `revenue_recognition` | ✔️ production READY |
+| ง | กันรับรู้ซ้ำ | ไม่มี | แปลงที่มี `revenue_recognition.status='recognized'` แล้วจะไม่รับรู้ซ้ำ · แถว `pending` ของแปลงนั้นถูกใช้ต่อแทนการสร้างใหม่ | ✔️ production READY |
+| — | คู่มือ (Docs Sync) | — | `/settings/manual` หัวข้อ "อัปเดตสถานะลูกค้า" + "การลงบัญชีอัตโนมัติของระบบ" | ✔️ production READY |
+| — | ขึ้น production | — | push ถูกระบบความปลอดภัยของ session ปฏิเสธ 3 ครั้ง → Pom อนุญาต ("ดำเนินการได้") → push + ff-merge `main` (commit `6eeaa81`) · Vercel `dpl_DmPV3zek5BCQk1rcJyM5zj3NCJFh` **READY** · `aliasError: null` · `aviva-private.vercel.app` | ✔️ |
 
 ### ข้อมูล (สำรองก่อนแก้ใน `audit_log` action=`finance_fix_backup` · ไม่ลบแถวใด) — ทำแล้วบน production DB
 | # | งาน | ผล | สถานะ |
@@ -3790,8 +3790,7 @@ SELECT count(*), sum(amount) FROM finance_transactions WHERE description LIKE '%
 SELECT house_number, status, contract_value, transfer_date FROM revenue_recognition WHERE house_number IN ('8','16','30');
 ```
 
-### ⛔ คำขอปิดการขาย 3 ใบ — **ห้ามอนุมัติจนกว่า v8.10 ขึ้น production `READY`**
-production ยังเป็น v8.09 (โค้ดเก่าที่มีบั๊ก) · ถ้าอนุมัติตอนนี้ จะเกิดรายได้ซ้ำ 13,238,000 + วันโอนถูกทับอีก
+### ✅ คำขอปิดการขาย 3 ใบ — **อนุมัติได้แล้ว** (v8.10 ขึ้น production READY 13 พ.ย. 69 ~11:03 น.)
 - แปลง 8 (CRM-0397) · แปลง 30 (CRM-0398): มีวันโอนจริงแล้ว → v8.10 จะใช้ 20 ต.ค. 68 / 29 พ.ย. 67
 - แปลง 16 (CRM-0400): **ยังไม่มีวันโอน** — ถ้าฟ้ากรอกก่อน Pom อนุมัติ จะได้วันจริง ไม่งั้นจะใช้วันที่อนุมัติ
 

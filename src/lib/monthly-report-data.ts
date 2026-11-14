@@ -23,7 +23,8 @@ async function buildSalesReport(fromIso: string, toIso: string, label: string): 
     .from("leads")
     .select("customer_name, source, assigned_to, status, booking_date, transfer_date, contract_price")
     .gte("created_at", fromIso)
-    .lt("created_at", toIso);
+    .lt("created_at", toIso)
+    .is("duplicate_of", null); // ใบซ้ำที่รวมแล้วไม่นับ (v8.11)
   const rows = leads ?? [];
 
   const byChannel = new Map<string, number>();

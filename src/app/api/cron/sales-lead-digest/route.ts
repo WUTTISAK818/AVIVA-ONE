@@ -93,6 +93,7 @@ async function fetchLeads(db: SupabaseClient, sinceIso: string, untilIso?: strin
     .from("leads")
     .select("customer_name, assigned_to, source, budget, urgency, probability, financing_type, plot_number, created_at, created_at_default")
     .eq("project_id", PROJECT_ID)
+    .is("duplicate_of", null)
     .or(
       `and(created_at_default.gte.${sinceIso}${upperDefault}),` +
       `and(created_at_default.is.null,created_at.gte.${sinceIso}${upperFallback})`,

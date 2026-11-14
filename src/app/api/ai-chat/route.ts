@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
 
   const settledResults = await Promise.allSettled([
     db.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
-    db.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    db.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).is("duplicate_of", null).then(r => r.data ?? []),
     db.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
     db.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
     db.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),

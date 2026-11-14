@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const dateLabel = thaiNow.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
 
   const countSince = async (col: string, val: string, gte = true): Promise<number> => {
-    const q = db.from("leads").select("id", { count: "exact", head: true }).eq("project_id", PROJECT_ID);
+    const q = db.from("leads").select("id", { count: "exact", head: true }).eq("project_id", PROJECT_ID).is("duplicate_of", null);
     const { count } = await (gte ? q.gte(col, val) : q.eq(col, val));
     return count ?? 0;
   };
@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
     .from("leads")
     .select("contract_price, budget")
     .eq("project_id", PROJECT_ID)
-    .eq("transfer_date", todayStr);
+    .eq("transfer_date", todayStr)
+    .is("duplicate_of", null);
   const transferCount = transfers?.length ?? 0;
   const revenue = (transfers ?? []).reduce((s, l) => s + Number(l.contract_price ?? l.budget ?? 0), 0);
 

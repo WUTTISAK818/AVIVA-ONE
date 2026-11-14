@@ -16,6 +16,7 @@ export async function getLeads() {
     .from("leads")
     .select("*")
     .eq("project_id", PROJECT_ID)
+    .is("duplicate_of", null)
     .order("created_at", { ascending: false });
   return data ?? [];
 }

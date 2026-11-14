@@ -105,7 +105,7 @@ async function verifyOverdueFollowups(db: Db, d: DirectiveForVerify): Promise<Ve
 
   const mine = await rowsOf<LeadRow>(
     db.from("leads").select("lead_code, customer_name, status, next_follow_up_date, assigned_to")
-      .eq("assigned_to", name).limit(LEAD_QUERY_LIMIT),
+      .eq("assigned_to", name).is("duplicate_of", null).limit(LEAD_QUERY_LIMIT),
   );
 
   // ไม่มีลูกค้าในระบบเลย = ตรวจไม่ได้ ไม่ใช่ "ผ่าน"
@@ -188,7 +188,7 @@ async function verifyPlotRecord(db: Db, d: DirectiveForVerify): Promise<VerifyRe
   // ถ้าหยิบมาแถวเดียวแบบไม่เรียงลำดับ จะได้คนที่แค่มาเยี่ยมชม แล้วรายงานผิดคนให้ผู้สั่งงาน
   const candidates = codeMatch
     ? await rowsOf<LeadRow>(base.eq("lead_code", codeMatch[0]).limit(1))
-    : await rowsOf<LeadRow>(base.eq("plot_number", Number(plotMatch![1])).limit(LEAD_QUERY_LIMIT));
+    : await rowsOf<LeadRow>(base.eq("plot_number", Number(plotMatch![1])).is("duplicate_of", null).limit(LEAD_QUERY_LIMIT));
 
   // คนที่ "ถือแปลงจริง" = เดินหน้าถึงขั้นจองขึ้นไป · เรียงจากขั้นที่ไกลที่สุดก่อน
   const OWNER_RANK: Record<string, number> = {

@@ -223,7 +223,7 @@ export default function DashboardPage() {
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "sold") {
-        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget,created_at").eq("project_id", PROJECT_ID).eq("status", "Closed Deal");
+        const { data, error } = await supabase.from("leads").select("customer_name,phone,budget,created_at").eq("project_id", PROJECT_ID).eq("status", "Closed Deal").is("duplicate_of", null);
         if (error) throw error;
         setKpiItems((data as Record<string, unknown>[]) ?? []);
       } else if (type === "available") {
@@ -272,7 +272,7 @@ export default function DashboardPage() {
         .lt("created_at", `${year + 1}-01-01`),
       supabase.from("employees_directory").select("id", { count: "exact" }),
       supabase.from("warranty_claims").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
-      supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID),
+      supabase.from("leads").select("id", { count: "exact" }).eq("project_id", PROJECT_ID).is("duplicate_of", null),
       supabase.from("documents").select("id", { count: "exact" }).eq("status", "pending").eq("project_id", PROJECT_ID),
       supabase.from("contractor_installments").select("status,amount").eq("project_id", PROJECT_ID),
     ]).then(([approvalsR, txnsR, employeesR, claimsR, leadsR, docsR, instsR]) => {
@@ -403,6 +403,7 @@ export default function DashboardPage() {
     supabase.from("leads")
       .select("id,status,ai_score,loan_approved_date,created_at")
       .eq("project_id", PROJECT_ID)
+      .is("duplicate_of", null) // ใบซ้ำที่รวมแล้วไม่นับ — "ขายแล้ว" ต้องเท่าบ้านที่ขายจริง (v8.11 · Pom: ขายจริง 13)
       .then(({ data, error }) => {
         if (!mounted) return;
         if (error) { setSalesFunnel(emptyFunnel); return; }

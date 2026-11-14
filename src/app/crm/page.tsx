@@ -31,7 +31,8 @@ import SignedImg from "@/components/SignedImg";
 import CelebrationModal from "@/components/CelebrationModal";
 import { CONTACT_CHANNELS, isPlaceholderPhone, isUsablePhone, normalizePhoneInput, phoneDisplay, phoneForDocument, NO_PHONE_LABEL } from "@/lib/contact-channel";
 import { matchLead, SEARCH_HINT } from "@/lib/lead-search";
-import { findDuplicateGroups, sortByCompleteness, diffFields, DUP_REASON_LABEL, type DupLead } from "@/lib/lead-duplicates";
+import { findDuplicateGroups, findSimilarByName, sortByCompleteness, diffFields, DUP_REASON_LABEL, type DupLead } from "@/lib/lead-duplicates";
+import { mergeLeads, buildMergeDocIndex, parseMergeCodes, LEAD_MERGE_WORKFLOW } from "@/lib/lead-merge";
 import PlotDetailPanel from "@/components/PlotDetailPanel";
 import { broadcastCelebration, type CelebrationPayload } from "@/lib/celebrate";
 import { closeWorkQueue, submitApprovalQueue } from "@/lib/workflow-events";
@@ -417,6 +418,11 @@ export default function CRMPage() {
   const [followupDate, setFollowupDate] = useState("");
   const [showDupPanel, setShowDupPanel] = useState(false);
   const [merging, setMerging] = useState<string | null>(null);
+  // v8.11: คำขอรวมใบซ้ำที่รอผู้บริหารอนุมัติ (key = id ใบที่จะถูกรวม) · ใบตัวจริงที่ผู้ใช้เลือกเองในแต่ละกลุ่ม
+  const [pendingMerges, setPendingMerges] = useState<Record<string, { primaryCode: string; doc: string }>>({});
+  const [primaryPick, setPrimaryPick] = useState<Record<string, string>>({});
+  // ช่อง "รวมกับใบอื่น" ในหน้ารายละเอียด — ผูกกับ id ลูกค้า จึงไม่ค้างข้ามคนเมื่อเปิดลูกค้ารายอื่น
+  const [mergeDraft, setMergeDraft] = useState<{ leadId: string; code: string; reason: string }>({ leadId: "", code: "", reason: "" });
   // กรองดูลูกค้าตามพนักงานขายที่ดูแล (คลิกจากแท็บผลงานทีม)
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   // รายชื่อพนักงานขายจากฐานข้อมูลพนักงาน (ใช้เป็นตัวเลือก dropdown ในฟอร์ม)
@@ -786,6 +792,19 @@ export default function CRMPage() {
     if (w) { w.document.write(html); w.document.close(); }
   };
 
+  /** คำขอรวมใบซ้ำที่ยังรออนุมัติ — ใช้แสดงป้าย "รอผู้บริหารอนุมัติ" และกันส่งคำขอซ้ำ (v8.11) */
+  const fetchPendingMerges = async () => {
+    const { data } = await supabase.from("approval_logs")
+      .select("source_record_id, source_doc_index")
+      .eq("workflow_type", LEAD_MERGE_WORKFLOW).eq("action_taken", "Pending");
+    const map: Record<string, { primaryCode: string; doc: string }> = {};
+    for (const r of (data ?? []) as { source_record_id: string | null; source_doc_index: string | null }[]) {
+      const codes = parseMergeCodes(r.source_doc_index);
+      if (r.source_record_id && codes) map[r.source_record_id] = { primaryCode: codes.primaryCode, doc: r.source_doc_index ?? "" };
+    }
+    setPendingMerges(map);
+  };
+
   const fetchLeads = async (start: string, end: string, limit = 10000) => {
     setLoading(true);
     try {
@@ -801,6 +820,7 @@ export default function CRMPage() {
       // ทำที่นี่จุดเดียว ทุกการนับในหน้านี้จึงไม่นับลูกค้ารายเดียวซ้ำ 2 ครั้งเอง
       // (ถ้าไปกรองทีละจุดจะพลาดบางจุดแน่ ๆ — มีที่นับยอดเกิน 15 แห่งในไฟล์นี้)
       setLeads(rows.filter((l) => !l.duplicate_of));
+      fetchPendingMerges(); // ป้าย "รอผู้บริหารอนุมัติรวม" ต้องตรงกับรายชื่อชุดเดียวกัน (v8.11)
     } catch (e) {
       setToast({ msg: thaiDbError(e as { message?: string }, "โหลดรายชื่อลูกค้า"), type: "error" });
     } finally {
@@ -812,6 +832,7 @@ export default function CRMPage() {
     setLeadsLimit(10000);
     fetchLeads(dateStart, dateEnd, 10000);
   }, [dateStart, dateEnd]);
+
 
   // ── Real-time (2.1): ทุกจอของเซลส์เห็นสถานะแปลง/ลีดตรงกันสด ๆ ไม่ต้องรีเฟรชเอง ──
   const rtRangeRef = useRef({ start: dateStart, end: dateEnd, limit: 10000 });
@@ -1342,35 +1363,65 @@ export default function CRMPage() {
     await recognizeTransferRevenue({ plot, customerName, amount, transferDate: td, contractDate: contractDate || td });
   };
 
-  /** ยืนยันว่าใบนี้เป็นใบซ้ำของลูกค้ารายเดียวกัน — ไม่ลบข้อมูล แค่ชี้ไปใบตัวจริง
-   *  เฉพาะผู้บริหาร เพราะกระทบยอดขายที่รายงาน (ลูกค้า 1 ราย ต้องนับ 1 ครั้ง) */
-  const handleMarkDuplicate = async (dupId: string, primaryId: string, primaryCode: string) => {
-    if (!user?.isManager) return;
+  /** รวมใบซ้ำเข้าใบตัวจริง (v8.11 · Pom สั่ง 14 พ.ย. 69)
+   *  - ผู้บริหาร: รวมทันที
+   *  - พนักงาน: ส่ง "คำขอรวมใบซ้ำ" ให้ผู้บริหารอนุมัติก่อน (Maker-Checker) — อนุมัติแล้วระบบรวมให้
+   *  ไม่ลบข้อมูล: ใบที่ไม่ใช้ถูกระบุว่าเป็น "ลูกค้าซ้ำ" พร้อมเหตุผล ตัดออกจากการนับยอด และแยกกลับได้ */
+  const submitMerge = async (dupId: string, primaryId: string, reason = "") => {
+    if (!user) return;
     const dup = allLeads.find((l) => l.id === dupId);
-    if (!dup) return;
-    if (!window.confirm(
-      `ยืนยันว่า ${dup.lead_code} (${dup.customer_name}) เป็นใบซ้ำของ ${primaryCode} ใช่ไหม\n\n` +
-      `ข้อมูลไม่ถูกลบ แต่ใบนี้จะถูกตัดออกจากการนับยอดและคิวติดตาม · แยกกลับได้ตลอด`
-    )) return;
+    const primary = allLeads.find((l) => l.id === primaryId);
+    if (!dup || !primary) { setToast({ msg: "ไม่พบใบลูกค้า — ลองโหลดหน้าใหม่", type: "error" }); return; }
+    if (dup.id === primary.id) { setToast({ msg: "เลือกใบเดียวกันทั้งสองฝั่ง — ต้องเป็นคนละใบ", type: "error" }); return; }
+    if (primary.duplicate_of) { setToast({ msg: `${primary.lead_code} เองเป็นใบซ้ำของใบอื่นแล้ว — เลือกใบตัวจริงใหม่`, type: "error" }); return; }
+    if (pendingMerges[dup.id]) { setToast({ msg: `${dup.lead_code} มีคำขอรวมรอผู้บริหารอนุมัติอยู่แล้ว`, type: "error" }); return; }
+    const byName = user.full_name ?? user.email ?? "ไม่ระบุ";
+    const why = reason.trim();
 
-    setMerging(dupId);
-    const note = `รวมเป็นใบซ้ำของ ${primaryCode} โดย ${user.full_name ?? user.email} (${thaiDateStr()})`;
-    const { error } = await supabase.from("leads").update({
-      duplicate_of: primaryId,
-      merged_at: new Date().toISOString(),
-      merged_by: user.full_name ?? user.email ?? null,
-      merge_note: note,
-      updated_at: new Date().toISOString(),
-    }).eq("id", dupId).is("duplicate_of", null);
-    setMerging(null);
-    if (error) { setToast({ msg: "รวมไม่สำเร็จ: " + error.message, type: "error" }); return; }
-
-    await logTransferredLeadAudit(
-      "merge_duplicate",
-      `ยืนยันใบซ้ำ: ${dup.lead_code} ${dup.customer_name} -> รวมเข้า ${primaryCode} — ลูกค้ารายเดียวกันถูกลงข้อมูลหลายครั้ง (ไม่ลบข้อมูล ตัดออกจากการนับยอด)`,
-      dupId, user,
-    );
-    setToast({ msg: `รวมแล้ว — ${dup.lead_code} ไม่ถูกนับในยอดอีก`, type: "success" });
+    if (user.isManager) {
+      if (!window.confirm(
+        `ยืนยันว่า ${dup.lead_code} (${dup.customer_name}) เป็นใบซ้ำของ ${primary.lead_code} (${primary.customer_name}) ใช่ไหม\n\n` +
+        `ข้อมูลไม่ถูกลบ แต่ใบนี้จะถูกระบุว่าเป็น "ลูกค้าซ้ำ" และตัดออกจากการนับยอดและคิวติดตาม · แยกกลับได้ตลอด`
+      )) return;
+      setMerging(dupId);
+      const r = await mergeLeads(supabase, {
+        dupId, primaryId, byName, byRole: user.role ?? null, byDept: user.department ?? null,
+        note: `ผู้บริหารยืนยัน: ${byName} (${thaiDateStr()})${why ? ` · เหตุผล: ${why}` : ""}`,
+      });
+      setMerging(null);
+      if (!r.ok) { setToast({ msg: "รวมไม่สำเร็จ: " + r.reason, type: "error" }); return; }
+      setToast({ msg: `รวมแล้ว — ${dup.lead_code} ไม่ถูกนับในยอดอีก`, type: "success" });
+    } else {
+      if (!window.confirm(
+        `ขอรวม ${dup.lead_code} (${dup.customer_name})\nเข้าใบตัวจริง ${primary.lead_code} (${primary.customer_name})\n\n` +
+        `คำขอจะส่งให้ผู้บริหารอนุมัติก่อน · อนุมัติแล้วใบ ${dup.lead_code} จะถูกระบุว่าเป็น "ลูกค้าซ้ำ" และไม่ถูกนับในยอด (ข้อมูลไม่ถูกลบ)\n\n` +
+        `ถ้าใบที่จะรวมมีข้อมูลที่ต้องเก็บ (เบอร์ วันที่ ยอดเงิน) ให้กรอกลงใบตัวจริงก่อนส่งคำขอ`
+      )) return;
+      setMerging(dupId);
+      const doc = buildMergeDocIndex(dup, primary, why, byName);
+      const { error } = await supabase.from("approval_logs").insert({
+        workflow_type: LEAD_MERGE_WORKFLOW,
+        source_doc_index: doc,
+        submitted_by_user_id: user.id ?? null,
+        source_record_id: dup.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        sla_due_at: calcSlaDueAt(LEAD_MERGE_WORKFLOW),
+        assigned_to_name: "ผู้บริหาร",
+      });
+      if (error) { setMerging(null); setToast({ msg: thaiDbError(error, "ส่งคำขอรวมใบซ้ำ"), type: "error" }); return; }
+      await submitApprovalQueue({
+        workflowType: LEAD_MERGE_WORKFLOW, sourceRecordId: dup.id, docIndex: doc,
+        title: `อนุมัติรวมลูกค้าซ้ำ: ${dup.lead_code} → ${primary.lead_code}`, amount: null, actorName: byName, actorRole: "sales",
+      });
+      await createNotification({
+        type: "approval", title: `รออนุมัติรวมลูกค้าซ้ำ — ${dup.lead_code} → ${primary.lead_code}`,
+        message: doc, from_dept: "ฝ่ายขาย", to_dept: "ผู้บริหาร", record_id: dup.id, link: "/approvals",
+      });
+      setMerging(null);
+      setToast({ msg: `ส่งคำขอรวม ${dup.lead_code} → ${primary.lead_code} แล้ว — รอผู้บริหารอนุมัติ`, type: "success" });
+    }
+    fetchPendingMerges();
     fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
@@ -1565,6 +1616,11 @@ export default function CRMPage() {
   const dupLead = formPhoneDigits.length >= 9
     ? leads.find(l => (l.phone ?? "").replace(/\D/g, "") === formPhoneDigits && l.id !== editingLead?.id)
     : null;
+  // v8.11: เตือนชื่อใกล้เคียงตอนเพิ่มลูกค้าใหม่ — ลูกค้าที่ทักออนไลน์มักไม่ให้เบอร์ จึงจับด้วยเบอร์ไม่ได้
+  // (เคสจริง: "คุณนนทกร" ทักเพจ แล้วมาโครงการถูกลงเป็นใบใหม่ "นายนนทกร ขอมสระน้อย")
+  const similarLeads = showModal && !editingLead && (form.customer_name ?? "").trim().length >= 3
+    ? findSimilarByName(allLeads as DupLead[], form.customer_name).filter((l) => l.id !== dupLead?.id)
+    : [];
 
   // แยก render ของลิสต์ลูกค้าออกจาก state ของฟอร์ม/โมดัล
   // (กันไม่ให้ลิสต์ทั้งหมด re-render ทุกครั้งที่พิมพ์ในฟอร์มแก้ไข → แก้อาการ "เปิดแล้วค้าง")
@@ -1839,23 +1895,34 @@ export default function CRMPage() {
                 </p>
               )}
 
-              {user?.isManager && dupGroups.length > 0 && (
+              {dupGroups.length > 0 && (
                 <button onClick={() => setShowDupPanel((v) => !v)}
                   className="w-full text-left rounded-xl border border-orange-500/35 bg-orange-500/5 px-3 py-2.5">
                   <p className="text-[13px] font-bold text-orange-400">
                     👥 น่าจะเป็นลูกค้ารายเดียวกันที่ลงข้อมูลหลายครั้ง {dupGroups.length} กลุ่ม
                   </p>
                   <p className="text-[11px] text-aviva-secondary mt-0.5">
-                    {showDupPanel ? "แตะเพื่อซ่อน" : "แตะเพื่อตรวจและรวมเป็นรายเดียว"} — ระบบไม่รวมให้เอง ต้องให้ผู้บริหารยืนยัน
+                    {showDupPanel ? "แตะเพื่อซ่อน" : "แตะเพื่อตรวจและรวมเป็นรายเดียว"} — {user?.isManager ? "ระบบไม่รวมให้เอง ต้องให้ผู้บริหารยืนยัน" : "พนักงานกด \"ขอรวม\" แล้วผู้บริหารอนุมัติ"}
                   </p>
                 </button>
               )}
 
-              {user?.isManager && showDupPanel && (
+              {showDupPanel && (
                 <div className="space-y-2.5">
+                  {Object.keys(pendingMerges).length > 0 && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                      <p className="text-[12px] font-semibold text-amber-300">⏳ คำขอรวมใบซ้ำรอผู้บริหารอนุมัติ {Object.keys(pendingMerges).length} รายการ</p>
+                      {Object.values(pendingMerges).map((p) => (
+                        <p key={p.doc} className="text-[11px] text-aviva-secondary mt-0.5 leading-relaxed">{p.doc}</p>
+                      ))}
+                    </div>
+                  )}
                   {dupGroups.map((g) => {
-                    const items = sortByCompleteness(g.leads as DupLead[]);
-                    const primary = items[0];
+                    // ใบตัวจริง = ที่ผู้ใช้เลือกเอง ถ้าไม่ได้เลือก ใช้ใบที่ข้อมูลครบที่สุด
+                    const sorted = sortByCompleteness(g.leads as DupLead[]);
+                    const picked = sorted.find((x) => x.id === primaryPick[g.key]);
+                    const primary = picked ?? sorted[0];
+                    const items = [primary, ...sorted.filter((x) => x.id !== primary.id)];
                     const diffs = diffFields(items);
                     return (
                       <GlassCard key={g.key} className="p-3 border-orange-500/25">
@@ -1865,7 +1932,7 @@ export default function CRMPage() {
                             <div key={l.id} className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <p className="text-[13px] text-aviva-text truncate">
-                                  {i === 0 && <span className="text-[10px] text-green-400 font-bold mr-1">ตัวจริง(แนะนำ)</span>}
+                                  {i === 0 && <span className="text-[10px] text-green-400 font-bold mr-1">{picked ? "ตัวจริง(เลือกเอง)" : "ตัวจริง(แนะนำ)"}</span>}
                                   {l.lead_code} · {l.customer_name}
                                 </p>
                                 <p className="text-[11px] text-aviva-secondary">
@@ -1876,11 +1943,27 @@ export default function CRMPage() {
                                 </p>
                               </div>
                               {i > 0 && (
-                                <button onClick={() => handleMarkDuplicate(l.id, primary.id, primary.lead_code ?? "")}
-                                  disabled={merging === l.id}
-                                  className="flex-shrink-0 px-2 py-1 rounded-lg bg-orange-500/10 text-orange-300 border border-orange-500/30 text-[11px] font-semibold disabled:opacity-50">
-                                  {merging === l.id ? "กำลังรวม…" : `รวมเข้า ${primary.lead_code}`}
-                                </button>
+                                <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                                  {pendingMerges[l.id] ? (
+                                    <span className="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold">
+                                      ⏳ รออนุมัติรวมเข้า {pendingMerges[l.id].primaryCode}
+                                    </span>
+                                  ) : (
+                                    <button onClick={() => {
+                                      const reason = window.prompt(`เหตุผลที่เป็นคนเดียวกัน (เช่น เบอร์เดียวกัน / ทักเพจก่อนมาโครงการ)`, DUP_REASON_LABEL[g.reason].split(" — ")[0]);
+                                      if (reason === null) return;
+                                      submitMerge(l.id, primary.id, reason);
+                                    }}
+                                      disabled={merging === l.id}
+                                      className="px-2 py-1 rounded-lg bg-orange-500/10 text-orange-300 border border-orange-500/30 text-[11px] font-semibold disabled:opacity-50">
+                                      {merging === l.id ? "กำลังส่ง…" : user?.isManager ? `รวมเข้า ${primary.lead_code}` : `ขอรวมเข้า ${primary.lead_code}`}
+                                    </button>
+                                  )}
+                                  <button onClick={() => setPrimaryPick((prev) => ({ ...prev, [g.key]: l.id }))}
+                                    className="text-[10px] text-aviva-secondary underline">
+                                    ใช้ใบนี้เป็นตัวจริงแทน
+                                  </button>
+                                </div>
                               )}
                             </div>
                           ))}
@@ -1911,10 +1994,10 @@ export default function CRMPage() {
                 </div>
               )}
 
-              {user?.isManager && mergedLeads.length > 0 && (
+              {mergedLeads.length > 0 && (
                 <details className="rounded-xl border border-aviva-gold/15 bg-aviva-card/60 px-3 py-2">
                   <summary className="text-[12px] text-aviva-secondary cursor-pointer">
-                    ใบที่รวมเป็นรายซ้ำไปแล้ว {mergedLeads.length} ใบ (ไม่ถูกนับในยอด) — แตะเพื่อดู/แยกกลับ
+                    ใบที่รวมเป็นลูกค้าซ้ำไปแล้ว {mergedLeads.length} ใบ (ไม่ถูกนับในยอด) — แตะเพื่อดู{user?.isManager ? "/แยกกลับ" : ""}
                   </summary>
                   <div className="mt-2 space-y-1.5">
                     {mergedLeads.map((l) => {
@@ -1925,10 +2008,12 @@ export default function CRMPage() {
                             {l.lead_code} · {l.customer_name}
                             <span className="text-aviva-secondary/70"> → รวมเข้า {into?.lead_code ?? "?"}</span>
                           </p>
-                          <button onClick={() => handleUnmarkDuplicate(l.id)} disabled={merging === l.id}
-                            className="flex-shrink-0 px-2 py-1 rounded-lg border border-aviva-gold/20 text-aviva-gold text-[11px] disabled:opacity-50">
-                            {merging === l.id ? "…" : "แยกกลับ"}
-                          </button>
+                          {user?.isManager && (
+                            <button onClick={() => handleUnmarkDuplicate(l.id)} disabled={merging === l.id}
+                              className="flex-shrink-0 px-2 py-1 rounded-lg border border-aviva-gold/20 text-aviva-gold text-[11px] disabled:opacity-50">
+                              {merging === l.id ? "…" : "แยกกลับ"}
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -2407,6 +2492,49 @@ export default function CRMPage() {
                   )}
                 </div>
               )}
+              {!selectedLead.duplicate_of && (
+                <div className="bg-aviva-bg rounded-xl p-3 border border-orange-500/20 col-span-2">
+                  <p className="text-xs font-bold text-orange-300 mb-1">👥 ลูกค้ารายนี้ซ้ำกับใบอื่น?</p>
+                  {pendingMerges[selectedLead.id] ? (
+                    <p className="text-[11px] text-aviva-secondary leading-relaxed">
+                      ⏳ ส่งคำขอรวมเข้า {pendingMerges[selectedLead.id].primaryCode} แล้ว — รอผู้บริหารอนุมัติ
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[11px] text-aviva-secondary mb-2 leading-relaxed">
+                        ใส่รหัส <b>ใบตัวจริง</b> ที่จะเก็บไว้ — ใบนี้ ({selectedLead.lead_code}) จะถูกระบุว่าเป็น &quot;ลูกค้าซ้ำ&quot;
+                        {user?.isManager ? "" : " หลังผู้บริหารอนุมัติ"} · ข้อมูลไม่ถูกลบ แยกกลับได้
+                      </p>
+                      <input
+                        value={mergeDraft.leadId === selectedLead.id ? mergeDraft.code : ""}
+                        onChange={(e) => setMergeDraft({ leadId: selectedLead.id, code: e.target.value, reason: mergeDraft.leadId === selectedLead.id ? mergeDraft.reason : "" })}
+                        placeholder="รหัสใบตัวจริง เช่น CRM-0474 หรือ 474"
+                        className="w-full bg-aviva-card border border-aviva-gold/20 rounded-lg px-3 py-2 text-[12px] text-aviva-text" />
+                      <input
+                        value={mergeDraft.leadId === selectedLead.id ? mergeDraft.reason : ""}
+                        onChange={(e) => setMergeDraft({ leadId: selectedLead.id, code: mergeDraft.leadId === selectedLead.id ? mergeDraft.code : "", reason: e.target.value })}
+                        placeholder="เหตุผล เช่น เบอร์เดียวกัน / ทักเพจก่อนมาโครงการ"
+                        className="w-full mt-2 bg-aviva-card border border-aviva-gold/20 rounded-lg px-3 py-2 text-[12px] text-aviva-text" />
+                      <button
+                        disabled={merging === selectedLead.id}
+                        onClick={async () => {
+                          const code = mergeDraft.leadId === selectedLead.id ? mergeDraft.code : "";
+                          const digits = code.replace(/\D/g, "");
+                          const target = digits
+                            ? allLeads.find((l) => Number((l.lead_code ?? "").replace(/\D/g, "")) === Number(digits))
+                            : undefined;
+                          if (!target) { setToast({ msg: "ไม่พบรหัสลูกค้านี้ — ตรวจรหัสอีกครั้ง", type: "error" }); return; }
+                          await submitMerge(selectedLead.id, target.id, mergeDraft.reason);
+                          setMergeDraft({ leadId: "", code: "", reason: "" });
+                          setSelectedLead(null);
+                        }}
+                        className="w-full mt-2 py-2 text-[12px] font-semibold bg-orange-500/10 text-orange-300 border border-orange-500/30 rounded-lg active:scale-95 disabled:opacity-50">
+                        {user?.isManager ? "รวมใบนี้เป็นลูกค้าซ้ำ" : "ขอรวมใบซ้ำ (ส่งผู้บริหารอนุมัติ)"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
               {selectedLead.portal_token && (
                 <div className="bg-aviva-bg rounded-xl p-3 border border-aviva-gold/10 col-span-2">
                   <p className="text-xs font-bold text-aviva-text flex items-center gap-1.5 mb-2">
@@ -2739,6 +2867,17 @@ export default function CRMPage() {
                   {dupLead.lead_code ? ` (${dupLead.lead_code})` : ""}
                 </p>
                 <p className="text-[10px] text-aviva-secondary/80 mt-0.5">ตรวจสอบก่อนบันทึก เพื่อเลี่ยงการเพิ่มลูกค้าซ้ำ</p>
+              </div>
+            )}
+            {similarLeads.length > 0 && (
+              <div className="mb-4 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
+                <p className="text-[11px] font-bold text-orange-400">⚠ ชื่อนี้ใกล้เคียงลูกค้าที่มีอยู่แล้ว {similarLeads.length} ราย</p>
+                {similarLeads.map((l) => (
+                  <p key={l.id} className="text-[11px] text-aviva-text mt-0.5">
+                    {l.lead_code} · {l.customer_name} · ดูแลโดย <span className="font-semibold">{l.assigned_to || "ยังไม่ระบุ"}</span>
+                  </p>
+                ))}
+                <p className="text-[10px] text-aviva-secondary/80 mt-0.5">ถ้าเป็นคนเดียวกัน ให้เปิดใบเดิมแล้วแก้ไขแทนการเพิ่มใหม่</p>
               </div>
             )}
 

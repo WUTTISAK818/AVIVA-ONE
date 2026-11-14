@@ -46,6 +46,7 @@ export async function checkUnrecordedBooking(opts: {
       .from("leads")
       .select("id, updated_at, status, assigned_to")
       .in("status", BOOKED_STATUSES)
+      .is("duplicate_of", null)
       .in("assigned_to", names)
       .gte("updated_at", `${opts.reportDate}T00:00:00+07:00`)
       .lte("updated_at", `${opts.reportDate}T23:59:59+07:00`)

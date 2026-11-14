@@ -9,6 +9,7 @@ export const SLA_DAYS: Record<string, number> = {
   Booking_Deposit:    2,
   Marketing_Budget:   3,
   Purchase_Request:   2,
+  Lead_Merge:         2, // ขอรวมลูกค้าซ้ำ (v8.11)
 };
 
 export function calcSlaDueAt(workflowType: string): string {
@@ -55,6 +56,7 @@ export const APPR_DEPT: Record<string, string> = {
   Booking_Deposit: "ฝ่ายขาย",
   Contract_Approval: "ฝ่ายขาย",
   Marketing_Budget: "ฝ่ายการตลาด",
+  Lead_Merge: "ฝ่ายขาย",
 };
 
 export const APPR_LABEL: Record<string, string> = {
@@ -66,6 +68,7 @@ export const APPR_LABEL: Record<string, string> = {
   Booking_Deposit: "อนุมัติเงินจอง",
   Contract_Approval: "อนุมัติสัญญาซื้อขาย",
   Marketing_Budget: "อนุมัติงบการตลาด",
+  Lead_Merge: "ขอรวมลูกค้าซ้ำ",
 };
 
 /** บทบาทผู้อนุมัติเป็นภาษาไทย */

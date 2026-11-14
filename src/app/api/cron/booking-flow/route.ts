@@ -56,7 +56,8 @@ export async function GET(req: NextRequest) {
 
   const { data: leadRows, error } = await db.from("leads")
     .select("id, customer_name, status, assigned_to, booking_date, booking_deposit, contract_price, budget, deposit_slip_url, deposit_received_at, deposit_received_by, booking_doc_at, contract_appointment_date")
-    .in("status", BOOKING_FLOW_STATUSES);
+    .in("status", BOOKING_FLOW_STATUSES)
+    .is("duplicate_of", null); // ใบซ้ำที่รวมแล้วไม่เข้ากระบวนการจอง (v8.11)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const leads = (leadRows ?? []) as LeadRow[];

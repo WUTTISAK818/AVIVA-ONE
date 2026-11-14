@@ -41,6 +41,7 @@ export default function ChannelConversionCard() {
   useEffect(() => {
     supabase.from("leads")
       .select("source, status, booking_date, contract_price, budget")
+      .is("duplicate_of", null) // ใบซ้ำที่รวมแล้วไม่นับ (v8.11)
       .then(({ data }) => setRows((data ?? []) as Row[]));
   }, []);
 

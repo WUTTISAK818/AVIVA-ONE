@@ -83,6 +83,7 @@ function GenerateInner() {
         .select("id,customer_name,phone,contact_address,plot_number,budget,contract_price,contract_signed_date")
         .eq("project_id", PROJECT_ID)
         .ilike("customer_name", `%${leadSearch.trim()}%`)
+        .is("duplicate_of", null)
         .limit(8);
       setLeadResults((data as LeadLite[]) ?? []);
     }, 250);

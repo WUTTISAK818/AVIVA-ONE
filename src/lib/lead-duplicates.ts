@@ -48,22 +48,48 @@ function isFillerPhone(digits: string): boolean {
 /** ชื่อที่ตัดคำนำหน้า/วงเล็บ/ช่องว่างออก เพื่อเทียบว่าเป็นคนเดียวกันไหม
  *  "คุณดารณี เวียงสกล (คุณต้อม คุณเก่ง)" -> "ดารณีเวียงสกล"
  *  "Daranee Wiangsakol" -> "daraneewiangsakol"  (คนละภาษา เทียบตรงไม่ได้ จึงใช้เกณฑ์อื่นช่วย) */
-export function normalizeName(v: string | null | undefined): string {
+// คำนำหน้าชื่อ — "นางสาว" ต้องมาก่อน "นาง" เสมอ (แก้ v8.11: เดิม "นาง" ถูกตัดก่อน
+// "นางสาวอรยา" จึงเหลือ "สาวอรยา" แล้วจับคู่กับ "อรยา" ไม่ได้ — CRM-0500/0514 หลุดจากระบบเพราะเหตุนี้)
+const NAME_PREFIX = /(นางสาว|น\.ส\.|นาง|นาย|คุณ|ด\.ช\.|ด\.ญ\.|mrs\.?|mr\.?|ms\.?|miss)/g;
+
+function stripName(v: string | null | undefined): string {
   return (v ?? "")
     .toLowerCase()
     .replace(/\(.*?\)/g, " ")                         // ตัดวงเล็บ (ชื่อเล่น)
-    .replace(/(คุณ|นาย|นาง|นางสาว|น\.ส\.|ด\.ช\.|ด\.ญ\.|mr\.?|mrs\.?|ms\.?)/g, " ")
-    .replace(/[\s .·,\-_]/g, "")
+    .replace(NAME_PREFIX, " ")
+    .replace(/[\s ]+/g, " ")
     .trim();
 }
 
-export type DupReason = "phone" | "name" | "handle" | "plot";
+export function normalizeName(v: string | null | undefined): string {
+  return stripName(v).replace(/[\s .·,\-_]/g, "");
+}
+
+/** ชื่อต้น (คำแรกหลังตัดคำนำหน้า) — "นายนนทกร ขอมสระน้อย" กับ "คุณนนทกร" -> "นนทกร" ทั้งคู่ */
+export function firstName(v: string | null | undefined): string {
+  return (stripName(v).split(" ")[0] ?? "").replace(/[.·,\-_]/g, "");
+}
+
+/** วันที่ใช้เทียบว่าลงห่างกันกี่วัน — วันเยี่ยมชมก่อน ไม่มีจึงใช้วันที่ลงข้อมูล */
+function leadDay(l: DupLead): number | null {
+  const s = l.visit_date || l.created_at_default || l.created_at;
+  if (!s) return null;
+  const t = Date.parse(s.length <= 10 ? s + "T00:00:00Z" : s);
+  return Number.isNaN(t) ? null : Math.floor(t / 86_400_000);
+}
+
+/** เสนอจาก "ชื่อต้นตรงกัน" เฉพาะใบที่ลงห่างกันไม่เกินกี่วัน (ชื่อต้นตรงแต่ห่างเป็นปี มักเป็นคนละคน) */
+export const FIRST_NAME_WINDOW_DAYS = 30;
+
+export type DupReason = "phone" | "name" | "handle" | "plot" | "note_ref" | "first_name";
 
 export const DUP_REASON_LABEL: Record<DupReason, string> = {
   phone: "เบอร์โทรเดียวกัน",
   name: "ชื่อเดียวกัน (ตัดคำนำหน้า/ชื่อเล่นแล้วตรงกัน)",
   handle: "ชื่อ/ไอดีในช่องทางแชตเดียวกัน",
   plot: "ผูกแปลงเดียวกัน",
+  note_ref: "หมายเหตุในใบอ้างถึงรหัสลูกค้าอีกใบ (พนักงานจดไว้ว่าซ้ำ)",
+  first_name: "ชื่อต้นตรงกัน และลงห่างกันไม่เกิน 30 วัน — มักเป็นคนเดียวกันที่ทักออนไลน์ก่อนมาโครงการ (ใบหนึ่งไม่มีเบอร์/นามสกุล) ตรวจให้แน่ใจก่อนรวม",
 };
 
 export interface DupGroup {
@@ -112,7 +138,66 @@ export function findDuplicateGroups(leads: DupLead[]): DupGroup[] {
   const HOLDING = new Set(["Booking", "Contract", "Loan Approved", "Closed Deal", "Transfer"]);
   byKey((l) => (l.plot_number != null && HOLDING.has(l.status ?? "")) ? String(l.plot_number) : "", "plot", "plot");
 
+  // 5) หมายเหตุอ้างรหัสลูกค้าอีกใบ — พนักงานมักจดไว้เองว่า "ข้อมูลซ้ำกับ CRM0474" (v8.11)
+  const byCode = new Map<string, DupLead>();
+  for (const l of pool) {
+    const d = digitsOf(l.lead_code);
+    if (d) byCode.set(String(Number(d)), l);
+  }
+  for (const l of pool) {
+    for (const m of (l.notes ?? "").matchAll(/CRM\s*-?\s*(\d{2,5})/gi)) {
+      const other = byCode.get(String(Number(m[1])));
+      if (other && other.id !== l.id) push("note_ref", `note:${l.id}:${other.id}`, [l, other]);
+    }
+  }
+
+  // 6) ชื่อต้นตรงกัน + ลงห่างกันไม่เกิน 30 วัน (v8.11 · Pom สั่ง 14 พ.ย. 69)
+  //    จับเคสที่เกณฑ์อื่นหลุด เช่น "คุณนนทกร" (ไม่มีเบอร์ ไม่มีนามสกุล) กับ "นายนนทกร ขอมสระน้อย"
+  //    เรียงตามวัน แล้วตัดกลุ่มเมื่อห่างจากใบก่อนหน้าเกิน 30 วัน
+  const byFirst = new Map<string, DupLead[]>();
+  for (const l of pool) {
+    const f = firstName(l.customer_name);
+    if (f.length < 3 || /^\d+$/.test(f)) continue;
+    if (!byFirst.has(f)) byFirst.set(f, []);
+    byFirst.get(f)!.push(l);
+  }
+  for (const [f, items] of byFirst) {
+    if (items.length < 2) continue;
+    const dated = items
+      .map((l) => ({ l, d: leadDay(l) }))
+      .filter((x): x is { l: DupLead; d: number } => x.d != null)
+      .sort((a, b) => a.d - b.d);
+    let cluster: DupLead[] = [];
+    let last: number | null = null;
+    const flush = () => {
+      if (cluster.length >= 2) push("first_name", `first:${f}:${cluster[0].id}`, cluster);
+      cluster = [];
+    };
+    for (const x of dated) {
+      if (last != null && x.d - last > FIRST_NAME_WINDOW_DAYS) flush();
+      cluster.push(x.l);
+      last = x.d;
+    }
+    flush();
+  }
+
   return groups;
+}
+
+/** ใบลูกค้าที่ชื่อคล้ายกับที่กำลังกรอก — ใช้เตือนตอนเพิ่มลูกค้าใหม่ (v8.11)
+ *  ตรงทั้งชื่อ-นามสกุล หรือชื่อต้นตรงและลงไว้ไม่เกิน 30 วัน */
+export function findSimilarByName(leads: DupLead[], name: string, excludeId?: string | null): DupLead[] {
+  const full = normalizeName(name);
+  const first = firstName(name);
+  if (first.length < 3) return [];
+  const today = Math.floor(Date.now() / 86_400_000);
+  return leads.filter((l) => {
+    if (l.duplicate_of || l.id === excludeId) return false;
+    if (full.length >= 4 && normalizeName(l.customer_name) === full) return true;
+    if (firstName(l.customer_name) !== first) return false;
+    const d = leadDay(l);
+    return d != null && Math.abs(today - d) <= FIRST_NAME_WINDOW_DAYS;
+  }).slice(0, 5);
 }
 
 /** สถานะที่ถือว่า "ถือแปลงอยู่" — ใบที่อยู่ในสถานะนี้มีน้ำหนักเป็นตัวจริงมากกว่า */

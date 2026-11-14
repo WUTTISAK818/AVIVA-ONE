@@ -62,7 +62,7 @@ export default function MarketingContent() {
   // B4: ราคาขายเฉลี่ยจริง (จากลูกค้าที่ปิดการขาย) ใช้คำนวณ ROI แทน hardcode
   const [avgUnitPrice, setAvgUnitPrice] = useState(9_500_000);
   useEffect(() => {
-    supabase.from("leads").select("contract_price,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal")
+    supabase.from("leads").select("contract_price,budget").eq("project_id", PROJECT_ID).eq("status", "Closed Deal").is("duplicate_of", null)
       .then(({ data }) => {
         const vals = ((data ?? []) as { contract_price: number | null; budget: number | null }[])
           .map(r => Number(r.contract_price ?? r.budget) || 0).filter(v => v > 0);

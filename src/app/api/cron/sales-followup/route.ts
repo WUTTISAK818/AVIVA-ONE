@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
   const [{ data: leadRows }, { data: dir }] = await Promise.all([
     db.from("leads")
       .select("id, customer_name, phone, contact_channel, contact_handle, source, status, budget, ai_score, urgency, probability, plot_number, next_follow_up_date, last_contact_date, visit_date, assigned_to, created_at_default")
-      .not("status", "in", `(${FOLLOWUP_DONE_STATUSES.map(s => `"${s}"`).join(",")})`),
+      .not("status", "in", `(${FOLLOWUP_DONE_STATUSES.map(s => `"${s}"`).join(",")})`)
+      .is("duplicate_of", null), // ใบซ้ำที่รวมแล้วไม่ต้องติดตาม (v8.11)
     db.from("employees_directory").select("full_name, nickname, email"),
   ]);
 
@@ -149,6 +150,7 @@ async function remindAppointments(db: SupabaseClient, today: string): Promise<nu
   const { data } = await db.from("leads")
     .select("id, customer_name, plot_number, assigned_to, transfer_appointment_date, contract_appointment_date, delivery_date")
     .eq("project_id", PROJECT_ID)
+    .is("duplicate_of", null)
     .or(
       `transfer_appointment_date.in.(${today},${in3}),` +
       `contract_appointment_date.in.(${today},${in3}),` +

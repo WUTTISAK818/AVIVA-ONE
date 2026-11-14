@@ -45,7 +45,7 @@ export async function gatherDeptContext(admin: SupabaseClient, dept: string): Pr
   if (dept === "sales") {
     const [{ data: leads }, { data: project }] = await Promise.all([
       admin.from("leads").select("full_name,status,source,budget,assigned_to,created_at,updated_at")
-        .eq("project_id", PROJECT_ID).order("updated_at", { ascending: false }).limit(80),
+        .eq("project_id", PROJECT_ID).is("duplicate_of", null).order("updated_at", { ascending: false }).limit(80),
       admin.from("projects").select("total_units,sold_units").eq("id", PROJECT_ID).single(),
     ]);
     const L = leads ?? [];

@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
     db.from("leads")
       .select("id, customer_name, plot_number, assigned_to, status, transfer_appointment_date, contract_appointment_date, delivery_date, next_follow_up_date, visit_date")
       .eq("project_id", PROJECT_ID)
+      .is("duplicate_of", null)
       .or([
         `and(transfer_appointment_date.gte.${from},transfer_appointment_date.lte.${to})`,
         `and(contract_appointment_date.gte.${from},contract_appointment_date.lte.${to})`,
@@ -217,7 +218,7 @@ async function addPastItems(db: ReturnType<typeof getSupabaseAdmin>, ctx: PastCt
       .gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
     db.from("leads")
       .select("id, customer_name, plot_number, assigned_to, source, created_at, created_at_default, booking_date, contract_signed_date, transfer_date")
-      .eq("project_id", PROJECT_ID),
+      .eq("project_id", PROJECT_ID).is("duplicate_of", null),
     db.from("customer_installments")
       .select("id, lead_id, name, amount, paid_date")
       .not("paid_date", "is", null).gte("paid_date", from).lte("paid_date", to),

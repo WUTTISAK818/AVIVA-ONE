@@ -149,6 +149,7 @@ export async function buildFollowupReport(
     .select(
       "assigned_to, status, phone, contact_handle, contact_channel, last_contact_date, next_follow_up_date, visit_date, booking_date, contract_signed_date, loan_approved_date, transfer_date",
     )
+    .is("duplicate_of", null) // ใบซ้ำที่รวมแล้วไม่นับ (v8.11)
     .limit(LEAD_QUERY_LIMIT);
   const leads = (data ?? []) as LeadRow[];
   // ถ้าชนเพดานพอดี แปลว่าอาจมีลูกค้าที่ไม่ได้ถูกนับ — ต้องบอกผู้บริหาร ห้ามให้ตัวเลขผิดแบบเงียบ ๆ

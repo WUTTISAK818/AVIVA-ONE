@@ -18,6 +18,7 @@ import ApprovalVerifyModal, { type VerifyLog } from "@/components/ApprovalVerify
 import WorkflowTimeline from "@/components/WorkflowTimeline";
 import { logWorkflowEvent, createWorkQueue, closeWorkQueue, notifyPush, notifyContractor, resolveApprovalQueue } from "@/lib/workflow-events";
 import { finalizeSale } from "@/lib/sales-finalize";
+import { executeMergeRequest, parseMergeCodes, LEAD_MERGE_WORKFLOW } from "@/lib/lead-merge";
 import { thaiDateStr } from "@/lib/thai-date";
 import { broadcastCelebration } from "@/lib/celebrate";
 
@@ -112,6 +113,7 @@ const WORKFLOW_LABELS: Record<string, string> = {
   Leave_Request:      "การลา",
   Booking_Deposit:    "เงินจอง",
   Contract_Approval:  "สัญญา",
+  Lead_Merge:         "รวมลูกค้าซ้ำ",
 };
 
 // รองรับสถานะที่บันทึกมาแบบตัวพิมพ์เล็ก/ใหญ่ปนกัน (ข้อมูลเก่าบางชุดเป็น pending/approved)
@@ -840,6 +842,33 @@ function ApprovalsContent() {
         record_id: log.source_record_id ?? undefined,
         link: "/office?tab=finance",
       });
+    } else if (log.workflow_type === LEAD_MERGE_WORKFLOW) {
+      // v8.11: พนักงานขอรวมลูกค้าซ้ำ -> ผู้บริหารอนุมัติ -> ระบบรวมให้ (ใบที่ไม่ใช้ถูกระบุว่าเป็น "ลูกค้าซ้ำ")
+      const byName = user.full_name ?? user.email;
+      const codes = parseMergeCodes(log.source_doc_index);
+      if (approved) {
+        const r = await executeMergeRequest(supabase, log, {
+          name: byName, role: user.role ?? null, dept: user.department ?? null, dateLabel: thaiDateStr(),
+        });
+        if (!r.ok) alert(`อนุมัติแล้ว แต่รวมใบไม่สำเร็จ: ${r.reason}\nให้เปิดหน้าลูกค้าแล้วรวมเอง`);
+      }
+      let requesterEmail: string | null = null;
+      if (submitterId) {
+        const { data: su } = await supabase.from("users").select("email").eq("id", submitterId).maybeSingle();
+        requesterEmail = (su as { email?: string } | null)?.email ?? null;
+      }
+      await createNotification({
+        type: approved ? "success" : "info",
+        title: approved
+          ? `อนุมัติรวมลูกค้าซ้ำแล้ว — ${codes?.dupCode ?? ""} → ${codes?.primaryCode ?? ""}`
+          : `ไม่อนุมัติรวมลูกค้าซ้ำ — ${codes?.dupCode ?? ""}`,
+        message: `${log.source_doc_index ?? ""}${note ? `\nหมายเหตุผู้บริหาร: ${note}` : ""}`,
+        from_dept: "ผู้บริหาร",
+        to_dept: "ฝ่ายขาย",
+        to_user_email: requesterEmail,
+        record_id: log.source_record_id ?? undefined,
+        link: "/crm",
+      });
     }
 
     // ปิดงานในกล่องผู้จัดการ + บันทึก timeline (Installment_Review จัดการเองด้านบนแล้ว — กัน event ซ้ำ)
@@ -1215,6 +1244,7 @@ function RegistryContent() {
     supabase.from("leads")
       .select("id, customer_name, house_slot:houses(house_number)")
       .eq("project_id", PROJECT_ID)
+      .is("duplicate_of", null)
       .order("customer_name").limit(2000)
       .then(({ data }) => {
         setLeads((data as unknown as typeof leads) ?? []);

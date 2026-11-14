@@ -531,7 +531,7 @@ export default function ConstructionPage() {
       supabase.from("houses").select("*,plot_code,construction_status").eq("project_id", PROJECT_ID).order("plot_number").limit(300),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
-      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]),
+      supabase.from("leads").select("plot_number").eq("project_id", PROJECT_ID).in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"]).is("duplicate_of", null),
     ]).then(async ([hRes, rRes, dRes, leadRes]) => {
       // D2: กัน null หลัง reset ข้อมูลก่อสร้าง (progress/contractor อาจเป็น null)
       setHouses(((hRes.data ?? []) as House[]).map(h => ({ ...h, progress: h.progress ?? 0, contractor: h.contractor ?? "—", phase: h.phase ?? "", delayed_days: h.delayed_days ?? 0, plot_code: h.plot_code ?? null, construction_status: h.construction_status ?? null })));
@@ -580,6 +580,7 @@ export default function ConstructionPage() {
         .eq("project_id", PROJECT_ID)
         .eq("plot_number", house.plot_number)
         .in("status", ["Booking", "Contract", "Loan Approved", "Closed Deal"])
+        .is("duplicate_of", null)
         .maybeSingle();
       if (fetchGenRef.current !== gen) return;
       if (cust) setHouseCustomer(cust as { customer_name: string; phone: string; status: string; notes: string | null; loan_approved_date: string | null; delivery_date: string | null });

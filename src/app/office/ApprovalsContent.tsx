@@ -40,6 +40,7 @@ import MultiPhotoInput from "@/components/MultiPhotoInput";
 import { createLeaveRequest } from "@/lib/work-actions";
 import { resolveApprovalQueue, closeWorkQueue } from "@/lib/workflow-events";
 import { finalizeSale } from "@/lib/sales-finalize";
+import { executeMergeRequest, LEAD_MERGE_WORKFLOW } from "@/lib/lead-merge";
 import { broadcastCelebration } from "@/lib/celebrate";
 import { SLA_DAYS, calcSlaDueAt, APPR_LABEL, APPR_DEPT, summarizeApproval } from "@/lib/approval-matrix";
 import ApprovalRouteBar from "@/components/ApprovalRouteBar";
@@ -134,6 +135,13 @@ export default function ApprovalsContent() {
         // Group C: อนุมัติแล้วจึงปิดการขายจริง (รับรู้รายได้ + บ้าน sold + lead=Closed Deal)
         const fin = await finalizeSale(log.source_record_id, user?.full_name ?? user?.email ?? "ผู้จัดการ");
         broadcastCelebration({ event: "transfer", customerName: fin.customerName, plotNumber: fin.plot, amount: fin.amount, salesPerson: user?.full_name ?? user?.email, byUserId: user?.id });
+      }
+      else if (log.workflow_type === LEAD_MERGE_WORKFLOW) {
+        // v8.11: อนุมัติคำขอรวมลูกค้าซ้ำ -> รวมจริง (ตรรกะเดียวกับหน้า /approvals)
+        const r = await executeMergeRequest(supabase, log, {
+          name: user?.full_name ?? user?.email ?? "ผู้บริหาร", role: user?.role ?? null, dept: user?.department ?? null, dateLabel: thaiDateStr(),
+        });
+        if (!r.ok) setToast({ msg: `อนุมัติแล้ว แต่รวมใบไม่สำเร็จ: ${r.reason} — ให้รวมเองในหน้าลูกค้า`, type: "error" });
       }
     }
     if (log) {

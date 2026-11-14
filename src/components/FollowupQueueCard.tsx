@@ -52,6 +52,7 @@ export default function FollowupQueueCard() {
 
       const { data, error } = await supabase.from("leads")
         .select(SELECT_COLS)
+        .is("duplicate_of", null) // ใบซ้ำที่รวมแล้วไม่ต้องติดตาม (v8.11)
         .not("status", "in", `(${FOLLOWUP_DONE_STATUSES.map(s => `"${s}"`).join(",")})`);
       if (error) throw error;
 

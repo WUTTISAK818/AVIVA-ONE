@@ -21,7 +21,8 @@ async function availablePlots(excludePlot: number): Promise<number[]> {
     .from("leads")
     .select("plot_number, status")
     .in("status", TAKEN_STATUSES)
-    .not("plot_number", "is", null);
+    .not("plot_number", "is", null)
+    .is("duplicate_of", null);
   const taken = new Set<number>((data ?? []).map(r => r.plot_number as number));
   taken.add(excludePlot);
   return Array.from({ length: PLOT_COUNT }, (_, i) => i + 1).filter(n => !taken.has(n));
@@ -54,7 +55,8 @@ export async function alertOthersInterestedInPlot(opts: {
     .select("id, customer_name, phone, assigned_to, status")
     .eq("plot_number", opts.plotNumber)
     .not("status", "in", `(${TAKEN_STATUSES.map(s => `"${s}"`).join(",")})`)
-    .neq("id", opts.bookedLeadId);
+    .neq("id", opts.bookedLeadId)
+    .is("duplicate_of", null);
 
   const orphans = (data as OrphanLead[]) ?? [];
   if (orphans.length === 0) return { notified: 0, orphans: 0 };

@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
 
     const { data, error: qErr } = await db
       .from("leads")
-      .select("assigned_to, source, status, created_at, created_at_default");
+      .select("assigned_to, source, status, created_at, created_at_default")
+      .is("duplicate_of", null); // ใบซ้ำที่รวมแล้วไม่นับ (v8.11)
     if (qErr) throw qErr;
 
     type Row = { received: number; siteVisit: number; booking: number; closed: number };

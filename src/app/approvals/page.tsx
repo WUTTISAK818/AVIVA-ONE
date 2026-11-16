@@ -380,24 +380,54 @@ function ApprovalsContent() {
     });
   }, [logs, filterType, filterAction, search]);
 
-  const handleApprove = async (log: ApprovalLog, approved: boolean, commentArg?: string) => {
-    if (!user) return;
+  /** คืน true เมื่อบันทึกผลอนุมัติ/ปฏิเสธได้จริง (false = ไม่ได้ทำอะไร) */
+  const handleApprove = async (log: ApprovalLog, approved: boolean, commentArg?: string): Promise<boolean> => {
+    if (!user) return false;
     setProcessingId(log.id);
     const action = approved ? "Approved" : "Rejected";
     const note = commentArg ?? notes[log.id] ?? null;
 
+    // CRITICAL: Check for open defects before approving (Phase 1 fix)
+    // v8.13: ย้ายมาตรวจ "ก่อน" บันทึกผล — เดิมตรวจหลังบันทึก approval_logs เป็น Approved ไปแล้ว
+    // ระบบจึงขึ้นว่า "ไม่สามารถอนุมัติ" ทั้งที่ใบถูกบันทึกเป็นอนุมัติแล้วจริง
+    if (approved && log.workflow_type === "Installment_Review" && log.source_record_id) {
+      const { data: openDefects } = await supabase
+        .from("qc_defects")
+        .select("id")
+        .eq("contractor_installment_id", log.source_record_id)
+        .eq("status", "open");
+      if (openDefects && openDefects.length > 0) {
+        setProcessingId(null);
+        alert(`ไม่สามารถอนุมัติ — มี ${openDefects.length} defects ที่ยังเปิดอยู่\nกรุณาปิด QC defects ทั้งหมดก่อนขอการอนุมัติ`);
+        return false;
+      }
+    }
+
     // Update the approval log (เก็บเหตุผลใน rejection_comment เฉพาะตอนปฏิเสธ — approval_logs ไม่มีคอลัมน์ notes)
-    const { error: updErr } = await supabase.from("approval_logs").update({
+    // v8.13: อัปเดตได้เฉพาะรายการที่ "ยังรออนุมัติ" — เดิมไม่มีเงื่อนไขนี้ กดอนุมัติรายการเดิมซ้ำได้
+    // แล้วขั้นตอนหลังอนุมัติทั้งชุดทำงานซ้ำ (เจอจริง 16 พ.ย. 69: คำขอรวมใบซ้ำ CRM-0452 / CRM-0297
+    // ถูกอนุมัติ 2 รอบห่างกัน ~10 วินาที แจ้งพนักงานซ้ำ 2 ครั้ง · เอกสารชนิดอื่นเสี่ยงลงบัญชี/สร้างงวดซ้ำ)
+    // ใช้เงื่อนไขเดียวกับแท็บอนุมัติในหน้าสำนักงาน (office/ApprovalsContent)
+    const { data: changed, error: updErr } = await supabase.from("approval_logs").update({
       action_taken: action,
       action_timestamp: new Date().toISOString(),
       approver_email: user.email,
       ...(approved ? {} : { rejection_comment: note }),
-    }).eq("approval_id", log.id);
+    }).eq("approval_id", log.id)
+      .or("action_taken.is.null,action_taken.eq.Pending,action_taken.eq.pending")
+      .select("approval_id");
     if (updErr) {
       // เช่น โดน Maker-Checker ระดับ DB บล็อก (ผู้อนุมัติ = ผู้ยื่นคำขอ)
       setProcessingId(null);
       alert("ไม่สามารถดำเนินการได้: " + updErr.message);
-      return;
+      return false;
+    }
+    if (!changed || changed.length === 0) {
+      setProcessingId(null);
+      setDetail(null);
+      alert("รายการนี้ถูกอนุมัติ/ปฏิเสธไปแล้ว — ระบบไม่ทำซ้ำ (กันแจ้งเตือนและลงบัญชีซ้ำ)");
+      fetchLogs();
+      return false;
     }
 
     // แผนกของ "ผู้ขอ" เพื่อแจ้งผลกลับให้ถูกคน (เลิก broadcast to_dept=null)
@@ -426,20 +456,7 @@ function ApprovalsContent() {
     if (log.workflow_type === "Installment_Review") {
       const byName = user.full_name ?? user.email;
 
-      // CRITICAL: Check for open defects before approving (Phase 1 fix)
-      if (approved && log.source_record_id) {
-        const { data: openDefects } = await supabase
-          .from("qc_defects")
-          .select("id")
-          .eq("contractor_installment_id", log.source_record_id)
-          .eq("status", "open");
-
-        if (openDefects && openDefects.length > 0) {
-          setProcessingId(null);
-          alert(`ไม่สามารถอนุมัติ — มี ${openDefects.length} defects ที่ยังเปิดอยู่\nกรุณาปิด QC defects ทั้งหมดก่อนขอการอนุมัติ`);
-          return;
-        }
-      }
+      // (ตรวจ QC defects ที่ยังเปิดอยู่ ย้ายไปทำก่อนบันทึกผลอนุมัติแล้ว — v8.13)
 
       // Resolve the contractor linked to this installment's house (for LINE/SMS).
       let contractorRef: string | null = null;
@@ -889,7 +906,7 @@ function ApprovalsContent() {
     await logAction("approvals", action.toLowerCase(), `${action} — ${log.workflow_type}: ${log.source_doc_index ?? ""}`, log.id);
     setProcessingId(null);
     setDetail(null);
-    fetchLogs();
+    fetchLogs();    return true;
   };
 
   return (
@@ -1215,7 +1232,7 @@ function ApprovalsContent() {
           onClose={() => setVerifyLog(null)}
           onApprove={async (items) => {
             const l = verifyLog; setVerifyLog(null);
-            await handleApprove(l, true);
+            if (!(await handleApprove(l, true))) return;
             const s = summarizeApproval(l);
             await logAction("approvals", "verify_approve",
               `ตรวจสอบ & อนุมัติ — ${s.subject} (จาก ${s.fromName})${l.amount ? ` ฿${Number(l.amount).toLocaleString("th-TH")}` : ""} · ยืนยัน: ${items.join(", ")}`,
@@ -1223,7 +1240,7 @@ function ApprovalsContent() {
           }}
           onReject={async (c) => {
             const l = verifyLog; setVerifyLog(null);
-            await handleApprove(l, false, c);
+            if (!(await handleApprove(l, false, c))) return;
             const s = summarizeApproval(l);
             await logAction("approvals", "verify_reject",
               `ตรวจสอบ & ปฏิเสธ — ${s.subject} (จาก ${s.fromName}) · เหตุผล: ${c}`,

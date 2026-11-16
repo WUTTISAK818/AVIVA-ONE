@@ -21,6 +21,7 @@ import { finalizeSale } from "@/lib/sales-finalize";
 import { executeMergeRequest, parseMergeCodes, LEAD_MERGE_WORKFLOW } from "@/lib/lead-merge";
 import { thaiDateStr } from "@/lib/thai-date";
 import { broadcastCelebration } from "@/lib/celebrate";
+import LeadEditReviewPanel from "@/components/LeadEditReviewPanel";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -893,6 +894,8 @@ function ApprovalsContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      {/* v8.12: คำขอแก้ไขข้อมูลลูกค้า — อนุมัติสิทธิ์/ตรวจผลการแก้ (แสดงเฉพาะผู้บริหารเมื่อมีรายการ) */}
+      <LeadEditReviewPanel />
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
         <GlassCard gold className="p-3 text-center">

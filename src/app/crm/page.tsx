@@ -47,6 +47,9 @@ import { buildAutoItems } from "@/lib/report-auto-items";
 import { normalizeDateInput, thaiDateOf, thaiDateStr } from "@/lib/thai-date";
 import { parseAmount, parseAmountOrZero } from "@/lib/money";
 import { recognizeTransferRevenue } from "@/lib/sales-finalize";
+import LeadEditRequestCard from "@/components/LeadEditRequestCard";
+import { fieldsOf, fieldLabel, groupLabels, isActiveEdit, thaiDateTimeLabel, type LeadEditRequest } from "@/lib/lead-edit-request";
+import { processExpiredEditRequests } from "@/lib/lead-edit-notify";
 import { thaiDbError } from "@/lib/db-errors";
 
 function escapeHtml(s: string | null | undefined): string {
@@ -67,7 +70,7 @@ function editUnlocked(lead: { edit_unlocked_until?: string | null }): boolean {
 /** ร่องรอยการแตะต้องลูกค้าที่โอนแล้ว — ใครปลดล็อก ใครแก้ เมื่อไร
  *  (หลัก Maker-Checker: ปลดล็อกได้ แต่ต้องตรวจย้อนได้ว่าใครทำอะไร) */
 async function logTransferredLeadAudit(
-  action: "unlock_edit" | "relock_edit" | "edit_after_transfer" | "merge_duplicate" | "unmerge_duplicate" | "status_change_after_transfer",
+  action: "unlock_edit" | "relock_edit" | "edit_after_transfer" | "merge_duplicate" | "unmerge_duplicate" | "status_change_after_transfer" | "edit_via_request",
   description: string,
   leadId: string,
   who: { full_name?: string; email?: string; role?: string; department?: string } | null,
@@ -423,6 +426,8 @@ export default function CRMPage() {
   const [primaryPick, setPrimaryPick] = useState<Record<string, string>>({});
   // ช่อง "รวมกับใบอื่น" ในหน้ารายละเอียด — ผูกกับ id ลูกค้า จึงไม่ค้างข้ามคนเมื่อเปิดลูกค้ารายอื่น
   const [mergeDraft, setMergeDraft] = useState<{ leadId: string; code: string; reason: string }>({ leadId: "", code: "", reason: "" });
+  // v8.12: คำขอแก้ไขข้อมูลลูกค้า (พนักงานเห็นของตัวเอง · ผู้บริหารเห็นทุกคน — คุมด้วย RLS)
+  const [editReqs, setEditReqs] = useState<LeadEditRequest[]>([]);
   // กรองดูลูกค้าตามพนักงานขายที่ดูแล (คลิกจากแท็บผลงานทีม)
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   // รายชื่อพนักงานขายจากฐานข้อมูลพนักงาน (ใช้เป็นตัวเลือก dropdown ในฟอร์ม)
@@ -445,7 +450,15 @@ export default function CRMPage() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   /** ใครกรอก "วันจอง/วันโอน" ย้อนหลังได้ — ผู้บริหารเสมอ หรือฝ่ายขายเมื่อลูกค้ารายนี้ถูกปลดล็อกไว้ */
-  const canBackfillDates = !!user?.isManager || (!!editingLead && editUnlocked(editingLead));
+  /** คำขอแก้ไขของ "ฉัน" ที่ผู้บริหารอนุมัติแล้วและยังไม่หมดเวลา สำหรับลูกค้ารายนี้ (v8.12) */
+  const activeReqFor = (lead: { id: string } | null | undefined): LeadEditRequest | undefined => {
+    if (!lead || !user?.email || user.isManager) return undefined;
+    const me = user.email.toLowerCase();
+    return editReqs.find((r) => r.lead_id === lead.id && r.requested_by_email.toLowerCase() === me && isActiveEdit(r));
+  };
+  const editingReq = activeReqFor(editingLead);
+  const canBackfillDates = !!user?.isManager || (!!editingLead && editUnlocked(editingLead))
+    || (!!editingReq && editingReq.allowed_groups.includes("sale_dates"));
   const [crmLogLead, setCrmLogLead] = useState<Lead | null>(null);
   const [crmLogForm, setCrmLogForm] = useState(emptyCrmLog);
   const [savingLog, setSavingLog] = useState(false);
@@ -805,6 +818,21 @@ export default function CRMPage() {
     setPendingMerges(map);
   };
 
+  /** คำขอแก้ไขข้อมูลที่ยังไม่จบ + ที่จบภายใน 7 วัน · ตัวที่หมดเวลาแล้วส่งตรวจให้ทันที (v8.12) */
+  const fetchEditRequests = async () => {
+    const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const load = async () => {
+      const { data } = await supabase.from("lead_edit_requests").select("*")
+        .or(`status.in.(pending,editing,submitted),updated_at.gte."${since}"`);
+      return (data ?? []) as LeadEditRequest[];
+    };
+    let rows = await load();
+    if (user?.email && await processExpiredEditRequests(supabase, rows, { email: user.email, isManager: !!user.isManager }) > 0) {
+      rows = await load();
+    }
+    setEditReqs(rows);
+  };
+
   const fetchLeads = async (start: string, end: string, limit = 10000) => {
     setLoading(true);
     try {
@@ -821,6 +849,7 @@ export default function CRMPage() {
       // (ถ้าไปกรองทีละจุดจะพลาดบางจุดแน่ ๆ — มีที่นับยอดเกิน 15 แห่งในไฟล์นี้)
       setLeads(rows.filter((l) => !l.duplicate_of));
       fetchPendingMerges(); // ป้าย "รอผู้บริหารอนุมัติรวม" ต้องตรงกับรายชื่อชุดเดียวกัน (v8.11)
+      fetchEditRequests();  // สถานะคำขอแก้ไขข้อมูล (v8.12)
     } catch (e) {
       setToast({ msg: thaiDbError(e as { message?: string }, "โหลดรายชื่อลูกค้า"), type: "error" });
     } finally {
@@ -942,8 +971,8 @@ export default function CRMPage() {
 
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (lead.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(lead)) {
-      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องกรอกข้อมูลที่ยังขาด ให้แจ้งผู้บริหารปลดล็อกรายนี้ให้ก่อน", type: "error" });
+    if (lead.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(lead) && !activeReqFor(lead)) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องแก้ ให้เปิดรายละเอียดลูกค้าแล้วกด \u201cขอแก้ไขข้อมูลลูกค้ารายนี้\u201d", type: "error" });
       return;
     }
     setEditingLead(lead);
@@ -1176,9 +1205,30 @@ export default function CRMPage() {
       setToast({ msg: "กรุณากรอก \u201cเงินจอง\u201d เป็นยอดที่รับจริงจากลูกค้า — ระบบไม่ใส่ตัวเลขให้แล้ว ถ้ายังไม่ได้รับเงินจอง ให้ใส่ 0", type: "error" });
       return;
     }
-    if (editingLead?.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(editingLead)) {
-      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องกรอกข้อมูลที่ยังขาด ให้แจ้งผู้บริหารปลดล็อกรายนี้ให้ก่อน", type: "error" });
+    if (editingLead?.status === "Closed Deal" && !(user?.isManager) && !editUnlocked(editingLead) && !editingReq) {
+      setToast({ msg: "ลูกค้าที่โอนแล้ว แก้ไขได้เฉพาะฝ่ายบริหาร — ถ้าต้องแก้ ให้เปิดรายละเอียดลูกค้าแล้วกด \u201cขอแก้ไขข้อมูลลูกค้ารายนี้\u201d", type: "error" });
       return;
+    }
+    // v8.12: แก้ผ่าน "คำขอแก้ไขข้อมูล" ที่ผู้บริหารอนุมัติ — เทียบกับค่าตอนเปิดฟอร์มว่าแก้ช่องไหนบ้าง
+    // ลูกค้าที่ล็อกอยู่ (โอนแล้ว) บันทึกได้เฉพาะช่องในส่วนที่อนุมัติ และเขียนลงฐานข้อมูลเฉพาะช่องที่แก้จริง
+    let reqChanged: string[] = [];
+    let reqScoped = false;
+    if (editingLead && editingReq) {
+      let initial: Record<string, unknown> = {};
+      try { initial = JSON.parse(formSnapshotRef.current || "{}"); } catch { /* ไม่มีค่าตั้งต้น */ }
+      reqChanged = (Object.keys(form) as (keyof typeof form)[])
+        .filter((k) => String(form[k] ?? "") !== String(initial[k] ?? ""))
+        .map(String);
+      reqScoped = editingLead.status === "Closed Deal" && !editUnlocked(editingLead);
+      if (reqScoped) {
+        const allowed = new Set(fieldsOf(editingReq.allowed_groups));
+        const blocked = reqChanged.filter((k) => !allowed.has(k) && k !== "reported_by" && k !== "reported_at");
+        if (blocked.length > 0) {
+          setToast({ msg: `ช่องเหล่านี้ไม่อยู่ในส่วนที่ผู้บริหารอนุมัติให้แก้: ${blocked.map(fieldLabel).join(", ")} — คืนค่าเดิมก่อนบันทึก หรือยื่นคำขอใหม่`, type: "error" });
+          return;
+        }
+        if (reqChanged.length === 0) { setToast({ msg: "ยังไม่มีข้อมูลที่เปลี่ยน", type: "error" }); return; }
+      }
     }
     // Group C: ปิดการขายต้องผ่านการอนุมัติ — ห้ามปิดผ่านฟอร์มแก้ไขโดยตรง
     if (editingLead && form.status === "Closed Deal" && editingLead.status !== "Closed Deal") {
@@ -1238,7 +1288,13 @@ export default function CRMPage() {
     if (editingLead) {
       const prevLoanDate = editingLead.loan_approved_date;
       let loanCelebrated = false;
-      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: normalizePhoneInput(form.phone), email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, ...backfillDates, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const fullPatch: Record<string, unknown> = { customer_name: form.customer_name, assigned_to: form.assigned_to.trim() || null, phone: normalizePhoneInput(form.phone), email: form.email || null, contact_channel: form.contact_channel || null, contact_handle: form.contact_handle.trim() || null, budget: parseAmountOrZero(form.budget) ?? 0, source: form.source, status: form.status, ai_score: computeAiScore(form.status, parseAmountOrZero(form.budget) ?? 0, !!form.next_follow_up_date), notes: form.notes, plot_number: plotNum, next_follow_up_date: normalizeDateInput(form.next_follow_up_date), financing_type: form.financing_type || null, urgency: form.urgency || null, delivery_date: normalizeDateInput(form.delivery_date), transfer_appointment_date: normalizeDateInput(form.transfer_appointment_date), contract_price: parseAmount(form.contract_price), booking_deposit: parseAmount(form.booking_deposit), contract_signed_date: normalizeDateInput(form.contract_signed_date), loan_approved_date: normalizeDateInput(form.loan_approved_date), ...addrFields, marital_status: form.marital_status || null, age_range: form.age_range || null, occupation: form.occupation || null, current_residence: form.current_residence || null, product_interest: form.product_interest || null, room_requirement: form.room_requirement || null, visit_reason: form.visit_reason || null, competitor_projects: form.competitor_projects || null, budget_range: form.budget_range || null, monthly_payment_range: form.monthly_payment_range || null, probability: form.probability || null, visit_date: normalizeDateInput(form.visit_date), visit_time: form.visit_time || null, reported_by: form.reported_by || (user?.full_name ?? user?.email) || null, reported_at: form.reported_at ? new Date(form.reported_at).toISOString() : new Date().toISOString(), ...statusDates, ...backfillDates, updated_at: new Date().toISOString() };
+      // แก้ผ่านคำขอบนลูกค้าที่ล็อกอยู่ -> เขียนเฉพาะช่องที่แก้จริง (ที่อยู่รวมคำนวณใหม่เมื่อแก้ช่องที่อยู่) — v8.12
+      const leadPatch: Record<string, unknown> = reqScoped
+        ? Object.fromEntries(Object.entries(fullPatch).filter(([k]) => k === "updated_at" || reqChanged.includes(k)
+            || (k === "contact_address" && reqChanged.some((c) => c.startsWith("addr_")))))
+        : fullPatch;
+      const { error: updateErr } = await supabase.from("leads").update(leadPatch).eq("id", editingLead.id);
       if (updateErr) {
         stopSaving();
         // TC-06: DB unique index กันจองซ้ำ (race) — แปลผล error 23505 เป็นข้อความที่เข้าใจง่าย
@@ -1247,6 +1303,14 @@ export default function CRMPage() {
         return;
       }
       // ลูกค้าที่โอนแล้วถูกแก้โดยฝ่ายขายผ่านการปลดล็อก -> ลงร่องรอยไว้ให้ตรวจย้อนได้
+      if (editingReq && reqChanged.length > 0) {
+        await logTransferredLeadAudit(
+          "edit_via_request",
+          `แก้ไขผ่านคำขอ ${editingReq.id.slice(0, 8)} (ส่วน: ${groupLabels(editingReq.allowed_groups)} · ถึง ${thaiDateTimeLabel(editingReq.edit_until)}) · ช่อง: ${reqChanged.filter((k) => k !== "reported_by" && k !== "reported_at").map(fieldLabel).join(", ")}`,
+          editingLead.id,
+          user,
+        );
+      }
       if (editingLead.status === "Closed Deal" && !(user?.isManager) && editUnlocked(editingLead)) {
         await logTransferredLeadAudit(
           "edit_after_transfer",
@@ -2448,7 +2512,7 @@ export default function CRMPage() {
                     </p>
                   ) : (
                     <p className="text-[11px] text-aviva-secondary leading-relaxed">
-                      กันแก้ยอดขายที่ปิดไปแล้ว · ถ้ารายนี้ข้อมูลยังไม่ครบและต้องให้ฝ่ายขายกรอก ผู้บริหารปลดล็อกเฉพาะรายนี้ได้
+                      กันแก้ยอดขายที่ปิดไปแล้ว · ถ้าต้องแก้ ให้กด &ldquo;ขอแก้ไขข้อมูลลูกค้ารายนี้&rdquo; ด้านล่าง ผู้บริหารจะเปิดสิทธิ์เฉพาะส่วนที่จำเป็นพร้อมกำหนดเวลา แก้เสร็จแล้วส่งกลับให้ตรวจ
                     </p>
                   )}
                   {user?.isManager && (
@@ -2492,6 +2556,13 @@ export default function CRMPage() {
                   )}
                 </div>
               )}
+              <LeadEditRequestCard
+                lead={selectedLead}
+                requests={editReqs.filter((r) => r.lead_id === selectedLead.id)}
+                onOpenEdit={() => openEdit(selectedLead, { stopPropagation: () => {} } as React.MouseEvent)}
+                onChanged={() => fetchEditRequests()}
+                notify={(msg, type) => setToast({ msg, type })}
+              />
               {!selectedLead.duplicate_of && (
                 <div className="bg-aviva-bg rounded-xl p-3 border border-orange-500/20 col-span-2">
                   <p className="text-xs font-bold text-orange-300 mb-1">👥 ลูกค้ารายนี้ซ้ำกับใบอื่น?</p>
@@ -2859,6 +2930,17 @@ export default function CRMPage() {
               <button onClick={requestCloseModal} aria-label="ปิด"><X size={20} className="text-aviva-secondary" /></button>
             </div>
 
+            {editingReq && (
+              <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2.5">
+                <p className="text-[11px] font-bold text-sky-300">📝 แก้ไขตามคำขอที่ผู้บริหารอนุมัติ</p>
+                <p className="text-[11px] text-aviva-text mt-0.5 leading-relaxed">
+                  ส่วนที่แก้ได้: <b>{groupLabels(editingReq.allowed_groups)}</b> · ถึง {thaiDateTimeLabel(editingReq.edit_until)}
+                  {editingLead?.status === "Closed Deal" && !editUnlocked(editingLead) ? " · ช่องนอกส่วนนี้จะบันทึกไม่ได้" : ""}
+                  <br />แก้เสร็จแล้วกลับไปกด &ldquo;ส่งให้ผู้บริหารตรวจ&rdquo; ในหน้ารายละเอียดลูกค้า
+                </p>
+              </div>
+            )}
+
             {dupLead && (
               <div className="mb-4 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
                 <p className="text-[11px] font-bold text-orange-400">⚠ เบอร์นี้มีในระบบแล้ว</p>
@@ -3149,7 +3231,9 @@ export default function CRMPage() {
                         <p className="text-[10px] text-amber-400/90 leading-relaxed">
                           {user?.isManager
                             ? "👑 ปกติระบบบันทึก 2 ช่องล่างนี้ให้เองตอนเปลี่ยนสถานะ (ใส่เป็นวันที่กดเปลี่ยน) มีไว้กรอกย้อนหลังให้การขายเก่าที่นำเข้ามาโดยไม่ได้เดินผ่านขั้นตอนในแอป"
-                            : "🔓 ลูกค้ารายนี้ถูกปลดล็อกให้แก้ได้ จึงกรอก 2 ช่องล่างนี้ย้อนหลังได้ — ใส่วันที่จริงตามเอกสาร ไม่ใช่วันที่กรอก · ทุกการแก้ถูกบันทึกร่องรอยไว้ให้ผู้บริหารตรวจย้อน"}
+                            : editingReq
+                              ? "📝 ผู้บริหารอนุมัติคำขอให้แก้วันที่การขาย จึงกรอก 2 ช่องล่างนี้ย้อนหลังได้ — ใส่วันที่จริงตามเอกสาร · แก้เสร็จแล้วส่งให้ผู้บริหารตรวจ"
+                              : "🔓 ลูกค้ารายนี้ถูกปลดล็อกให้แก้ได้ จึงกรอก 2 ช่องล่างนี้ย้อนหลังได้ — ใส่วันที่จริงตามเอกสาร ไม่ใช่วันที่กรอก · ทุกการแก้ถูกบันทึกร่องรอยไว้ให้ผู้บริหารตรวจย้อน"}
                         </p>
                       </div>
                       <div>

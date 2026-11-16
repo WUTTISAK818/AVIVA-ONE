@@ -54,6 +54,7 @@ import { thaiDateStr } from "@/lib/thai-date";
 import dynamic from "next/dynamic";
 import { thaiMonthStr } from "@/lib/thai-date";
 import { Approval, ApprovalLog, ApprovalsFilterTab, PROJECT_ID, fmtAmt, getSlaBadge } from "./_shared";
+import LeadEditReviewPanel from "@/components/LeadEditReviewPanel";
 
 export default function ApprovalsContent() {
   const user = useCurrentUser();
@@ -221,6 +222,8 @@ export default function ApprovalsContent() {
 
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      {/* v8.12: คำขอแก้ไขข้อมูลลูกค้า — อนุมัติสิทธิ์/ตรวจผลการแก้ (แสดงเฉพาะผู้บริหารเมื่อมีรายการ) */}
+      <LeadEditReviewPanel />
       <div className="flex gap-2">
         {[
           { k: "pending",  l: `รออนุมัติ${pendingCount > 0 ? ` (${pendingCount})` : ""}` },

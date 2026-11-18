@@ -171,7 +171,9 @@ async function deliver(db: SupabaseClient, title: string, message: string, kind:
   await sendPush({ department: "ฝ่ายขาย" }, { title, body: message, url: "/crm", tag: "sales-lead-digest" }).catch(() => {});
   await sendPush({ department: "ฝ่ายบริหาร" }, { title, body: message, url: "/crm", tag: "sales-lead-digest" }).catch(() => {});
 
-  // 3) LINE ส่วนตัว — เฉพาะฝ่ายขาย + ผู้บริหาร ที่ผูกบัญชีไว้ (ให้ตรงกับผู้รับตามข้อ 1-2 ไม่ใช่ทุกคนที่ผูก LINE)
+  // 3) LINE ส่วนตัว — v8.14 เฉพาะผู้บริหาร (ฝ่ายขายยังเห็นในกระดิ่ง + push ตามข้อ 1-2)
+  //    เป็นสรุปให้ทราบ ไม่ใช่งานที่พนักงานต้องลงมือ (งานที่ต้องโทรอยู่ใน "ชุดติดตามวันนี้" ซึ่งยังส่ง LINE)
+  //    เดิมส่งถึงฝ่ายขายด้วย = วันละ 3 ข้อความ เป็นก้อนใหญ่สุดของโควตา LINE (Pom อนุมัติลด 17 พ.ย. 69)
   //    ส่งผ่าน sendLineToEmail เพื่อให้ทุกครั้งมีบันทึกใน line_message_log ว่าถึงใคร สำเร็จหรือล้มเหลวเพราะอะไร
   //    (Pom ถาม 3 ต.ค. 69 ว่าสรุปรายเดือนของกันยาส่งเข้า LINE จริงไหม — เดิมตอบไม่ได้เพราะไม่มีบันทึกการส่ง)
   let lineSent = 0;
@@ -186,7 +188,7 @@ async function deliver(db: SupabaseClient, title: string, message: string, kind:
       .filter(Boolean)
       .filter((email) => {
         const role = roleByEmail.get(email);
-        return role === "sales" || isManagerRole(role);
+        return isManagerRole(role);
       });
     const text = `${title}\n${message}\nเปิดดู: /crm`;
     for (const email of emails) {

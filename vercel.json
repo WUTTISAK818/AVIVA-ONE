@@ -26,6 +26,10 @@
       "schedule": "35 1 * * *"
     },
     {
+      "path": "/api/cron/line-quota",
+      "schedule": "40 1 * * *"
+    },
+    {
       "path": "/api/cron/directive-reminder",
       "schedule": "45 1 * * *"
     },

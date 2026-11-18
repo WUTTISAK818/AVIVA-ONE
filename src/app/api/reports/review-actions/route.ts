@@ -104,10 +104,9 @@ export async function POST(req: NextRequest) {
       to_user_email: t.user_email, from_dept: "ผู้บริหาร",
       title, message, is_read: false, link: "/reports/my-reports", record_id: id,
     }).then(() => {}, () => {});
-    const res = await sendLineToEmail(db, t.user_email as string, `${title}\n${message}`, {
-      kind: "report_acknowledged", refType: "work_report", refId: id, title,
-    });
-    if (res.ok) lineSent++;
+    // v8.14: "รับทราบแล้ว" เป็นเรื่องแจ้งให้ทราบ — เหลือกระดิ่งในแอป ไม่ส่ง LINE
+    // (เดิมส่ง LINE ทุกครั้ง 19 ข้อความใน 12 วัน เป็นต้นเหตุหนึ่งที่ LINE เกินโควตา 13 พ.ย. 69)
+    // "ตีกลับให้แก้" ด้านล่างยังส่ง LINE เพราะพนักงานต้องลงมือแก้
   }
 
   // ── ตีกลับให้แก้ ──

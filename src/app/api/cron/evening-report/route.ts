@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
+import { sendLineToEmail } from "@/lib/line-log";
+import { isSuperRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,14 +86,21 @@ export async function GET(req: NextRequest) {
   await sendPush({ department: "ฝ่ายบริหาร" }, { title, body: message, url: "/reports", tag: "evening-report" }).catch(() => {});
   await sendPush({ department: "ฝ่ายขาย" }, { title, body: message, url: "/reports", tag: "evening-report" }).catch(() => {});
 
-  // 3) LINE ส่วนตัว — ทุกคนที่ผูกบัญชีไว้
+  // 3) LINE ส่วนตัว — v8.14 เฉพาะผู้บริหาร (เดิมส่งทุกคนที่ผูก LINE) และลงบันทึก line_message_log ทุกข้อความ
   let lineSent = 0;
   try {
-    const { data: links } = await db.from("line_links").select("line_user_id").not("linked_at", "is", null);
-    const ids = (links ?? []).map((l) => l.line_user_id as string).filter(Boolean);
+    const [{ data: links }, { data: roleRows }] = await Promise.all([
+      db.from("line_links").select("user_email").not("linked_at", "is", null),
+      db.from("users").select("email, role"),
+    ]);
+    const roleByEmail = new Map((roleRows ?? []).map((u) => [(u.email ?? "").toLowerCase(), u.role as string | null]));
+    const emails = (links ?? []).map((l) => (l.user_email ?? "").toLowerCase())
+      .filter((e) => e && isSuperRole(roleByEmail.get(e)));
     const text = `${title}\n${message}\nเปิดดู: /reports`;
-    const res = await Promise.allSettled(ids.map((id) => sendLine(id, text)));
-    lineSent = res.reduce((n, r) => n + (r.status === "fulfilled" && r.value.ok ? 1 : 0), 0);
+    for (const email of emails) {
+      const r = await sendLineToEmail(db, email, text, { kind: "other", title });
+      if (r.ok) lineSent++;
+    }
   } catch { /* best-effort */ }
 
   return NextResponse.json({

@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPush } from "@/lib/push-notify";
-import { sendLine } from "@/lib/line";
-import { getSetting } from "@/lib/app-config";
 
 export const runtime = "nodejs";
 
 /**
  * แจ้งเตือนหมุดหมายการขาย (จอง/ทำสัญญา/อนุมัติกู้/โอนแล้ว) ออกหลายช่องทาง:
  *  - Web push -> ฝ่ายขาย + ฝ่ายบริหาร (ตาม push_subscriptions)
- *  - LINE     -> กลุ่ม/ผู้รับที่ตั้งใน LINE_SALE_GROUP_ID (ถ้ามี)
+ *  - (LINE กลุ่มเลิกใช้ตั้งแต่ v8.14 — ประหยัดโควตา LINE)
  * ทุกช่องทางเป็น best-effort: ไม่มี config ก็ข้ามเงียบ ไม่ทำให้ flow ล้ม
  */
 export async function POST(req: NextRequest) {
@@ -34,14 +32,7 @@ export async function POST(req: NextRequest) {
   );
   const pushSent = pushResults.reduce((n, r) => n + (r.status === "fulfilled" ? r.value.sent : 0), 0);
 
-  // LINE -> กลุ่มทีมขาย/ผู้บริหาร (env หรือ app_settings.line_sale_group_id)
-  const lineTarget = await getSetting("line_sale_group_id", process.env.LINE_SALE_GROUP_ID);
-  let line = false;
-  if (lineTarget) {
-    const text = `${p.title}\n${p.body}\nเปิดดู: ${absUrl}`;
-    const r = await sendLine(lineTarget, text);
-    line = r.ok;
-  }
-
-  return NextResponse.json({ ok: true, pushSent, line });
+  // v8.14 (Pom อนุมัติ 17 พ.ย. 69): เลิกส่ง LINE กลุ่ม — หมุดหมายการขายเป็นเรื่องแจ้งให้ทราบ
+  // ยังเห็นในกระดิ่ง + push + ฉลองในแอปเหมือนเดิม · ข้อความกลุ่มนับโควตาตามจำนวนสมาชิกกลุ่ม และเดิมไม่ลงบันทึก
+  return NextResponse.json({ ok: true, pushSent, line: false });
 }

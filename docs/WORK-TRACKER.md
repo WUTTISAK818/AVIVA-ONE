@@ -3998,12 +3998,14 @@ SELECT house_number, status, contract_value, transfer_date FROM revenue_recognit
 | # | งาน | เจ้าของ | ทำอะไร | เกณฑ์เสร็จ / วิธีตรวจ | สถานะ |
 |---|---|---|---|---|---|
 | P | อัปเกรดแพ็กเกจ LINE OA | **Pom** | LINE Official Account Manager → การตั้งค่า → แพ็กเกจ (ดูราคา/โควตาจริงในหน้านั้น) | `line_message_log` หลังอัปเกรดมี `ok = true` กลับมา · cron ตรวจโควตา (L6) รายงานโควตาใหม่ | 🆕 รอ Pom |
-| L1 | ปิดช่องส่งถึงทุกคน + ตรวจสิทธิ์ผู้เรียก | ONE | `/api/notify/personal-line`: ส่งเฉพาะอีเมลที่ระบุ · ไม่มีผู้รับ = ไม่ส่ง (เดิมส่งทุกคนที่ผูกบัญชี) · ต้องเป็นผู้ใช้ที่ล็อกอินจริง (เดิมเช็กแค่ว่ามี token) | build ผ่าน · `line_message_log` ไม่มี "รับชำระงวด" ส่งถึงฝ่ายขายอีก | 🆕 |
-| L2 | LINE เฉพาะเรื่องที่ต้องลงมือ | ONE | `createNotification`: ส่ง LINE เฉพาะ รออนุมัติ/เคลม (ถึงแผนกที่ต้องทำ) และผลคำขอ "ถึงตัวผู้ขอคนเดียว" · เรื่องแจ้งให้ทราบ (มีรายงานใหม่ · หมุดหมายการขาย · รับชำระงวด) เหลือกระดิ่ง + push | build ผ่าน · ตรวจ `line_message_log` kind ใหม่ | 🆕 |
-| L3 | ตัด "รับทราบรายงาน" ออกจาก LINE | ONE | เหลือกระดิ่ง · "ตีกลับรายงาน" ยังส่ง LINE (ต้องแก้) | ไม่มี kind `report_acknowledged` ใหม่ใน log | 🆕 |
-| L4 | สรุปลูกค้า (รายวัน/สัปดาห์/เดือน) ส่ง LINE เฉพาะผู้บริหาร | ONE | พนักงานขายยังเห็นในกระดิ่ง · ชุดติดตามลูกค้าที่ต้องโทร (sales_followup) ยังส่ง LINE ให้พนักงาน | `lead_digest_daily` วันละ 1 ข้อความ (เดิม 3) | 🆕 |
-| L5 | ทุกทางที่ส่ง LINE ต้องลงบันทึก | ONE | personal-line · milestone · evening-report ส่งผ่านตัวที่บันทึก `line_message_log` | นับยอดใช้จริงได้ครบ | 🆕 |
-| L6 | ตรวจโควตา LINE ทุกวัน | ONE | cron ใหม่อ่านโควตา/ยอดใช้จาก LINE API → บันทึก `audit_log` (module `line`) · ใช้เกิน 80% หรือหมด → แจ้งกระดิ่งผู้บริหาร (ไม่ใช้ LINE) | `audit_log` action `line_quota_check` ทุกวัน | 🆕 |
+| L1 | ปิดช่องส่งถึงทุกคน + ตรวจสิทธิ์ผู้เรียก | ONE | `/api/notify/personal-line`: ส่งเฉพาะอีเมลที่ระบุ · ไม่มีผู้รับ = ไม่ส่ง (เดิมส่งทุกคนที่ผูกบัญชี) · ต้องเป็นผู้ใช้ที่ล็อกอินจริง (เดิมเช็กแค่ว่ามี token) | build ผ่าน · `line_message_log` ไม่มี "รับชำระงวด" ส่งถึงฝ่ายขายอีก | ✅ build ผ่าน (v8.14) |
+| L2 | LINE เฉพาะเรื่องที่ต้องลงมือ | ONE | `createNotification`: ส่ง LINE เฉพาะ รออนุมัติ/เคลม (ถึงแผนกที่ต้องทำ) และผลคำขอ "ถึงตัวผู้ขอคนเดียว" · เรื่องแจ้งให้ทราบ (มีรายงานใหม่ · หมุดหมายการขาย · รับชำระงวด) เหลือกระดิ่ง + push | build ผ่าน · ตรวจ `line_message_log` kind ใหม่ | ✅ build ผ่าน (v8.14) |
+| L3 | ตัด "รับทราบรายงาน" ออกจาก LINE | ONE | เหลือกระดิ่ง · "ตีกลับรายงาน" ยังส่ง LINE (ต้องแก้) | ไม่มี kind `report_acknowledged` ใหม่ใน log | ✅ build ผ่าน (v8.14) |
+| L4 | สรุปลูกค้า (รายวัน/สัปดาห์/เดือน) ส่ง LINE เฉพาะผู้บริหาร | ONE | พนักงานขายยังเห็นในกระดิ่ง · ชุดติดตามลูกค้าที่ต้องโทร (sales_followup) ยังส่ง LINE ให้พนักงาน | `lead_digest_daily` วันละ 1 ข้อความ (เดิม 3) | ✅ build ผ่าน (v8.14) |
+| L5 | ทุกทางที่ส่ง LINE ต้องลงบันทึก | ONE | personal-line · milestone · evening-report ส่งผ่านตัวที่บันทึก `line_message_log` | นับยอดใช้จริงได้ครบ | ✅ build ผ่าน (v8.14) |
+| L6 | ตรวจโควตา LINE ทุกวัน | ONE | cron ใหม่อ่านโควตา/ยอดใช้จาก LINE API → บันทึก `audit_log` (module `line`) · ใช้เกิน 80% หรือหมด → แจ้งกระดิ่งผู้บริหาร (ไม่ใช้ LINE) | `audit_log` action `line_quota_check` ทุกวัน | ✅ build ผ่าน (v8.14) |
+
+**ไฟล์ที่แก้:** `api/notify/personal-line` · `lib/notify.ts` · `api/reports/review-actions` · `api/cron/sales-lead-digest` · `api/notify/milestone` (เลิกส่ง LINE กลุ่ม) · `api/cron/evening-report` (ผู้บริหารเท่านั้น + บันทึก) · ใหม่ `api/cron/line-quota` (08:40 น.) · `lib/line.ts` `getLineQuota()` · คู่มือหัวข้อแจ้งเตือน + สรุปลูกค้าใหม่
 
 **คาดการณ์หลังแก้:** เหลือราว **~240 ข้อความ/เดือน** (ลด ~40%) — ยังเฉียดโควตาฟรี จึงยังต้องอัปเกรดตามที่ Pom เลือก
 **พบระหว่างตรวจ (🟡 ยังไม่แก้ รอ Pom):** โทเคน LINE (`line_channel_access_token`) เก็บอยู่ใน `app_settings` ขัดกฎ "ห้าม secret ลงฐานข้อมูล" — เสนอย้ายไปไว้ใน env ของ Vercel อย่างเดียวแล้วลบออกจาก DB (Vee ต้องยืนยันว่า Vercel มี `LINE_CHANNEL_ACCESS_TOKEN` ก่อน)

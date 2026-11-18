@@ -82,6 +82,8 @@ export async function createNotification(opts: {
   line_to_depts?: string[];
   /** ส่งถึงผู้ใช้รายคน (อีเมล) — กระดิ่งจะเด้งเฉพาะคนนี้ เช่น แจ้งผลอนุมัติกลับผู้ขอ */
   to_user_email?: string | null;
+  /** ไม่ส่ง LINE จากตรงนี้ — ใช้เมื่อผู้เรียกส่ง LINE เองอยู่แล้ว (กันข้อความซ้ำ 2 ครั้ง · v8.14) */
+  skip_line?: boolean;
 }) {
   const toDept = normalizeDept(opts.to_dept);
 
@@ -115,7 +117,9 @@ export async function createNotification(opts: {
       // Success - proceed with LINE + push notifications
       const personal = opts.to_user_email?.trim();
       let lineEmails: string[] | undefined;
-      if (personal) {
+      if (opts.skip_line) {
+        lineEmails = undefined;
+      } else if (personal) {
         if (LINE_PERSONAL_TYPES.has(opts.type)) lineEmails = [personal];
       } else if (LINE_DEPT_TYPES.has(opts.type)) {
         const depts = (opts.line_to_depts ?? (toDept ? [toDept] : [])).map(normalizeDept).filter(Boolean) as string[];

@@ -111,7 +111,7 @@ export async function requestSwap(opts: {
   const title = `ขอสลับวันหยุด — ${opts.employeeName}`;
   const body = `มาทำงานวันที่ ${thDate(opts.originalOffDate)} แทน และขอหยุดวันที่ ${thDate(opts.swappedOffDate)}${opts.reason.trim() ? `\nเหตุผล: ${opts.reason.trim()}` : ""}`;
   for (const email of opts.executiveEmails) {
-    await createNotification({ type: "approval", title, message: body, to_user_email: email, link: "/office?tab=hr" }).catch(() => {});
+    await createNotification({ type: "approval", title, message: body, to_user_email: email, link: "/office?tab=hr", skip_line: true }).catch(() => {});
   }
   await notifyPersonalLine(title, body, "/office?tab=hr", opts.executiveEmails).catch(() => {});
   return { ok: true };

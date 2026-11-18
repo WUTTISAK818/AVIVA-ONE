@@ -170,7 +170,7 @@ export async function closeDirective(
   const body = (closeNote ?? "").trim()
     ? `${directive.message}\n\nความเห็นผู้สั่งงาน: ${closeNote!.trim()}`
     : `${directive.message}\n\nงานนี้ปิดเรียบร้อย ขอบคุณครับ`;
-  await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
+  await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives", skip_line: true }).catch(() => {});
   await notifyPersonalLine(title, body, "/directives", [directive.assigned_to], "directive_sent").catch(() => {});
   return { ok: true };
 }
@@ -212,7 +212,7 @@ export async function closeDirectiveWithoutReport(
 
   const title = `✅ ${directive.created_by_name || "ผู้สั่งงาน"} ปิดจ็อบให้แล้ว — ไม่ต้องทำต่อ`;
   const body = `${directive.message}\n\nผู้สั่งงานตรวจแล้วว่าเรียบร้อย จึงปิดจ็อบให้เอง ไม่ต้องกดอะไรเพิ่ม\nเหตุผล: ${reason}`;
-  await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
+  await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives", skip_line: true }).catch(() => {});
   await notifyPersonalLine(title, body, "/directives", [directive.assigned_to], "directive_sent").catch(() => {});
   return { ok: true };
 }

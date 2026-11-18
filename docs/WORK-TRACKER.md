@@ -4005,6 +4005,8 @@ SELECT house_number, status, contract_value, transfer_date FROM revenue_recognit
 | L5 | ทุกทางที่ส่ง LINE ต้องลงบันทึก | ONE | personal-line · milestone · evening-report ส่งผ่านตัวที่บันทึก `line_message_log` | นับยอดใช้จริงได้ครบ | ✅ build ผ่าน (v8.14) |
 | L6 | ตรวจโควตา LINE ทุกวัน | ONE | cron ใหม่อ่านโควตา/ยอดใช้จาก LINE API → บันทึก `audit_log` (module `line`) · ใช้เกิน 80% หรือหมด → แจ้งกระดิ่งผู้บริหาร (ไม่ใช้ LINE) | `audit_log` action `line_quota_check` ทุกวัน | ✅ build ผ่าน (v8.14) |
 
+| L7 | กัน LINE ซ้ำ 2 ครั้งถึงคนเดียวกัน (v8.15) | ONE | เจอตอนตรวจ diff ของ v8.14: คำสั่งงาน "ปิดจ็อบให้แล้ว" 2 จุด และ "ขอสลับวันหยุด" เรียกทั้ง `createNotification` (ส่ง LINE รายคน) และ `notifyPersonalLine` → เพิ่มตัวเลือก `skip_line` ให้เหลือ LINE ฉบับเดียว | build ผ่าน | ✅ build ผ่าน (v8.15) |
+
 **ไฟล์ที่แก้:** `api/notify/personal-line` · `lib/notify.ts` · `api/reports/review-actions` · `api/cron/sales-lead-digest` · `api/notify/milestone` (เลิกส่ง LINE กลุ่ม) · `api/cron/evening-report` (ผู้บริหารเท่านั้น + บันทึก) · ใหม่ `api/cron/line-quota` (08:40 น.) · `lib/line.ts` `getLineQuota()` · คู่มือหัวข้อแจ้งเตือน + สรุปลูกค้าใหม่
 
 **คาดการณ์หลังแก้:** เหลือราว **~240 ข้อความ/เดือน** (ลด ~40%) — ยังเฉียดโควตาฟรี จึงยังต้องอัปเกรดตามที่ Pom เลือก

@@ -82,7 +82,7 @@ export async function sendDirective(opts: {
     link: "/directives",
   }).catch(() => {});
 
-  await notifyPersonalLine(title, body, "/directives", [opts.assignedToEmail]).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [opts.assignedToEmail], "directive_sent").catch(() => {});
 
   return { ok: true };
 }
@@ -123,7 +123,7 @@ export async function updateDirectiveStatus(
       type: "info", title, message: body,
       to_user_email: directive.created_by, link: "/directives",
     }).catch(() => {});
-    await notifyPersonalLine(title, body, "/directives", [directive.created_by]).catch(() => {});
+    await notifyPersonalLine(title, body, "/directives", [directive.created_by], "directive_sent").catch(() => {});
   }
 
   if (status === "done") {
@@ -137,7 +137,7 @@ export async function updateDirectiveStatus(
       to_user_email: directive.created_by,
       link: "/directives",
     }).catch(() => {});
-    await notifyPersonalLine(title, body, "/directives", [directive.created_by]).catch(() => {});
+    await notifyPersonalLine(title, body, "/directives", [directive.created_by], "directive_sent").catch(() => {});
   }
 
   return { ok: true };
@@ -171,7 +171,7 @@ export async function closeDirective(
     ? `${directive.message}\n\nความเห็นผู้สั่งงาน: ${closeNote!.trim()}`
     : `${directive.message}\n\nงานนี้ปิดเรียบร้อย ขอบคุณครับ`;
   await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
-  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to], "directive_sent").catch(() => {});
   return { ok: true };
 }
 
@@ -213,7 +213,7 @@ export async function closeDirectiveWithoutReport(
   const title = `✅ ${directive.created_by_name || "ผู้สั่งงาน"} ปิดจ็อบให้แล้ว — ไม่ต้องทำต่อ`;
   const body = `${directive.message}\n\nผู้สั่งงานตรวจแล้วว่าเรียบร้อย จึงปิดจ็อบให้เอง ไม่ต้องกดอะไรเพิ่ม\nเหตุผล: ${reason}`;
   await createNotification({ type: "success", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
-  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to], "directive_sent").catch(() => {});
   return { ok: true };
 }
 
@@ -242,7 +242,7 @@ export async function returnDirective(
   const title = `🔁 ${directive.created_by_name || "ผู้สั่งงาน"} ตีกลับให้แก้`;
   const body = `${directive.message}\n\nสิ่งที่ต้องแก้: ${reason}`;
   await createNotification({ type: "activity", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
-  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to], "directive_sent").catch(() => {});
   return { ok: true };
 }
 
@@ -285,6 +285,6 @@ export async function cancelDirective(
   const title = `🚫 ${directive.created_by_name || "ผู้สั่งงาน"} ยกเลิกคำสั่งงานนี้แล้ว`;
   const body = `${directive.message}\n\nเหตุผล: ${why}\n\nไม่ต้องดำเนินการต่อแล้วครับ`;
   await createNotification({ type: "activity", title, message: body, to_user_email: directive.assigned_to, link: "/directives" }).catch(() => {});
-  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to]).catch(() => {});
+  await notifyPersonalLine(title, body, "/directives", [directive.assigned_to], "directive_sent").catch(() => {});
   return { ok: true };
 }

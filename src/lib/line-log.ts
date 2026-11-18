@@ -20,6 +20,9 @@ export type LineKind =
   | "report_digest"
   | "construction_progress"
   | "appointment_reminder"
+  | "app_notify"
+  | "edit_request"
+  | "milestone"
   | "other";
 
 export interface LineLogRef {

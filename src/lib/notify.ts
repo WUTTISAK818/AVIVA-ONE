@@ -3,8 +3,13 @@ import { notifyPush } from "./workflow-events";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
-// ประเภทแจ้งเตือนที่ส่งเข้า LINE ส่วนตัวด้วย (รออนุมัติ/ผลอนุมัติ/เคลม/หมุดหมาย/กิจกรรมขาย-ก่อสร้าง)
-const LINE_TYPES = new Set(["approval", "claim", "success", "activity"]);
+// v8.14 (Pom อนุมัติ 17 พ.ย. 69 — LINE เกินโควตาตั้งแต่ 13 พ.ย.): LINE เฉพาะ "เรื่องที่ต้องลงมือ"
+//  - ถึงแผนก: เฉพาะ รออนุมัติ / เคลม (คนรับต้องทำอะไรต่อ)
+//  - ถึงรายคน (to_user_email): ผลคำขอของคนนั้น (อนุมัติ/ไม่อนุมัติ/เคลม) — ส่งถึงคนนั้นคนเดียว
+//  - เรื่องแจ้งให้ทราบ (มีรายงานใหม่ · หมุดหมายการขาย · รับชำระงวด) เหลือกระดิ่ง + push
+//    เดิมส่ง LINE ทุกชนิดนี้ และถ้าหาคนในแผนกไม่เจอ (เช่น ฝ่ายการเงิน) ส่งถึง "ทุกคนที่ผูก LINE"
+const LINE_DEPT_TYPES = new Set(["approval", "claim"]);
+const LINE_PERSONAL_TYPES = new Set(["approval", "claim", "success"]);
 
 // ปรับชื่อแผนกให้เป็น "ภาษาไทยชุดเดียว" — กันค่าอังกฤษ/legacy (management/construction ฯลฯ)
 // หลุดเข้า to_dept/from_dept แล้วทำให้ filter รายแผนก + เจาะ LINE ส่วนตัว resolve ไม่เจอ
@@ -49,15 +54,17 @@ async function resolveDeptEmails(depts: string[]): Promise<string[] | undefined>
   return emails.length ? Array.from(new Set(emails)) : undefined;
 }
 
-/** ยิงแจ้งเตือนเข้า LINE ส่วนตัวของผู้ใช้ที่ผูกบัญชีไว้ (best-effort, ไม่ throw) */
-export async function notifyPersonalLine(title: string, body: string, url?: string, emails?: string[]) {
+/** ยิงแจ้งเตือนเข้า LINE ส่วนตัวของผู้ใช้ที่ผูกบัญชีไว้ (best-effort, ไม่ throw)
+ *  ต้องระบุอีเมลผู้รับเสมอ — ไม่มีผู้รับ = ไม่ส่ง (v8.14 เลิกส่งถึงทุกคนที่ผูกบัญชี) */
+export async function notifyPersonalLine(title: string, body: string, url?: string, emails?: string[], kind?: string) {
+  if (!emails || emails.filter(Boolean).length === 0) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
     await fetch("/api/notify/personal-line", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ title, body, url, emails }),
+      body: JSON.stringify({ title, body, url, emails, kind }),
     });
   } catch { /* best-effort */ }
 }
@@ -106,11 +113,17 @@ export async function createNotification(opts: {
       }
 
       // Success - proceed with LINE + push notifications
-      if (LINE_TYPES.has(opts.type)) {
+      const personal = opts.to_user_email?.trim();
+      let lineEmails: string[] | undefined;
+      if (personal) {
+        if (LINE_PERSONAL_TYPES.has(opts.type)) lineEmails = [personal];
+      } else if (LINE_DEPT_TYPES.has(opts.type)) {
         const depts = (opts.line_to_depts ?? (toDept ? [toDept] : [])).map(normalizeDept).filter(Boolean) as string[];
-        const emails = await resolveDeptEmails(depts);
+        lineEmails = await resolveDeptEmails(depts);
+      }
+      if (lineEmails && lineEmails.length > 0) {
         const url = opts.link ?? (opts.record_id ? `/crm?lead=${opts.record_id}` : undefined);
-        await notifyPersonalLine(opts.title, opts.message, url, emails).catch(err =>
+        await notifyPersonalLine(opts.title, opts.message, url, lineEmails).catch(err =>
           console.error(`[createNotification] LINE notify failed:`, err)
         );
       }
@@ -133,8 +146,9 @@ export async function createNotification(opts: {
 }
 
 /**
- * แจ้งเตือน LINE สำหรับกิจกรรมฝ่ายขาย/ก่อสร้าง ส่งไปยังผู้บริหาร + หัวหน้าแผนก
+ * แจ้งเตือนกิจกรรมฝ่ายขาย/ก่อสร้าง ไปยังผู้บริหาร + หัวหน้าแผนก
  * ใช้เมื่อกิจกรรมใหม่ถูกสร้าง (sales_activities, construction_reports, etc.)
+ * v8.14: เป็นเรื่องแจ้งให้ทราบ จึงเหลือกระดิ่ง + push (ไม่ส่ง LINE แล้ว — ชื่อฟังก์ชันคงไว้ไม่ให้กระทบผู้เรียก)
  */
 export async function notifyActivityLine(dept: "ฝ่ายขาย" | "ฝ่ายก่อสร้าง", title: string, message: string, link?: string) {
   try {

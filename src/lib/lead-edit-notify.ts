@@ -21,7 +21,7 @@ export async function notifyEditRequester(email: string | null | undefined, titl
     from_dept: "ผู้บริหาร", to_user_email: email,
     record_id: leadId, link,
   });
-  await notifyPersonalLine(title, message, link, [email]);
+  await notifyPersonalLine(title, message, link, [email], "edit_request");
 }
 
 
